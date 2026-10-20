@@ -185,7 +185,7 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
     checkpoint.data.health = health;
     network.push({ at: new Date().toISOString(), kind: 'response', method: 'GET', url: `${base}/api/health`, status: healthResponse.status(), body: health });
     await page.addInitScript(({ apiBase, session }) => {
-      localStorage.setItem('outfit.server', apiBase); if (session) sessionStorage.setItem('outfit.session', session);
+      localStorage.setItem('outfit.server', apiBase); if (session) { sessionStorage.setItem('outfit.session', session); localStorage.setItem('outfit.onboarding.v1', 'done'); }
       // Observe exactly the string App reads, before its ordinary done/error handler aborts XHR.
       // Calling the native getter first preserves native return values and exception semantics.
       const descriptor = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'responseText');
@@ -213,6 +213,14 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
     await page.goto(checkpoint.projectId ? `/projects/${checkpoint.projectId}` : '/');
     await phase('01-register', async () => {
       if (checkpoint.registered && checkpoint.session) return;
+      const onboarding = await page.getByTestId('onboarding-1').waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
+      if (onboarding) {
+        for (let index = 1; index <= 3; index += 1) {
+          await expect(page.getByTestId(`onboarding-${index}`)).toBeVisible();
+          await page.getByRole('button', { name: index === 3 ? '开始创作' : '下一步', exact: true }).click();
+        }
+        await expect(page.getByTestId('onboarding-1')).toHaveCount(0);
+      }
       await page.getByRole('button', { name: '注册', exact: true }).click();
       await page.getByLabel('怎么称呼你', { exact: true }).fill('小序');
       await page.getByLabel('用户名', { exact: true }).fill(checkpoint.username);
