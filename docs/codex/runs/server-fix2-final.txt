@@ -1,0 +1,6 @@
+已完成，验收交接已覆盖重写：[server/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-server/server/FINAL.md)。
+
+- 170 项测试通过，ruff 干净。
+- 真实塞腰、去吊牌通过；袖口展开未到位，已如实标注，选区外像素变化为 0。
+- 本轮估算 ¥3.078382，用时约 17 分钟。
+- 本地提交 `44e5be6`、`de24c9b`；未 push、部署或连接服务器。
