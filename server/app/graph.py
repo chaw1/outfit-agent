@@ -1,18 +1,25 @@
-"""Durable conversation graph: every external input resumes a checkpointed pause.
+"""Durable decision graph; request dependencies arrive through Runtime context.
 
-Waiting nodes contain no side effects before interrupt(): LangGraph re-executes that
-node on resume. Generation itself remains in the separate database worker queue.
+Waiting nodes have no side effects before interrupt. Worker jobs remain database
+facts and are refreshed at turn entry; workers never race users to resume a pause.
+The turn_* and incoming fields are output channels, not project domain state.
 """
 
 import json
+from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, TypedDict
 from uuid import uuid4
 
+from langgraph.config import get_stream_writer
 from langgraph.graph import START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.runtime import Runtime
 from langgraph.types import Command, interrupt
+
+from app.workflow import fingerprint
 
 
 class AgentState(TypedDict, total=False):
@@ -23,6 +30,7 @@ class AgentState(TypedDict, total=False):
     directions: list[dict]
     chosen_direction_id: str | None
     script: dict | None
+    script_revision: int
     images: list[dict]
     note: dict | None
     video: dict | None
@@ -33,6 +41,22 @@ class AgentState(TypedDict, total=False):
     turn_text: str
     turn_cards: list[dict]
     turn_jobs: list[dict]
+
+
+@dataclass(frozen=True)
+class GraphContext:
+    workflow: Any
+
+
+@dataclass
+class BoundGraph:
+    """Test convenience only: production compiles once and passes GraphContext."""
+
+    graph: Any
+    workflow: Any
+
+    def __getattr__(self, name: str):
+        return getattr(self.graph, name)
 
 
 def _history(event: dict, result: dict) -> list[dict]:
@@ -71,20 +95,16 @@ def _history(event: dict, result: dict) -> list[dict]:
     ]
 
 
-def build_graph(checkpointer: Any, workflow: Any):
-    """Build with PostgresSaver in production; tests may inject InMemorySaver.
+def build_graph(checkpointer: Any, workflow: Any = None):
+    """Compile once with PostgresSaver; transactions are supplied per invocation."""
+    builder = StateGraph(AgentState, context_schema=GraphContext)
 
-    The graph is rebuilt per HTTP turn with a fresh transaction-bound Workflow.
-    Its durable identity is the project ID, never a process-local Python object.
-    """
-    builder = StateGraph(AgentState)
-
-    def initialize(state: AgentState) -> dict:
-        result = workflow.start(state["incoming"])
+    def initialize(state: AgentState, runtime: Runtime[GraphContext]) -> dict:
+        result = runtime.context.workflow.start(state["incoming"], emit=get_stream_writer())
         return {**result, "messages": _history(state["incoming"], result)}
 
-    def execute(state: AgentState) -> dict:
-        result = workflow.handle(state, state["incoming"])
+    def execute(state: AgentState, runtime: Runtime[GraphContext]) -> dict:
+        result = runtime.context.workflow.handle(state, state["incoming"])
         return {**result, "messages": _history(state["incoming"], result)}
 
     def wait_for_input(state: AgentState) -> dict:
@@ -92,14 +112,14 @@ def build_graph(checkpointer: Any, workflow: Any):
         return {"incoming": event}
 
     def route(state: AgentState) -> str:
-        stage = state.get("stage", "direction")
-        return f"await_{stage}" if stage != "brief" else "await_direction"
+        return f"await_{state.get('stage', 'brief')}"
 
     builder.add_node("understand_brief", initialize)
     builder.add_node("execute_stage_tool", execute)
     builder.add_edge(START, "understand_brief")
     wait_nodes = [
-        f"await_{stage}" for stage in ("direction", "script", "images", "note", "video", "done")
+        f"await_{stage}"
+        for stage in ("brief", "direction", "script", "images", "note", "video", "done")
     ]
     for name in wait_nodes:
         builder.add_node(name, wait_for_input)
@@ -107,9 +127,7 @@ def build_graph(checkpointer: Any, workflow: Any):
     builder.add_conditional_edges("understand_brief", route, wait_nodes)
     builder.add_conditional_edges("execute_stage_tool", route, wait_nodes)
     graph = builder.compile(checkpointer=checkpointer)
-    # This is only the current request's dependency, never conversation state.
-    graph._outfit_workflow = workflow
-    return graph
+    return BoundGraph(graph, workflow) if workflow is not None else graph
 
 
 def get_graph_state(graph: Any, project_id: str) -> dict:
@@ -117,7 +135,68 @@ def get_graph_state(graph: Any, project_id: str) -> dict:
     return dict(snapshot.values or {})
 
 
-def run_turn(graph: Any, project: Any, text: str | None, action: dict | None) -> dict:
+def _script_identity(script: dict) -> str:
+    content = {key: value for key, value in script.items() if key != "status"}
+    if content:
+        content.setdefault("version", 1)
+    return fingerprint(content)
+
+
+def script_versions(graph: Any, project_id: str) -> list[dict]:
+    """Project script versions derived exclusively from its checkpoint history."""
+    current = get_graph_state(graph, project_id).get("script") or {}
+    current_key = _script_identity(current)
+    versions = {}
+    for snapshot in graph.get_state_history({"configurable": {"thread_id": project_id}}):
+        script = snapshot.values.get("script") or {}
+        checkpoint_id = snapshot.config.get("configurable", {}).get("checkpoint_id")
+        if not script or not checkpoint_id:
+            continue
+        key = _script_identity(script)
+        # Iteration is newest-first: retain the original creation checkpoint for
+        # each content version, rather than treating confirmation as a revision.
+        versions[key] = {
+            "version": script.get("version", 1),
+            "checkpoint_id": checkpoint_id,
+            "created_at": snapshot.created_at,
+            "summary": " / ".join(script.get("title_ideas", [])[:2])
+            or script.get("cover", {}).get("scene", "脚本"),
+            "current": key == current_key,
+        }
+    return sorted(versions.values(), key=lambda item: (item["version"], item["created_at"] or ""))
+
+
+def _load_script_history(graph: Any, project_id: str, workflow: Any) -> None:
+    workflow.script_versions = script_versions(graph, project_id)
+    allowed = {item["checkpoint_id"] for item in workflow.script_versions}
+    workflow.restore_scripts = {}
+    for checkpoint_id in allowed:
+        snapshot = graph.get_state(
+            {
+                "configurable": {
+                    "thread_id": project_id,
+                    "checkpoint_id": checkpoint_id,
+                }
+            }
+        )
+        if snapshot.values.get("script"):
+            restored = deepcopy(snapshot.values["script"])
+            restored.setdefault("version", 1)
+            workflow.restore_scripts[checkpoint_id] = restored
+
+
+def run_turn(
+    graph: Any,
+    project: Any,
+    text: str | None,
+    action: dict | None,
+    *,
+    workflow: Any = None,
+    emit: Callable[[str, dict], None] | None = None,
+) -> dict:
+    workflow = workflow or getattr(graph, "workflow", None)
+    if workflow is None:
+        raise ValueError("run_turn requires a transaction-bound workflow")
     config = {"configurable": {"thread_id": project.id}}
     snapshot = graph.get_state(config)
     state = dict(snapshot.values or {})
@@ -127,22 +206,27 @@ def run_turn(graph: Any, project: Any, text: str | None, action: dict | None) ->
         "turn_id": str(uuid4()),
         "created_at": datetime.now(UTC).isoformat(timespec="microseconds"),
     }
-    workflow = graph._outfit_workflow
+    _load_script_history(graph, project.id, workflow)
     workflow.restore_jobs(state)
-    # Reject malformed/out-of-stage actions before consuming the durable pause.
     workflow.validate(state, event)
     if not state.get("stage"):
-        # START can already be checkpointed when the first provider call fails.
-        # A fresh input restarts understand_brief instead of skipping it.
-        graph.invoke({"incoming": event, "messages": []}, config)
+        graph_input = {"incoming": event, "messages": []}
     elif any(task.interrupts for task in snapshot.tasks):
-        graph.invoke(Command(resume=event), config)
+        graph_input = Command(resume=event)
     else:
-        # A provider exception may leave execute_stage_tool pending. Replace the
-        # failed input so a corrected request can resume without a stuck thread.
-        waiting_stage = state.get("stage", "direction")
+        # A failed node can be resumed with corrected input without replaying the
+        # old failed user request or consuming the durable pause twice.
+        waiting_stage = state.get("stage", "brief")
         graph.update_state(config, {"incoming": event}, as_node=f"await_{waiting_stage}")
-        graph.invoke(None, config)
+        graph_input = None
+    for mode, value in graph.stream(
+        graph_input,
+        config,
+        context=GraphContext(workflow=workflow),
+        stream_mode=["custom", "updates"],
+    ):
+        if mode == "custom" and emit:
+            emit(value["event"], value["data"])
     state = get_graph_state(graph, project.id)
     workflow.restore_jobs(state)
     return {

@@ -1,8 +1,8 @@
-"""Stage-limited tools and replay-safe generation intents for the LangGraph."""
+"""Model-selected tools within deterministic, replay-safe stage boundaries."""
 
 import hashlib
 import json
-import re
+from copy import deepcopy
 from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import select
@@ -15,11 +15,18 @@ from app.providers import ProviderHub
 from app.views import image_items, job_dict
 
 ALLOWED_TOOLS = {
-    "brief": {"analyze_garments", "propose_directions"},
+    "brief": {"propose_directions", "chat"},
     "direction": {"propose_directions", "write_script", "chat"},
-    "script": {"revise_script", "generate_images", "chat"},
-    "images": {"edit_image", "write_note", "chat"},
-    "note": {"edit_image", "write_note", "generate_video", "chat"},
+    "script": {"revise_script", "restore_script", "generate_images", "chat"},
+    "images": {"revise_script", "restore_script", "edit_image", "write_note", "chat"},
+    "note": {
+        "revise_script",
+        "restore_script",
+        "edit_image",
+        "write_note",
+        "generate_video",
+        "chat",
+    },
     "video": {"write_note", "chat"},
     "done": {"write_note", "chat"},
 }
@@ -36,6 +43,9 @@ class Workflow:
         self.session = session
         self.project = project
         self.providers = ProviderHub(session, project.id)
+        # Populated from this thread's checkpoint history at the turn boundary.
+        self.restore_scripts: dict[str, dict] = {}
+        self.script_versions: list[dict] = []
 
     def _allow(self, stage: str, tool: str) -> None:
         if tool not in ALLOWED_TOOLS.get(stage, set()):
@@ -57,8 +67,9 @@ class Workflow:
             or job.project_id != self.project.id
             or job.user_id != self.project.user_id
             or job.kind not in {"image", "edit"}
+            or job.payload.get("purpose") == "preview"
         ):
-            raise AppError("image_not_found", "这张图片不属于当前项目。", 404)
+            raise AppError("image_not_found", "这张图片不属于当前项目的脚本图片。", 404)
         if succeeded and (job.status != "succeeded" or not job.result_asset_id):
             raise AppError("image_not_ready", "请等图片生成成功后再操作。")
         return job
@@ -73,14 +84,18 @@ class Workflow:
             "images",
             "note",
             "video",
+            "pending_action",
         )
         context = {key: state.get(key) for key in keys}
         context.update(
             brand=self.project.brand,
             stage=state.get("stage", "brief"),
             max_outfit_assets_per_shot=2 if self.project.model_asset_id else 3,
+            script_versions=self.script_versions,
         )
-        context["selected_image_ids"] = state.get("selected_image_ids", [])
+        context["selected_image_ids"] = state.get(
+            "selected_image_ids", (state.get("note") or {}).get("image_ids", [])
+        )
         context["chosen_direction"] = next(
             (
                 item
@@ -89,6 +104,29 @@ class Workflow:
             ),
             {},
         )
+        # Image order, shot descriptions and edit instructions let the model resolve
+        # references such as "the cafe one" without a second hard-coded router.
+        shots = {shot["id"]: shot for shot in (state.get("script") or {}).get("shots", [])}
+        context["images"] = []
+        for index, item in enumerate(state.get("images", []), 1):
+            job = self.session.get(Job, item["id"])
+            payload = job.payload if job else {}
+            shot = payload.get("shot", {})
+            if not shot and payload.get("script_version") == (state.get("script") or {}).get(
+                "version"
+            ):
+                shot = shots.get(item.get("shot_id"), {})
+            context["images"].append(
+                {
+                    **item,
+                    "position": index,
+                    "shot": shot,
+                    "scene": shot.get("scene", ""),
+                    "caption": shot.get("caption", ""),
+                    "prompt": payload.get("prompt", ""),
+                    "garment_asset_ids": payload.get("garment_asset_ids", []),
+                }
+            )
         recent_messages = []
         for message in state.get("messages", [])[-12:]:
             if isinstance(message, dict):
@@ -115,27 +153,38 @@ class Workflow:
         self._allow(stage, tool)
         return self.providers.text(tool, self._context(state), instruction)
 
+    @staticmethod
+    def _reply(result: dict, fallback: str) -> str:
+        result = result or {}
+        reply = result.get("reply") or result.get("text")
+        return reply.strip() if isinstance(reply, str) and reply.strip() else fallback
+
+    def _action_reply(self, tool: str, state: dict, action: dict, fallback: str) -> str:
+        result = self._text_tool(
+            state["stage"], tool, state, json.dumps(action, ensure_ascii=False)
+        )
+        return self._reply(result, fallback)
+
     def validate(self, state: dict, event: dict) -> None:
-        """Validate outside the interrupt so rejected actions leave it resumable."""
+        """Validate outside interrupt, so a rejected action leaves its pause intact."""
         action = event.get("action")
         if not action:
             return
         if not isinstance(action, dict) or not isinstance(action.get("type"), str):
             raise AppError("invalid_action", "无法识别这个操作。")
-        stage = state.get("stage", "brief")
-        kind = action.get("type")
+        stage, kind = state.get("stage", "brief"), action["type"]
         required = {
             "choose_direction": "write_script",
             "confirm_script": "generate_images",
             "edit_image": "edit_image",
             "approve_images": "write_note",
             "confirm_video": "generate_video",
+            "restore_script": "restore_script",
         }
         if kind not in required:
             raise AppError("invalid_action", "无法识别这个操作。")
         if kind == "approve_images" and stage in {"video", "done"}:
             raise AppError("tool_not_allowed", "视频确认后可以修改笔记文字，图片顺序保留。")
-        # Repeated confirmations are reads of the original jobs, not new spends.
         repeated_script = (
             kind == "confirm_script"
             and stage == "images"
@@ -150,6 +199,9 @@ class Workflow:
         elif kind == "confirm_script":
             if not state.get("script"):
                 raise AppError("script_not_ready", "先一起写好脚本，再确认生成。")
+        elif kind == "restore_script":
+            if action.get("checkpoint_id") not in self.restore_scripts:
+                raise AppError("script_version_not_found", "这版脚本不属于当前项目的历史。", 404)
         elif kind == "edit_image":
             self._image_job(action.get("image_id", ""))
             if not isinstance(action.get("instruction"), str) or not action["instruction"].strip():
@@ -176,12 +228,14 @@ class Workflow:
                 if not video_job or video_job.payload.get("image_id") != action["image_id"]:
                     raise AppError("video_already_confirmed", "这个项目已经确认了视频生成。")
 
-    def start(self, event: dict) -> dict:
-        self._allow("brief", "analyze_garments")
+    def start(self, event: dict, emit=None) -> dict:
         assets = [self._asset(asset_id) for asset_id in self.project.garment_asset_ids]
         garments = self.providers.analyze_garments(assets)
         for item in garments:
             item["url"] = asset_dict(self._asset(item["asset_id"]))["url"]
+        garment_card = self._card("garments", {"items": garments})
+        if emit:
+            emit({"event": "card", "data": garment_card})
         garment_summary = "、".join(
             f"{item.get('color', '')}{item.get('category', '衣服')}" for item in garments
         )
@@ -204,22 +258,30 @@ class Workflow:
             "script": None,
             "chosen_direction_id": None,
             "job_intents": [],
+            "script_revision": 0,
         }
-        result = self._text_tool("brief", "propose_directions", state, event.get("text", ""))
-        directions = self._directions(result)
+        name, result = self.providers.select_tool(
+            sorted(ALLOWED_TOOLS["brief"]), self._context(state), event.get("text", "")
+        )
+        self._allow("brief", name)
+        if name == "chat":
+            if result.get("blocked_tool"):
+                self._allow("brief", result["blocked_tool"])
+            state.update(directions=[], pending_action=None)
+            return self._finish(
+                state, self._reply(result, "说说这次想拍什么样的穿搭吧。"), [garment_card]
+            )
         state.update(
-            directions=directions,
+            directions=self._directions(result),
             stage="direction",
             pending_action=self._pending("choose_direction"),
         )
+        jobs = self._preview_directions(state)
         return self._finish(
             state,
-            "衣服我看过啦，颜色和质感很适合做一组有生活感的穿搭。"
-            "我想了这几个拍摄方向，你更想先试哪一个？",
-            [
-                self._card("garments", {"items": garments}),
-                self._card("directions", {"options": directions}),
-            ],
+            self._reply(result, "方向已经整理好了，挑一个喜欢的，我们继续细化。"),
+            [garment_card, self._card("directions", {"options": state["directions"]})],
+            jobs,
         )
 
     @staticmethod
@@ -231,8 +293,10 @@ class Workflow:
             raise AppError("provider_invalid_response", "方向生成没有完成，请再试一次。", 502)
         return directions
 
-    def _script(self, result: dict) -> dict:
-        script = dict(result)
+    def _script(self, result: dict, state: dict) -> dict:
+        script = {
+            key: value for key, value in result.items() if key not in {"reply", "direction_id"}
+        }
         shots = script.get("shots", [])
         if len(shots) < 4:
             raise AppError("provider_invalid_response", "脚本镜头不足，请再试一次。", 502)
@@ -251,7 +315,14 @@ class Workflow:
                     502,
                 )
             clean_shots.append({**shot, "id": f"shot-{index}", "outfit_asset_ids": outfits})
-        script.update(status="draft", shots=clean_shots)
+        state["script_revision"] = (
+            max(
+                state.get("script_revision", 0),
+                (state.get("script") or {}).get("version", 1 if state.get("script") else 0),
+            )
+            + 1
+        )
+        script.update(status="draft", shots=clean_shots, version=state["script_revision"])
         script["video"] = {**script.get("video", {}), "duration": 5}
         return script
 
@@ -267,6 +338,12 @@ class Workflow:
     def handle(self, old_state: dict, event: dict) -> dict:
         state = dict(old_state)
         state["images"] = image_items(self.session, self.project.id)
+        if state.get("stage") == "video" and state.get("video"):
+            job = self.session.get(Job, state["video"]["job_id"])
+            if job:
+                state["video"] = self._video_card_content(job)
+                if job.status == "succeeded":
+                    state["stage"] = "done"
         self.validate(state, event)
         action = event.get("action")
         if action:
@@ -276,143 +353,106 @@ class Workflow:
                 "edit_image": self._edit_image,
                 "approve_images": self._write_note,
                 "confirm_video": self._generate_video,
+                "restore_script": self._restore_script,
             }
             return handlers[action["type"]](state, action)
-        text = event.get("text", "").strip()
-        stage = state["stage"]
-        if stage == "direction":
-            chosen = self._direction_from_text(state, text)
-            if chosen:
-                return self._choose(state, {"direction_id": chosen})
-            if not self._question(text):
-                result = self._text_tool(stage, "propose_directions", state, text)
-                state["directions"] = self._directions(result)
-                return self._finish(
-                    state,
-                    "好呀，我按你说的换了几组思路，看看这次更接近吗？",
-                    [self._card("directions", {"options": state["directions"]})],
-                )
-        elif stage == "script" and not self._question(text):
-            result = self._text_tool(stage, "revise_script", state, text)
-            state["script"] = self._script(result)
+        text, stage = event.get("text", "").strip(), state["stage"]
+        name, args = self.providers.select_tool(
+            sorted(ALLOWED_TOOLS[stage]), self._context(state), text
+        )
+        self._allow(stage, name)
+        if name == "chat":
+            if args.get("blocked_tool"):
+                self._allow(stage, args["blocked_tool"])
+            cards = []
+            if state["images"]:
+                cards.append(self._card("images", {"items": state["images"]}))
+            if state.get("video"):
+                cards.append(self._card("video", state["video"]))
+            return self._finish(state, self._reply(args, "我们继续把这组穿搭打磨好。"), cards)
+        if name == "propose_directions":
+            state.update(
+                directions=self._directions(args),
+                stage="direction",
+                pending_action=self._pending("choose_direction"),
+            )
+            jobs = self._preview_directions(state)
             return self._finish(
                 state,
-                "收到，我把场景、动作和配文一起改好了。你看看这版顺不顺，满意后再确认出图。",
+                self._reply(args, "新的方向准备好了，看看更喜欢哪一个。"),
+                [self._card("directions", {"options": state["directions"]})],
+                jobs,
+            )
+        if name == "write_script":
+            action = {"type": "choose_direction", "direction_id": args.get("direction_id")}
+            self.validate(state, {"action": action})
+            return self._choose(state, action, result=args)
+        if name == "revise_script":
+            state.update(
+                script=self._script(args, state),
+                stage="script",
+                pending_action=self._pending("confirm_script"),
+            )
+            return self._finish(
+                state,
+                self._reply(args, "脚本改好了，确认后再安排出图。"),
                 [self._card("script", state["script"])],
             )
-        elif stage == "images":
-            edit_action = self._image_edit_from_text(state, text)
-            if edit_action:
-                return self._edit_image(state, edit_action)
-        elif (
-            stage in {"note", "video", "done"}
-            and state.get("note")
-            and self._revision_requested(text)
-            and not self._question(text)
-        ):
-            return self._write_note(state, {"image_ids": state["note"]["image_ids"]}, text)
-        if stage == "video" and state.get("video"):
-            job = self.session.get(Job, state["video"]["job_id"])
-            if job:
-                state["video"] = self._video_card_content(job)
-                if job.status == "succeeded":
-                    state["stage"] = "done"
-        reply = self._text_tool(state["stage"], "chat", state, text)
-        cards = []
-        if state["images"]:
-            cards.append(self._card("images", {"items": state["images"]}))
-        if state.get("video"):
-            cards.append(self._card("video", state["video"]))
-        return self._finish(state, reply.get("text", "我们继续把这组穿搭打磨好。"), cards)
+        if name == "restore_script":
+            action = {"type": name, "checkpoint_id": args.get("checkpoint_id")}
+            self.validate(state, {"action": action})
+            return self._restore_script(state, action, result=args)
+        if name == "edit_image":
+            action = {
+                "type": name,
+                "image_id": args.get("image_id"),
+                "instruction": args.get("instruction"),
+            }
+            self.validate(state, {"action": action})
+            return self._edit_image(state, action, result=args)
+        if name == "write_note":
+            selected = args.get("image_ids")
+            if stage in {"note", "video", "done"}:
+                selected = state["note"]["image_ids"]
+                for image_id in selected:
+                    self._image_job(image_id)
+            else:
+                self.validate(state, {"action": {"type": "approve_images", "image_ids": selected}})
+            return self._write_note(state, {"image_ids": selected}, text, result=args)
+        # Free text may express intent, but spending requires the explicit UI action.
+        if name in {"generate_images", "generate_video"}:
+            kind = "confirm_script" if name == "generate_images" else "confirm_video"
+            state["pending_action"] = self._pending(kind)
+            reply = self._reply(args, "准备好了，请在确认卡片上确认后开始生成。")
+            return self._finish(state, reply + "\n" + state["pending_action"]["prompt"], [])
+        raise AppError("tool_not_allowed", "当前阶段不能执行这个操作，请先完成前面的确认。")
 
-    @staticmethod
-    def _question(text: str) -> bool:
-        revision = ("换成", "改成", "调整", "重写", "增加", "删除", "不要", "更松弛", "改一下")
-        if any(word in text for word in revision):
-            return False
-        return (
-            not text
-            or text.startswith(("请问", "解释", "你好", "谢谢"))
-            or any(
-                word in text
-                for word in ("为什么", "多少钱", "什么区别", "是否", "怎么样", "怎么拍", "怎么搭")
-            )
-            or text.endswith(("?", "？"))
-        )
-
-    @staticmethod
-    def _revision_requested(text: str) -> bool:
-        return any(
-            word in text
-            for word in (
-                "改",
-                "换",
-                "重写",
-                "调整",
-                "增加",
-                "删除",
-                "精简",
-                "再短",
-                "更短",
-                "不要",
-                "加上",
-                "分段",
-                "通勤风",
-                "松弛一点",
-            )
-        )
-
-    def _image_edit_from_text(self, state: dict, text: str) -> dict | None:
-        if any(word in text for word in ("不要改", "先别", "不改", "不用改")):
-            return None
-        requested = self._revision_requested(text) or any(
-            word in text for word in ("太暗", "太亮", "亮一点", "暗一点", "塞进", "修一下")
-        )
-        if not requested or ("为什么" in text and not self._revision_requested(text)):
-            return None
-        images = state["images"]
-        target = next((item for item in images if item["id"] in text), None)
-        ordinal = re.search(r"第\s*(10|[1-9一二三四五六七八九十])\s*张", text)
-        if target is None and ordinal:
-            numbers = {word: index for index, word in enumerate("一二三四五六七八九十", 1)}
-            number = int(ordinal[1]) if ordinal[1].isdigit() else numbers[ordinal[1]]
-            if 0 < number <= len(images):
-                target = images[number - 1]
-        if target is None and len(images) == 1:
-            target = images[0]
-        if target is None or target["status"] != "succeeded":
-            return None
-        return {"type": "edit_image", "image_id": target["id"], "instruction": text}
-
-    @staticmethod
-    def _direction_from_text(state: dict, text: str) -> str | None:
-        for option in state["directions"]:
-            if text in {option["id"], option.get("name")}:
-                return option["id"]
-        match = re.fullmatch(
-            r"(?:我选|选择|就选|选)?\s*第?\s*([123一二三])\s*(?:个|种|吧|方向)?", text
-        )
-        if match:
-            index = {"一": 0, "二": 1, "三": 2, "1": 0, "2": 1, "3": 2}[match[1]]
-            if index < len(state["directions"]):
-                return state["directions"][index]["id"]
-        return None
-
-    def _choose(self, state: dict, action: dict) -> dict:
+    def _choose(self, state: dict, action: dict, result: dict | None = None) -> dict:
         self._allow(state["stage"], "write_script")
         state["chosen_direction_id"] = action["direction_id"]
-        result = self._text_tool("direction", "write_script", state)
+        result = result or self._text_tool("direction", "write_script", state)
         state.update(
-            script=self._script(result),
+            script=self._script(result, state),
             stage="script",
             pending_action=self._pending("confirm_script"),
         )
         return self._finish(
             state,
-            "就拍这个方向吧！我把封面和每张图的穿搭、动作都写好了。"
-            "先看看脚本，想换成通勤风或者再松弛一点都可以继续改。",
+            self._reply(result, "脚本写好了，先看看，确认后再出图。"),
             [self._card("script", state["script"])],
         )
+
+    def _restore_script(self, state: dict, action: dict, result: dict | None = None) -> dict:
+        script = deepcopy(self.restore_scripts[action["checkpoint_id"]])
+        script["status"] = "draft"
+        fallback = "已恢复这版脚本，原来的图片也保留着，确认后可以按这版出图。"
+        reply = (
+            self._reply(result, fallback)
+            if result
+            else self._action_reply("restore_script", state, action, fallback)
+        )
+        state.update(script=script, stage="script", pending_action=self._pending("confirm_script"))
+        return self._finish(state, reply, [self._card("script", script)])
 
     def _enqueue(self, state: dict, kind: str, payload: dict, dedupe_key: str) -> Job:
         job_id = str(uuid5(NAMESPACE_URL, dedupe_key))
@@ -441,27 +481,70 @@ class Workflow:
         return job
 
     def restore_jobs(self, state: dict) -> None:
-        """Repair checkpoint/transaction commit gaps without creating new spends."""
         for intent in state.get("job_intents", []):
             self._restore_job(intent)
 
+    def _garment_prompt(self, state: dict, asset_ids: list[str]) -> str:
+        garments = {item["asset_id"]: item for item in state.get("garments", [])}
+        parts = [
+            f"原衣服{index}：{garments.get(asset_id, {}).get('color', '')}"
+            f"{garments.get(asset_id, {}).get('material', '')}"
+            f"{garments.get(asset_id, {}).get('category', '品牌衣服')}"
+            for index, asset_id in enumerate(asset_ids, 1)
+        ]
+        return (
+            "；".join(parts)
+            + "。严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变。"
+        )
+
+    def _preview_directions(self, state: dict) -> list[Job]:
+        jobs = []
+        clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
+        refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes
+        for direction in state["directions"]:
+            prompt = (
+                f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
+                f"氛围：{direction['mood']}；配色：{direction['palette']}。"
+                + self._garment_prompt(state, clothes)
+            )
+            key = f"{self.project.id}:preview:{fingerprint(direction)}"
+            payload = {
+                "purpose": "preview",
+                "direction_id": direction["id"],
+                "prompt": prompt,
+                "reference_asset_ids": refs,
+                "garment_asset_ids": clothes,
+            }
+            job = self._enqueue(state, "image", payload, key)
+            direction.update(preview_status=job.status)
+            if job.result_asset_id:
+                direction["preview_url"] = asset_dict(self._asset(job.result_asset_id))["url"]
+            jobs.append(job)
+        return jobs
+
     def _generate_images(self, state: dict, action: dict) -> dict:
-        script = dict(state["script"])
-        if state["stage"] == "script":
+        original_stage = state["stage"]
+        if original_stage == "script":
             self._allow("script", "generate_images")
+        reply = self._action_reply(
+            "generate_images",
+            {**state, "stage": "script"},
+            action,
+            "脚本确认了，图片会陆续出现在工作台。",
+        )
+        script = dict(state["script"])
         script["status"] = "confirmed"
         state["script"] = script
-        script_hash = fingerprint(script)
-        jobs = []
+        script_hash, jobs = fingerprint(script), []
         for shot in script["shots"]:
             references = [self.project.model_asset_id] if self.project.model_asset_id else []
-            references += shot["outfit_asset_ids"]
-            references = list(dict.fromkeys(references))
+            references = list(dict.fromkeys(references + shot["outfit_asset_ids"]))
             prompt = (
-                "小红书穿搭摄影，保持参考图中模特身份和品牌衣服细节。"
+                "小红书穿搭摄影，保持参考图中模特身份。"
                 if self.project.model_asset_id
-                else "小红书穿搭摄影，使用成年虚构模特，保持参考品牌衣服的颜色面料细节。"
+                else "小红书穿搭摄影，使用成年虚构模特。"
             )
+            prompt += self._garment_prompt(state, shot["outfit_asset_ids"])
             prompt += f"场景：{shot['scene']}；动作：{shot['pose']}；镜头：{shot['camera']}。"
             payload = {
                 "shot_id": shot["id"],
@@ -469,14 +552,16 @@ class Workflow:
                 "prompt": prompt,
                 "reference_asset_ids": references,
                 "script_hash": script_hash,
+                "garment_asset_ids": shot["outfit_asset_ids"],
+                "script_version": script.get("version", 1),
+                "shot": deepcopy(shot),
             }
             key = f"{self.project.id}:image:{script_hash}:{shot['id']}"
             jobs.append(self._enqueue(state, "image", payload, key))
         state.update(stage="images", pending_action=None)
         return self._finish(
             state,
-            "脚本确认啦，我已经把这组图安排上了。"
-            "图片会陆续出现在工作台，喜欢的留下，细节不满意我们再改。",
+            reply,
             [
                 self._card("script", script),
                 self._card("images", {"items": image_items(self.session, self.project.id)}),
@@ -484,16 +569,20 @@ class Workflow:
             jobs,
         )
 
-    def _edit_image(self, state: dict, action: dict) -> dict:
+    def _edit_image(self, state: dict, action: dict, result: dict | None = None) -> dict:
         self._allow(state["stage"], "edit_image")
-        parent = self._image_job(action["image_id"])
-        instruction = action["instruction"].strip()
+        parent, instruction = self._image_job(action["image_id"]), action["instruction"].strip()
+        reply = (
+            self._reply(result, "这张会单独改一版，原图保留。")
+            if result
+            else self._action_reply("edit_image", state, action, "这张会单独改一版，原图保留。")
+        )
         key = f"{self.project.id}:edit:{fingerprint([parent.id, instruction])}"
         existing = self.session.scalar(select(Job).where(Job.dedupe_key == key))
         if existing:
             return self._finish(
                 state,
-                "这处修改已经安排好了，我会保留原图方便你比较。",
+                reply,
                 [self._card("images", {"items": image_items(self.session, self.project.id)})],
                 [existing],
             )
@@ -503,6 +592,15 @@ class Workflow:
             for item in image_items(self.session, self.project.id)
             if item["shot_id"] == shot_id
         ]
+        clothes = parent.payload.get("garment_asset_ids") or next(
+            (
+                shot["outfit_asset_ids"]
+                for shot in (state.get("script") or {}).get("shots", [])
+                if shot["id"] == shot_id
+            ),
+            self.project.garment_asset_ids,
+        )
+        clothes = list(dict.fromkeys(clothes))
         payload = {
             "shot_id": shot_id,
             "version": max(versions, default=1) + 1,
@@ -510,51 +608,54 @@ class Workflow:
             "parent_asset_id": parent.result_asset_id,
             "source_asset_id": parent.result_asset_id,
             "instruction": instruction,
-            "prompt": "保留模特身份、衣服和画面未提到的细节，只做以下修改：" + instruction,
-            "reference_asset_ids": [parent.result_asset_id],
+            "prompt": "保留模特身份和未提到的画面细节。"
+            + self._garment_prompt(state, clothes)
+            + "只做以下修改："
+            + instruction,
+            "reference_asset_ids": [parent.result_asset_id, *clothes[:2]],
+            "garment_asset_ids": clothes,
+            "script_version": parent.payload.get("script_version"),
+            "script_hash": parent.payload.get("script_hash"),
+            "shot": deepcopy(parent.payload.get("shot", {})),
         }
         job = self._enqueue(state, "edit", payload, key)
-        state.update(stage="images", pending_action=None)
+        # Editing an image must preserve the note and its video-confirmation pause.
         return self._finish(
             state,
-            "好，这张我单独改一版，原图也会保留。等新图出来我们对比着挑。",
+            reply,
             [self._card("images", {"items": image_items(self.session, self.project.id)})],
             [job],
         )
 
-    def _write_note(self, state: dict, action: dict, instruction: str = "") -> dict:
+    def _write_note(
+        self, state: dict, action: dict, instruction: str = "", result: dict | None = None
+    ) -> dict:
         self._allow(state["stage"], "write_note")
-        original_stage = state["stage"]
-        selected = action["image_ids"]
+        original_stage, selected = state["stage"], action["image_ids"]
         context = {**state, "selected_image_ids": selected}
-        # The selected order is part of the tool context and ultimately authoritative.
         context["images"] = [
             next(x for x in state["images"] if x["id"] == image_id) for image_id in selected
         ]
-        note = self._text_tool(
+        result = result or self._text_tool(
             state["stage"],
             "write_note",
             context,
             "按已选图片顺序写小红书笔记，标题不超过20字，正文分段带表情，5到8个标签。"
             + ("保留原笔记未要求更改的内容，落实以下修改：" + instruction if instruction else ""),
         )
-        note = {
-            **note,
-            "title": str(note.get("title", "今天这套刚刚好"))[:20],
-            "image_ids": selected,
-        }
+        note = {key: value for key, value in result.items() if key != "reply"}
+        note.update(
+            title=str(note.get("title", "今天这套刚刚好"))[:20],
+            image_ids=selected,
+            ai_label="本篇图片与视频含 AI 生成内容，发布时请勾选平台的 AI 内容声明。",
+        )
         if original_stage in {"video", "done"}:
             state.update(note=note, pending_action=None)
-            return self._finish(
-                state,
-                "好，我把笔记文字改好了，你再看看这版。",
-                [self._card("note", note)],
-            )
-        state.update(note=note, stage="note", pending_action=self._pending("confirm_video"))
+        else:
+            state.update(note=note, stage="note", pending_action=self._pending("confirm_video"))
         return self._finish(
             state,
-            "这几张放在一起很顺，我按你选的顺序写好笔记了。"
-            "想再加一条 5 秒穿搭视频的话，选一张最喜欢的图确认就好。",
+            self._reply(result, "笔记写好了，可以再一起打磨文字。"),
             [self._card("note", note)],
         )
 
@@ -570,8 +671,15 @@ class Workflow:
     def _generate_video(self, state: dict, action: dict) -> dict:
         if state["stage"] == "note":
             self._allow("note", "generate_video")
+        reply = self._action_reply(
+            "generate_video",
+            {**state, "stage": "note"},
+            action,
+            "5 秒穿搭视频已安排好，完成后会出现在这里。",
+        )
         image = self._image_job(action["image_id"])
         prompt = state["script"].get("video", {}).get("prompt", "模特自然展示穿搭，镜头缓慢移动")
+        prompt += "；人物面部和服装保持不变。"
         key = f"{self.project.id}:video:{fingerprint([image.id, prompt])}"
         payload = {
             "image_id": image.id,
@@ -580,6 +688,7 @@ class Workflow:
             "poster_asset_id": image.result_asset_id,
             "prompt": prompt,
             "duration": 5,
+            "watermark": True,
         }
         job = self._enqueue(state, "video", payload, key)
         state.update(
@@ -587,12 +696,7 @@ class Workflow:
             pending_action=None,
             stage="done" if job.status == "succeeded" else "video",
         )
-        return self._finish(
-            state,
-            "视频也安排好啦，做成 5 秒自然展示穿搭的小片段，做好就会出现在这里。",
-            [self._card("video", state["video"])],
-            [job],
-        )
+        return self._finish(state, reply, [self._card("video", state["video"])], [job])
 
     def _finish(self, state: dict, text: str, cards: list, jobs: list | None = None) -> dict:
         self.project.stage = state["stage"]

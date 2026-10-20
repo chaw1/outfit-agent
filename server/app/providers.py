@@ -6,6 +6,7 @@ import base64
 import hashlib
 import io
 import json
+import logging
 import re
 import threading
 import time
@@ -20,9 +21,12 @@ import httpx
 from PIL import Image, ImageDraw, ImageOps
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.config import settings
 from app.models import Asset, UsageLedger
+
+log = logging.getLogger(__name__)
 
 
 class ProviderError(RuntimeError):
@@ -83,16 +87,51 @@ TOOL_SCHEMAS = {
             "items": DIRECTION,
             "minItems": 2,
             "maxItems": 3,
-        }
+        },
+        reply=STR,
     ),
-    "write_script": SCRIPT,
-    "revise_script": SCRIPT,
-    "write_note": _obj(title=STR, body=STR, tags=STRINGS, image_ids=STRINGS),
-    "chat": _obj(text=STR),
+    "write_script": _obj(**SCRIPT["properties"], reply=STR),
+    "revise_script": _obj(**SCRIPT["properties"], reply=STR),
+    "write_note": _obj(title=STR, body=STR, tags=STRINGS, image_ids=STRINGS, reply=STR),
+    "chat": _obj(text=STR, reply=STR),
+    "generate_images": _obj(reply=STR),
+    "edit_image": _obj(image_id=STR, instruction=STR, reply=STR),
+    "generate_video": _obj(image_id=STR, reply=STR),
+    "restore_script": _obj(checkpoint_id=STR, reply=STR),
+}
+# Selection returns complete content in the same model call. Only side effects
+# remain outside the provider, where stage and confirmation gates are audited.
+SELECTION_TOOL_SCHEMAS = {
+    **TOOL_SCHEMAS,
+    "write_script": _obj(**TOOL_SCHEMAS["write_script"]["properties"], direction_id=STR),
+    "chat": _obj(reply=STR, blocked_tool=STR),
+}
+TOOL_DESCRIPTIONS = {
+    "propose_directions": "重新提出2到3个方向；仅讨论或询问用chat",
+    "write_script": "用户选定当前某个方向时，解析direction_id并写完整脚本",
+    "revise_script": "修改拍摄脚本、镜头或整体创作方向，返回修改后的完整脚本",
+    "write_note": "用已完成图片撰写或修改发布笔记；image_ids为用户选择的图和顺序",
+    "chat": "解释、聊天或澄清；越阶段请求只回复并在blocked_tool填对应工具名，其他填空串",
+    "generate_images": "用户希望按脚本出图；此选择只提示确认，不能代替独立确认动作",
+    "edit_image": "用户明确要求修改某张已完成图片；从上下文解析真实image_id及修改指令",
+    "generate_video": "用户希望出视频；解析首帧image_id，此选择不能代替独立确认动作",
+    "restore_script": "恢复历史脚本；从script_versions解析checkpoint_id",
 }
 SYSTEM_PROMPT = """你是懂小红书穿搭创作的搭档，像博主朋友一样自然说中文。
 根据品牌需求和真实衣服分析制作内容，不编造面料、品牌功效或用户经历。
-通过唯一提供的工具返回完整结构化结果，不调用任何其他工具，不承诺已生成媒体。
+根据用户本轮意图，从提供的当前阶段工具中自主选择一个，返回完整结构化结果。
+只调用一个允许的工具；参数必须从context与对话理解得出，不能编造资产或方向id。
+每个工具的reply写一两句贴合本项目、用户原话的博主搭子口吻回复，不重复固定模板。
+只是在提问、反问、否定修改、跑题、没有明确指代时用chat回答或澄清，不擅自改变内容。
+用户请求的工具不在允许列表时用chat，blocked_tool填用户实际请求的全局工具名，
+包括propose_directions/write_script/revise_script/generate_images/edit_image/write_note/
+generate_video/restore_script；普通聊天blocked_tool填空串，不得借其他工具绕过阶段。
+图片生成和视频生成都需要独立的确认action，自由文本工具选择不能声称已入队或已生成。
+“第二张”“咖啡馆那张”“衬衫那张”等指代须结合images的顺序、scene、caption、instruction、
+shot_id与script对应镜头、衣服分析解析image_id；多张都符合且无法确定时先chat询问。
+选方向用write_script并填当前directions里的direction_id；修改已有脚本用revise_script。
+改发布正文、标题、标签用write_note；改生成照片的画面用edit_image，二者不要混淆。
+write_note中的image_ids保持已有选择，除非用户明确重新选图；首次选图从已完成图解析。
 方向给 2–3 个，场景、氛围、配色各不相同，id 使用 direction-1 这样的稳定短标识。
 脚本至少 4 个镜头，id 为 shot-1 等，outfit_asset_ids 必须引用上下文的衣服资产 ID，
 每个镜头引用衣服数量不得超过 context.max_outfit_assets_per_shot，衣服多时分镜分开搭配。
@@ -211,19 +250,23 @@ class ProviderHub:
         except Exception as exc:
             # A timeout can follow upstream acceptance; retain the reservation as
             # a conservative estimate instead of claiming that failure was free.
-            self._finish(
-                ledger_id,
-                started,
-                status="failed",
-                units={
-                    "error_type": type(exc).__name__,
-                },
+            self._finish_safely(
+                ledger_id, started, status="failed", units={"error_type": type(exc).__name__}
             )
             if isinstance(exc, (KeyError, ValueError, TypeError)):
                 raise ProviderError("模型返回内容格式有误，请稍后重试。") from None
             raise
-        self._finish(ledger_id, started, units=units, cost=cost)
+        self._finish_safely(ledger_id, started, units=units, cost=cost)
         return result
+
+    def _finish_safely(self, ledger_id: str, started: float, **values) -> None:
+        try:
+            self._finish(ledger_id, started, **values)
+        except Exception as exc:
+            # The durable reservation already counts the maximum estimate. A
+            # transient accounting outage must not turn paid media into a retry.
+            # Log only the type: database driver messages may include parameters.
+            log.error("Usage finalization failed; reservation retained (%s)", type(exc).__name__)
 
     def _client(self) -> httpx.Client:
         return httpx.Client(
@@ -315,6 +358,21 @@ class ProviderHub:
     def analyze_garments(self, assets: list[Asset]) -> list[dict]:
         if not assets:
             raise ProviderError("请先上传至少一张衣服图片。")
+        cached = {
+            asset.id: dict(asset.analysis)
+            for asset in assets
+            if isinstance(getattr(asset, "analysis", None), dict)
+            and asset.analysis.get("asset_id") == asset.id
+            and all(
+                key in asset.analysis for key in ("category", "color", "material", "style_tags")
+            )
+        }
+        missing = [asset for asset in assets if asset.id not in cached]
+        if not missing:
+            return [dict(cached[asset.id]) for asset in assets]
+        if cached:
+            cached.update({item["asset_id"]: item for item in self.analyze_garments(missing)})
+            return [dict(cached[asset.id]) for asset in assets]
         if len(assets) > 6:
             items = []
             for offset in range(0, len(assets), 6):
@@ -392,23 +450,61 @@ class ProviderHub:
         # Resized <=1 MP inputs are far below 16k visual tokens each. Reserve
         # using that generous bound and the most expensive Beijing token tier.
         reserve = Decimal(16_384 * len(assets) * 3 + 1600 * 30 + 3000) / 1_000_000
-        return self._call("vision", str(reserve), operation)
+        items = self._call("vision", str(reserve), operation)
+        # Commit only immutable analysis in a short independent transaction.
+        # A later direction/model failure may roll back the conversation, but
+        # cannot erase an already-paid vision result.
+        with Session(self._ledger_bind()) as cache_session:
+            for item in items:
+                row = cache_session.get(Asset, item["asset_id"])
+                if row is None:
+                    raise ProviderError("衣服素材已失效，请重新上传。")
+                row.analysis = dict(item)
+            cache_session.commit()
+        by_id = {item["asset_id"]: item for item in items}
+        for asset in assets:
+            set_committed_value(asset, "analysis", dict(by_id[asset.id]))
+        return items
 
     def text(self, tool_name: str, context: dict, instruction: str = "") -> dict:
+        """Generate content for a validated explicit action, using the same tool protocol."""
         if tool_name not in TOOL_SCHEMAS:
             raise ProviderError("该阶段不允许调用这个工具。")
+        return self._text_call([tool_name], context, instruction, selection=False)[1]
+
+    def select_tool(
+        self, tools: list[str], context: dict, instruction: str = ""
+    ) -> tuple[str, dict]:
+        """Let the model select from the complete current-stage allowlist."""
+        names = list(dict.fromkeys(tools))
+        if not names or any(name not in SELECTION_TOOL_SCHEMAS for name in names):
+            raise ProviderError("该阶段不允许调用这个工具。")
+        if "chat" not in names:
+            names.append("chat")
+        return self._text_call(names, context, instruction, selection=True)
+
+    def _text_call(
+        self, names: list[str], context: dict, instruction: str, *, selection: bool
+    ) -> tuple[str, dict]:
+        schemas = SELECTION_TOOL_SCHEMAS if selection else TOOL_SCHEMAS
         user_content = json.dumps(
             {"context": context, "instruction": instruction}, ensure_ascii=False, default=str
         )
         # UTF-8 byte count bounds token count without a tokenizer dependency.
         input_bound = len(user_content.encode()) + len(SYSTEM_PROMPT.encode())
-        input_bound += len(json.dumps(TOOL_SCHEMAS[tool_name]).encode()) + 1024
+        input_bound += len(json.dumps([schemas[name] for name in names]).encode()) + 1024
         reserve = Decimal(input_bound) * Decimal("0.3") + Decimal(3500) * Decimal("1.2")
         reserve = max(Decimal("0.15"), reserve * Decimal("7.5") / 1_000_000)
 
         def operation():
             if self.mock:
-                return self._mock_text(tool_name, context, instruction), {}, Decimal(0)
+                if selection:
+                    name, result = self._mock_select_tool(names, context, instruction)
+                else:
+                    name = names[0]
+                    result = self._mock_text(name, context, instruction)
+                self._validate_text(name, result, context, selection=selection)
+                return (name, result), {}, Decimal(0)
             with self._client() as client:
                 response = self._json(
                     client.post(
@@ -419,43 +515,43 @@ class ProviderHub:
                             "thinking": {"type": "disabled"},
                             "messages": [
                                 {"role": "system", "content": SYSTEM_PROMPT},
-                                {
-                                    "role": "user",
-                                    "content": user_content,
-                                },
+                                {"role": "user", "content": user_content},
                             ],
                             "tools": [
                                 {
                                     "type": "function",
                                     "function": {
-                                        "name": tool_name,
-                                        "description": "返回当前阶段的完整内容",
-                                        "parameters": TOOL_SCHEMAS[tool_name],
+                                        "name": name,
+                                        "description": TOOL_DESCRIPTIONS[name],
+                                        "parameters": schemas[name],
                                     },
                                 }
+                                for name in names
                             ],
-                            "tool_choice": {"type": "function", "function": {"name": tool_name}},
+                            "tool_choice": "required",
+                            "parallel_tool_calls": False,
                             "max_tokens": 3500,
                         },
                     )
                 )
             calls = response["choices"][0]["message"].get("tool_calls", [])
-            if len(calls) != 1 or calls[0]["function"]["name"] != tool_name:
+            if len(calls) != 1 or calls[0]["function"]["name"] not in names:
                 raise ProviderError("对话模型未按当前阶段返回工具结果。")
+            name = calls[0]["function"]["name"]
             result = json.loads(calls[0]["function"]["arguments"])
-            self._validate_text(tool_name, result, context)
+            self._validate_text(name, result, context, selection=selection)
             usage = response.get("usage", {})
             # Peak list prices, no cache discount, conservatively USD/CNY 7.5.
             cost = Decimal(usage.get("prompt_tokens", 0)) * Decimal("0.3") + Decimal(
                 usage.get("completion_tokens", 0)
             ) * Decimal("1.2")
             cost = cost * Decimal("7.5") / 1_000_000 if "prompt_tokens" in usage else None
-            return result, usage, cost
+            return (name, result), usage, cost
 
         return self._call("text", str(reserve), operation)
 
     @staticmethod
-    def _validate_text(name: str, result: dict, context: dict) -> None:
+    def _validate_text(name: str, result: dict, context: dict, *, selection: bool = False) -> None:
         def check(schema, value):
             kind = schema["type"]
             if kind == "object":
@@ -475,7 +571,10 @@ class ProviderHub:
             if "enum" in schema and value not in schema["enum"]:
                 raise ProviderError("对话模型返回字段取值有误。")
 
-        check(TOOL_SCHEMAS[name], result)
+        schemas = SELECTION_TOOL_SCHEMAS if selection else TOOL_SCHEMAS
+        check(schemas[name], result)
+        if not result.get("reply", "").strip():
+            raise ProviderError("对话模型没有返回回复。")
         if name == "propose_directions" and not 2 <= len(result["options"]) <= 3:
             raise ProviderError("方向建议必须有 2–3 个。")
         if name in {"write_script", "revise_script"}:
@@ -501,8 +600,96 @@ class ProviderHub:
             if len(result["tags"]) < 5:
                 raise ProviderError("笔记话题标签不足 5 个。")
             image_ids = context.get("image_ids") or context.get("selected_image_ids")
-            if image_ids:
+            if image_ids and not selection:
                 result["image_ids"] = image_ids
+
+    def fidelity(self, reference_assets: list[Asset], generated: Asset | GeneratedMedia) -> dict:
+        """Compare source garments with a completed render before any watermark."""
+        if not reference_assets:
+            return {"score": 100, "diffs": [], "auto_fixed": False}
+
+        def operation():
+            if self.mock:
+                return {"score": 92, "diffs": [], "auto_fixed": False}, {}, Decimal(0)
+            if isinstance(generated, Asset):
+                rendered_url = self._data_url(generated, vision=True)
+            else:
+                with Image.open(io.BytesIO(generated.data)) as image:
+                    image = ImageOps.exif_transpose(image).convert("RGB")
+                    image.thumbnail((1024, 1024))
+                    output = io.BytesIO()
+                    image.save(output, "JPEG", quality=90, optimize=True)
+                rendered_url = (
+                    "data:image/jpeg;base64," + base64.b64encode(output.getvalue()).decode()
+                )
+            content = [
+                {
+                    "type": "text",
+                    "text": (
+                        "你是服装还原质检员，下面先给原衣服图，最后一张是穿搭生成图。"
+                        "逐件对比品类、版型、颜色、面料纹理、纽扣数量颜色、口袋和logo。"
+                        "人物、姿势、背景变化不扣分；不可见细节不要臆测相同。"
+                        "缺衣服、错颜色、错版型属于严重差异，overall须低于60。"
+                        "只输出JSON：{garments:[{asset_id,score:0到100整数,diffs:[中文差异]}],"
+                        "overall:0到100整数,diffs:[可直接用于修图的具体中文差异]}。"
+                    ),
+                }
+            ]
+            for asset in reference_assets:
+                content.extend(
+                    [
+                        {"type": "text", "text": f"原衣服 asset_id={asset.id}"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": self._data_url(asset, vision=True)},
+                        },
+                    ]
+                )
+            content.extend(
+                [
+                    {"type": "text", "text": "最后一张：需要评分的生成穿搭图"},
+                    {"type": "image_url", "image_url": {"url": rendered_url}},
+                ]
+            )
+            with self._client() as client:
+                response = self._json(
+                    client.post(
+                        f"{settings.dashscope_compatible_url.rstrip('/')}/chat/completions",
+                        headers=self._headers(settings.dashscope_api_key),
+                        json={
+                            "model": self._model("vision"),
+                            "messages": [{"role": "user", "content": content}],
+                            "enable_thinking": False,
+                            "response_format": {"type": "json_object"},
+                            "max_tokens": 1600,
+                        },
+                    )
+                )
+            result = json.loads(response["choices"][0]["message"]["content"])
+            score, diffs = result["overall"], result["diffs"]
+            if (
+                not isinstance(score, (int, float))
+                or isinstance(score, bool)
+                or not 0 <= score <= 100
+                or not isinstance(diffs, list)
+                or any(not isinstance(diff, str) for diff in diffs)
+            ):
+                raise ProviderError("还原度检查返回了无效结果。")
+            usage = response.get("usage", {})
+            tokens = usage.get("prompt_tokens", 0)
+            rate = Decimal("1") if tokens <= 32_768 else Decimal("1.5")
+            if tokens > 131_072:
+                rate = Decimal("3")
+            cost = Decimal(tokens) + Decimal(usage.get("completion_tokens", 0)) * 10
+            cost = cost * rate / 1_000_000 if "prompt_tokens" in usage else None
+            return (
+                {"score": round(score), "diffs": diffs[:20], "auto_fixed": False},
+                {**usage, "purpose": "fidelity", "images": len(reference_assets) + 1},
+                cost,
+            )
+
+        reserve = Decimal(16_384 * (len(reference_assets) + 1) * 3 + 1600 * 30 + 3000)
+        return self._call("vision", str(reserve / 1_000_000), operation)
 
     def image(self, prompt: str, reference_assets: list[Asset]) -> GeneratedMedia:
         if len(reference_assets) > 3:
@@ -584,8 +771,16 @@ class ProviderHub:
                             headers={**headers, "X-DashScope-Async": "enable"},
                             json={
                                 "model": self._model("video"),
-                                "input": {"prompt": prompt, "img_url": self._data_url(image_asset)},
-                                "parameters": {"resolution": "720P", "duration": 5, "audio": True},
+                                "input": {
+                                    "prompt": prompt + "。保持人物面部、身份和服装细节不变。",
+                                    "img_url": self._data_url(image_asset),
+                                },
+                                "parameters": {
+                                    "resolution": "720P",
+                                    "duration": 5,
+                                    "audio": True,
+                                    "watermark": True,
+                                },
                             },
                         )
                     )
@@ -630,7 +825,205 @@ class ProviderHub:
         return self._call("video", "1.50", operation)
 
     @staticmethod
+    def _mock_select_tool(names: list[str], context: dict, instruction: str) -> tuple[str, dict]:
+        """Deterministic fake model only; production never executes these heuristics."""
+        value = instruction.strip()
+        stage = context.get("stage", "direction")
+        revision = any(
+            word in value
+            for word in (
+                "换成",
+                "改成",
+                "调整",
+                "重写",
+                "增加",
+                "删除",
+                "不要",
+                "更松弛",
+                "改一下",
+                "改",
+                "换",
+                "精简",
+                "再短",
+                "更短",
+                "加上",
+                "分段",
+                "通勤风",
+                "亮一点",
+                "太暗",
+                "太亮",
+                "暗一点",
+                "塞进",
+                "修一下",
+            )
+        )
+        question = (
+            not value
+            or value.startswith(("请问", "解释", "你好", "谢谢"))
+            or any(word in value for word in ("为什么", "多少钱", "什么区别", "是否", "怎么样"))
+            or value.endswith(("?", "？"))
+        ) and not revision
+        chat = {
+            "reply": f"懂你～{context.get('brand') or '这组穿搭'}可以继续聊细节，确认前先不生成。",
+            "blocked_tool": "",
+        }
+        if question or any(word in value for word in ("不要改", "先别", "不改", "不用改")):
+            return "chat", chat
+
+        numbers = {word: i for i, word in enumerate("一二三四五六七八九十", 1)}
+
+        def ordinal(text: str, unit: str) -> int | None:
+            match = re.search(r"第?\s*(10|[1-9一二三四五六七八九十])\s*(?:" + unit + ")", text)
+            if match:
+                return int(match[1]) if match[1].isdigit() else numbers[match[1]]
+            return None
+
+        def chosen_image() -> dict | None:
+            images = [
+                image for image in context.get("images", []) if image.get("status") == "succeeded"
+            ]
+            target = next((image for image in images if image["id"] in value), None)
+            number = ordinal(value, "张")
+            if target is None and number and number <= len(images):
+                target = images[number - 1]
+            if target is None and len(images) == 1:
+                target = images[0]
+            return target
+
+        tool, result = "chat", chat
+        if any(word in value for word in ("恢复", "回到", "还原脚本")):
+            tool = "restore_script"
+            versions = context.get("script_versions", [])
+            selected = next((v for v in versions if v.get("checkpoint_id", "!") in value), None)
+            number = ordinal(value, "版")
+            if selected is None and number:
+                selected = next((v for v in versions if v["version"] == number), None)
+            if selected is None:
+                return "chat", {**chat, "reply": "想回到哪一版脚本？可以告诉我版本号。"}
+            result = {
+                "checkpoint_id": selected["checkpoint_id"],
+                "reply": "好，回到你选的脚本再看看。",
+            }
+        elif any(word in value for word in ("生成视频", "出视频", "做视频", "拍视频")):
+            tool = "generate_video"
+            target = chosen_image()
+            result = {
+                "image_id": target["id"] if target else "",
+                "reply": "可以，视频需要单独确认首帧。",
+            }
+        elif any(word in value for word in ("生成图片", "生成图", "出图", "开始生成")):
+            tool, result = "generate_images", {"reply": "脚本准备好了，确认后就能开始出图。"}
+        elif stage == "brief":
+            tool = (
+                "write_note"
+                if any(word in value for word in ("写笔记", "写正文"))
+                else "propose_directions"
+            )
+        elif stage == "direction":
+            options = context.get("directions", [])
+            selected = next((o for o in options if value == o["id"] or o["name"] in value), None)
+            number = ordinal(value, "个|种|方向")
+            if selected is None and number and number <= len(options):
+                selected = options[number - 1]
+            if selected:
+                tool = "write_script"
+                result = ProviderHub._mock_text(
+                    tool, {**context, "chosen_direction": selected}, value
+                )
+                result["direction_id"] = selected["id"]
+            else:
+                tool = "propose_directions"
+        elif stage == "script" or (
+            stage in {"images", "note"}
+            and any(word in value for word in ("脚本", "镜头", "通勤风", "重来"))
+            and "标题" not in value
+        ):
+            tool = "revise_script"
+        elif (
+            stage in {"images", "note"}
+            and revision
+            and "标题" not in value
+            and not any(word in value for word in ("正文", "笔记", "文案", "标签"))
+        ):
+            target = chosen_image()
+            if target:
+                tool = "edit_image"
+                result = {
+                    "image_id": target["id"],
+                    "instruction": value,
+                    "reply": "好，这张单独改一版，原图留着对比。",
+                }
+        elif stage in {"images", "note", "video", "done"} and (
+            revision or any(word in value for word in ("笔记", "文案", "选图"))
+        ):
+            tool = "write_note"
+
+        if tool not in names:
+            return "chat", {
+                **chat,
+                "blocked_tool": tool,
+                "reply": "这一步还没到，先完成当前阶段的确认就能继续。",
+            }
+        if tool in {"propose_directions", "revise_script", "write_note"}:
+            content_context = context
+            if tool == "write_note" and not (
+                context.get("selected_image_ids") or context.get("image_ids")
+            ):
+                target = chosen_image()
+                content_context = {
+                    **context,
+                    "selected_image_ids": [target["id"]]
+                    if target
+                    else [
+                        image["id"]
+                        for image in context.get("images", [])
+                        if image.get("status") == "succeeded"
+                    ],
+                }
+            result = ProviderHub._mock_text(tool, content_context, instruction)
+        return tool, result
+
+    @staticmethod
     def _mock_text(name: str, context: dict, instruction: str) -> dict:
+        if name in {"generate_images", "edit_image", "generate_video", "restore_script"}:
+            try:
+                action = json.loads(instruction)
+            except (json.JSONDecodeError, TypeError):
+                action = {}
+            if not isinstance(action, dict):
+                action = {}
+            subject = context.get("brand") or "这组穿搭"
+            replies = {
+                "generate_images": f"{subject}的脚本确认啦，这组图已经安排，细节我们一张张看。",
+                "edit_image": f"好，{subject}这张单独改一版，原图留着一起比较。",
+                "generate_video": f"{subject}的视频安排好了，做成5秒自然展示穿搭的片段。",
+                "restore_script": f"{subject}已经回到你选的脚本，这版确认后再开始出图。",
+            }
+            result = {"reply": replies[name]}
+            for key in TOOL_SCHEMAS[name]["required"]:
+                if key != "reply":
+                    result[key] = str(action.get(key) or context.get(key) or "")
+            return result
+        result = ProviderHub._mock_content(name, context, instruction)
+        brief = context.get("brief")
+        subject = context.get("brand") or (
+            brief.get("summary", "这组穿搭") if isinstance(brief, dict) else brief or "这组穿搭"
+        )
+        replies = {
+            "chat": f"懂你～{subject}可以继续微调，确认后再开始生成。",
+            "propose_directions": f"按{subject}的气质想了几组场景，你更想试哪一个？",
+            "write_script": f"{subject}这组的封面和镜头写好了，看看哪处还想调整。",
+            "revise_script": f"收到，{subject}这版已经把“{instruction[:48]}”落到镜头里了。",
+            "write_note": f"{subject}的笔记写好了，搭配细节和选图顺序都放进去了。",
+        }
+        fields = TOOL_SCHEMAS[name]["properties"]
+        return {
+            **{key: value for key, value in result.items() if key in fields},
+            "reply": replies[name],
+        }
+
+    @staticmethod
+    def _mock_content(name: str, context: dict, instruction: str) -> dict:
         if name == "chat":
             return {"text": "懂你～我们可以继续微调，等你确认后再开始生成。"}
         if name == "propose_directions":

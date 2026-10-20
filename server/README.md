@@ -1,14 +1,78 @@
 # 穿搭笔记智能体服务端
 
-接口只遵循 [`docs/设计.md`](../docs/设计.md)。API、智能体、Worker 共用 PostgreSQL，媒体写入命名卷，支持同一项目中断后继续。默认 Mock，不需要模型凭证。实际验证结果见 [`FINAL.md`](FINAL.md)，本文的 Linux 部署步骤不是已部署声明。
+接口只遵循 [`docs/设计.md`](../docs/设计.md)，第二轮增量见其第 7 节。API、智能体、Worker 共用 PostgreSQL，媒体写入命名卷，支持同一项目断点续聊。默认 Mock，不需要模型凭证。实际测试、问句准确率和本轮费用见 [`FINAL.md`](FINAL.md)；本文的部署配置与命令不代表已经部署。
 
 ## 选择与边界
 
-- **FastAPI + SQLAlchemy 2 + psycopg**：同步数据库/模型客户端便于审阅事务边界，FastAPI 在线程池执行阻塞路径；SSE 单独返回契约事件。鉴权采用 bcrypt + 7 天 JWT。
-- **LangGraph + PostgresSaver**：`thread_id = project.id`，业务阶段、脚本和方向保存在 checkpoint；`interrupt()` 等博主确认，`Command(resume=...)` 继续。阶段决定可用工具，DeepSeek function calling 返回对应结构化对象。固定业务阶段便于控制付费边界；阶段内自由文本可以实际改写脚本，明确指定图片也可改图；视频生成中和完成后仍可修订笔记，保持原视频与图片顺序。
-- **PostgreSQL 任务队列**：API 只入队，独立 Worker 使用 `FOR UPDATE SKIP LOCKED` 领取任务，记录重试次数和租约。图片与视频的动态结果从任务表投射到 state，Worker 不并发修改对话 checkpoint。对话不等待生图/视频；App 在 `active_jobs` 非空时每 3 秒读取 state。
-- **本地媒体卷**：及时下载供应商临时 URL，转存为项目资产并保留版本链；对外使用 24 小时 HMAC 签名地址。持有签名 URL 即可读取媒体，App `<Image>` 无需 bearer token；业务项目、素材引用和任务仍按账号隔离。
-- **Alembic** 管理业务表，API 启动时执行迁移；PostgresSaver 在 lifespan 初始化 checkpoint 表。两者共用数据库，任务意图、完整展示消息和稳定去重键用于修复 checkpoint 与业务事务提交之间的空隙。
+阶段之间由代码管理状态机，阶段之内由模型选择工具。`workflow.ALLOWED_TOOLS` 决定当前允许的工具；自由文本一次交给 DeepSeek，使用 `tool_choice="required"` 从整组工具中选一个，同时解析图片/方向 ID、生成完整内容和 `reply`。真实路径没有关键词路由，关键词只用于 Mock 假模型。模型选择后，代码仍校验阶段、项目归属、图片完成状态和输入参数。`chat.blocked_tool` 标出的越阶段请求同样经过代码门禁；模型无法绕过确认动作入队批量图片或视频。
+
+显式 `choose_direction/approve_images` 等动作已经确定工具，模型负责写对应内容和回复。自由文本中的“出图”“做视频”只提出确认意图，必须收到独立 `confirm_script/confirm_video` 动作才入队。改图、脚本回退和笔记修订保留当前项目已有的图片版本；`images/note` 阶段改脚本会回到 `script` 等确认，`note` 阶段改图保持笔记和视频确认。
+
+| 需求 | 实际实现及选择理由 |
+|---|---|
+| H1 跨进程、跨重启多轮状态 | LangGraph + PostgresSaver，`thread_id = project.id`，方向、脚本、确认点及对话历史持久化 |
+| H2 原生人工确认与重放 | `interrupt()` 等待、`Command(resume=...)` 继续；确认校验在消耗暂停之前，稳定 uuid5/dedupe_key 与任务意图修复避免重放重复入队 |
+| H3 付费门禁可审计 | `ALLOWED_TOOLS` 与明确 action 校验由代码执行，模型只在允许范围内做选择 |
+| H4 中间结果提前展示 | `graph.stream(stream_mode=["custom", "updates"])` + `get_stream_writer()`，看图完成就推 `garments` 卡片，不等方向模型完成 |
+| H5 Python、自托管、多供应商 | FastAPI + SQLAlchemy 2 + psycopg，ProviderHub 分别适配 DeepSeek、Qwen、万相；API、Worker、Postgres 可用 Compose 自托管 |
+| H6 可恢复脚本历史 | `get_state_history()` 派生 `script_versions`，恢复动作只接受当前项目历史 checkpoint，保留旧图片并重新等待脚本确认 |
+
+图在 API lifespan 编译一次，节点通过 `Runtime[GraphContext]` 获取本轮事务绑定的 Workflow，不把 Session 捕获在全局图中。每个项目的写对话用 advisory lock 串行化；不同项目可使用同一编译图。相关官方接口参考：[Runtime](https://reference.langchain.com/python/langgraph/runtime/Runtime)、[get_stream_writer](https://reference.langchain.com/python/langgraph/config/get_stream_writer)、[time travel](https://docs.langchain.com/oss/python/langgraph/use-time-travel)。
+
+当前实际图如下；每次工具执行完成，按新阶段选择相应的等待节点。等待节点在 `interrupt()` 前没有外部副作用。
+
+```mermaid
+flowchart TD
+    S([START]) --> U[understand_brief\n看图与阶段内模型选择]
+    U --> R{按 stage 进入等待节点}
+    X[execute_stage_tool\n模型选择与代码校验] --> R
+    R --> B[await_brief]
+    R --> D[await_direction]
+    R --> C[await_script]
+    R --> I[await_images]
+    R --> N[await_note]
+    R --> V[await_video]
+    R --> F[await_done]
+    B -->|interrupt / resume| X
+    D -->|interrupt / resume| X
+    C -->|interrupt / resume| X
+    I -->|interrupt / resume| X
+    N -->|interrupt / resume| X
+    V -->|interrupt / resume| X
+    F -->|interrupt / resume| X
+```
+
+只有七个固定阶段时，手写循环配 JSONB 状态也足够，代码可能更短。LangGraph 在这里的价值来自可重启的原生暂停、提前发送卡片和 checkpoint 历史恢复；它也增加了重放、跨事务提交空隙和消息投影的维护成本。选型比较针对本任务，没有据未验证的版本差异断言其他框架做不到：
+
+| 候选 | 本项目取舍 |
+|---|---|
+| 手写循环 + JSONB / events | 可完全掌控七阶段流程；需要自己实现暂停恢复、状态历史和中间事件，适合作为后续复杂度对照 |
+| AgentScope | 保留为以 ReAct 消息循环为中心的第二候选；替换前需验证本项目的 Postgres 持久化、确认恢复和历史契约，本轮没有替换 PoC |
+| OpenAI Agents SDK / Google ADK | 可以作为工具调用方案候选；本项目优先保留已有 Python 图和国产模型适配，没有验证替换后的完整 H1–H6 |
+| CrewAI / Microsoft Agent Framework | 本任务是单个博主搭档，尚无多角色协作需求；本轮没有为更换编排框架引入额外集成工作，也不据此判断其当前功能或版本成熟度 |
+| Dify / Coze 等平台 | 引入后需同时交付平台配置与运行环境；当前任务要求服务端代码逐行可审查，选择直接在仓库内控制流程、持久化和成本 |
+
+## 状态、任务与媒体的真相
+
+`brief/garments/directions/script/note/video` 等是领域状态；`incoming/turn_text/turn_cards/turn_jobs` 是持久化在 checkpoint 中的本轮输入输出通道，便于失败恢复与展示消息修复，不另作业务事实来源。脚本 `version` 在修改时递增，确认不增加版本；恢复保留历史编号。`state.script_versions` 每次从图历史派生，不维护另一份版本表。
+
+生成任务的事实在 jobs 表。API 只决定与入队，独立 Worker 使用 `FOR UPDATE SKIP LOCKED` 领取，租约心跳与 attempts fencing 防止旧 Worker 覆盖新结果；稳定去重键处理重复确认。Worker 写任务结果、资产和主动消息，不与用户竞争 `Command(resume)`。用户仍可在生成期间聊天，下一轮和 `/state` 从 DB 更新图片/视频结果。若将来改为 `await_images` 等 Worker 恢复图，需要额外处理同时到来的用户输入，本轮没有采用。
+
+图中的 stage 表示对话决策，`project.stage` 是供项目列表使用的投影。例如视频在 Worker 完成后，`GET /state` 可以把展示阶段投影为 `done`，随后对话也会读取视频结果。`/state` 与 `/messages` 会尝试 `pg_try_advisory_xact_lock`：拿到锁时修复 checkpoint 与业务事务之间缺失的任务/消息；拿不到则跳过修复，直接读取已提交状态，不等待正在跑模型的对话锁。这是带自愈投影的读接口。
+
+展示消息保留完整卡片和稳定 ID，`card.id = project:type`；历史消息中的同一张卡可以有多个快照，App 工作台用后到的同 ID 卡覆盖。Worker 在整批图片完成、自动修复完成或视频完成时写 assistant 消息，包含数量与还原分摘要；`state.last_message_id` 变化后客户端可刷新消息列表。
+
+媒体下载供应商临时 URL 后转存本地卷并保留 parent 版本链。HMAC 签名媒体 URL 在同一个六小时窗口内稳定，默认至少有效 24 小时；持有地址即可读取，App 图片组件无需 bearer token。项目、素材引用和任务仍按账号隔离。Alembic 管理业务表，API 启动时迁移，PostgresSaver 在 lifespan 初始化 checkpoint 表；备份需同时保留数据库与媒体卷。
+
+## 还原度、预览与生成声明
+
+每个方向自动入队一张灵感预览图，方向卡通过 `preview_status/preview_url` 更新。预览是设计约定的低成本自动层：真实模式每张按当前估价约 0.5 元，首次 2–3 个方向约 1–1.5 元；重新生成不同方向会产生新的预览费用，稳定去重键只复用相同内容的任务。预览不经过脚本确认，批量正式出图和视频仍分别要求确认；Mock 预览零模型费用。
+
+正式出图 prompt 包含衣服看图结果（品类、颜色、面料），明确要求保留版型、颜色、纽扣、口袋、logo。改图参考父图和最多两张原衣服图，总参考数不超过三张。衣服分析独立缓存到 `Asset.analysis`，后续方向失败不丢已付费的看图结果。
+
+Worker 对正式图片使用 qwen3-vl-plus 比较原衣服，记录 `fidelity.score/diffs/auto_fixed`；分数低于 60 时按差异自动改一版，每张最多一次。自动修复仍可能失败或留下差异，分数是模型质检估计；视频 prompt 要求人物面部和衣服保持不变，不能保证每帧身份完全一致。
+
+生成图片保存为带可见“AI生成”角标和 AIGC/Source/Model 元数据的 PNG；视频请求启用 watermark。`note.ai_label` 提示发布时勾选平台 AI 内容声明，`state.cost_cny/note.cost_cny` 来自调用账本。角标和提示是产品披露，不替代发布平台自己的声明流程。
 
 ## 本地启动
 
@@ -20,81 +84,99 @@ curl -fsS http://localhost:18080/api/health
 uv sync --frozen --dev
 uv run python scripts/e2e.py --mode mock
 uv run python scripts/restart_e2e.py --mode mock
+uv run python scripts/experiments.py --output artifacts/experiments-fix1.json
 REQUIRE_INTEGRATION=1 uv run pytest -q
 uv run ruff check .
 ```
 
-固定 compose 项目名 `outfit-agent-server`。API 默认 `18080`，PostgreSQL 仅在本机 `18432` 可访问。不要对其他项目的容器做操作。重启脚本只执行本目录的 `docker compose restart api`，验证选方向后的脚本、历史、卡片、待确认动作均保留，随后自由文本继续修改。停止本项目用 `docker compose stop`；不需要删除媒体卷。
+固定 Compose 项目名 `outfit-agent-server`。API 默认只绑定 `127.0.0.1:18080`，PostgreSQL 只绑定本机 `18432`。不要操作其他项目的容器。重启脚本和 E1 只执行本目录的 `docker compose restart api`；停止本项目用 `docker compose stop`，无需删除媒体卷。
 
-OpenAPI 静态导出位于 [`openapi.json`](openapi.json)，运行中还可查看 `http://localhost:18080/docs` 和 `/openapi.json`。SSE 事件为 `token/card/job/done/error`；消息与卡片先持久化再返回。当前结构化工具结果完整校验后才发送文本分片，模型处理期间发送 keepalive；没有逐 token 透传上游推理。客户端重连后可读取 `/messages` 和 `/state` 恢复工作台。
+OpenAPI 静态导出位于 [`openapi.json`](openapi.json)，运行中还可查看 `http://localhost:18080/docs` 和 `/openapi.json`。SSE 事件为 `token/card/job/done/error`。看图完成的 garments 卡片提前发送，完成后仍会发送完整卡片并持久化展示消息；同 ID 卡片覆盖即可。文本是在完整工具参数通过校验后分片发送，尚未逐 token 透传上游工具参数；等待期间发送 keepalive。客户端重连可读 `/messages` 与 `/state` 恢复工作台。
 
-### 验证脚本与证据
+### 验证脚本与断点
 
-`scripts/e2e.py` 只通过 HTTP 运行完整链路：注册、登录、上传两件衣服和模特、方向/脚本、自由文本“换成通勤风”、确认生成至少 4 张图、改图 v2、选图与笔记、单独确认 5 秒视频、下载媒体。Mock/real 用同一脚本，只切换服务器配置与 `--mode`。模式与 `/health` 不一致会拒绝执行。
+`scripts/e2e.py` 通过 HTTP 运行完整链路：注册、登录、上传两件衣服和模特、方向及预览、脚本、自由文本“换成通勤风”、确认生成至少四张正式图片、改图 v2、选图写笔记、单独确认五秒视频、下载媒体。Mock/real 使用同一脚本，只切换服务器配置与 `--mode`；模式和 `/health` 不一致时拒绝执行。
 
-素材来自 [`fixtures/README.md`](fixtures/README.md) 所述仓库自生成参考图裁片，无外部图片依赖。Mock provider 只产生本地固定媒体及结构化文本，不进行模型网络调用。每步耗时、项目 ID、任务和卡片摘要实时写到 `artifacts/*.json`，不保存 bearer token、密码或媒体签名。失败证据保留已完成步骤，便于定位后续接续点；重新运行会创建独立账号/项目，不覆盖此前结果。
+素材来自 [`fixtures/README.md`](fixtures/README.md) 所述仓库自生成参考图裁片，无外部图片依赖。Mock provider 只产生本地媒体及结构化文本，不调用模型网络。每步耗时、项目 ID、任务和卡片摘要写到 `artifacts/*.json`，不保存 bearer token、密码或媒体签名。失败证据保留已完成步骤；默认重新运行创建独立账号和项目。
 
 ```bash
 uv run python scripts/e2e.py --mode mock --output artifacts/mock-review.json
 uv run python scripts/restart_e2e.py --mode mock --output artifacts/restart-review.json
+uv run python scripts/experiments.py --output artifacts/experiments-fix1.json
 ```
 
-需要复用真实验证进度时，先在当前进程环境设置 `E2E_USERNAME`、`E2E_PASSWORD`（不要把密码写入命令历史）。脚本会用该固定账号注册，已存在则登录；证据只记录用户名和项目 ID。失败后读取证据中的 `project_id`，在同一凭证环境中执行：
+`experiments.py` 限制为本项目本机 Mock 栈，输出 E1 重启续聊、E2 重复确认/改图不重复入队、E3 越阶段被拒、E4 通勤版改写后恢复历史版并确认的结果表和证据。E1 会重启本项目 API，其他实验复用同一新建的测试项目。
+
+真实模式的预览若发生供应商断连，会保留失败状态与费用预留，闭环验证继续使用其余成功预览，避免为通过检查重复提交结果未知的付费请求；Mock 要求所有预览成功。每个预览都记录终态，正式出图仍要求所需图片全部成功。
+
+复用真实验证进度时，先在当前进程环境设置 `E2E_USERNAME/E2E_PASSWORD`，不要把密码写进命令历史。脚本会注册该固定账号，已存在则登录；证据只记录用户名和项目 ID。失败后读取证据里的 `project_id`，在同一凭证环境执行：
 
 ```bash
 uv run python scripts/e2e.py --mode real --resume PROJECT_ID --output artifacts/real-review.json
 ```
 
-续跑按当前阶段复用已确认脚本、已有出图/改图任务、笔记及视频，不重复确认已入队的付费步骤；有活跃任务时等待，已成功的 v2 和视频直接复用。同一路径已有证据保存在 `previous_runs`。终态失败任务会明确停止，脚本不会绕过重试上限自动重复付费。未设置固定账号环境变量时，默认仍每次创建随机账号。
+续跑按当前阶段复用脚本、出图/改图任务、笔记和视频，不重复确认已有付费任务；活跃任务等待，已成功 v2 和视频复用。同一路径已有证据保存在 `previous_runs`。终态失败任务会停止，不绕过重试上限自动重复付费。未知结果的已发出图片请求也不自动重提。
 
-pytest 的 HTTP 集成用例要求本机 Mock 栈；默认无栈时标记跳过，`REQUIRE_INTEGRATION=1` 强制要求可用，防止把跳过当通过。测试只允许 `localhost/127.0.0.1:18080`。迁移测试仅在 `localhost:18432` 新建随机 `outfit_test_*` 空库，运行 Alembic 并核对六张业务表，最后删除该测试自己创建的库；业务数据库不做清理。自定义数据库口令时应为测试进程设置相同 `TEST_DATABASE_URL` 和 `JWT_SECRET`，凭证只注入环境变量。
+pytest 的 HTTP 集成用例要求本机 Mock 栈；默认没有栈会跳过，`REQUIRE_INTEGRATION=1` 强制可用。测试只允许 `localhost/127.0.0.1:18080`。迁移测试只在本机 `18432` 新建随机 `outfit_test_*` 空库、执行 Alembic 和核对业务表，最后删除自己创建的测试库；业务数据库不清理。自定义数据库口令时，测试进程应注入相同 `TEST_DATABASE_URL/JWT_SECRET`。
 
-## 配置
+## 配置与真实费用
 
-配置仅从进程环境读取，应用不会自动加载 `.env`。Compose 可用 `.env.example` 查看无密钥示例；实际密钥、数据库密码和 JWT secret 只注入启动进程环境，不写入文件或提交。
+配置只从进程环境读取，应用不自动加载 `.env`。Compose 可用 `.env.example` 查看无密钥示例；实际模型密钥、数据库密码和 JWT secret 只注入启动进程，不写文件或提交。模型密钥按任务约定从个人钥匙串注入，不打印到终端、日志或证据。
 
 | 变量 | 默认值 / 用途 |
 |---|---|
 | `MOCK_PROVIDERS` | `1`；全部模型调用改为本地实现 |
-| `DATABASE_URL` | 本机开发 `postgresql+psycopg://…@localhost:18432/outfit`；Compose 内部为 `postgres:5432` |
+| `DATABASE_URL` | 本机开发 `postgresql+psycopg://…@localhost:18432/outfit`；Compose 内部 `postgres:5432` |
 | `POSTGRES_PASSWORD` | 本地默认 `outfit`；公开部署必须替换 |
-| `JWT_SECRET` | 本地开发固定值；生产必须随机值，API/Worker/测试签名须一致 |
+| `JWT_SECRET` | 本地开发固定值；生产使用随机值，API/Worker/测试签名保持一致 |
 | `PUBLIC_BASE_URL` | `http://localhost:18080`；App 可访问的绝对媒体根地址 |
 | `MEDIA_DIR` | 开发 `data/media`；Compose `/data/media` 命名卷 |
 | `API_PORT` / `POSTGRES_PORT` | `18080` / `18432` |
-| `API_BIND` | 本地默认 `0.0.0.0`；Caddy 部署设 `127.0.0.1` |
-| `DASHSCOPE_API_KEY` / `DEEPSEEK_API_KEY` | 真实模式必须通过进程环境设置 |
+| `API_BIND` | 默认 `127.0.0.1`；生产也只绑定 loopback |
+| `DASHSCOPE_API_KEY` / `DEEPSEEK_API_KEY` | 真实模式通过进程环境注入 |
 | `TEXT_MODEL` / `VISION_MODEL` | `deepseek-flash` / `qwen3-vl-plus` |
 | `IMAGE_MODEL` / `VIDEO_MODEL` | `wan2.7-image-pro` / `wan2.6-i2v-flash` |
-| `MODEL_BUDGET_CNY` | `12`；真实调用的本项目预算保护阈值，以代码配置为准 |
+| `MODEL_BUDGET_CNY` | 默认 `12`；本数据库全部调用累计估价上限，包含尚未结算的预留，不会随会话或重启归零 |
 | `ENVIRONMENT` | `development`；公开部署设 `production` |
-| `CORS_ORIGINS` | `*`；可设逗号分隔的网页来源，原生 App 不受浏览器 CORS 约束 |
+| `CORS_ORIGINS` | `*`；可设逗号分隔网页来源，原生 App 不受浏览器 CORS 约束 |
 
-启动真实模式前，在当前终端安全注入两家模型密钥，设置 `MOCK_PROVIDERS=0` 后重新创建 API 和 Worker。不要把密钥打印到终端或运行日志。脚本真实链路会生成至少 5 张图和 1 条视频：
+启动真实模式前先导出账本基线；本轮已保存的 `artifacts/fix1-baseline-usage.json` 是 22 次历史调用、累计估价 7.104079 元。本轮费用按结束累计减去这份基线计算，不把第一轮费用混入；模型请求先独立提交预留，失败或结果未知时保留保守估价。数据库总预算闸须设为“基线 + 本轮 12 元停止线”，此基线对应 19.104079 元。任务的本轮外部硬上限为 15 元，12 元开始停止新调用并收尾；预留会使调用提前被拒，不能靠重启绕过。
+
+下面只在已注入个人模型密钥的当前终端执行。若复测时账本已有新调用，先重新导出基线再计算总阈值，不清空账本：
 
 ```bash
+uv run python scripts/report_usage.py --output artifacts/recheck-baseline-usage.json
+export MODEL_BUDGET_CNY="$(uv run python -c 'import json; from decimal import Decimal; print(Decimal(json.load(open("artifacts/recheck-baseline-usage.json"))["estimated_cny"]) + 12)')"
 export MOCK_PROVIDERS=0
 docker compose up -d --force-recreate api worker
+uv run python scripts/evaluate_intents.py --output artifacts/intents-review.json
 uv run python scripts/e2e.py --mode real --output artifacts/real-review.json
+uv run python scripts/report_usage.py --output artifacts/usage-review.json
 ```
 
-预算账本在 `usage_ledger` 记录模型、计时、单位和估算金额，最终账单以供应商为准。默认按[通义万相图片](https://help.aliyun.com/zh/model-studio/wan2-7-image-pro) 0.5 元/张、[万相视频](https://help.aliyun.com/zh/model-studio/wan2-6-i2v-flash) 720P 带声 0.3 元/秒，以及 [DeepSeek 官方 token 价格](https://api-docs.deepseek.com/quick_start/pricing/)的峰值价保守估算。账本覆盖本库全部真实调用，重启不会重置预算；未知结果的已发出图片请求不会自动重提。`uv run python scripts/report_usage.py --output artifacts/usage.json` 可导出脱敏用量汇总。真实完成项目可用固定验收账号环境变量运行 `uv run python scripts/review_note.py --mode real --project-id PROJECT_ID`，抽查文案改写且不新增媒体任务（会调用一次文本模型）。真实验证完成后恢复 `MOCK_PROVIDERS=1` 并重新创建 API、Worker，避免日常测试触发费用。
+`evaluate_intents.py` 预先声明 30 句问句及预期工具/目标，覆盖七阶段、模糊指代、反问、跑题、越阶段、改图和恢复历史。它直接调用文本供应商，不创建图片或视频任务；要求进程内 `MOCK_PROVIDERS=0/DEEPSEEK_API_KEY` 与本项目数据库配置。结果逐句写入，失败保留分母，准确率低于 90% 时退出非零。重测使用新文件保留原结果，不把 Mock 结果当真实模型准确率。
 
-## 单台 Linux + Caddy 自动 HTTPS
+同阶段不同项目的回复可另用 `--replies-only --output artifacts/replies-review.json` 检查，增加两次文本调用，验证两个不同合作需求收到不同回复。
 
-1. 在**个人或明确授权的新服务器**安装 Docker Engine 和 Compose v2，把本仓库 `server/` 复制到部署目录。以下命令均在该目录运行，不能用于前公司服务器。
-2. 将自有域名 A/AAAA 记录指向服务器，仅开放 80/443（以及自己的管理入口）。数据库保持 loopback 绑定，API 宿主端口也绑定 loopback；Caddy 走内部 `api:8000`。
-3. 通过管理员的进程环境注入高强度 `JWT_SECRET`、`POSTGRES_PASSWORD` 和需要的模型密钥。不要用开发默认值。配置公开地址：
+账本记录模型、耗时、计费单位和估价，最终金额以供应商账单为准。代码当前保守估算图片 0.5 元/张、720P 带声视频 0.3 元/秒和文本/视觉 token 费用；预览、正常出图、用户改图、低分自动修复、质检都计入项目成本。生成前可据此估算一次闭环，而不能只数最终选中的图片。真实完成项目可用固定验收账号环境运行 `uv run python scripts/review_note.py --mode real --project-id PROJECT_ID`，抽查文案修订不新增媒体任务（仍调用一次文本模型）。
+
+真实验证完成后设置 `MOCK_PROVIDERS=1`，用基础 `compose.yaml` 重新创建 API 和 Worker，再确认 `/api/health` 的 `providers.mock=true`，避免日常测试产生费用。
+
+## 生产配置：宿主 nginx HTTPS
+
+本轮只提供配置，不连接服务器、不执行远程部署。目标由宿主 nginx 提供 `https://47.97.153.127:8443`，应用只监听 `127.0.0.1:18080`。[`deploy/compose.production.yaml`](deploy/compose.production.yaml) 固定真实模式、生产环境与公开媒体根地址，Worker 两副本；基础 Compose 已为 API、Worker、Postgres 设置 `json-file` 日志轮转（20m × 3）。
+
+以下步骤只用于个人或已明确授权的新环境，由部署负责人执行；数据库/JWT/模型凭证预先放进启动进程环境：
 
 ```bash
-export DOMAIN=outfit.example.com
-export PUBLIC_BASE_URL="https://$DOMAIN"
-export ENVIRONMENT=production API_BIND=127.0.0.1
-export MOCK_PROVIDERS=1
-docker compose -f compose.yaml -f deploy/compose.caddy.yaml up -d --build
-curl -fsS "https://$DOMAIN/api/health"
+export ENVIRONMENT=production
+export PUBLIC_BASE_URL=https://47.97.153.127:8443
+export API_BIND=127.0.0.1
+# MODEL_BUDGET_CNY 按已有账本与批准的部署预算设置。
+docker compose -f compose.yaml -f deploy/compose.production.yaml config --quiet
+docker compose -f compose.yaml -f deploy/compose.production.yaml up -d --build --scale worker=2
 ```
 
-`deploy/compose.caddy.yaml` 增加 Caddy、80/443 端口和证书持久卷；`deploy/Caddyfile` 按域名自动申请/续期证书。`flush_interval -1` 及时转发 SSE，上传限制 16 MB。域名未解析、80/443 未放通时，先处理 DNS/防火墙再申请证书。
+宿主 nginx 的现有 TLS 入口代理到 `http://127.0.0.1:18080`，关闭 SSE buffering、允许 16 MB 请求体，并为长连接设置足够 read timeout；证书、TLS server 和宿主 nginx 不在这个 Compose 中。App API 根地址是 `https://47.97.153.127:8443/api`，媒体使用返回的绝对签名 URL。部署后由负责人检查公网健康、SSE、媒体下载及容器重启后的持久性；数据库和 API 端口不直接向公网发布。
 
-部署后以公网 HTTPS 地址运行同一 HTTP 验证脚本，例如 `--base-url https://outfit.example.com --mode mock`。原生 App 的 API 根地址用 `https://outfit.example.com/api`，媒体使用响应中的绝对签名 URL。检查模型下载后的文件在媒体卷、API/Worker 重启后仍可读；备份数据库及媒体卷时要同步保留版本链，不要仅备份 checkpoint 表。此仓库未内置用户界面、账号找回、对象存储和多机部署。
+自有域名新环境也可选择现存 [`deploy/compose.caddy.yaml`](deploy/compose.caddy.yaml) 与 [`deploy/Caddyfile`](deploy/Caddyfile)：设置 `DOMAIN/PUBLIC_BASE_URL`，在正确 DNS 和 80/443 可用后启动 Caddy overlay，走内部 `api:8000` 自动管理证书；这属于替代部署方案，不与宿主 nginx 生产 overlay 混用。此仓库未内置用户界面、账号找回、对象存储和多机部署。

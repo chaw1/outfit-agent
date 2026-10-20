@@ -3,7 +3,16 @@ from uuid import uuid4
 
 import pytest
 
-from scripts.e2e import API, Evidence, cards, complete, prepare, resume, safe
+from scripts.e2e import (
+    API,
+    Evidence,
+    assert_preview_jobs_only,
+    cards,
+    complete,
+    prepare,
+    resume,
+    safe,
+)
 
 
 @pytest.mark.integration
@@ -38,7 +47,8 @@ def test_invalid_direction_does_not_advance_or_queue(api, project_assets):
     assert response.status_code >= 400 or "event: error" in response.text
     after = api.state(project_id)
     assert after["stage"] == before["stage"] == "direction"
-    assert not after.get("script") and not after["active_jobs"]
+    assert not after.get("script")
+    assert_preview_jobs_only(after)
 
 
 @pytest.mark.integration
@@ -103,6 +113,7 @@ def test_stage_free_text_revises_script_without_generating(api, project_assets):
     api.send(project_id, action={
         "type": "choose_direction", "direction_id": state["directions"][0]["id"],
     })
+    api.wait(project_id, lambda s: not s["active_jobs"], timeout=60)
     before = api.state(project_id)
     events = api.send(project_id, text="换成通勤风")
     assert cards(events, "script")

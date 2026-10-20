@@ -183,6 +183,15 @@ def script_hash(script):
     return hashlib.sha256(json.dumps(script, sort_keys=True).encode()).hexdigest()
 
 
+def assert_preview_jobs_only(state):
+    """Pre-confirmation jobs may only be the new direction previews."""
+    assert not state["images"], "Batch images must wait for script confirmation"
+    pending_previews = sum(direction.get("preview_status") in {"queued", "running"}
+                           for direction in state["directions"])
+    assert len(state["active_jobs"]) == pending_previews
+    assert all(job["kind"] == "image" for job in state["active_jobs"])
+
+
 def environment_credentials(*, required=False):
     username = os.environ.get("E2E_USERNAME")
     password = os.environ.get("E2E_PASSWORD")
@@ -209,9 +218,20 @@ def advance_to_script(api, evidence, project_id, state):
             state = api.state(project_id)
             assert 2 <= len(state["directions"]) <= 3
             assert state["pending_action"]["type"] == "choose_direction"
-            assert not state["active_jobs"] and not state["images"]
+            assert_preview_jobs_only(state)
             step["directions"] = state["directions"]
     if state["stage"] == "direction":
+        with evidence.step("direction_previews") as step:
+            state = api.wait(project_id, lambda s: not s["active_jobs"])
+            assert all(d.get("preview_status") in {"succeeded", "failed"}
+                       for d in state["directions"]), "Every direction must have a terminal preview"
+            succeeded = [d for d in state["directions"] if d.get("preview_status") == "succeeded"]
+            assert succeeded and all(d.get("preview_url") for d in succeeded)
+            if evidence.data["mode"] == "mock":
+                assert len(succeeded) == len(state["directions"])
+            step["preview_count"] = len(state["directions"])
+            step["succeeded"] = len(succeeded)
+            step["failed"] = len(state["directions"]) - len(succeeded)
         with evidence.step("choose_direction_and_script") as step:
             direction_id = state["directions"][0]["id"]
             events = api.send(project_id, action={
