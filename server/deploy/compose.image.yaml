@@ -1,0 +1,8 @@
+# 服务器上不构建：镜像在本机按 linux/amd64 构建后上传（见 deploy-ecs.sh）
+services:
+  api:
+    image: outfit-agent-server:latest
+    pull_policy: never
+  worker:
+    image: outfit-agent-server:latest
+    pull_policy: never
