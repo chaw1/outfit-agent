@@ -6,165 +6,219 @@ TAP version 13
 # Subtest: REST centralizes exact paths, bodies, dynamic auth and base URL normalization
 ok 1 - REST centralizes exact paths, bodies, dynamic auth and base URL normalization
   ---
-  duration_ms: 10.711042
+  duration_ms: 12.487958
   type: 'test'
   ...
 # Subtest: asset upload sends multipart without manually setting its boundary
 ok 2 - asset upload sends multipart without manually setting its boundary
   ---
-  duration_ms: 0.361791
+  duration_ms: 0.38
   type: 'test'
   ...
 # Subtest: REST 401 signs out once; invalid login does not disturb the session callback
 ok 3 - REST 401 signs out once; invalid login does not disturb the session callback
   ---
-  duration_ms: 0.4645
+  duration_ms: 0.38075
   type: 'test'
   ...
 # Subtest: REST reports offline and malformed responses as actionable errors
 ok 4 - REST reports offline and malformed responses as actionable errors
   ---
-  duration_ms: 0.171875
+  duration_ms: 0.15125
   type: 'test'
   ...
 # Subtest: default fetch retains the global receiver required by browser native functions
 ok 5 - default fetch retains the global receiver required by browser native functions
   ---
-  duration_ms: 0.161125
+  duration_ms: 0.133791
   type: 'test'
   ...
 # Subtest: stream sends a single authenticated POST and delivers each incremental event once
 ok 6 - stream sends a single authenticated POST and delivers each incremental event once
   ---
-  duration_ms: 0.433917
+  duration_ms: 0.563125
   type: 'test'
   ...
 # Subtest: stream detects unexpected EOF and never retries the action
 ok 7 - stream detects unexpected EOF and never retries the action
   ---
-  duration_ms: 0.108167
+  duration_ms: 0.160958
   type: 'test'
   ...
 # Subtest: stream cancellation aborts the transport; already-aborted requests do not send
 ok 8 - stream cancellation aborts the transport; already-aborted requests do not send
   ---
-  duration_ms: 0.263209
+  duration_ms: 0.291375
   type: 'test'
   ...
 # Subtest: stream 401, server errors, invalid frames and timeout reject without replay
 ok 9 - stream 401, server errors, invalid frames and timeout reject without replay
   ---
-  duration_ms: 0.353208
+  duration_ms: 0.404041
   type: 'test'
   ...
 # Subtest: late REST and streaming 401 responses cannot expire a replacement token
 ok 10 - late REST and streaming 401 responses cannot expire a replacement token
   ---
-  duration_ms: 0.414792
+  duration_ms: 0.468333
   type: 'test'
   ...
 # Subtest: disposed transport throwing on abort cannot leave completion or cancellation pending
 ok 11 - disposed transport throwing on abort cannot leave completion or cancellation pending
   ---
-  duration_ms: 0.151833
+  duration_ms: 0.162875
   type: 'test'
   ...
 # Subtest: same-id cards are replaced completely, preserve order, and never mutate inputs
 ok 12 - same-id cards are replaced completely, preserve order, and never mutate inputs
   ---
-  duration_ms: 0.712833
+  duration_ms: 0.733292
   type: 'test'
   ...
 # Subtest: jobs progress queued → running → terminal, reject stale and contradictory terminal events
 ok 13 - jobs progress queued → running → terminal, reject stale and contradictory terminal events
   ---
-  duration_ms: 0.109
+  duration_ms: 0.153667
   type: 'test'
   ...
 # Subtest: equal-status job updates use timestamps and can add result details
 ok 14 - equal-status job updates use timestamps and can add result details
   ---
-  duration_ms: 0.086959
+  duration_ms: 0.046917
   type: 'test'
   ...
 # Subtest: image versions are separate records and completed results do not regress
 ok 15 - image versions are separate records and completed results do not regress
   ---
-  duration_ms: 0.073416
+  duration_ms: 0.058917
   type: 'test'
   ...
 # Subtest: state restores cards and polling refreshes an existing stable card id
 ok 16 - state restores cards and polling refreshes an existing stable card id
   ---
-  duration_ms: 0.141334
+  duration_ms: 0.134375
   type: 'test'
   ...
 # Subtest: authoritative state clears old note/video and empty jobs while retaining image completion
 ok 17 - authoritative state clears old note/video and empty jobs while retaining image completion
   ---
-  duration_ms: 0.0945
+  duration_ms: 0.068208
+  type: 'test'
+  ...
+# Subtest: state cards carry previews, fidelity, script provenance, note cost and disclosure without mutating history
+ok 18 - state cards carry previews, fidelity, script provenance, note cost and disclosure without mutating history
+  ---
+  duration_ms: 0.144458
+  type: 'test'
+  ...
+# Subtest: a later images event extends note/video stages and retains their content and new project fields
+ok 19 - a later images event extends note/video stages and retains their content and new project fields
+  ---
+  duration_ms: 0.143958
+  type: 'test'
+  ...
+# Subtest: restoring a draft script and then receiving preserved images stays in script until confirmation
+ok 20 - restoring a draft script and then receiving preserved images stays in script until confirmation
+  ---
+  duration_ms: 0.242375
+  type: 'test'
+  ...
+# Subtest: restored authoritative history replaces current script metadata while keeping previously generated images
+ok 21 - restored authoritative history replaces current script metadata while keeping previously generated images
+  ---
+  duration_ms: 0.251708
   type: 'test'
   ...
 # Subtest: mock authentication validates credentials, stores bcrypt, and isolates user assets/projects
-ok 18 - mock authentication validates credentials, stores bcrypt, and isolates user assets/projects
+ok 22 - mock authentication validates credentials, stores bcrypt, and isolates user assets/projects
   ---
-  duration_ms: 278.834375
+  duration_ms: 291.238666
   type: 'test'
   ...
 # Subtest: full mock workflow streams stable cards, advances jobs, keeps versions/order, plays video, and resumes after restart
-ok 19 - full mock workflow streams stable cards, advances jobs, keeps versions/order, plays video, and resumes after restart
+ok 23 - full mock workflow streams stable cards, advances jobs, keeps versions/order, plays video, and resumes after restart
   ---
-  duration_ms: 917.840458
+  duration_ms: 1114.094916
   type: 'test'
   ...
-# Subtest: mock revisions preserve drafts, missing media fails/retries, refreshed links survive expiry and state rollback
-ok 20 - mock revisions preserve drafts, missing media fails/retries, refreshed links survive expiry and state rollback
+# Subtest: mock revisions preserve drafts, missing media fails/retries, refreshed links survive expiry and edits preserve published content
+ok 24 - mock revisions preserve drafts, missing media fails/retries, refreshed links survive expiry and edits preserve published content
   ---
-  duration_ms: 122.121375
+  duration_ms: 142.137667
+  type: 'test'
+  ...
+# Subtest: second-round fixtures preview directions, announce once, auto-fix one version, and restore script without losing images
+ok 25 - second-round fixtures preview directions, announce once, auto-fix one version, and restore script without losing images
+  ---
+  duration_ms: 113.371042
   type: 'test'
   ...
 # Subtest: long passwords remain distinct beyond bcrypt 72-byte input limit
-ok 21 - long passwords remain distinct beyond bcrypt 72-byte input limit
+ok 26 - long passwords remain distinct beyond bcrypt 72-byte input limit
   ---
-  duration_ms: 157.851375
+  duration_ms: 158.056792
   type: 'test'
   ...
 # Subtest: SSE accepts every possible chunk boundary, CRLF, comments and multiline data
-ok 22 - SSE accepts every possible chunk boundary, CRLF, comments and multiline data
+ok 27 - SSE accepts every possible chunk boundary, CRLF, comments and multiline data
   ---
-  duration_ms: 1.505917
+  duration_ms: 2.099792
   type: 'test'
   ...
 # Subtest: SSE handles one-character chunks, bare CR and an event at EOF
-ok 23 - SSE handles one-character chunks, bare CR and an event at EOF
+ok 28 - SSE handles one-character chunks, bare CR and an event at EOF
   ---
-  duration_ms: 0.101667
+  duration_ms: 0.131875
   type: 'test'
   ...
 # Subtest: SSE decodes card, job and error events and ignores extensions
-ok 24 - SSE decodes card, job and error events and ignores extensions
+ok 29 - SSE decodes card, job and error events and ignores extensions
   ---
-  duration_ms: 0.424167
+  duration_ms: 1.10275
   type: 'test'
   ...
 # Subtest: malformed known events fail explicitly instead of silently losing a reply
-ok 25 - malformed known events fail explicitly instead of silently losing a reply
+ok 30 - malformed known events fail explicitly instead of silently losing a reply
   ---
-  duration_ms: 0.208542
+  duration_ms: 0.504
   type: 'test'
   ...
 # Subtest: an event without data is ignored and a colon only removes one leading space
-ok 26 - an event without data is ignored and a colon only removes one leading space
+ok 31 - an event without data is ignored and a colon only removes one leading space
   ---
-  duration_ms: 0.06475
+  duration_ms: 0.111916
   type: 'test'
   ...
-1..26
-# tests 26
+# Subtest: last_message_id changes trigger history fetches, including a proactive message after jobs become empty
+ok 32 - last_message_id changes trigger history fetches, including a proactive message after jobs become empty
+  ---
+  duration_ms: 0.718125
+  type: 'test'
+  ...
+# Subtest: a marker discovered during SSE remains pending until streaming ends and history includes it
+ok 33 - a marker discovered during SSE remains pending until streaming ends and history includes it
+  ---
+  duration_ms: 0.092875
+  type: 'test'
+  ...
+# Subtest: a newer concurrent marker cannot be acknowledged by an older messages response
+ok 34 - a newer concurrent marker cannot be acknowledged by an older messages response
+  ---
+  duration_ms: 0.068208
+  type: 'test'
+  ...
+# Subtest: legacy states without a marker still allow forced initial, reconnect and recovery history refresh
+ok 35 - legacy states without a marker still allow forced initial, reconnect and recovery history refresh
+  ---
+  duration_ms: 0.054542
+  type: 'test'
+  ...
+1..35
+# tests 35
 # suites 0
-# pass 26
+# pass 35
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 1551.258791
+# duration_ms 1913.024792

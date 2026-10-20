@@ -6,7 +6,7 @@ import type { AuthResponse, User } from '../api/types';
 
 const TOKEN_KEY = 'outfit.session';
 const BASE_KEY = 'outfit.server';
-const defaultBase = process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:19301';
+const defaultBase = process.env.EXPO_PUBLIC_API_BASE || 'https://47.97.153.127:8443';
 
 async function read(key: string) {
   if (Platform.OS === 'web') return (key === TOKEN_KEY ? sessionStorage : localStorage).getItem(key);

@@ -1,31 +1,29 @@
-结论：App 与本地假服务已完成，A1–A5 本地验收通过，可交 Claude 复测；SDK 58 Expo Go 真机和真实后端尚未联调。
+结论：第二轮 B1–B4 已完成本地验收，可交 Claude 复测；真机安装、签名和真实后端联调尚未执行。
 
-- A1 通过：`npx tsc --noEmit`、ESLint 零错误零警告；26/26 测试通过，覆盖 API、SSE 任意分块、同 id 卡片覆盖、任务推进、隔离和重启恢复。
-- A2 通过：`npx expo export --platform ios --output-dir dist/ios` 与 Android 对应命令均成功，生成 Hermes bundle。
-- A3 通过：无头 Chrome，390×844，注册→衣服多图/模特图上传→自由对话→选方向→确认脚本→生成→编辑 v2→排序确认→笔记预览/复制/下载→确认视频→实际播放超过 1 秒。
-- A3 补充通过：刷新恢复、401 自动回登录、重新登录、断网提示与重试；18 张截图，未捕获页面异常为 0。
-- A4 通过：`src/api/` 集中接口及契约类型；原生 SecureStore、web sessionStorage；可配置地址，旧会话响应隔离；活动任务每 3 秒拉 state，断流恢复只发 GET。
-- A5 通过：`README.md` 包含 iPhone Expo Go、局域网/假服务/真实服务/web、照片权限及以后 prebuild/EAS/TestFlight 的步骤。
+- B1 通过：方向预览有排队/生成占位、成图和失败提示；图片显示还原分、自动修复说明及来源脚本；改图提供 4 个快捷说法。
+- B1 通过：脚本卡及后续阶段可打开历史，发送 `restore_script` 恢复草稿并重新确认，已有图片保留；笔记预览显示成本和 `ai_label`。
+- B1 通过：前台工作台每 3 秒拉 state，`last_message_id` 未同步时自动拉 messages；覆盖流中发现、最后任务完成、消息稍晚可见与前后台恢复。
+- B2 通过：mock 补齐全部新字段、方向预览、54 分自动修到 92 分、主动播报去重、历史恢复/重新确认及固定成本；note/done 改图保留笔记、视频和待确认动作。
+- B2 通过：无头 Chrome、390×844 完整流程通过，含恢复后保留旧图、快捷改图、选图排序、笔记复制/下载、视频实际播放、401 和断网恢复；24 张截图，页面异常为 0。
+- B3 通过：默认 `https://47.97.153.127:8443`，设置仍可修改；衣序显示名、bundle、图标、启动页及相机/相册权限齐全；iOS prebuild 成功，生成目录未提交。
+- B3 通过：README 包含免费 Apple ID、Personal Team、手机配对/信任、开发者模式、`run:ios --device --port 19300`、Release 演示和 7 天重装步骤。
+- B4 通过：Node v22.23.1 执行 `npm run verify`，TypeScript、ESLint、35/35 测试、iOS/Android 导出全部通过；新增字段合并、消息标记刷新、脚本恢复均有单测/集成证据。
 
-复测：先使用 Node 22，再在 `app/` 执行 `npm ci`、`npm run verify`、`npm run test:e2e`。
-证据：`verification/summary.json` 与同目录日志；`screenshots/evidence.json` 记录图序、状态请求与播放结果；`verification/contact-sheet.jpg` 可总览全部截图。
-手动演示：两个终端分别 `npm run mock`（19301）、`npm run start`（19300）；手机设置 API 为电脑局域网 IP，详见 README。
-选型：Expo 官方模块保持 Go/web 共用；XHR 纯 JS 增量 SSE；Context 管会话、服务端 state 管恢复；Node 原生 HTTP 假服务，bcryptjs 处理密码，理由见 README/PROGRESS。
+复测：在 app/ 使用 Node 22，执行 `npm ci`、`npm run verify`、`npm run test:e2e`；原生生成执行 `npx expo prebuild --platform ios --no-install`。
+证据：`verification/summary.json` 及同目录日志、`verification/prebuild-ios.txt`、`verification/e2e.txt`、`screenshots/evidence.json`；总览 `verification/contact-sheet.jpg`。
 
-接口出入：未修改 `docs/设计.md`；路由、字段、五种 action、六种 card、五种 SSE 均遵约；健康检查也带 token。
-设计未细化处：`direction.palette` 兼容字符串/数组；`video.status` 使用任务状态枚举；均无额外必填字段。
+与约定的出入：未修改设计及 server/；新增字段和 restore_script 均按第 7 节，预览任务复用 kind:image；客户端新增字段可选以兼容旧响应。mock checkpoint 为本地脚本快照，模拟 LangGraph 历史语义。
+已知限制：mock 图片/视频复用 docs/spike 固定素材，还原分和成本是演示数据，不执行真实生成、评分或修复；任务由轮询请求推进并持久化主动消息。
+已知限制：第 7.3 节真实媒体文件的水印/元数据由服务端提供，mock 素材未添加文件内标识；App 展示声明并直接保存服务端媒体，真实文件标识待联调核验。
+已知限制：未访问真实 API、未连接 iPhone、未签名或验证原生相册/键盘/播放；prebuild 和导出不代表真机安装通过。
 
-已知限制：
-
-- 假服务按关键词调整文本，镜头与编辑版本复用 `docs/spike/` 实测图；模特照片不参与真实生成，视频也是已有素材；没有调用模型或产生费用。
-- [官方 SDK 58 公告](https://expo.dev/changelog/sdk-58) 提示商店 Expo Go 处于升级过渡期；必须使用匹配 SDK 58 的官方客户端。原生权限、相册保存及视频需用该客户端在 iPhone/Android 复测，不能把 bundle 导出当作真机通过。
-- 真实后端未连接；响应仅有基础运行时校验，缺少必需字段的非契约数据仍需加强容错。
-
-截图清单（均在 `screenshots/`）：
+截图清单（均在 screenshots/，后缀 .png）：
 
 - 01-register、02-projects-empty、03-new-project-uploaded、04-garments-and-directions、05-script-confirmation。
 - 06-images-generating、07-images-ready、08-edit-image、09-image-new-version、10-selected-order。
 - 11-note-card、12-note-preview、13-video-ready、14-video-playing、15-project-completed。
-- 16-expired-session、17-network-error、18-network-recovered（以上均为 `.png`）。
+- 16-expired-session、17-network-error、18-network-recovered。
+- 19-direction-preview-generating、20-script-history、21-fidelity-auto-fixed、22-script-restored、23-note-cost-and-ai-label、24-direction-preview-failed。
 
-续接入口：`PROGRESS.md`；分支 `feat/app`，按功能拆分中文提交；未 push、未合并，未访问前公司环境，未开启模拟器或可见窗口。
+提交：feat/app；1d8963d（类型/同步）、ea373f2（假服务）、f7c2542（界面/端到端），配置与验收材料见最后一条提交；作者 chaw1 <97000945@qq.com>。
+续接：先读 PROGRESS.md 和本文件，再核对代码；未 push、未合并 main、未调用真实模型、未读取钥匙串、未访问前公司环境、未开启模拟器或可见浏览器。

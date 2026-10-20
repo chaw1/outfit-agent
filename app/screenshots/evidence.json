@@ -1,13 +1,26 @@
 {
   "viewport": "390×844",
-  "passedAt": "2026-10-20T14:37:45.027Z",
-  "firstEditedImage": "image_f5fdead6-7060-41b3-b59c-1dd63c90d0af",
+  "passedAt": "2026-10-20T15:04:21.097Z",
+  "firstEditedImage": "image_03137142-16f6-45e3-ace8-829af8d7f9d0",
   "selectedOrder": [
-    "image_98864398-434d-435c-a4db-080a0043c697",
-    "image_e2a3d70d-5799-4666-8b9c-174be7b41825",
-    "image_5629d780-7bfc-46dd-9ebf-7156dae7f846"
+    "image_f35138b4-c4cf-41e8-b25c-b6ae72a5454a",
+    "image_98fd1a57-728a-4219-95c2-00fbea8455f9",
+    "image_6eef5f5a-f054-4b09-8f75-5e373d8c5b82"
   ],
-  "stateRequests": 19,
+  "stateRequests": 35,
+  "historyRequests": 21,
+  "proactiveMessage": true,
+  "restoredCheckpoint": "checkpoint_83ef6151-3981-4ac5-b3c3-f4c54044a3d7",
+  "retainedImageIds": [
+    "image_2a22da5f-cd27-43a7-b14c-c01de4a1c35a",
+    "image_9cb5c444-7f40-4c88-8042-a9e2407b9a4e",
+    "image_1ccd4979-56f8-4a2c-8266-14fe0122a738",
+    "image_ecc197d0-c9dd-4fc3-a276-62ae61faf389"
+  ],
+  "previewImages": true,
+  "autoFixedFidelity": 92,
+  "noteCostCny": 15.3,
+  "aiLabel": "本篇图片和视频含 AI 生成内容，发布时请勾选平台的 AI 内容声明。",
   "videoPlayed": true,
   "pageErrors": []
 }
