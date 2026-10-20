@@ -28,6 +28,7 @@ export default defineConfig({
     // Traces contain Authorization headers; live evidence is deliberately sanitized instead.
     trace: 'off',
     screenshot: 'only-on-failure',
+    video: process.env.LIVE_VIDEO === '1' ? { mode: 'on', size: { width: 390, height: 844 } } : 'off',
     permissions: ['clipboard-read', 'clipboard-write'],
   },
   webServer: liveBase ? {
