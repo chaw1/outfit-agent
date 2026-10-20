@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,7 +30,13 @@ class Settings(BaseSettings):
     provider_timeout_seconds: float = 300.0
     video_timeout_seconds: float = 600.0
     worker_poll_seconds: float = 1.0
-    max_upload_bytes: int = 15 * 1024 * 1024
+    max_upload_bytes: int = Field(default=15 * 1024 * 1024, ge=1, le=15 * 1024 * 1024)
+    max_upload_edge: int = Field(default=6000, ge=1, le=6000)
+    rate_limit_register: int = Field(default=120, ge=1)
+    rate_limit_login: int = Field(default=120, ge=1)
+    rate_limit_upload: int = Field(default=60, ge=1)
+    rate_limit_messages: int = Field(default=120, ge=1)
+    rate_limit_window_seconds: int = Field(default=60, ge=1)
     cors_origins: str = "*"
     environment: str = "development"
 

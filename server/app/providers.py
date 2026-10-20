@@ -27,6 +27,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.config import settings
 from app.errors import AppError
 from app.models import Asset, Project, UsageLedger
+from app.observability import log_model
 from app.runtime_settings import (
     assert_generation_allowed,
     budget_lock,
@@ -141,6 +142,9 @@ TOOL_DESCRIPTIONS = {
 }
 SYSTEM_PROMPT = """你是懂小红书穿搭创作的搭档，像博主朋友一样自然说中文。
 根据品牌需求和真实衣服分析制作内容，不编造面料、品牌功效或用户经历。
+context.profile 是博主保存的档案，context.style_notes 是长期风格偏好。
+提出方向、写作和修改脚本时落实这些偏好，例如“不穿高跟鞋”要选平底鞋；
+身高和体型仅作穿搭构图参考，不评价身材；本轮明确要求与偏好冲突时按本轮要求。
 根据用户本轮意图，从提供的当前阶段工具中自主选择一个，返回完整结构化结果。
 只调用一个允许的工具；参数必须从context与对话理解得出，不能编造资产或方向id。
 每个工具的reply写一两句贴合本项目、用户原话的博主搭子口吻回复，不重复固定模板。
@@ -290,6 +294,7 @@ class ProviderHub:
             ledger_session.flush()
             ledger_id = row.id
             ledger_session.commit()
+
             self._active_models[kind] = runtime["models"][kind]
             return ledger_id
 
@@ -310,6 +315,14 @@ class ProviderHub:
             if cost is not None:
                 row.estimated_cny = Decimal(0) if self.mock else cost
             ledger_session.commit()
+            log_model(
+                model=row.model,
+                duration_ms=row.duration_ms,
+                cost_cny=row.estimated_cny,
+                user_id=row.user_id,
+                project_id=row.project_id,
+                status=row.status,
+            )
 
     def _call(self, kind: str, estimate: str, operation: Callable) -> Any:
         started = time.monotonic()
@@ -1235,6 +1248,11 @@ class ProviderHub:
             "revise_script": f"收到，{subject}这版已经把“{instruction[:48]}”落到镜头里了。",
             "write_note": f"{subject}的笔记写好了，搭配细节和选图顺序都放进去了。",
         }
+        style_notes = (
+            context.get("style_notes") or (context.get("profile") or {}).get("style_notes")
+        )
+        if style_notes and name in {"propose_directions", "write_script", "revise_script"}:
+            replies[name] += f" 也照顾了你保存的偏好：{style_notes}。"
         fields = TOOL_SCHEMAS[name]["properties"]
         return {
             **{key: value for key, value in result.items() if key in fields},
@@ -1243,6 +1261,11 @@ class ProviderHub:
 
     @staticmethod
     def _mock_content(name: str, context: dict, instruction: str) -> dict:
+        style_notes = (
+            context.get("style_notes") or (context.get("profile") or {}).get("style_notes") or ""
+        )
+        preference = style_notes.replace("不穿高跟鞋", "搭配平底鞋")
+        preference_suffix = f"；{preference}" if preference else ""
         if name == "chat":
             return {"text": "懂你～我们可以继续微调，等你确认后再开始生成。"}
         if name == "propose_directions":
@@ -1254,7 +1277,7 @@ class ProviderHub:
                         "scene": "午后街角咖啡店",
                         "mood": "自然松弛",
                         "palette": ["奶油白", "浅蓝", "木色"],
-                        "why": "让衣服的柔和线条融入日常",
+                        "why": "让衣服的柔和线条融入日常" + preference_suffix,
                         "sample_title": "周末穿得轻一点",
                     },
                     {
@@ -1263,7 +1286,7 @@ class ProviderHub:
                         "scene": "城市写字楼和树荫人行道",
                         "mood": "利落轻盈",
                         "palette": ["白色", "藏蓝", "银灰"],
-                        "why": "简约配色适合工作日，也能兼顾舒适",
+                        "why": "简约配色适合工作日，也能兼顾舒适" + preference_suffix,
                         "sample_title": "上班也想轻松穿",
                     },
                     {
@@ -1272,7 +1295,7 @@ class ProviderHub:
                         "scene": "草坪与湖边步道",
                         "mood": "明亮自在",
                         "palette": ["浅绿", "米白", "天空蓝"],
-                        "why": "用户外自然光拍出夏季新品的清爽感",
+                        "why": "用户外自然光拍出夏季新品的清爽感" + preference_suffix,
                         "sample_title": "把夏天穿在身上",
                     },
                 ]
@@ -1297,9 +1320,10 @@ class ProviderHub:
                         "id": f"shot-{i + 1}",
                         "scene": scene if i != 2 else "窗边自然光下",
                         "outfit_asset_ids": ids,
-                        "pose": pose,
+                        "pose": pose + ("，穿平底鞋" if "不穿高跟鞋" in style_notes else ""),
                         "camera": "竖版，真实自然光，全身" if i < 2 else "竖版中近景",
-                        "caption": caption + (f" · {instruction}" if instruction else ""),
+                        "caption": caption + preference_suffix
+                        + (f" · {instruction}" if instruction else ""),
                     }
                     for i, (pose, caption) in enumerate(
                         [

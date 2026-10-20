@@ -20,11 +20,45 @@ class LoginInput(StrictInput):
     password: str
 
 
+class Profile(StrictInput):
+    model_asset_ids: list[str] = Field(default_factory=list, max_length=20)
+    height_cm: float | None = Field(default=None, gt=0, le=300, allow_inf_nan=False)
+    body_notes: str | None = Field(default=None, max_length=2000)
+    style_notes: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("model_asset_ids")
+    @classmethod
+    def unique_model_assets(cls, value):
+        if any(not item.strip() for item in value) or len(value) != len(set(value)):
+            raise ValueError("本人照片编号不能为空或重复。")
+        return value
+
+
+class ProfilePatch(Profile):
+    """Same fields as the stored profile; model_fields_set controls partial updates."""
+
+
+class UserProfilePatch(StrictInput):
+    nickname: str | None = Field(default=None, min_length=1, max_length=80)
+    profile: ProfilePatch | None = None
+
+    @field_validator("nickname", "profile", mode="before")
+    @classmethod
+    def provided_value(cls, value):
+        if value is None:
+            raise ValueError("昵称和档案不能为 null，请传入要修改的内容。")
+        return value
+
+
 class UserOutput(BaseModel):
     id: str
     username: str
     nickname: str
     created_at: datetime
+    tier: str = "free"
+    daily_budget_cny: float = 0
+    today_cost_cny: float = 0
+    profile: Profile = Field(default_factory=Profile)
 
 
 class AuthOutput(BaseModel):

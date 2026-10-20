@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
-from fastapi import Depends, FastAPI, File, Form, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
@@ -30,6 +30,10 @@ from app.graph import build_graph, get_graph_state, run_turn, script_versions
 from app.log_errors import log_exception
 from app.media import asset_dict, asset_path, store_upload
 from app.models import Asset, Job, Message, Project, User, utcnow
+from app.observability import RequestObservabilityMiddleware, bind_project, bind_user
+from app.profile import default_model_asset_id, patch_user
+from app.project_cleanup import cleanup_project
+from app.rate_limits import RequestProtectionMiddleware, limit_messages, limit_upload
 from app.schemas import (
     AssetOutput,
     AuthOutput,
@@ -44,6 +48,7 @@ from app.schemas import (
     RegisterInput,
     StateOutput,
     UserOutput,
+    UserProfilePatch,
 )
 from app.security import (
     current_user,
@@ -83,6 +88,7 @@ async def lifespan(application: FastAPI):
         saver.setup()
         application.state.checkpointer = saver
         application.state.graph = build_graph(saver)
+        application.state.observability_session_factory = SessionLocal
         settings.media_dir.mkdir(parents=True, exist_ok=True)
         yield
 
@@ -95,7 +101,10 @@ app = FastAPI(
         400: {"model": ErrorOutput},
         401: {"model": ErrorOutput},
         404: {"model": ErrorOutput},
+        413: {"model": ErrorOutput},
+        415: {"model": ErrorOutput},
         422: {"model": ErrorOutput},
+        429: {"model": ErrorOutput},
     },
 )
 app.add_middleware(
@@ -104,6 +113,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-Id"],
 )
 app.include_router(admin_router)
 
@@ -134,7 +144,13 @@ def admin_page():
 
 @app.exception_handler(AppError)
 async def app_error_handler(request, exc):
-    return JSONResponse({"error": {"code": exc.code, "message": exc.message}}, exc.status_code)
+    headers = (
+        {"Retry-After": str(settings.rate_limit_window_seconds)}
+        if exc.status_code == 429 else None
+    )
+    return JSONResponse(
+        {"error": {"code": exc.code, "message": exc.message}}, exc.status_code, headers=headers
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -178,6 +194,7 @@ def owned_project(session: Session, project_id: str, user_id: str) -> Project:
     )
     if project is None:
         raise AppError("NOT_FOUND", "项目不存在", 404)
+    bind_project(project.id)
     return project
 
 
@@ -205,7 +222,7 @@ def health(session: Session = Depends(get_session)):
 
 
 @app.post("/api/auth/register", response_model=AuthOutput)
-def register(body: RegisterInput, session: Session = Depends(get_session)):
+def register(body: RegisterInput, request: Request, session: Session = Depends(get_session)):
     user = User(
         username=body.username,
         password_hash=hash_password(body.password),
@@ -217,25 +234,38 @@ def register(body: RegisterInput, session: Session = Depends(get_session)):
     except IntegrityError as exc:
         session.rollback()
         raise AppError("USERNAME_TAKEN", "用户名已被使用", 409) from exc
-    return {"token": issue_token(user.id), "user": user_dict(user)}
+    bind_user(request, user.id, session)
+    return {"token": issue_token(user.id), "user": user_dict(user, session)}
 
 
 @app.post("/api/auth/login", response_model=AuthOutput)
-def login(body: LoginInput, session: Session = Depends(get_session)):
+def login(body: LoginInput, request: Request, session: Session = Depends(get_session)):
     user = session.scalar(select(User).where(User.username == body.username))
     if user is None or not verify_password(body.password, user.password_hash):
         raise AppError("INVALID_CREDENTIALS", "用户名或密码错误", 401)
+    bind_user(request, user.id, session)
     if user.disabled:
         raise AppError("USER_DISABLED", "账号已被禁用，请联系管理员", 403)
-    return {"token": issue_token(user.id), "user": user_dict(user)}
+    return {"token": issue_token(user.id), "user": user_dict(user, session)}
 
 
 @app.get("/api/me", response_model=UserOutput)
-def me(user: User = Depends(current_user)):
-    return user_dict(user)
+def me(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    return user_dict(user, session)
 
 
-@app.post("/api/assets", response_model=AssetOutput)
+@app.patch("/api/me", response_model=UserOutput)
+def update_me(
+    body: UserProfilePatch,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    patch_user(session, user, body)
+    session.commit()
+    return user_dict(user, session)
+
+
+@app.post("/api/assets", response_model=AssetOutput, dependencies=[Depends(limit_upload)])
 def upload_asset(
     file: UploadFile = File(...),
     kind: str = Form(..., pattern="^(garment|model|reference)$"),
@@ -291,13 +321,17 @@ def create_project(
         asset = session.get(Asset, asset_id)
         if not asset or asset.user_id != user.id or asset.kind != "garment":
             raise AppError("INVALID_ASSET", "衣服资产不存在或无权使用", 404)
-    if body.model_asset_id:
-        asset = session.get(Asset, body.model_asset_id)
+    model_id = body.model_asset_id
+    if model_id is None:
+        model_id = default_model_asset_id(session, user)
+    if model_id:
+        asset = session.get(Asset, model_id)
         if not asset or asset.user_id != user.id or asset.kind != "model":
             raise AppError("INVALID_ASSET", "模特资产不存在或无权使用", 404)
-    project = Project(user_id=user.id, **body.model_dump())
+    project = Project(user_id=user.id, **{**body.model_dump(), "model_asset_id": model_id})
     session.add(project)
     session.commit()
+    bind_project(project.id)
     return project_dict(project, session)
 
 
@@ -324,12 +358,7 @@ def delete_project(
 ):
     project_lock(session, project_id)
     project = owned_project(session, project_id, user.id)
-    project.deleted_at = utcnow()
-    for job in session.scalars(
-        select(Job).where(Job.project_id == project_id, Job.status == "queued")
-    ):
-        job.status, job.error = "failed", "项目已删除"
-    session.commit()
+    cleanup_project(session, project)
     return Response(status_code=204)
 
 
@@ -507,6 +536,7 @@ def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -
 @app.post(
     "/api/projects/{project_id}/messages",
     response_class=StreamingResponse,
+    dependencies=[Depends(limit_messages)],
     responses={
         200: {
             "description": "SSE：token / card / job / done / error",
@@ -581,3 +611,7 @@ def get_job(
         raise AppError("NOT_FOUND", "任务不存在", 404)
     owned_project(session, job.project_id, user.id)
     return job_dict(job)
+
+
+app.add_middleware(RequestProtectionMiddleware)
+app.add_middleware(RequestObservabilityMiddleware)

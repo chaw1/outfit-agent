@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.errors import AppError
 from app.models import Job, Project, UsageLedger, User, utcnow
+from app.observability import request_totals
 from app.runtime_settings import (
     assert_generation_allowed,
     day_bounds,
@@ -103,6 +104,8 @@ class Overview(BaseModel):
     total: Aggregate
     stages: list[StageCount]
     jobs: QueueCounts
+    requests_24h: int
+    errors_24h: int
 
 
 class UsageRow(BaseModel):
@@ -222,6 +225,7 @@ def overview(session: Session = Depends(get_session)):
     ).all()
     jobs = dict(session.execute(select(Job.status, func.count()).group_by(Job.status)).all())
     return {
+        **request_totals(session),
         "users": session.scalar(select(func.count(User.id))),
         "projects": sum(count for stage, count in stages),
         "today": _usage_totals(

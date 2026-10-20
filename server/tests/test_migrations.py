@@ -22,7 +22,10 @@ def test_alembic_builds_an_empty_isolated_database(isolated_database_url):
         tables = {row[0] for row in connection.execute(
             "SELECT table_name FROM information_schema.tables WHERE table_schema='public'",
         )}
-        assert {"users", "projects", "assets", "messages", "jobs", "usage_ledger"} <= tables
+        assert {
+            "users", "projects", "assets", "messages", "jobs", "usage_ledger",
+            "request_events", "rate_limit_counters",
+        } <= tables
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone()
         refs = connection.execute(
             "SELECT data_type, is_nullable, column_default FROM information_schema.columns "

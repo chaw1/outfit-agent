@@ -142,7 +142,7 @@ def test_invalid_upload_is_rejected(api):
     response = api.client.post("/api/assets", data={"kind": "garment"}, files={
         "file": ("fake.jpg", b"not an image", "image/jpeg"),
     })
-    assert_error(response, 422)
+    assert_error(response, 415)
 
 
 @pytest.mark.integration

@@ -43,9 +43,10 @@ def test_admin_upgrade_preserves_existing_rows_and_backfills_user(isolated_datab
     migrate("head")
     with psycopg.connect(connection_url) as connection:
         assert connection.execute("SELECT tier,disabled FROM users").fetchone() == ("free", False)
+        assert connection.execute("SELECT profile FROM users").fetchone() == ({},)
         assert dict(connection.execute("SELECT id,user_id FROM usage_ledger")) == {
             "legacy-ledger": "legacy-user", "unattributed": None
         }
         assert connection.execute("SELECT title FROM projects").fetchone() == ("旧项目",)
         assert connection.execute("SELECT value FROM app_settings").fetchall() == []
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0004",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0007",)
