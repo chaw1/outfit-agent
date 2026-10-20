@@ -1,0 +1,481 @@
+import asyncio
+import hashlib
+import hmac
+import json
+import logging
+import time
+from contextlib import asynccontextmanager
+from datetime import datetime
+from uuid import NAMESPACE_URL, uuid5
+
+from fastapi import Depends, FastAPI, File, Form, Query, UploadFile
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
+from sqlalchemy import select
+from sqlalchemy import text as sql_text
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+from starlette.exceptions import HTTPException
+
+from app.config import settings
+from app.db import SessionLocal
+from app.errors import AppError
+from app.graph import build_graph, get_graph_state, run_turn
+from app.media import asset_dict, asset_path, store_upload
+from app.models import Asset, Job, Message, Project, User, utcnow
+from app.schemas import (
+    AssetOutput,
+    AuthOutput,
+    ErrorOutput,
+    HealthOutput,
+    JobOutput,
+    LoginInput,
+    MessageInput,
+    MessageOutput,
+    ProjectInput,
+    ProjectOutput,
+    RegisterInput,
+    StateOutput,
+    UserOutput,
+)
+from app.security import (
+    current_user,
+    get_session,
+    hash_password,
+    issue_token,
+    media_signature,
+    verify_password,
+)
+from app.views import image_items, job_dict, message_dict, project_dict, refresh_cards, user_dict
+from app.workflow import Workflow
+
+log = logging.getLogger("outfit")
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI):
+    if settings.environment == "production" and settings.jwt_secret.startswith("local-demo"):
+        raise RuntimeError("生产环境必须配置 JWT_SECRET")
+    with ConnectionPool(
+        settings.checkpoint_url,
+        min_size=1,
+        max_size=8,
+        kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},
+    ) as pool:
+        pool.wait(timeout=30)
+        saver = PostgresSaver(pool)
+        saver.setup()
+        application.state.checkpointer = saver
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        yield
+
+
+app = FastAPI(
+    title="穿搭笔记智能体 API",
+    version="0.1.0",
+    lifespan=lifespan,
+    responses={
+        400: {"model": ErrorOutput},
+        401: {"model": ErrorOutput},
+        404: {"model": ErrorOutput},
+        422: {"model": ErrorOutput},
+    },
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins.split(","),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.exception_handler(AppError)
+async def app_error_handler(request, exc):
+    return JSONResponse({"error": {"code": exc.code, "message": exc.message}}, exc.status_code)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_handler(request, exc):
+    return JSONResponse(
+        {"error": {"code": "VALIDATION_ERROR", "message": "请求字段无效，请检查输入"}}, 422
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_error_handler(request, exc):
+    return JSONResponse(
+        {"error": {"code": "HTTP_ERROR", "message": "请求无法完成"}}, exc.status_code
+    )
+
+
+@app.exception_handler(Exception)
+async def internal_error_handler(request, exc):
+    log.error("Request failed: %s", type(exc).__name__)
+    return JSONResponse(
+        {"error": {"code": "INTERNAL_ERROR", "message": "服务暂时不可用，请稍后重试"}}, 500
+    )
+
+
+def owned_project(session: Session, project_id: str, user_id: str) -> Project:
+    project = session.scalar(
+        select(Project).where(
+            Project.id == project_id, Project.user_id == user_id, Project.deleted_at.is_(None)
+        )
+    )
+    if project is None:
+        raise AppError("NOT_FOUND", "项目不存在", 404)
+    return project
+
+
+def project_lock(session: Session, project_id: str):
+    lock_id = int.from_bytes(hashlib.sha256(project_id.encode()).digest()[:8], "big", signed=True)
+    session.execute(sql_text("SELECT pg_advisory_xact_lock(:id)"), {"id": lock_id})
+
+
+@app.get("/api/health", response_model=HealthOutput)
+def health(session: Session = Depends(get_session)):
+    session.execute(sql_text("SELECT 1"))
+    return {
+        "ok": True,
+        "version": "0.1.0",
+        "providers": {
+            "text": settings.text_model,
+            "vision": settings.vision_model,
+            "image": settings.image_model,
+            "video": settings.video_model,
+            "mock": settings.mock_providers,
+        },
+    }
+
+
+@app.post("/api/auth/register", response_model=AuthOutput)
+def register(body: RegisterInput, session: Session = Depends(get_session)):
+    user = User(
+        username=body.username,
+        password_hash=hash_password(body.password),
+        nickname=body.nickname or body.username,
+    )
+    session.add(user)
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise AppError("USERNAME_TAKEN", "用户名已被使用", 409) from exc
+    return {"token": issue_token(user.id), "user": user_dict(user)}
+
+
+@app.post("/api/auth/login", response_model=AuthOutput)
+def login(body: LoginInput, session: Session = Depends(get_session)):
+    user = session.scalar(select(User).where(User.username == body.username))
+    if user is None or not verify_password(body.password, user.password_hash):
+        raise AppError("INVALID_CREDENTIALS", "用户名或密码错误", 401)
+    return {"token": issue_token(user.id), "user": user_dict(user)}
+
+
+@app.get("/api/me", response_model=UserOutput)
+def me(user: User = Depends(current_user)):
+    return user_dict(user)
+
+
+@app.post("/api/assets", response_model=AssetOutput)
+def upload_asset(
+    file: UploadFile = File(...),
+    kind: str = Form(..., pattern="^(garment|model|reference)$"),
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    data = file.file.read(settings.max_upload_bytes + 1)
+    if len(data) > settings.max_upload_bytes:
+        raise AppError("FILE_TOO_LARGE", "图片不能超过 15MB", 413)
+    asset = store_upload(session, user_id=user.id, kind=kind, data=data)
+    session.commit()
+    return asset_dict(asset)
+
+
+@app.get("/media/{asset_id}", include_in_schema=False)
+def get_media(
+    asset_id: str,
+    exp: int = Query(...),
+    sig: str = Query(...),
+    session: Session = Depends(get_session),
+):
+    valid_sig = (
+        len(sig) == 64
+        and sig.isascii()
+        and hmac.compare_digest(media_signature(asset_id, exp), sig)
+    )
+    if exp <= int(time.time()) or not valid_sig:
+        raise AppError("INVALID_SIGNATURE", "文件链接已失效", 403)
+    asset = session.get(Asset, asset_id)
+    if asset is None:
+        raise AppError("NOT_FOUND", "文件不存在", 404)
+    if asset.project_id:
+        project = session.get(Project, asset.project_id)
+        if project is None or project.deleted_at:
+            raise AppError("NOT_FOUND", "文件不存在", 404)
+    path = asset_path(asset)
+    if not path.is_file():
+        raise AppError("NOT_FOUND", "文件不存在", 404)
+    return FileResponse(
+        path,
+        media_type=asset.mime,
+        headers={"Cache-Control": f"private, max-age={max(0, exp - int(time.time()))}"},
+    )
+
+
+@app.post("/api/projects", response_model=ProjectOutput)
+def create_project(
+    body: ProjectInput,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    for asset_id in set(body.garment_asset_ids):
+        asset = session.get(Asset, asset_id)
+        if not asset or asset.user_id != user.id or asset.kind != "garment":
+            raise AppError("INVALID_ASSET", "衣服资产不存在或无权使用", 404)
+    if body.model_asset_id:
+        asset = session.get(Asset, body.model_asset_id)
+        if not asset or asset.user_id != user.id or asset.kind != "model":
+            raise AppError("INVALID_ASSET", "模特资产不存在或无权使用", 404)
+    project = Project(user_id=user.id, **body.model_dump())
+    session.add(project)
+    session.commit()
+    return project_dict(project, session)
+
+
+@app.get("/api/projects", response_model=list[ProjectOutput])
+def list_projects(user: User = Depends(current_user), session: Session = Depends(get_session)):
+    projects = session.scalars(
+        select(Project)
+        .where(Project.user_id == user.id, Project.deleted_at.is_(None))
+        .order_by(Project.updated_at.desc())
+    ).all()
+    return [project_dict(project, session) for project in projects]
+
+
+@app.get("/api/projects/{project_id}", response_model=ProjectOutput)
+def get_project(
+    project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    return project_dict(owned_project(session, project_id, user.id), session)
+
+
+@app.delete("/api/projects/{project_id}", status_code=204)
+def delete_project(
+    project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    project_lock(session, project_id)
+    project = owned_project(session, project_id, user.id)
+    project.deleted_at = utcnow()
+    for job in session.scalars(
+        select(Job).where(Job.project_id == project_id, Job.status == "queued")
+    ):
+        job.status, job.error = "failed", "项目已删除"
+    session.commit()
+    return Response(status_code=204)
+
+
+def graph_for(session: Session, project: Project):
+    workflow = Workflow(session, project)
+    return build_graph(app.state.checkpointer, workflow), workflow
+
+
+def restore_messages(session: Session, project_id: str, state: dict) -> str | None:
+    """Checkpoint messages are the durable source; business rows are a projection."""
+    latest_assistant_id = None
+    existing_ids = set(session.scalars(select(Message.id).where(Message.project_id == project_id)))
+    for message in state.get("messages", []):
+        metadata = getattr(message, "additional_kwargs", {}).get("display")
+        if not metadata or not getattr(message, "id", None):
+            continue
+        role = {"human": "user", "ai": "assistant"}.get(message.type)
+        if not role:
+            continue
+        message_id = str(uuid5(NAMESPACE_URL, message.id))
+        if role == "assistant":
+            latest_assistant_id = message_id
+        if message_id in existing_ids:
+            continue
+        content = metadata.get("text", message.content)
+        if "text" not in metadata and role == "user" and metadata.get("action"):
+            if content == json.dumps(metadata["action"], ensure_ascii=False):
+                content = ""
+        session.add(
+            Message(
+                id=message_id,
+                project_id=project_id,
+                role=role,
+                text=content,
+                cards=metadata.get("cards", []),
+                action=metadata.get("action"),
+                created_at=datetime.fromisoformat(metadata["created_at"]),
+            )
+        )
+        existing_ids.add(message_id)
+    session.flush()
+    return latest_assistant_id
+
+
+@app.get("/api/projects/{project_id}/state", response_model=StateOutput)
+def get_state(
+    project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    project_lock(session, project_id)
+    project = owned_project(session, project_id, user.id)
+    graph, workflow = graph_for(session, project)
+    state = get_graph_state(graph, project_id)
+    workflow.restore_jobs(state)
+    restore_messages(session, project_id, state)
+    images = image_items(session, project_id)
+    jobs = session.scalars(
+        select(Job)
+        .where(Job.project_id == project_id, Job.status.in_(["queued", "running"]))
+        .order_by(Job.created_at)
+    ).all()
+    garments = [
+        dict(item, url=asset_dict(session.get(Asset, item["asset_id"]))["url"])
+        for item in state.get("garments", [])
+    ]
+    video = state.get("video")
+    if video and video.get("job_id"):
+        vjob = session.get(Job, video["job_id"])
+        if vjob:
+            video = dict(video, status=vjob.status, url=job_dict(vjob)["url"])
+            source = vjob.payload.get("source_asset_id")
+            if source and session.get(Asset, source):
+                video["poster_url"] = asset_dict(session.get(Asset, source))["url"]
+    stage = (
+        "done"
+        if video and video.get("status") == "succeeded"
+        else state.get("stage", project.stage)
+    )
+    if project.stage != stage:
+        project.stage = stage
+    session.commit()
+    return {
+        "stage": stage,
+        "garments": garments,
+        "directions": state.get("directions", []),
+        "chosen_direction_id": state.get("chosen_direction_id"),
+        "script": state.get("script"),
+        "images": images,
+        "note": state.get("note"),
+        "video": video,
+        "active_jobs": [job_dict(job) for job in jobs],
+        "pending_action": state.get("pending_action"),
+    }
+
+
+@app.get("/api/projects/{project_id}/messages", response_model=list[MessageOutput])
+def list_messages(
+    project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    project_lock(session, project_id)
+    project = owned_project(session, project_id, user.id)
+    graph, workflow = graph_for(session, project)
+    state = get_graph_state(graph, project_id)
+    workflow.restore_jobs(state)
+    restore_messages(session, project_id, state)
+    session.commit()
+    rows = session.scalars(
+        select(Message)
+        .where(Message.project_id == project_id)
+        .order_by(Message.created_at, Message.id)
+    ).all()
+    return [message_dict(row, session) for row in rows]
+
+
+def sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def process_turn(project_id: str, user_id: str, body: MessageInput) -> list[str]:
+    with SessionLocal() as session:
+        try:
+            project_lock(session, project_id)
+            project = owned_project(session, project_id, user_id)
+            graph, _ = graph_for(session, project)
+            action = body.action.model_dump() if body.action else None
+            result = run_turn(graph, project, body.text, action)
+            project.stage = result["stage"]
+            project.updated_at = utcnow()
+            assistant_id = restore_messages(session, project_id, get_graph_state(graph, project_id))
+            session.commit()
+            events = [
+                sse("token", {"delta": result["text"][i : i + 24]})
+                for i in range(0, len(result["text"]), 24)
+            ]
+            for card in refresh_cards(result.get("cards", []), session, project_id):
+                events.append(sse("card", card))
+            for job in result.get("jobs", []):
+                events.append(sse("job", job_dict(job) if isinstance(job, Job) else job))
+            events.append(sse("done", {"message_id": assistant_id}))
+            return events
+        except Exception as exc:
+            session.rollback()
+            if hasattr(exc, "code") and hasattr(exc, "message"):
+                return [sse("error", {"code": exc.code, "message": exc.message})]
+            log.error("Conversation failed: %s", type(exc).__name__)
+            return [sse("error", {"code": "AGENT_ERROR", "message": "这次没完成，请稍后再试"})]
+
+
+@app.post(
+    "/api/projects/{project_id}/messages",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "description": "SSE：token / card / job / done / error",
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
+        }
+    },
+)
+def post_message(
+    project_id: str,
+    body: MessageInput,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    owned_project(session, project_id, user.id)
+    user_id = user.id
+    session.rollback()  # Release the authentication connection before the long SSE response.
+
+    async def generate():
+        task = asyncio.create_task(asyncio.to_thread(process_turn, project_id, user_id, body))
+        try:
+            while not task.done():
+                done, _ = await asyncio.wait({task}, timeout=10)
+                if not done:
+                    yield ": keepalive\n\n"
+            for event in await task:
+                yield event
+        finally:
+            # Client disconnect does not cancel durable graph work running in its own thread.
+            if not task.done():
+                task.add_done_callback(
+                    lambda completed: completed.exception() if not completed.cancelled() else None
+                )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobOutput)
+def get_job(
+    job_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
+):
+    job = session.scalar(select(Job).where(Job.id == job_id, Job.user_id == user.id))
+    if job is None:
+        raise AppError("NOT_FOUND", "任务不存在", 404)
+    owned_project(session, job.project_id, user.id)
+    return job_dict(job)

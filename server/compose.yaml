@@ -1,0 +1,61 @@
+name: outfit-agent-server
+x-common: &common
+  build: .
+  environment: &environment
+    DATABASE_URL: postgresql+psycopg://outfit:${POSTGRES_PASSWORD:-outfit}@postgres:5432/outfit
+    MEDIA_DIR: /data/media
+    PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:18080}
+    JWT_SECRET: ${JWT_SECRET:-local-demo-only-change-before-public-deployment}
+    MOCK_PROVIDERS: ${MOCK_PROVIDERS:-1}
+    DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+    DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    TEXT_MODEL: ${TEXT_MODEL:-deepseek-flash}
+    VISION_MODEL: ${VISION_MODEL:-qwen3-vl-plus}
+    IMAGE_MODEL: ${IMAGE_MODEL:-wan2.7-image-pro}
+    VIDEO_MODEL: ${VIDEO_MODEL:-wan2.6-i2v-flash}
+    MODEL_BUDGET_CNY: ${MODEL_BUDGET_CNY:-12}
+    ENVIRONMENT: ${ENVIRONMENT:-development}
+    CORS_ORIGINS: ${CORS_ORIGINS:-*}
+  volumes:
+    - media:/data/media
+  restart: unless-stopped
+  init: true
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: outfit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-outfit}
+      POSTGRES_DB: outfit
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-18432}:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U outfit -d outfit"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  api:
+    <<: *common
+    ports:
+      - "${API_BIND:-0.0.0.0}:${API_PORT:-18080}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 15s
+  worker:
+    <<: *common
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      api:
+        condition: service_healthy
+volumes:
+  postgres:
+  media:
