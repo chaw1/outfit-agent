@@ -119,7 +119,7 @@ export function useWorkspace(id: string) {
     const prefix = `local-${Date.now()}-${conversationVersion.current}`;
     const assistantId = rewrittenMessage?.id ?? `${prefix}-assistant`;
     const baseline = new Set(currentMessages.current.map(message => message.id));
-    optimistic.current = { assistantId, baseline };
+    optimistic.current = { assistantId, baseline, ...(rewrittenMessage ? { expectedId: assistantId } : {}) };
     const now = new Date().toISOString();
     const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。', regenerate_reply: '换个说法。' };
     const text = input.text || (input.action?.type === 'edit_image' ? input.action.instruction : actionLabels[input.action?.type || ''] || '');
@@ -172,7 +172,7 @@ export function useWorkspace(id: string) {
             : previous.filter(message => !message.id.startsWith(prefix)));
         }
         if (!accepted && (input.text || input.action)) {
-          setFailedMessages(previous => [...previous.filter(message => message.id !== retryId), { id: retryId || `${prefix}-failed`, input, text, createdAt: now, certain: rejected, baseline: [...baseline] }]);
+          if (!rewrittenMessage) setFailedMessages(previous => [...previous.filter(message => message.id !== retryId), { id: retryId || `${prefix}-failed`, input, text, createdAt: now, certain: rejected, baseline: [...baseline] }]);
           if (!rewrittenMessage) setMessages(previous => previous.filter(message => message.id !== `${prefix}-user` && (tokenObserved || message.id !== assistantId)));
           else if (!tokenObserved && !rejected) setMessages(previous => previous.map(message => message.id === assistantId ? rewrittenMessage! : message));
         }
