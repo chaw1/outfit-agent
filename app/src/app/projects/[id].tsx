@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Cards } from '../../components/Cards';
+import { ScriptHistory } from '../../components/ScriptHistory';
 import { Header, IconButton, Loading, Notice, Page, colors, stageNames } from '../../components/ui';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import type { Message, ProjectState } from '../../api/types';
@@ -17,6 +18,7 @@ function messageText(message: Message, state?: ProjectState) {
     case 'edit_image': return `帮我改一版：${action.instruction}`;
     case 'approve_images': return `这 ${action.image_ids.length} 张选好了，按这个顺序写笔记。`;
     case 'confirm_video': return '确认，用这张图生成短视频。';
+    case 'restore_script': return '恢复到这版脚本。';
   }
 }
 
@@ -53,6 +55,7 @@ export default function Workspace() {
       <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 18, paddingBottom: 28, gap: 18 }} onContentSizeChange={() => { if (messages.length !== previousCount.current) { previousCount.current = messages.length; scroll.current?.scrollToEnd({ animated: true }); } }}>
         {loading ? <Loading text="正在接着上次的灵感…" /> : null}
         {project && <View style={{ backgroundColor: colors.paper, padding: 15, borderRadius: 14, gap: 7 }}><Text style={{ fontSize: 10, letterSpacing: 2, color: colors.muted }}>BRAND BRIEF / 合作需求</Text><Text style={{ fontSize: 12, lineHeight: 20, color: '#706C64' }}>{project.brief}</Text></View>}
+        {typeof state?.cost_cny === 'number' ? <Text testID="project-cost" style={{ color: colors.muted, fontSize: 11 }}>项目累计约 ¥{state.cost_cny.toFixed(1)}</Text> : null}
         {messages.map(message => <View key={message.id} style={{ alignItems: message.role === 'user' ? 'flex-end' : 'flex-start', gap: 7 }}>
           {message.role === 'assistant' && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><View style={{ backgroundColor: colors.blush, padding: 5, borderRadius: 8 }}><Ionicons name="sparkles-outline" size={12} color={colors.red} /></View><Text style={{ fontSize: 10, color: colors.muted }}>衣序 · 你的穿搭搭子</Text></View>}
           {messageText(message, state) ? <View style={{ maxWidth: '94%', padding: 14, borderRadius: 15, backgroundColor: message.role === 'user' ? colors.blush : colors.paper, borderTopRightRadius: message.role === 'user' ? 4 : 15, borderTopLeftRadius: message.role === 'assistant' ? 4 : 15 }}><Text selectable style={{ fontSize: 13, lineHeight: 23, color: colors.ink }}>{messageText(message, state)}</Text></View> : busy && message.id.startsWith('local-') ? <ActivityIndicator size="small" color={colors.red} /> : null}
@@ -60,6 +63,7 @@ export default function Workspace() {
         {!!error && <Notice text={error} onRetry={retry} />}
         {state?.active_jobs.length ? <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 9, borderRadius: 12, backgroundColor: colors.blush }}><ActivityIndicator size="small" color={colors.red} /><Text style={{ color: colors.red, fontSize: 12 }}>正在生成，完成后会自动出现在这里</Text></View> : null}
         <Cards cards={visibleCards} state={state} busy={busy} onAction={action => { void send({ action }); }} onPreview={preview} />
+        {state?.script && state.stage !== 'script' ? <ScriptHistory versions={state.script_versions} busy={busy} generating={Boolean(state.active_jobs.length)} onAction={action => { void send({ action }); }} /> : null}
         {!loading && !messages.length && !busy && <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 12 }}>说说这次合作的想法，我们一起开始。</Text>}
       </ScrollView>
       <View style={{ borderTopWidth: 1, borderTopColor: colors.border, padding: 12, paddingHorizontal: 16, gap: 8, backgroundColor: 'white' }}>

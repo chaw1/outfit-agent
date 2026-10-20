@@ -5,6 +5,8 @@ export interface MockServerOptions {
   fixturesDir?: string;
   clock?: () => number;
   publicBase?: string;
+  previewDelayMs?: number;
+  previewStaggerMs?: number;
   imageDelayMs?: number;
   imageStaggerMs?: number;
   editDelayMs?: number;

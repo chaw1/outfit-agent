@@ -1,5 +1,7 @@
 import type { Card, Job, JobStatus, OutfitImage, ProjectState } from './types';
 
+export const emptyProjectState = (): ProjectState => ({ stage: 'brief', garments: [], directions: [], images: [], active_jobs: [] });
+
 /** A card is a complete snapshot: replace the entire prior object at the same position. */
 export function mergeCards(previous: readonly Card[], incoming: readonly Card[]): Card[] {
   const result = [...previous];
@@ -45,6 +47,22 @@ export function mergeImages(previous: readonly OutfitImage[], incoming: readonly
   return result;
 }
 
+/** Image progress can arrive after a note, video or script restore; it only extends the image list. */
+export function stateWithCard(previous: ProjectState | undefined, card: Card): ProjectState {
+  const state = previous ?? emptyProjectState();
+  switch (card.type) {
+    case 'garments': return { ...state, garments: card.items };
+    case 'directions': return { ...state, stage: 'direction', directions: card.options, pending_action: undefined };
+    case 'script': return { ...state, stage: 'script', script: card, pending_action: undefined };
+    case 'images': {
+      const advance = state.stage === 'brief' || state.stage === 'direction' || (state.stage === 'script' && state.script?.status !== 'draft');
+      return { ...state, stage: advance ? 'images' : state.stage, images: mergeImages(state.images, card.items) };
+    }
+    case 'note': return { ...state, stage: 'note', note: card, pending_action: undefined };
+    case 'video': return { ...state, stage: card.status === 'succeeded' ? 'done' : 'video', video: card, pending_action: null };
+  }
+}
+
 /** Restore structured content even when reconnecting without historical card events. */
 export function cardsFromState(state: ProjectState): Card[] {
   const cards: Card[] = [];
@@ -72,7 +90,7 @@ export function mergeStateIntoCards(previous: readonly Card[], state: ProjectSta
   return result;
 }
 
-/** Active jobs are an authoritative list; completed jobs disappearing must stop polling. */
+/** Active jobs are authoritative; completed jobs disappearing must clear the progress indicator. */
 export function mergeProjectState(previous: ProjectState | undefined, incoming: ProjectState): ProjectState {
   if (!previous) return incoming;
   const jobs = mergeJobs(previous.active_jobs, incoming.active_jobs);

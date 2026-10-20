@@ -29,7 +29,7 @@
       "expo-router",
       "expo-secure-store",
       ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 160, "backgroundColor": "#FCFAF7" }],
-      ["expo-image-picker", { "photosPermission": "选择品牌衣服图片，或用你的照片作为穿搭模特。", "cameraPermission": false, "microphonePermission": false }],
+      ["expo-image-picker", { "photosPermission": "选择品牌衣服图片，或用你的照片作为穿搭模特。", "cameraPermission": "拍摄品牌衣服或你的穿搭照片，用于创建合作项目。", "microphonePermission": false }],
       ["expo-media-library", { "photosPermission": "读取你选中的穿搭照片。", "savePhotosPermission": "将选好的穿搭图保存到相册。", "granularPermissions": ["photo"] }]
     ],
     "experiments": { "typedRoutes": true }

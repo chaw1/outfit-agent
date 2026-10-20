@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import type { Action, Card, Direction, OutfitImage, ProjectState } from '../api/types';
 import { VideoPlayer } from './VideoPlayer';
+import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationInfo';
+import { ScriptHistory } from './ScriptHistory';
 
 type CardsProps = {
   cards: Card[];
@@ -90,6 +92,7 @@ function DirectionOption({ direction, selected, enabled, onPress }: {
       testID={`direction-${direction.id}`}
       style={({ pressed }) => [styles.direction, selected && styles.directionSelected, pressed && enabled && styles.pressed]}
     >
+      <DirectionPreview direction={direction} />
       <View style={styles.rowBetween}>
         <Text style={styles.directionName}>{direction.name}</Text>
         <View style={[styles.radio, selected && styles.radioSelected]}>
@@ -105,6 +108,26 @@ function DirectionOption({ direction, selected, enabled, onPress }: {
       </Text>
     </Pressable>
   );
+}
+
+function DirectionPreview({ direction }: { direction: Direction }) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  const [loadedUrl, setLoadedUrl] = useState<string>();
+  const url = direction.preview_url;
+  const failed = direction.preview_status === 'failed' || Boolean(url && failedUrl === url) || (direction.preview_status === 'succeeded' && !url);
+  const ready = Boolean(url && !failed && (!direction.preview_status || direction.preview_status === 'succeeded'));
+  const running = direction.preview_status === 'running';
+  return <View style={styles.directionPreview} testID={`direction-preview-${direction.id}`}>
+    {ready && url ? <>
+      <Image source={{ uri: url }} style={styles.previewImage} resizeMode="cover" accessibilityLabel={`${direction.name}灵感预览`} testID={`preview-image-${direction.id}`} onLoad={() => setLoadedUrl(url)} onError={() => setFailedUrl(url)} />
+      {loadedUrl !== url ? <ActivityIndicator color={colors.red} style={StyleSheet.absoluteFill} /> : null}
+      <View style={styles.previewLabel}><Text style={styles.previewLabelText}>灵感预览 · AI生成</Text></View>
+    </> : <View style={styles.previewPlaceholder} testID={`preview-placeholder-${direction.id}`}>
+      {failed ? <Icon name="image-outline" color="#A8907D" size={24} /> : direction.preview_status ? <ActivityIndicator color="#B6967B" size="small" /> : <Icon name="color-palette-outline" color="#B6967B" size={24} />}
+      <Text style={styles.previewStatus}>{failed ? '灵感图暂时没成功，可先按文字选方向' : running ? '正在描绘这份灵感…' : direction.preview_status === 'queued' ? '灵感图已排队，马上开始' : '灵感预览暂未提供'}</Text>
+      {!failed && direction.preview_status ? <View style={styles.progressTrack}><View style={[styles.progressFill, !running && { width: '20%' }]} /></View> : null}
+    </View>}
+  </View>;
 }
 
 function useImageVersions(items: OutfitImage[], state?: ProjectState) {
@@ -185,9 +208,10 @@ function ImageGrid({ items, state, busy, onAction }: {
                 )}
                 {item.status === 'succeeded' ? <View style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></View> : null}
                 <View style={styles.versionBadge}><Text style={styles.versionText}>{isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`}</Text></View>
+                {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
               </Pressable>
               <View style={styles.imageCaptionRow}>
-                <Text style={styles.imageCaption}>镜头 {String(shotIds.indexOf(item.shot_id) + 1).padStart(2, '0')}</Text>
+                <Text style={styles.imageCaption}>镜头 {String(shotIds.indexOf(item.shot_id) + 1).padStart(2, '0')}{item.script_version ? ` · 脚本 ${item.script_version}` : ''}</Text>
                 {item.status === 'succeeded' && canEdit ? <Pressable
                   onPress={() => { setEditing(item); setInstruction(''); }}
                   accessibilityRole="button"
@@ -197,7 +221,7 @@ function ImageGrid({ items, state, busy, onAction }: {
                   style={styles.editButton}
                 ><Icon name="create-outline" size={13} color={colors.red} /><Text style={styles.editText}>改一改</Text></Pressable> : null}
               </View>
-              {item.instruction ? <Text numberOfLines={2} style={styles.instruction}>{item.instruction}</Text> : null}
+              <ImageRevisionInfo image={item} />
             </View>
           );
         })}
@@ -221,11 +245,14 @@ function ImageGrid({ items, state, busy, onAction }: {
       <Modal visible={Boolean(editing)} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalShade}>
           <View style={styles.modal}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }}>
             <View style={styles.rowBetween}><Text style={styles.modalTitle}>让这张更合心意</Text><Pressable onPress={() => setEditing(null)} accessibilityLabel="关闭修改图片" accessibilityRole="button" hitSlop={10}><Icon name="close" size={22} color={colors.ink} /></Pressable></View>
             <Text style={styles.intro}>说说想改哪里，原版会为你保留。</Text>
             {editing?.url ? <Image source={{ uri: editing.url }} style={styles.editPreview} /> : null}
             <TextInput value={instruction} onChangeText={setInstruction} placeholder="比如：把衬衫塞进裤腰，背景再亮一点" placeholderTextColor="#A39B94" multiline maxLength={1000} style={styles.editInput} accessibilityLabel="图片修改要求" testID="edit-instruction" />
+            <View style={styles.quickEdits}>{['衬衫塞进裤腰', '背景亮一点', '换个角度', '换个姿势'].map((suggestion, index) => <Pressable key={suggestion} accessibilityRole="button" accessibilityLabel={suggestion} testID={`edit-suggestion-${index}`} onPress={() => setInstruction(suggestion)} style={styles.quickEdit}><Text style={styles.quickEditText}>{suggestion}</Text></Pressable>)}</View>
             <Button title="按这个想法改一版" icon="sparkles-outline" disabled={!instruction.trim() || Boolean(busy)} testID="submit-edit" onPress={() => { if (editing && instruction.trim()) { onAction({ type: 'edit_image', image_id: editing.id, instruction: instruction.trim() }); setEditing(null); } }} />
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -249,6 +276,7 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
     <Text style={styles.noteTitle}>{note.title}</Text>
     <Text numberOfLines={6} style={styles.noteBody}>{note.body}</Text>
     <View style={styles.tags}>{note.tags.map((tag) => <Text key={tag} style={styles.noteTag}>#{tag.replace(/^#/, '')}</Text>)}</View>
+    <NoteDisclosure note={note} projectCost={state?.cost_cny} testIDPrefix="card-note" />
     <Button title="打开笔记预览" onPress={onPreview} testID="preview-note" icon="open-outline" />
     {mayMakeVideo && note.image_ids.length > 0 ? <View style={styles.videoPrompt}>
       <View style={styles.rowBetween}><Text style={styles.sortTitle}>再让穿搭动起来？</Text><Text style={styles.optional}>可选 · 5 秒短视频</Text></View>
@@ -326,6 +354,7 @@ export function Cards({ cards, state, busy, onAction, onPreview }: CardsProps) {
       const canConfirm = !busy && !confirmed && (!state || state.pending_action?.type === 'confirm_script' || (state.pending_action === undefined && state.stage === 'script'));
       return <View key={card.id} style={styles.card}>
         <CardHeading icon="reader-outline" title="这次，我们这样拍" detail={confirmed ? '已确认' : '脚本草稿'} />
+        <ScriptHistory versions={state?.script_versions} busy={busy} generating={Boolean(state?.active_jobs.length)} onAction={onAction} />
         <Text style={styles.sectionLabel}>标题灵感</Text>
         {card.title_ideas.map((title, index) => <Text key={`${index}-${title}`} style={styles.scriptTitle}><Text style={styles.scriptNumber}>{String(index + 1).padStart(2, '0')}  </Text>{title}</Text>)}
         <View style={styles.coverBrief}><Text style={styles.coverHeading}>封面计划</Text><Text style={styles.coverBody}>{card.cover.scene} · {card.cover.pose}</Text>{card.cover.text_overlay ? <Text style={styles.coverOverlay}>封面字：{card.cover.text_overlay}</Text> : null}</View>
@@ -378,6 +407,12 @@ const styles = StyleSheet.create({
   garmentTagText: { fontSize: 10, color: '#817466' },
   direction: { borderWidth: 1, borderColor: colors.line, backgroundColor: '#FDFCFB', padding: 13, borderRadius: 12, marginBottom: 10 },
   directionSelected: { borderColor: '#FBA9B4', backgroundColor: '#FFF7F8' },
+  directionPreview: { height: 142, borderRadius: 8, overflow: 'hidden', backgroundColor: '#F3EDE5', marginBottom: 13 },
+  previewImage: { width: '100%', height: '100%' },
+  previewPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 12, gap: 9 },
+  previewStatus: { fontSize: 11, lineHeight: 18, color: '#A18B78', textAlign: 'center' },
+  previewLabel: { position: 'absolute', bottom: 8, left: 8, backgroundColor: '#FFFFFFE8', borderRadius: 4, paddingHorizontal: 7, paddingVertical: 4 },
+  previewLabelText: { fontSize: 9, color: '#8F7965' },
   directionName: { fontSize: 15, fontWeight: '700', color: colors.ink, flex: 1 },
   directionScene: { fontSize: 11, color: '#9A7A68', marginTop: 7, marginBottom: 8 },
   directionWhy: { fontSize: 12, lineHeight: 20, color: '#746F6A' },
@@ -434,10 +469,13 @@ const styles = StyleSheet.create({
   sortArrow: { width: 28, height: 30, borderRadius: 7, backgroundColor: '#F8F5F1', alignItems: 'center', justifyContent: 'center' },
   dimmed: { opacity: 0.25 },
   modalShade: { flex: 1, backgroundColor: '#241C1959', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modal: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, width: '100%', maxWidth: 430 },
+  modal: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, width: '100%', maxWidth: 430, maxHeight: '95%', flexShrink: 1 },
   modalTitle: { fontSize: 17, fontWeight: '700', color: colors.ink, marginBottom: 12 },
   editPreview: { width: 74, height: 94, borderRadius: 10, backgroundColor: colors.cream, marginBottom: 13 },
   editInput: { minHeight: 110, borderRadius: 12, padding: 13, paddingTop: 13, backgroundColor: '#F9F6F3', borderColor: '#EFE9E3', borderWidth: 1, fontSize: 13, color: colors.ink, textAlignVertical: 'top', lineHeight: 22, marginBottom: 16 },
+  quickEdits: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
+  quickEdit: { borderWidth: 1, borderColor: '#E9DFD5', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#FCFAF7' },
+  quickEditText: { color: '#8B7562', fontSize: 11 },
   noteTitle: { fontSize: 19, color: colors.ink, fontWeight: '700', lineHeight: 29, marginBottom: 12 },
   noteBody: { fontSize: 12, color: '#7E756F', lineHeight: 22, marginBottom: 12 },
   noteTag: { color: '#B28F73', fontSize: 11, lineHeight: 19, marginBottom: 10 },
