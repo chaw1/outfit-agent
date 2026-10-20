@@ -15,6 +15,7 @@
 | [docs/review/](docs/review/) | 外部技术评审意见 |
 | [docs/spike/](docs/spike/) | 模型实测素材（全部自生成） |
 | [docs/演示脚本.md](docs/演示脚本.md) | 5–8 分钟演示流程与追问答法 |
+| [docs/调研-Chiccify对照.md](docs/调研-Chiccify对照.md) | 对公司现有产品 Chiccify 的功能对照与取舍 |
 | [app/LIVE.md](app/LIVE.md) | App × 线上真实模型的联调报告，13 步耗时与截图（`app/screenshots-live/run-3/`） |
 | [server/FINAL.md](server/FINAL.md) · [server/ADMIN.md](server/ADMIN.md) | 服务端各轮验收报告：局部改像素证据、接缝指标、管理端验收 |
 
@@ -37,8 +38,8 @@ App（Expo）──HTTPS：REST + SSE──▶ FastAPI ──▶ LangGraph 智�
 
 | 目录 | 说明 | 运行 |
 |---|---|---|
-| [server/](server/) | FastAPI + LangGraph + SQLAlchemy/Alembic + Worker + 管理端，220 个测试 | `cd server && docker compose up -d --build`，见 [server/README.md](server/README.md) |
-| [app/](app/) | Expo SDK 58 App + 本地假服务（不花钱也能走完整条链路），59 个测试 + 假服务 / 线上两套 Playwright 流程 | `cd app && npm ci && npm run mock & npm run start`，见 [app/README.md](app/README.md) |
+| [server/](server/) | FastAPI + LangGraph + SQLAlchemy/Alembic + Worker + 管理端，358 个测试 | `cd server && docker compose up -d --build`，见 [server/README.md](server/README.md) |
+| [app/](app/) | Expo SDK 58 App + 本地假服务（不花钱也能走完整条链路），110 个测试 + 假服务 / 线上两套 Playwright 流程 | `cd app && npm ci && npm run mock & npm run start`，见 [app/README.md](app/README.md) |
 
 关键实验（`server/scripts/experiments.py`）：E1 重启后续聊、E2 重复确认不重复花钱、E3 越阶段被拒、E4 脚本时间旅行，全部通过。
 
