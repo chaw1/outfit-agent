@@ -57,6 +57,8 @@ def main():
                             "resolution",
                             "audio",
                             "reserved_cny",
+                            "purpose",
+                            "error_type",
                         )
                         if key in row.units
                     },

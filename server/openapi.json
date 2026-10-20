@@ -1354,6 +1354,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/ConfirmVideo"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RestoreScript"
                   }
                 ],
                 "discriminator": {
@@ -1363,7 +1366,8 @@
                     "choose_direction": "#/components/schemas/ChooseDirection",
                     "confirm_script": "#/components/schemas/ConfirmScript",
                     "confirm_video": "#/components/schemas/ConfirmVideo",
-                    "edit_image": "#/components/schemas/EditImage"
+                    "edit_image": "#/components/schemas/EditImage",
+                    "restore_script": "#/components/schemas/RestoreScript"
                   }
                 }
               },
@@ -1607,6 +1611,28 @@
         ],
         "title": "RegisterInput"
       },
+      "RestoreScript": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "restore_script",
+            "title": "Type"
+          },
+          "checkpoint_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Checkpoint Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "checkpoint_id"
+        ],
+        "title": "RestoreScript"
+      },
       "StateOutput": {
         "properties": {
           "stage": {
@@ -1709,6 +1735,30 @@
                 "type": "null"
               }
             ]
+          },
+          "cost_cny": {
+            "type": "number",
+            "title": "Cost Cny",
+            "default": 0
+          },
+          "last_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Message Id"
+          },
+          "script_versions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Script Versions"
           }
         },
         "type": "object",

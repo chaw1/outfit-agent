@@ -1,43 +1,48 @@
-# 服务端验收交接
+# 服务端第二轮验收交接
 
-结论：本地 S1–S7 已通过，真实闭环成功，现已恢复 Mock。公网 Linux 未部署：未收到个人或明确授权的新服务器及域名；部署文件已备好。
+结论：R1–R11 已落地；100 项测试全绿，真实问句 30/30，真实闭环从同项目续跑完成。1 张方向预览供应商断连失败，其余媒体成功；本轮保守估算 ¥6.391026。仅本地交付，未连接或部署服务器。
 
-- S1：Compose 一键启动成功，health.ok=true；API 18080 / Postgres 18432，媒体在持久卷 `/data/media`。README 含 Linux + Caddy 自动 HTTPS 步骤。
-- S2：Mock 同一 HTTP 脚本全链路 3.714 秒，4 原图 → v2 改图 → 笔记 → 视频；可重复运行，无模型网络调用。
-- S3：真实同脚本全链路 413.039 秒，5 原图 + v2 改图 + 视频全部成功。媒体均转存；视频实测 5.007 秒、830×1108、H.264/AAC（请求 720P）。
-- S4：选方向后重启 API 3.275 秒；脚本阶段、确认点、历史、卡片保留，自由文字继续改稿成功。
-- S5：3 个不同方向，脚本 5 镜头引用具体衣服；“换成通勤风”实际重写场景/动作/配文。最终笔记标题 12 字、6 标签、分段/表情；真实再改稿 3.981 秒，视频和图片任务不变。
-- S6：最终 `REQUIRE_INTEGRATION=1 uv run pytest -q --tb=short`：64 passed / 14.73 秒，零 skip；`ruff check .` 通过。含鉴权隔离、签名过期/篡改、阶段门禁、重试、空库 Alembic、真实 SKIP LOCKED、消息/任务恢复。
-- S7：13 个约定操作全部实现，SSE token/card/job/done/error 字段一致；`openapi.json` 与运行中接口逐对象比对一致。
+- R1：阶段内一次模型调用选完整允许工具并解析参数，真实路径无关键词路由；30 句覆盖七阶段、模糊指代、反问、跑题、历史恢复，工具与目标准确率 100%；5 个越阶段请求全部由代码拒绝并返回中文解释。
+- R2：所有文本工具带 reply；同阶段两个不同合作项目真实回复不同。关键词仅在 Mock，静态回复仅用于兜底、确认提示或 Worker 播报。
+- R3：note 改图保留阶段和视频确认；images/note 改脚本回 script、旧图保留；看图缓存跨回滚；异常全堆栈脱敏。持有对话锁时 /state=25.7ms、/messages=8.3ms；签名 URL 六小时内稳定。
+- R4：prompt 含品类/颜色/面料及版型、颜色、纽扣、口袋、logo约束；改图父图+原衣参考≤3，全量衣服参与质检。真实6张正式图评分93–96；Mock走样42→91与42→55均只修一次，无递归付费。
+- R5：三个方向均入队预览，真实2成功/1失败，状态和URL可轮询；失败预览保留终态及¥0.5预留，未重新提交结果未知的请求。
+- R6：真实批量图、单张改图、视频完成共3条主动消息，含数量与还原分；last_message_id与最新消息一致。自动修复播报、双Worker去重、租约失效终止播报均有测试。
+- R7：script_versions来自get_state_history；任意已列历史版可恢复，回script重新确认，保留图片/任务/消息。E4通勤改稿v2→恢复v1→确认通过；新改稿编号单调且确认不增版本。
+- R8：LangGraph custom/updates流+异步SSE队列；HTTP测试证明方向模型仍阻塞时garments首卡已发送，断连清理等待读取但保留后台决策。
+- R9：项目及笔记成本均由账本汇总，真实项目¥6.142369（其余为问句/回复评测）；PNG可见“AI生成”及AIGC/Source/Model元数据已目视/读取验证，视频请求watermark=true，note.ai_label有值。
+- R10：实验表如下；生产overlay固定PUBLIC_BASE_URL=https://47.97.153.127:8443、API仅127.0.0.1:18080、Worker两副本，全部服务日志轮转20m×3；仅静态验证。
+- R11：原64项测试保留并适配新增预览，原测试断言数无减少；最终100 passed/20.21s、ruff干净、空库迁移与OpenAPI比对通过，最终Mock e2e=5.778s。真实5原图+v2改图+笔记+5秒视频成功；视频实测5.007s、830×1108、H.264/AAC。
 
-真实闭环每步耗时（秒）：
+| Mock实验 | 结果 | 秒 |
+|---|---|---:|
+| E1 API重启后续聊、历史/脚本/确认点保留 | PASS | 2.853 |
+| E2 重复确认与重复改图不重复入队 | PASS | 2.204 |
+| E3 越阶段视频请求由代码拒绝 | PASS | 0.019 |
+| E4 通勤改稿后恢复历史脚本并确认 | PASS | 0.114 |
 
-| 步骤 | 耗时 |
+真实闭环分两段：首段81.640s因失败预览结束；同项目续跑368.973s完成，未重做已付费预览。各步耗时：
+
+| 步骤 | 秒 |
 |---|---:|
-| 健康 / 注册 / 登录 | 0.003 / 0.354 / 0.178 |
-| 上传 2 衣服 + 模特 / 建项目 | 0.044 / 0.006 |
-| 看图 + 方向 | 16.662 |
-| 选方向 + 脚本 / 通勤改稿 | 6.732 / 6.072 |
-| 确认脚本入队 / 5 图成功 | 0.032 / 140.643 |
-| 改图 v2 / 笔记 | 42.495 / 4.176 |
-| 确认视频至下载 / 历史读取 | 195.610 / 0.015 |
+| 健康/注册/登录/上传/建项目 | 0.005 / 0.192 / 0.187 / 0.040 / 0.007 |
+| 看图+方向 / 三预览队列处理（DB时间戳测量） | 15.205 / 65.920 |
+| 续跑登录 / 复用预览 / 选方向写脚本 | 0.213 / 0.008 / 5.722 |
+| 自由文本通勤改稿 / 确认脚本 | 5.462 / 2.328 |
+| 五原图及评分 / 改图v2及评分 | 175.074 / 83.000 |
+| 写笔记 / 确认视频至下载 / 历史读取 | 4.981 / 92.155 / 0.017 |
 
-本轮全部真实调用（含首轮失败、最终文案抽查）：
-
-| 模型 | 次数 | 总耗时秒 | 保守估算元 |
+| 本轮模型 | 调用 | 累计秒 | 估算元 |
 |---|---:|---:|---:|
-| qwen3-vl-plus | 2 | 26.325 | 0.005174 |
-| deepseek-flash | 8 | 41.186 | 0.098905 |
-| wan2.7-image-pro | 11（10 成功 + 1 失败预留） | 452.429 | 5.500000 |
-| wan2.6-i2v-flash | 1（5 秒带声） | 194.289 | 1.500000 |
-合计 22 次，7.104079 元；按官方价目与保守汇率估算，含失败 0.5 元预留，未查询实际账单/免费额度抵扣。低于 12 元停止线、15 元上限。
+| deepseek-flash | 39 | 90.637 | 0.352127 |
+| qwen3-vl-plus（看图1+质检6） | 7 | 174.477 | 0.038899 |
+| wan2.7-image-pro（含1次未知结果失败预留） | 9 | 319.725 | 4.500000 |
+| wan2.6-i2v-flash | 1 | 88.352 | 1.500000 |
+合计56次、¥6.391026；历史基线¥7.104079未计入本轮，低于¥12停止线/¥15上限；最终扣费以供应商账单为准。
 
-实现选择：同步 FastAPI/SQLAlchemy/psycopg 简化事务；LangGraph PostgresSaver 用项目 id 作 thread_id，interrupt/Command 控制确认；Worker 独立领任务。理由、配置和部署见 README。
-恢复机制：checkpoint 保存完整消息与任务意图，补齐业务提交中断；稳定去重键防止重复确认重复入队；视频保存上游 task_id，重试仅轮询。提供 e2e 的固定账号环境变量与 `--resume PROJECT_ID` 续跑入口。
-接口出入：无字段/动作改名。SSE 在结构化工具结果校验后发送文字分片，模型处理期间为 keepalive，未逐 token 透传上游。
-已知问题：同步生图结果未知时停止自动重发；首轮改图 120.640 秒后通用异常，旧日志无法确认根因。参考副本从 6 MB 压至 283 KB 后新项目完整通过，原文件保留。
-内容边界：已修正本次衣摆冲突和虚构试穿措辞，生成文案仍应由博主审稿；每镜头最多 3 张参考（有模特时最多 2 件衣服），超限明确报错。
-
-证据在本机 `artifacts/`：mock-review.json、restart-review.json、real-review.json、real-first-attempt.json、note-quality-review.json、usage-total.json、real-video-info.json；示例 real-edit.png / real-video.mp4。过程日志在 `evidence/`，均不提交。
-复验：`docker compose up -d --build` → `uv sync --frozen --dev` → `REQUIRE_INTEGRATION=1 uv run pytest -q` → `uv run python scripts/e2e.py --mode mock`。当前进程模型密钥已清空。
-交接：仅 feat/server 本地提交，不 push / 不合并；后续只需提供确认归属的新服务器和域名，按 `deploy/compose.caddy.yaml` 部署后验证公网 HTTPS。
+选型理由：保留PostgresSaver原生interrupt与checkpoint历史，用Runtime注入每轮事务、单编译图、custom早发卡；DB任务事实与对话决策分开，Worker不争抢resume。手写七阶段也可实现，但需自建暂停/历史/中间事件；具体映射和取舍见README。
+契约出入：无字段/动作改名；增加script.version辅助图像分组。签名链接为六小时向上取整、实际24–30h有效，以保留设计的24h要求，未用评审中仅6–12h的示例公式。恢复仅恢复脚本域内容，不倒退已经发生的付费副作用。
+已知问题：供应商同步图请求可能断连，未知结果终止以避免重复付费；真实预览因此2/3成功。质检分为模型估计，不保证所有细节或视频逐帧身份一致；质检服务失败时保存已付费图并播报未取得分数。文本仍在完整工具JSON校验后分片，尚非上游逐token透传。
+证据（本地不提交）：artifacts/intents-fix1.json、replies-fix1.json、mock-fix1-final.json、experiments-fix1-final.json、real-fix1.json（含首段）、usage-fix1-final.json、verification-fix1.json、polling-fix1.json及媒体样本；evidence/fix1-final-tests.log、fix1-real-provider.log。
+复验：docker compose up -d --build → REQUIRE_INTEGRATION=1 uv run pytest -q → uv run python scripts/e2e.py --mode mock → uv run python scripts/experiments.py；实验会重启本项目API，勿与HTTP测试并行。
+当前：API和两个Worker均已验证Mock且模型凭证为空；断点记录server/PROGRESS.md保留本地。本轮只在feat/server中文单行提交，不push、不合并；服务器部署交部署负责人。
