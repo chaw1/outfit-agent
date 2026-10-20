@@ -204,8 +204,14 @@ class RestoreScript(StrictInput):
     checkpoint_id: str = Field(min_length=1, max_length=100)
 
 
+class RegenerateReply(StrictInput):
+    type: Literal["regenerate_reply"]
+    message_id: str = Field(min_length=1, max_length=100)
+
+
 Action = Annotated[
-    ChooseDirection | ConfirmScript | EditImage | ApproveImages | ConfirmVideo | RestoreScript,
+    ChooseDirection | ConfirmScript | EditImage | ApproveImages | ConfirmVideo | RestoreScript
+    | RegenerateReply,
     Field(discriminator="type"),
 ]
 
@@ -229,6 +235,20 @@ class MessageInput(StrictInput):
         return self
 
 
+class TraceStep(BaseModel):
+    label: str
+    duration_ms: int = Field(ge=0)
+
+
+class MessageTrace(BaseModel):
+    tool: str
+    model: str
+    duration_ms: int = Field(ge=0)
+    cost_cny: float = Field(ge=0)
+    refs: list[str] = Field(default_factory=list)
+    steps: list[TraceStep] = Field(default_factory=list)
+
+
 class MessageOutput(BaseModel):
     id: str
     role: Literal["user", "assistant"]
@@ -237,6 +257,8 @@ class MessageOutput(BaseModel):
     action: dict | None = None
     refs: list[str] = Field(default_factory=list)
     created_at: datetime
+    trace: MessageTrace | None = None
+    can_regenerate: bool = False
 
 
 class JobOutput(BaseModel):
@@ -254,6 +276,14 @@ class JobOutput(BaseModel):
 class PendingAction(BaseModel):
     type: Literal["choose_direction", "confirm_script", "confirm_video"]
     prompt: str
+    estimated_cost_cny: float | None = None
+
+
+class BudgetOutput(BaseModel):
+    tier: str
+    daily_budget_cny: float
+    today_cost_cny: float
+    remaining_cny: float
 
 
 class StateOutput(BaseModel):
@@ -270,6 +300,7 @@ class StateOutput(BaseModel):
     cost_cny: float = 0
     last_message_id: str | None = None
     script_versions: list[dict] = Field(default_factory=list)
+    budget: BudgetOutput | None = None
 
 
 class ErrorDetail(BaseModel):

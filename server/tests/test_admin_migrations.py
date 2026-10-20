@@ -40,6 +40,11 @@ def test_admin_upgrade_preserves_existing_rows_and_backfills_user(isolated_datab
             "'image',123,'{}'::jsonb,1.5,'succeeded',now()),"
             "('unattributed',NULL,'legacy-model','text',1,'{}'::jsonb,0,'succeeded',now())"
         )
+        connection.execute(
+            "INSERT INTO messages(id,project_id,role,text,cards,created_at) "
+            "VALUES ('legacy-message','legacy-project','assistant','旧回复',"
+            "'[{\"id\":\"legacy-script\",\"type\":\"script\"}]'::jsonb,now())"
+        )
     migrate("head")
     with psycopg.connect(connection_url) as connection:
         assert connection.execute("SELECT tier,disabled FROM users").fetchone() == ("free", False)
@@ -49,4 +54,9 @@ def test_admin_upgrade_preserves_existing_rows_and_backfills_user(isolated_datab
         }
         assert connection.execute("SELECT title FROM projects").fetchone() == ("旧项目",)
         assert connection.execute("SELECT value FROM app_settings").fetchall() == []
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0007",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0008",)
+        assert connection.execute(
+            "SELECT text,cards,refs,trace,can_regenerate FROM messages WHERE id='legacy-message'"
+        ).fetchone() == (
+            "旧回复", [{"id": "legacy-script", "type": "script"}], [], None, False,
+        )

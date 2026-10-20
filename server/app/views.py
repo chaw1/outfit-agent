@@ -4,37 +4,40 @@ import json
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
+from app.costs import AUTO_FIX_ALLOWANCE, image_cost_cny, video_cost_cny
 from app.media import signed_url
 from app.models import Asset, Job, Message, Project, UsageLedger, User
-from app.runtime_settings import day_bounds, default_runtime_settings, get_runtime_settings
+from app.runtime_settings import user_budget
 from app.schemas import Profile
 
 
 def user_dict(user: User, session: Session | None = None) -> dict:
     session = session if session is not None else object_session(user)
-    config = get_runtime_settings(session) if session is not None else default_runtime_settings()
-    tier = user.tier or "free"
-    budget = config["tiers"].get(tier, config["tiers"]["free"])["daily_budget_cny"]
-    today_cost = 0
-    if session is not None:
-        start, end = day_bounds()
-        today_cost = session.scalar(
-            select(func.coalesce(func.sum(UsageLedger.estimated_cny), 0)).where(
-                UsageLedger.user_id == user.id,
-                UsageLedger.created_at >= start,
-                UsageLedger.created_at < end,
-            )
-        )
+    budget = user_budget(user, session)
     return {
         "id": user.id,
         "username": user.username,
         "nickname": user.nickname,
         "created_at": user.created_at.isoformat(),
-        "tier": tier,
-        "daily_budget_cny": float(budget),
-        "today_cost_cny": round(float(today_cost), 6),
+        "tier": budget["tier"],
+        "daily_budget_cny": budget["daily_budget_cny"],
+        "today_cost_cny": budget["today_cost_cny"],
         "profile": Profile.model_validate(user.profile or {}).model_dump(exclude_none=True),
     }
+
+
+def pending_action_dict(state: dict) -> dict | None:
+    """Project a current quote without changing the durable graph checkpoint."""
+    pending = state.get("pending_action")
+    if not pending:
+        return None
+    result = dict(pending)
+    if pending["type"] == "confirm_script":
+        shots = (state.get("script") or {}).get("shots", [])
+        result["estimated_cost_cny"] = float(image_cost_cny(len(shots)) * AUTO_FIX_ALLOWANCE)
+    elif pending["type"] == "confirm_video":
+        result["estimated_cost_cny"] = float(video_cost_cny())
+    return result
 
 
 def project_dict(project: Project, session: Session) -> dict:
@@ -189,5 +192,7 @@ def message_dict(message: Message, session: Session) -> dict:
         "cards": refresh_cards(message.cards, session, message.project_id),
         "action": message.action,
         "refs": message.refs or [],
+        "trace": message.trace,
+        "can_regenerate": message.can_regenerate,
         "created_at": message.created_at.isoformat(),
     }

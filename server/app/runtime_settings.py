@@ -132,6 +132,30 @@ def budget_lock(session: Session) -> None:
         session.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": BUDGET_LOCK_ID})
 
 
+def today_cost_cny(session: Session, user_id: str | None = None) -> Decimal:
+    """Count accepted, failed and reserved calls using the same Shanghai day."""
+    start, end = day_bounds()
+    query = select(func.coalesce(func.sum(UsageLedger.estimated_cny), 0)).where(
+        UsageLedger.created_at >= start, UsageLedger.created_at < end
+    )
+    if user_id is not None:
+        query = query.where(UsageLedger.user_id == user_id)
+    return Decimal(str(session.scalar(query)))
+
+
+def user_budget(user: User, session: Session | None = None) -> dict:
+    config = get_runtime_settings(session) if session is not None else default_runtime_settings()
+    tier = user.tier or "free"
+    cap = Decimal(str(config["tiers"].get(tier, config["tiers"]["free"])["daily_budget_cny"]))
+    spent = today_cost_cny(session, user.id) if session is not None else Decimal(0)
+    return {
+        "tier": tier,
+        "daily_budget_cny": float(cap),
+        "today_cost_cny": round(float(spent), 6),
+        "remaining_cny": round(float(max(cap - spent, Decimal(0))), 6),
+    }
+
+
 def assert_generation_allowed(
     session: Session,
     user_id: str | None,
@@ -157,16 +181,12 @@ def assert_generation_allowed(
             raise AppError("MODEL_NOT_ALLOWED", "当前账号层级暂不能使用该模型，请联系管理员。", 403)
     if not check_budget:
         return config
-    start, end = day_bounds()
-    query = select(func.coalesce(func.sum(UsageLedger.estimated_cny), 0)).where(
-        UsageLedger.created_at >= start, UsageLedger.created_at < end
-    )
-    global_spent = Decimal(str(session.scalar(query)))
+    global_spent = today_cost_cny(session)
     global_cap = Decimal(str(config["global_daily_budget_cny"]))
     if global_spent >= global_cap or global_spent + estimate > global_cap:
         raise AppError("BUDGET_EXCEEDED", "今日全局模型预算已用完，请明天再试或联系管理员。", 403)
     if tier is not None:
-        spent = Decimal(str(session.scalar(query.where(UsageLedger.user_id == user_id))))
+        spent = today_cost_cny(session, user_id)
         cap = Decimal(str(tier["daily_budget_cny"]))
         if spent >= cap or spent + estimate > cap:
             raise AppError(

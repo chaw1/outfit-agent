@@ -41,6 +41,8 @@ class AgentState(TypedDict, total=False):
     turn_text: str
     turn_cards: list[dict]
     turn_jobs: list[dict]
+    turn_trace: dict
+    turn_can_regenerate: bool
 
 
 @dataclass(frozen=True)
@@ -88,6 +90,8 @@ def _history(event: dict, result: dict) -> list[dict]:
                     "cards": deepcopy(result.get("turn_cards", [])),
                     "action": None,
                     "refs": [],
+                    "trace": deepcopy(result.get("turn_trace")),
+                    "can_regenerate": result.get("turn_can_regenerate", False),
                     "created_at": (created_at + timedelta(microseconds=1)).isoformat(
                         timespec="microseconds"
                     ),
@@ -213,6 +217,7 @@ def run_turn(
     _load_script_history(graph, project.id, workflow)
     workflow.restore_jobs(state)
     workflow.validate(state, event)
+    workflow.begin_turn(event)
     if not state.get("stage"):
         graph_input = {"incoming": event, "messages": []}
     elif any(task.interrupts for task in snapshot.tasks):
@@ -239,4 +244,6 @@ def run_turn(
         "jobs": state.get("turn_jobs", []),
         "stage": state.get("stage", "brief"),
         "pending_action": state.get("pending_action"),
+        "trace": state.get("turn_trace"),
+        "can_regenerate": state.get("turn_can_regenerate", False),
     }

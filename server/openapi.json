@@ -2527,7 +2527,7 @@
         },
         "responses": {
           "200": {
-            "description": "SSE：token / card / job / done / error",
+            "description": "SSE：token / card / job / trace / done / error；重写回复同 id 覆盖",
             "content": {
               "text/event-stream": {
                 "schema": {
@@ -3049,6 +3049,34 @@
         ],
         "title": "Body_upload_asset_api_assets_post"
       },
+      "BudgetOutput": {
+        "properties": {
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "daily_budget_cny": {
+            "type": "number",
+            "title": "Daily Budget Cny"
+          },
+          "today_cost_cny": {
+            "type": "number",
+            "title": "Today Cost Cny"
+          },
+          "remaining_cny": {
+            "type": "number",
+            "title": "Remaining Cny"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tier",
+          "daily_budget_cny",
+          "today_cost_cny",
+          "remaining_cny"
+        ],
+        "title": "BudgetOutput"
+      },
       "ChooseDirection": {
         "properties": {
           "type": {
@@ -3416,6 +3444,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/RestoreScript"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RegenerateReply"
                   }
                 ],
                 "discriminator": {
@@ -3426,6 +3457,7 @@
                     "confirm_script": "#/components/schemas/ConfirmScript",
                     "confirm_video": "#/components/schemas/ConfirmVideo",
                     "edit_image": "#/components/schemas/EditImage",
+                    "regenerate_reply": "#/components/schemas/RegenerateReply",
                     "restore_script": "#/components/schemas/RestoreScript"
                   }
                 }
@@ -3498,6 +3530,21 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "trace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MessageTrace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_regenerate": {
+            "type": "boolean",
+            "title": "Can Regenerate",
+            "default": false
           }
         },
         "type": "object",
@@ -3509,6 +3556,50 @@
           "created_at"
         ],
         "title": "MessageOutput"
+      },
+      "MessageTrace": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Duration Ms"
+          },
+          "cost_cny": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Cost Cny"
+          },
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Refs"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/TraceStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tool",
+          "model",
+          "duration_ms",
+          "cost_cny"
+        ],
+        "title": "MessageTrace"
       },
       "Models": {
         "properties": {
@@ -3624,6 +3715,17 @@
           "prompt": {
             "type": "string",
             "title": "Prompt"
+          },
+          "estimated_cost_cny": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Cny"
           }
         },
         "type": "object",
@@ -3876,6 +3978,28 @@
           "failed"
         ],
         "title": "QueueCounts"
+      },
+      "RegenerateReply": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "regenerate_reply",
+            "title": "Type"
+          },
+          "message_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Message Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "message_id"
+        ],
+        "title": "RegenerateReply"
       },
       "RegisterInput": {
         "properties": {
@@ -4136,6 +4260,16 @@
             },
             "type": "array",
             "title": "Script Versions"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -4187,6 +4321,25 @@
           "pro"
         ],
         "title": "Tiers"
+      },
+      "TraceStep": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Duration Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "duration_ms"
+        ],
+        "title": "TraceStep"
       },
       "UsageReport": {
         "properties": {

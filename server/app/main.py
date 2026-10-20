@@ -34,6 +34,7 @@ from app.observability import RequestObservabilityMiddleware, bind_project, bind
 from app.profile import default_model_asset_id, patch_user
 from app.project_cleanup import cleanup_project
 from app.rate_limits import RequestProtectionMiddleware, limit_messages, limit_upload
+from app.runtime_settings import user_budget
 from app.schemas import (
     AssetOutput,
     AuthOutput,
@@ -58,11 +59,13 @@ from app.security import (
     media_signature,
     verify_password,
 )
+from app.tracing import dialogue_trace
 from app.views import (
     direction_items,
     image_items,
     job_dict,
     message_dict,
+    pending_action_dict,
     project_cost_cny,
     project_dict,
     refresh_cards,
@@ -381,12 +384,18 @@ def restore_messages(session: Session, project_id: str, state: dict) -> str | No
         message_id = str(uuid5(NAMESPACE_URL, message.id))
         if role == "assistant":
             latest_assistant_id = message_id
-        if message_id in existing_ids:
-            continue
+        existing = session.get(Message, message_id) if message_id in existing_ids else None
         content = metadata.get("text", message.content)
         if "text" not in metadata and role == "user" and metadata.get("action"):
             if content == json.dumps(metadata["action"], ensure_ascii=False):
                 content = ""
+        if existing:
+            # Same-id rewrites live in checkpoints too, including crash recovery.
+            if role == "assistant":
+                existing.text = content
+                existing.trace = metadata.get("trace")
+                existing.can_regenerate = metadata.get("can_regenerate", False)
+            continue
         session.add(
             Message(
                 id=message_id,
@@ -396,6 +405,8 @@ def restore_messages(session: Session, project_id: str, state: dict) -> str | No
                 cards=metadata.get("cards", []),
                 action=metadata.get("action"),
                 refs=metadata.get("refs", []),
+                trace=metadata.get("trace"),
+                can_regenerate=metadata.get("can_regenerate", False),
                 created_at=datetime.fromisoformat(metadata["created_at"]),
             )
         )
@@ -466,7 +477,8 @@ def get_state(
         "note": note,
         "video": video,
         "active_jobs": [job_dict(job) for job in jobs],
-        "pending_action": state.get("pending_action"),
+        "pending_action": pending_action_dict(state),
+        "budget": user_budget(user, session),
         "cost_cny": cost,
         "last_message_id": latest_message_id,
         "script_versions": script_versions(graph, project_id),
@@ -497,6 +509,42 @@ def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def regenerate_reply(session: Session, graph, workflow: Workflow, message_id: str) -> list[str]:
+    project_id = workflow.project.id
+    state = get_graph_state(graph, project_id)
+    restore_messages(session, project_id, state)
+    message = session.get(Message, message_id)
+    if not message or message.project_id != project_id or message.role != "assistant":
+        raise AppError("message_not_found", "这条回复不存在或不属于当前项目。", 404)
+    if not message.can_regenerate:
+        raise AppError(
+            "cannot_regenerate", "这轮回复包含付费生成任务，不能重新回复，请直接告诉我想改哪里。",
+        )
+    original = next((item for item in state.get("messages", [])
+                     if str(uuid5(NAMESPACE_URL, item.id)) == message_id), None)
+    if original is None:
+        raise AppError("cannot_regenerate", "这条历史回复暂不支持重写，请发送新的消息。")
+    started = time.monotonic()
+    workflow.providers.trace_context = {"regenerate_message_id": message_id}
+    text = workflow.providers.regenerate_reply(message.text, workflow._context(state))
+    refs = list((message.trace or {}).get("refs", []))
+    trace = dialogue_trace(
+        workflow.providers, "chat", round((time.monotonic() - started) * 1000), refs,
+    )
+    trace["steps"] = [{**step, "label": "重写回复"} for step in trace["steps"]]
+    replacement = original.model_copy(deep=True)
+    replacement.content = text
+    replacement.additional_kwargs["display"].update(text=text, trace=trace)
+    # The next real turn supplies incoming before executing; no tool runs here.
+    graph.update_state({"configurable": {"thread_id": project_id}},
+                       {"messages": [replacement]}, as_node=f"await_{state['stage']}")
+    restore_messages(session, project_id, get_graph_state(graph, project_id))
+    workflow.project.updated_at = utcnow()
+    session.commit()
+    events = [sse("token", {"delta": text[i:i + 24]}) for i in range(0, len(text), 24)]
+    return [*events, sse("trace", trace), sse("done", {"message_id": message_id})]
+
+
 def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -> list[str]:
     with SessionLocal() as session:
         try:
@@ -507,6 +555,8 @@ def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -
                 raise AppError("USER_DISABLED", "账号已被禁用，请联系管理员", 403)
             graph, workflow = graph_for(session, project)
             action = body.action.model_dump(exclude_none=True) if body.action else None
+            if action and action["type"] == "regenerate_reply":
+                return regenerate_reply(session, graph, workflow, action["message_id"])
             result = run_turn(
                 graph, project, body.text, action, workflow=workflow, emit=emit, refs=body.refs
             )
@@ -522,6 +572,8 @@ def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -
                 events.append(sse("card", card))
             for job in result.get("jobs", []):
                 events.append(sse("job", job_dict(job) if isinstance(job, Job) else job))
+            if result.get("trace"):
+                events.append(sse("trace", result["trace"]))
             events.append(sse("done", {"message_id": assistant_id}))
             return events
         except Exception as exc:
@@ -539,7 +591,7 @@ def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -
     dependencies=[Depends(limit_messages)],
     responses={
         200: {
-            "description": "SSE：token / card / job / done / error",
+            "description": "SSE：token / card / job / trace / done / error；重写回复同 id 覆盖",
             "content": {"text/event-stream": {"schema": {"type": "string"}}},
         }
     },
