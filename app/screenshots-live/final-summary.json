@@ -1,0 +1,34 @@
+{
+  "queriedAt": "2026-10-20T16:57:30.482Z",
+  "runs": [
+    {
+      "run": 1,
+      "projectId": "23329be6-51b0-4a29-b253-a9ec9312c4d7",
+      "stage": "direction",
+      "costCny": 1.962331,
+      "activeJobs": 0,
+      "startedAt": "2026-10-20T16:25:11.138Z"
+    },
+    {
+      "run": 2,
+      "projectId": "04a5aea6-f5e3-4940-98f4-56bb5c1a59e6",
+      "stage": "done",
+      "costCny": 6.182741,
+      "activeJobs": 0,
+      "noteCostCny": 6.182741,
+      "startedAt": "2026-10-20T16:37:47.013Z",
+      "completedAt": "2026-10-20T16:46:39.836Z"
+    },
+    {
+      "run": 3,
+      "projectId": "22aca728-fdf5-4f32-842e-d4b0e4f1b15e",
+      "stage": "done",
+      "costCny": 5.669732,
+      "activeJobs": 0,
+      "noteCostCny": 5.669732,
+      "startedAt": "2026-10-20T16:49:44.276Z",
+      "completedAt": "2026-10-20T16:57:10.407Z"
+    }
+  ],
+  "totalEstimatedCostCny": 13.814804
+}
