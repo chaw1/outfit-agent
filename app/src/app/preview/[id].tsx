@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,9 +14,21 @@ import {
 } from 'react-native';
 import type { ProjectState } from '../../api/types';
 import { VideoPlayer } from '../../components/VideoPlayer';
+import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from '../../components/GenerationInfo';
 import { Button, Header, Loading, Notice, Page, colors, errorText } from '../../components/ui';
 import { useSession } from '../../context/Session';
 import { saveImages } from '../../lib/media';
+
+function PreviewImage({ id, url, index, onRefresh }: { id: string; url?: string; index: number; onRefresh: () => void }) {
+  const [failedUrl, setFailedUrl] = useState<string>();
+  if (!url) return <View style={styles.imagePlaceholder}><Ionicons name="image-outline" size={34} color="#C0B3A6" /><Text style={styles.placeholderText}>图片还在路上</Text></View>;
+  if (failedUrl === url) return <View style={styles.imagePlaceholder}>
+    <Ionicons name="image-outline" size={34} color="#C0B3A6" />
+    <Text style={styles.placeholderText}>图片暂时没能加载</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={`重新加载第 ${index + 1} 张图片`} testID={`retry-preview-${id}`} onPress={() => { setFailedUrl(undefined); onRefresh(); }}><Text style={{ color: colors.red, fontSize: 12, padding: 12 }}>重新加载</Text></Pressable>
+  </View>;
+  return <Image source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} />;
+}
 
 export default function NotePreview() {
   const { id } = useLocalSearchParams<{ id: string | string[] }>();
@@ -80,6 +93,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   const images = note?.image_ids.map((imageId) => ({
     id: imageId,
     url: state?.images.find((image) => image.id === imageId)?.url,
+    source: state?.images.find((image) => image.id === imageId),
   })) ?? [];
   const nickname = user?.nickname || user?.username || '我的穿搭日记';
 
@@ -152,7 +166,8 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             onScroll={(event) => setPage(Math.round(event.nativeEvent.contentOffset.x / carouselWidth))}
           >
             {images.map((image, index) => <View key={image.id} style={{ width: carouselWidth, aspectRatio: 3 / 4 }}>
-              {image.url ? <Image source={{ uri: image.url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${image.id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} /> : <View style={styles.imagePlaceholder}><Ionicons name="image-outline" size={34} color="#C0B3A6" /><Text style={styles.placeholderText}>图片还在路上</Text></View>}
+              <PreviewImage id={image.id} url={image.url} index={index} onRefresh={() => setRetry(value => value + 1)} />
+              {image.source ? <View pointerEvents="none" style={{ position: 'absolute', top: 37, left: 8, right: 8, bottom: 0 }}><FidelityBadge image={image.source} /></View> : null}
             </View>)}
           </ScrollView>
           {images.length > 0 ? <View style={styles.pageBadge}><Text style={styles.pageBadgeText}>{Math.min(page + 1, images.length)} / {images.length}</Text></View> : null}
@@ -160,6 +175,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         </View>
         {images.length > 1 ? <View style={styles.dots}>{images.map((image, index) => <View key={image.id} style={[styles.dot, page === index && styles.dotActive]} />)}</View> : null}
         <View style={styles.noteContent}>
+          {images[page]?.source ? <ImageRevisionInfo image={images[page].source} /> : null}
           <View style={styles.authorRow}>
             <View style={styles.avatar}><Text style={styles.avatarText}>{nickname.slice(0, 1).toUpperCase()}</Text></View>
             <View style={styles.authorInfo}><Text style={styles.authorName}>{nickname}</Text><Text style={styles.authorCaption}>我的穿搭日记</Text></View>
@@ -168,6 +184,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
           <Text selectable testID="note-title" style={styles.noteTitle}>{note.title}</Text>
           <Text selectable testID="note-body" style={styles.noteBody}>{note.body}</Text>
           <View style={styles.tags}>{note.tags.map((tag) => <Text selectable key={tag} style={styles.tag}>#{tag.replace(/^#/, '')}</Text>)}</View>
+          <NoteDisclosure note={note} projectCost={state?.cost_cny} />
           <View style={styles.noteEnd}><View style={styles.endLine} /><Text style={styles.endLabel}>记录穿搭，也记录自己</Text><View style={styles.endLine} /></View>
           {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <View style={styles.videoPending}><ActivityIndicator color={colors.red} size="small" /><Text style={styles.videoPendingText}>短片正在制作，好了会出现在这里。</Text></View> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
           <Button title="返回工作台继续创作" variant="ghost" icon="arrow-back" onPress={backToStudio} />

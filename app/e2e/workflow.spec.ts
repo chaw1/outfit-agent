@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Locator } from '@playwright/test';
 import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
+import type { ProjectState } from '../src/api/types';
 
 const shots = path.resolve('screenshots');
 async function shot(page: Page, name: string, focus?: Locator) {
@@ -8,12 +9,28 @@ async function shot(page: Page, name: string, focus?: Locator) {
   await page.screenshot({ path: path.join(shots, name), animations: 'disabled' });
 }
 
+async function waitForModal(locator: Locator) {
+  await locator.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect.poll(() => locator.evaluate(element => {
+    for (let current: Element | null = element; current; current = current.parentElement) {
+      if (Number(getComputedStyle(current).opacity) < 0.99) return false;
+    }
+    return true;
+  })).toBe(true);
+}
+
 test('博主从注册、上传到笔记与视频的完整合作流程', async ({ page }) => {
   await mkdir(shots, { recursive: true });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   const polls: number[] = [];
+  const historyRequests: number[] = [];
+  let latestState: ProjectState | undefined;
   page.on('request', request => { if (request.url().endsWith('/state')) polls.push(Date.now()); });
+  page.on('request', request => { if (request.method() === 'GET' && request.url().endsWith('/messages')) historyRequests.push(Date.now()); });
+  page.on('response', response => {
+    if (response.url().endsWith('/state') && response.ok()) void response.json().then(value => { latestState = value; });
+  });
   await page.goto('/');
   await page.getByRole('button', { name: '注册', exact: true }).click();
   await page.getByLabel('怎么称呼你', { exact: true }).fill('小序');
@@ -40,27 +57,76 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByRole('button', { name: '开始聊灵感', exact: true }).click();
   const direction = page.getByTestId('direction-direction_city');
   await expect(direction).toBeVisible();
+  await expect(page.getByTestId('preview-placeholder-direction_city')).toBeVisible();
+  await shot(page, '19-direction-preview-generating.png', direction);
+  await expect(page.getByTestId('preview-image-direction_city')).toBeVisible();
+  await expect(page.getByText('三个方向的灵感预览图都准备好了，看看哪种感觉更像你。')).toBeVisible();
   await shot(page, '04-garments-and-directions.png', direction);
+  // 以契约内 failed 响应检查失败占位，随后恢复正常服务响应。
+  await page.route('**/api/projects/*/state', async route => {
+    const response = await route.fetch();
+    const state = await response.json() as ProjectState;
+    state.directions = state.directions.map(option => option.id === 'direction_city' ? { ...option, preview_status: 'failed', preview_url: undefined } : option);
+    await route.fulfill({ response, json: state });
+  });
+  await page.getByRole('button', { name: '刷新项目', exact: true }).click();
+  await expect(page.getByText('灵感图暂时没成功，可先按文字选方向')).toBeVisible();
+  await shot(page, '24-direction-preview-failed.png', direction);
+  await page.unroute('**/api/projects/*/state');
+  await page.getByRole('button', { name: '刷新项目', exact: true }).click();
+  await expect(page.getByTestId('preview-image-direction_city')).toBeVisible();
   // 自由文本也经过同一 SSE 入口，随后再执行明确确认。
   await page.getByTestId('chat-input').fill('希望整体再松弛一点。');
   await page.getByTestId('send-message').click();
   await expect(direction).toBeEnabled();
   await direction.click();
   await expect(page.getByTestId('confirm-script')).toBeEnabled();
+  await page.getByTestId('chat-input').fill('把第二张场景换成办公室，做一版通勤脚本。');
+  await page.getByTestId('send-message').click();
+  await expect(page.getByTestId('confirm-script')).toBeEnabled();
+  await page.getByTestId('script-history').click();
+  await expect(page.getByTestId('script-version-2')).toBeVisible();
+  await waitForModal(page.getByTestId('script-version-2'));
+  await shot(page, '20-script-history.png');
+  await page.getByRole('button', { name: '关闭历史版本', exact: true }).click();
   await shot(page, '05-script-confirmation.png', page.getByTestId('confirm-script'));
+  const historyBeforeGeneration = historyRequests.length;
   await page.getByTestId('confirm-script').click();
   await expect(page.getByText('画面生成中').first()).toBeVisible();
   await shot(page, '06-images-generating.png', page.getByText('画面生成中').first());
   await expect(page.getByTestId('approve-images')).toBeEnabled();
+  await expect(page.getByText('3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。')).toBeVisible();
+  expect(historyRequests.length).toBeGreaterThan(historyBeforeGeneration);
+  await expect(page.getByTestId(/^fidelity-/).filter({ hasText: '还原 92' }).first()).toBeVisible();
   await shot(page, '07-images-ready.png', page.getByText('你的穿搭影像'));
+  await shot(page, '21-fidelity-auto-fixed.png', page.getByTestId(/^auto-fixed-/).first());
+  const retainedIds = latestState!.images.map(image => image.id);
+  await page.getByTestId('script-history').click();
+  await expect(page.getByTestId('restore-script-1')).toBeEnabled();
+  await waitForModal(page.getByTestId('script-version-1'));
+  await shot(page, '20-script-history.png');
+  const restoreRequest = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/messages') && request.postDataJSON()?.action?.type === 'restore_script');
+  await page.getByTestId('restore-script-1').click();
+  const restoredCheckpoint = (await restoreRequest).postDataJSON().action.checkpoint_id;
+  await expect(page.getByTestId('confirm-script')).toBeEnabled();
+  await expect.poll(() => latestState?.stage).toBe('script');
+  expect(latestState!.images.map(image => image.id)).toEqual(retainedIds);
+  expect(latestState!.script_versions?.find(version => version.current)?.checkpoint_id).toBe(restoredCheckpoint);
+  await shot(page, '22-script-restored.png', page.getByTestId('confirm-script'));
+  await page.getByTestId('confirm-script').click();
+  await expect(page.getByTestId('approve-images')).toBeEnabled();
+  await expect.poll(() => latestState!.images.length).toBeGreaterThan(retainedIds.length);
+  expect(retainedIds.every(id => latestState!.images.some(image => image.id === id))).toBe(true);
   const edit = page.getByTestId(/^edit-image-/).first();
   const firstId = (await edit.getAttribute('data-testid'))!.replace('edit-image-', '');
   await edit.click();
-  await page.getByTestId('edit-instruction').fill('把衬衫塞进裤腰，背景更明亮一点。');
+  await page.getByTestId('edit-suggestion-0').click();
+  await expect(page.getByTestId('edit-instruction')).toHaveValue('衬衫塞进裤腰');
   await shot(page, '08-edit-image.png');
+  const beforeEditIds = latestState!.images.map(image => image.id);
   await page.getByTestId('submit-edit').click();
-  await expect(page.getByText('v2 新版')).toBeVisible();
   await expect(page.getByTestId('approve-images')).toBeEnabled();
+  await expect.poll(() => latestState!.images.some(image => !beforeEditIds.includes(image.id) && image.parent_id === firstId && image.status === 'succeeded')).toBe(true);
   await shot(page, '09-image-new-version.png', page.getByText('你的穿搭影像'));
   const selectedIds = await page.getByTestId(/^move-up-/).evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')!.replace('move-up-', '')));
   // 默认选最新版本；向后移动封面，验证发送的图片顺序会被保留。
@@ -78,6 +144,9 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByTestId('preview-note').click();
   await expect(page.getByTestId('note-title')).toBeVisible();
   await shot(page, '12-note-preview.png');
+  await expect(page.getByTestId('note-cost')).toContainText('这篇成本约 ¥');
+  await expect(page.getByTestId('note-ai-label')).toContainText('AI');
+  await shot(page, '23-note-cost-and-ai-label.png', page.getByTestId('note-cost'));
   await page.getByTestId('copy-note').click();
   await expect(page.getByText('文案已复制，可以去发布啦。')).toBeVisible();
   const download = page.waitForEvent('download');
@@ -118,5 +187,5 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' })).toBeVisible();
   await shot(page, '18-network-recovered.png', page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' }));
   expect(errors).toEqual([]);
-  await writeFile(path.join(shots, 'evidence.json'), JSON.stringify({ viewport: '390×844', passedAt: new Date().toISOString(), firstEditedImage: firstId, selectedOrder: orderedIds, stateRequests: polls.length, videoPlayed: true, pageErrors: errors }, null, 2));
+  await writeFile(path.join(shots, 'evidence.json'), JSON.stringify({ viewport: '390×844', passedAt: new Date().toISOString(), firstEditedImage: firstId, selectedOrder: orderedIds, stateRequests: polls.length, historyRequests: historyRequests.length, proactiveMessage: true, restoredCheckpoint, retainedImageIds: retainedIds, previewImages: true, autoFixedFidelity: 92, noteCostCny: latestState?.note?.cost_cny, aiLabel: latestState?.note?.ai_label, videoPlayed: true, pageErrors: errors }, null, 2));
 });
