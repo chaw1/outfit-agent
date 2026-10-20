@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import time
 from copy import deepcopy
 from uuid import NAMESPACE_URL, uuid5
 
@@ -16,6 +17,7 @@ from app.models import Asset, Job, Project, User, utcnow
 from app.providers import ProviderHub
 from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
+from app.tracing import dialogue_trace
 from app.views import image_items, job_dict
 
 ALLOWED_TOOLS = {
@@ -50,10 +52,19 @@ class Workflow:
         # Populated from this thread's checkpoint history at the turn boundary.
         self.restore_scripts: dict[str, dict] = {}
         self.script_versions: list[dict] = []
+        self.begin_turn({})
+
+    def begin_turn(self, event: dict) -> None:
+        self.started = time.monotonic()
+        self.tool = "chat"
+        self.created_paid_jobs = False
+        self.providers.ledger_ids = []
+        self.providers.trace_context = {"turn_id": event.get("turn_id", "")}
 
     def _allow(self, stage: str, tool: str) -> None:
         if tool not in ALLOWED_TOOLS.get(stage, set()):
             raise AppError("tool_not_allowed", "当前阶段不能执行这个操作，请先完成前面的确认。")
+        self.tool = tool
 
     def _card(self, kind: str, content: dict) -> dict:
         return {"id": f"{self.project.id}:{kind}", "type": kind, **content}
@@ -299,6 +310,7 @@ class Workflow:
             summary += f"；博主补充：{event['text'][:300]}"
         summary += f"；已识别衣服：{garment_summary}"
         state = {
+            "incoming": event,
             "stage": "brief",
             "brief": {
                 "original": self.project.brief,
@@ -339,14 +351,17 @@ class Workflow:
             jobs,
         )
 
-    @staticmethod
-    def _directions(result: dict) -> list[dict]:
+    def _directions(self, result: dict, *, fresh: bool = False) -> list[dict]:
         directions = result.get("options", [])
         if not 2 <= len(directions) <= 3 or len({x.get("id") for x in directions}) != len(
             directions
         ):
             raise AppError("provider_invalid_response", "方向生成没有完成，请再试一次。", 502)
-        return directions
+        if not fresh:
+            return directions
+        turn_id = self.providers.trace_context.get("turn_id", "")
+        return [dict(item, id=str(uuid5(NAMESPACE_URL, f"{turn_id}:direction:{index}")))
+                for index, item in enumerate(directions)]
 
     def _script(self, result: dict, state: dict) -> dict:
         script = {
@@ -428,7 +443,7 @@ class Workflow:
             return self._finish(state, self._reply(args, "我们继续把这组穿搭打磨好。"), cards)
         if name == "propose_directions":
             state.update(
-                directions=self._directions(args),
+                directions=self._directions(args, fresh=True),
                 stage="direction",
                 pending_action=self._pending("choose_direction"),
             )
@@ -541,6 +556,7 @@ class Workflow:
         )
         self.session.add(job)
         self.session.flush()
+        self.created_paid_jobs = True
         return job
 
     def restore_jobs(self, state: dict) -> None:
@@ -786,5 +802,10 @@ class Workflow:
             turn_text=text,
             turn_cards=cards,
             turn_jobs=[job_dict(job, self.session) for job in jobs or []],
+            turn_trace=dialogue_trace(
+                self.providers, self.tool, round((time.monotonic() - self.started) * 1000),
+                list((state.get("incoming") or {}).get("refs", [])),
+            ),
+            turn_can_regenerate=not self.created_paid_jobs,
         )
         return state

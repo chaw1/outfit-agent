@@ -91,7 +91,7 @@ uv run ruff check .
 
 固定 Compose 项目名 `outfit-agent-server`。API 默认只绑定 `127.0.0.1:18080`，PostgreSQL 只绑定本机 `18432`。不要操作其他项目的容器。重启脚本和 E1 只执行本目录的 `docker compose restart api`；停止本项目用 `docker compose stop`，无需删除媒体卷。
 
-OpenAPI 静态导出位于 [`openapi.json`](openapi.json)，运行中还可查看 `http://localhost:18080/docs` 和 `/openapi.json`。SSE 事件为 `token/card/job/done/error`。看图完成的 garments 卡片提前发送，完成后仍会发送完整卡片并持久化展示消息；同 ID 卡片覆盖即可。文本是在完整工具参数通过校验后分片发送，尚未逐 token 透传上游工具参数；等待期间发送 keepalive。客户端重连可读 `/messages` 与 `/state` 恢复工作台。
+OpenAPI 静态导出位于 [`openapi.json`](openapi.json)，运行中还可查看 `http://localhost:18080/docs` 和 `/openapi.json`。SSE 事件为 `token/card/job/trace/done/error`。看图完成的 garments 卡片提前发送，完成后仍会发送完整卡片并持久化展示消息；同 ID 卡片覆盖即可。文本是在完整工具参数通过校验后分片发送，尚未逐 token 透传上游工具参数；等待期间发送 keepalive。客户端重连可读 `/messages` 与 `/state` 恢复工作台。
 
 ### 管理端
 
@@ -273,3 +273,21 @@ docker compose -f compose.yaml -f deploy/compose.production.yaml up -d --build -
 宿主 nginx 的现有 TLS 入口代理到 `http://127.0.0.1:18080`，关闭 SSE buffering、允许 16 MB 请求体，并为长连接设置足够 read timeout；证书、TLS server 和宿主 nginx 不在这个 Compose 中。App API 根地址是 `https://47.97.153.127:8443/api`，媒体使用返回的绝对签名 URL。部署后由负责人检查公网健康、SSE、媒体下载及容器重启后的持久性；数据库和 API 端口不直接向公网发布。
 
 自有域名新环境也可选择现存 [`deploy/compose.caddy.yaml`](deploy/compose.caddy.yaml) 与 [`deploy/Caddyfile`](deploy/Caddyfile)：设置 `DOMAIN/PUBLIC_BASE_URL`，在正确 DNS 和 80/443 可用后启动 Caddy overlay，走内部 `api:8000` 自动管理证书；这属于替代部署方案，不与宿主 nginx 生产 overlay 混用。此仓库提供管理端，未内置账号找回、对象存储和多机部署。
+
+
+## 第六轮：回复过程与文字重写
+
+assistant 消息新增 `trace` 和 `can_regenerate`；SSE 在 `done` 前发送 `trace`，与 `/messages` 读回一致。对话 trace 只合计当前调用的账本行，Worker 按 `job_id` 汇总任务与自动修复的调用，失败和未知结果保留预留费用，Mock 实际费用为 0。迁移前的历史消息未记录追踪，保留 `trace=null`、`can_regenerate=false`。
+
+`state.pending_action.estimated_cost_cny` 按 `app/costs.py` 与账本共用的出图 ¥0.50/张、5 秒视频 ¥1.50 计算；脚本确认额外计 20% 自动修复预留。预估不含另行记录的文字/看图费用，最终以账本为准。`state.budget` 的层级、日额度、今日花费、剩余额度与 `/me` 和管理配置共用上海自然日账本；剩余为用户日额度扣减，不代表全局预算或模型权限。
+
+`{action:{type:"regenerate_reply",message_id}}` 仅调用文字模型，以同 id 覆盖该回复文字并更新其 trace；保留卡片、任务、脚本和阶段，重新发送 `token/trace/done`，不插入用户消息。文字调用正常记账，没有新增图片/视频费用；创建了付费任务的回复和 Worker 通知返回中文拒绝。checkpoint 同步保存覆盖结果，重启恢复后不会回退文字。方向阶段发送“换一组方向，保留我刚才说的偏好”由模型选工具，继续考虑历史偏好并创建新方向预览。
+
+零费用复验：
+
+```bash
+uv run pytest -q tests/test_trace_http.py tests/test_trace_review.py tests/test_trace_budget.py tests/test_worker_trace.py tests/test_regenerate_provider.py tests/test_direction_refresh.py
+uv run python scripts/verify_trace.py --mock --regenerate
+```
+
+真实小额验证使用 `scripts/verify_trace.py --run --regenerate`，须仅向子进程注入钥匙串中的两个模型 key。脚本限制官方端点、两张新预览、总预留 ¥1.50，独立保存业务账本与调用断点；已有成功结果复用，`started` 未知结果拒绝重新请求。不能清空或换输出目录来重提未知的图片请求，失败预留须计入当轮总限额。

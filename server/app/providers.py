@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.config import settings
+from app.costs import image_cost_cny, video_cost_cny
 from app.errors import AppError
 from app.models import Asset, Project, UsageLedger
 from app.observability import log_model
@@ -127,7 +128,10 @@ SELECTION_TOOL_SCHEMAS = {
     "chat": _obj(reply=STR, blocked_tool=STR),
 }
 TOOL_DESCRIPTIONS = {
-    "propose_directions": "重新提出2到3个方向；仅讨论或询问用chat",
+    "propose_directions": (
+        "提出2到3个方向；用户要换一组、再来一组时重新构思不同场景，"
+        "保留历史对话和档案中已说过的偏好；仅讨论或询问用chat"
+    ),
     "write_script": "用户选定当前某个方向时，解析direction_id并写完整脚本",
     "revise_script": "修改拍摄脚本、镜头或整体创作方向，返回修改后的完整脚本",
     "write_note": "用已完成图片撰写或修改发布笔记；image_ids为用户选择的图和顺序",
@@ -164,6 +168,12 @@ edit_image仅在用户明确圈选或提供坐标时传region或mask_strokes，�
 改发布正文、标题、标签用write_note；改生成照片的画面用edit_image，二者不要混淆。
 write_note中的image_ids保持已有选择，除非用户明确重新选图；首次选图从已完成图解析。
 方向给 2–3 个，场景、氛围、配色各不相同，id 使用 direction-1 这样的稳定短标识。
+方向阶段用户说“换一组方向，保留我刚才说的偏好”“再来一组”等时，
+必须选propose_directions，给出区别于context.directions的2–3个新方向和新场景，
+不能只改旧方向的名称，也不要选write_script或仅chat。
+保留context.recent_messages中用户已明确说过的场景、风格、搭配限制以及档案偏好，
+例如之前说“要通勤”，本轮只说“换一组”也要继续给通勤方向；
+用户本轮明确改变某项偏好时才更新它，不能把“换一组”当作清空历史偏好。
 脚本 3–6 个镜头（品牌需求指定了张数就按需求，否则 4–5 个），id 为 shot-1 等，
 outfit_asset_ids 必须引用上下文的衣服资产 ID，
 每个镜头引用衣服数量不得超过 context.max_outfit_assets_per_shot，衣服多时分镜分开搭配。
@@ -213,10 +223,14 @@ _sqlite_reservation_lock = threading.RLock()
 
 
 class ProviderHub:
-    def __init__(self, session: Session, project_id: str | None = None):
+    def __init__(
+        self, session: Session, project_id: str | None = None, trace_context: dict | None = None,
+    ):
         self.session = session
         self.project_id = project_id
         self._active_models: dict[str, str] = {}
+        self.trace_context = dict(trace_context or {})
+        self.ledger_ids: list[str] = []
 
     @property
     def mock(self) -> bool:
@@ -286,7 +300,7 @@ class ProviderHub:
                 model=runtime["models"][kind],
                 kind=kind,
                 duration_ms=0,
-                units={"mock": self.mock, "reserved_cny": str(estimate)},
+                units={"mock": self.mock, "reserved_cny": str(estimate), **self.trace_context},
                 estimated_cny=Decimal(0) if self.mock else estimate,
                 status="reserved",
             )
@@ -294,7 +308,7 @@ class ProviderHub:
             ledger_session.flush()
             ledger_id = row.id
             ledger_session.commit()
-
+            self.ledger_ids.append(ledger_id)
             self._active_models[kind] = runtime["models"][kind]
             return ledger_id
 
@@ -531,7 +545,7 @@ class ProviderHub:
                 rate = Decimal("3")
             cost = Decimal(tokens) + Decimal(usage.get("completion_tokens", 0)) * 10
             cost = cost * rate / 1_000_000 if "prompt_tokens" in usage else None
-            return items, usage, cost
+            return items, {**usage, "images": len(assets), "purpose": "analyze_garments"}, cost
 
         # Resized <=1 MP inputs are far below 16k visual tokens each. Reserve
         # using that generous bound and the most expensive Beijing token tier.
@@ -568,6 +582,41 @@ class ProviderHub:
         if "chat" not in names:
             names.append("chat")
         return self._text_call(names, context, instruction, selection=True)
+
+    def regenerate_reply(self, previous: str, context: dict) -> str:
+        """A text-only call: there is deliberately no tools field or dispatcher."""
+        content = json.dumps({"previous_reply": previous, "context": context},
+                             ensure_ascii=False, default=str)
+        prompt = (
+            "你是穿搭博主的搭子。只把previous_reply换一种自然简洁的说法，保持事实、确认状态"
+            "和承诺一致，不新增动作、不修改卡片、不声称又生成了图片。只返回回复文字。"
+        )
+        reserve = max(Decimal("0.15"), (
+            Decimal(len((prompt + content).encode())) * Decimal("0.3")
+            + Decimal(1000) * Decimal("1.2")
+        ) * Decimal("7.5") / 1_000_000)
+
+        def operation():
+            if self.mock:
+                return "换个说法：" + previous, {}, Decimal(0)
+            with self._client() as client:
+                response = self._json(client.post(
+                    f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
+                    headers=self._headers(settings.deepseek_api_key),
+                    json={"model": self._model("text"), "thinking": {"type": "disabled"},
+                          "messages": [{"role": "system", "content": prompt},
+                                       {"role": "user", "content": content}], "max_tokens": 1000},
+                ))
+            text = response["choices"][0]["message"].get("content")
+            if not isinstance(text, str) or not text.strip():
+                raise ProviderError("回复重写未完成，请稍后重试。")
+            usage = response.get("usage", {})
+            cost = (Decimal(usage.get("prompt_tokens", 0)) * Decimal("0.3")
+                    + Decimal(usage.get("completion_tokens", 0)) * Decimal("1.2"))
+            cost = cost * Decimal("7.5") / 1_000_000 if "prompt_tokens" in usage else None
+            return text.strip(), usage, cost
+
+        return self._call("text", str(reserve), operation)
 
     def _text_call(
         self, names: list[str], context: dict, instruction: str, *, selection: bool
@@ -724,7 +773,10 @@ class ProviderHub:
 
         def operation():
             if self.mock:
-                return {"score": 92, "diffs": [], "auto_fixed": False}, {}, Decimal(0)
+                return (
+                    {"score": 92, "diffs": [], "auto_fixed": False},
+                    {"purpose": "fidelity", "images": len(reference_assets) + 1}, Decimal(0),
+                )
             if isinstance(generated, Asset):
                 rendered_url = self._data_url(generated, vision=True)
             else:
@@ -946,9 +998,9 @@ class ProviderHub:
                     media = self._download(client, urls[0], "image/png", self._model("image"))
                 except ProviderError:
                     raise ProviderError("图片已生成但转存失败，为避免重复计费已停止。") from None
-            return media, {"images": 1, "request_id": response.get("request_id")}, Decimal("0.5")
+            return media, {"images": 1, "request_id": response.get("request_id")}, image_cost_cny()
 
-        return self._call("image", "0.50", operation)
+        return self._call("image", str(image_cost_cny()), operation)
 
     def video(
         self,
@@ -1022,7 +1074,7 @@ class ProviderHub:
                                 "audio": True,
                                 "provider_task_id": task_id,
                             },
-                            Decimal("1.5"),
+                            video_cost_cny(),
                         )
                     if status in {"FAILED", "CANCELED", "UNKNOWN"}:
                         raise ProviderError(f"视频任务失败（{status}），请检查素材与额度。")
@@ -1033,7 +1085,7 @@ class ProviderHub:
             # Resuming a persisted task only polls/downloads; it does not reserve
             # or charge for a second generation. The first attempt retains cost.
             return operation()[0]
-        return self._call("video", "1.50", operation)
+        return self._call("video", str(video_cost_cny()), operation)
 
     @staticmethod
     def _mock_select_tool(names: list[str], context: dict, instruction: str) -> tuple[str, dict]:
@@ -1269,6 +1321,69 @@ class ProviderHub:
         if name == "chat":
             return {"text": "懂你～我们可以继续微调，等你确认后再开始生成。"}
         if name == "propose_directions":
+            user_preferences = [style_notes]
+            brief = context.get("brief") or {}
+            if isinstance(brief, dict):
+                user_preferences.extend([brief.get("original", ""), brief.get("additional", "")])
+            elif isinstance(brief, str):
+                user_preferences.append(brief)
+            user_preferences.extend(
+                message.get("text", "")
+                for message in context.get("recent_messages", [])
+                if message.get("role") == "user"
+            )
+            user_preferences.append(instruction)
+            preference = "；".join(
+                dict.fromkeys(
+                    text.replace("不穿高跟鞋", "搭配平底鞋").strip()
+                    for text in user_preferences
+                    if text and not text.lstrip().startswith("{")
+                    and not any(word in text for word in ("换一组", "再来一组", "保留偏好"))
+                )
+            )
+            preference_suffix = f"；保留你的偏好：{preference}" if preference else ""
+            commute_preferences = [text for text in user_preferences if "通勤" in text]
+            commute = bool(commute_preferences) and not any(
+                word in commute_preferences[-1] for word in ("不要通勤", "不想通勤", "不拍通勤")
+            )
+            if context.get("directions") or commute:
+                scenes = (
+                    [
+                        ("城市早班", "玻璃办公楼外的晨光广场", "干净利落"),
+                        ("下班散步", "写字楼旁的林荫街道", "松弛轻盈"),
+                        ("午休留白", "办公园区的露台咖啡座", "温柔简约"),
+                        ("轻装出发", "城市地铁口的石材长廊", "清爽明快"),
+                        ("工作日漫步", "商务街区的白墙转角", "从容自然"),
+                        ("通勤光影", "办公室窗边与通透门厅", "安静知性"),
+                    ]
+                    if commute else [
+                        ("沿河慢行", "傍晚河岸的木质步道", "轻盈自在"),
+                        ("街区小憩", "老街书店的露台", "温柔文艺"),
+                        ("周末看展", "美术馆外的白墙长廊", "简洁明亮"),
+                        ("市集拾光", "周末花市的石板小街", "自然鲜活"),
+                        ("海风散步", "临海木栈道的树荫处", "清新松弛"),
+                        ("城市留白", "社区图书馆的窗边", "安静从容"),
+                    ]
+                )
+                previous_scenes = {item["scene"] for item in (context.get("directions") or [])}
+                fresh = [item for item in scenes if item[1] not in previous_scenes][:3]
+                return {
+                    "options": [
+                        {
+                            "id": f"direction-{index + 1}",
+                            "name": f"通勤 · {title}" if commute else title,
+                            "scene": scene,
+                            "mood": mood,
+                            "palette": palette,
+                            "why": "换一个场景继续探索衣服的日常搭配" + preference_suffix,
+                            "sample_title": f"{title}，今天这样穿",
+                        }
+                        for index, ((title, scene, mood), palette) in enumerate(
+                            zip(fresh, [["米白", "藏蓝"], ["浅灰", "浅蓝"], ["奶油白", "木色"]],
+                                strict=False)
+                        )
+                    ]
+                }
             return {
                 "options": [
                     {

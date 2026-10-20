@@ -10,6 +10,7 @@ import time
 from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import timedelta
+from decimal import Decimal
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
@@ -29,10 +30,10 @@ from app.local_edit import (
 )
 from app.log_errors import log_exception
 from app.media import asset_path, store_generated
-from app.models import Asset, Job, Message, Project, utcnow
+from app.models import Asset, Job, Message, Project, UsageLedger, utcnow
 from app.project_cleanup import drain_media_cleanup
 from app.providers import GeneratedMedia, ProviderError, ProviderHub
-from app.runtime_settings import assert_generation_allowed
+from app.runtime_settings import assert_generation_allowed, get_runtime_settings
 from app.views import image_items
 
 logger = logging.getLogger("outfit.worker")
@@ -321,7 +322,101 @@ def _edit_summary(jobs: list[Job]) -> str:
     return f"其中 {len(unchecked)} 张改图尚未确认按要求完成：{reasons}。原版仍保留着。"
 
 
-def _publish(session: Session, job: Job, event: str, content: str, cards: list[dict]) -> None:
+def _worker_trace(session: Session, jobs: list[Job]) -> dict:
+    """Use durable per-job accounting, including failed attempts and repairs.
+
+    Project totals or before/after deltas would attribute a concurrent preview
+    or conversation to this notification. Correlation in the reservation also
+    survives a worker dying before it can publish its result.
+    """
+    rows = session.scalars(
+        select(UsageLedger)
+        .where(
+            UsageLedger.project_id == jobs[0].project_id,
+            UsageLedger.units["job_id"].as_string().in_([item.id for item in jobs]),
+        )
+        .order_by(UsageLedger.created_at, UsageLedger.id)
+    ).all()
+    video = jobs[0].kind == "video"
+    editing = not video and all(item.kind == "edit" for item in jobs)
+    kind = "video" if video else "image"
+    tool = "generate_video" if video else "edit_image" if editing else "generate_images"
+    originals = [item for item in jobs if not item.payload.get("auto_fix")]
+    count = len(originals or jobs)
+    label = f"生成视频 {count} 条" if video else f"{'改图' if editing else '出图'} {count} 张"
+    models = list(dict.fromkeys(row.model for row in rows if row.kind == kind))
+    if not models:
+        for item in jobs:
+            asset = session.get(Asset, item.result_asset_id) if item.result_asset_id else None
+            model = asset.model if asset else item.payload.get("provider_model")
+            if model and model not in models:
+                models.append(model)
+    if not models:
+        models = [get_runtime_settings(session)["models"][kind]]
+    repair_ids = {item.id for item in jobs if item.payload.get("auto_fix")}
+    generation_ms = sum(
+        row.duration_ms for row in rows
+        if row.kind == kind and row.units.get("job_id") not in repair_ids
+    )
+    job_ms = sum(
+        item.result.get("trace_duration_ms", item.result.get("duration_ms", 0)) for item in jobs
+    )
+    duration_ms = max(job_ms, sum(row.duration_ms for row in rows))
+    steps = [{"label": label, "duration_ms": generation_ms if rows else duration_ms}]
+    if repair_ids and originals:
+        steps.append({
+            "label": f"自动还原修复 {len(repair_ids)} 张",
+            "duration_ms": sum(
+                row.duration_ms for row in rows
+                if row.kind == "image" and row.units.get("job_id") in repair_ids
+            ),
+        })
+    elif repair_ids:
+        steps[0]["duration_ms"] = sum(row.duration_ms for row in rows if row.kind == kind)
+    for purpose, step_label in (("fidelity", "还原检查"), ("edit_check", "改图指令核对")):
+        checks = [row for row in rows if row.units.get("purpose") == purpose]
+        if checks:
+            steps.append({
+                "label": f"{step_label} {len(checks)} 次",
+                "duration_ms": sum(row.duration_ms for row in checks),
+            })
+    other_checks = [
+        row for row in rows
+        if row.kind == "vision" and row.units.get("purpose") not in {"fidelity", "edit_check"}
+    ]
+    if other_checks:
+        steps.append({
+            "label": f"图片检查 {len(other_checks)} 次",
+            "duration_ms": sum(row.duration_ms for row in other_checks),
+        })
+    refs = []
+    for item in jobs:
+        image_id = (
+            item.payload.get("parent_id") or item.payload.get("image_id")
+            if editing or video
+            else item.payload.get("image_id", item.id)
+        )
+        if image_id and image_id not in refs:
+            refs.append(image_id)
+    return {
+        "tool": tool,
+        "model": " / ".join(models),
+        "duration_ms": duration_ms,
+        "cost_cny": float(sum((row.estimated_cny for row in rows), Decimal(0))),
+        "refs": refs,
+        "steps": steps,
+    }
+
+
+def _publish(
+    session: Session,
+    job: Job,
+    event: str,
+    content: str,
+    cards: list[dict],
+    *,
+    trace_jobs: list[Job] | None = None,
+) -> None:
     message_id = str(uuid5(NAMESPACE_URL, f"{job.project_id}:worker:{event}"))
     if not session.get(Message, message_id):
         session.add(
@@ -331,6 +426,8 @@ def _publish(session: Session, job: Job, event: str, content: str, cards: list[d
                 role="assistant",
                 text=content,
                 cards=cards,
+                trace=_worker_trace(session, trace_jobs or [job]),
+                can_regenerate=False,
             )
         )
 
@@ -407,7 +504,7 @@ def _notify_completion(session: Session, job: Job) -> None:
     if failed:
         text_content += f"，有 {failed} 个任务失败，可在工作台查看原因"
     text_content += "。" + _score_summary(batch) + _edit_summary(batch)
-    _publish(session, job, f"batch:{_batch_key(job)}", text_content, cards)
+    _publish(session, job, f"batch:{_batch_key(job)}", text_content, cards, trace_jobs=batch)
 
 
 @dataclass
@@ -552,7 +649,7 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
             session.rollback()
             return
         payload = dict(job.payload)
-        hub = ProviderHub(session, job.project_id)
+        hub = ProviderHub(session, job.project_id, trace_context={"job_id": job_id})
 
         def on_submitted(task_id: str) -> None:
             # Persist before the first poll: process death and timeout retries
@@ -629,6 +726,8 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                 job.result = {
                     **job.result, "asset_id": asset.id,
                     "duration_ms": round((time.monotonic() - started) * 1000),
+                    "trace_duration_ms": job.result.get("trace_duration_ms", 0)
+                    + round((time.monotonic() - started) * 1000),
                 }
                 if outcome:
                     for key in (
@@ -668,7 +767,9 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                 retryable, message = False, "项目已删除。"
             job.error = message[:500]
             job.result = {
-                **job.result, "duration_ms": round((time.monotonic() - started) * 1000)
+                **job.result, "duration_ms": round((time.monotonic() - started) * 1000),
+                "trace_duration_ms": job.result.get("trace_duration_ms", 0)
+                + round((time.monotonic() - started) * 1000),
             }
             job.locked_at = None
             if retryable and attempt < max_attempts():

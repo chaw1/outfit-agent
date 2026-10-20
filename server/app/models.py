@@ -78,6 +78,8 @@ class Message(Base):
     cards: Mapped[list] = mapped_column(json_type, default=list)
     action: Mapped[dict | None] = mapped_column(json_type, nullable=True)
     refs: Mapped[list] = mapped_column(json_type, default=list)
+    trace: Mapped[dict | None] = mapped_column(json_type, nullable=True)
+    can_regenerate: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

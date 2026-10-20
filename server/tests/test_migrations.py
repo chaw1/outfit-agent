@@ -26,10 +26,21 @@ def test_alembic_builds_an_empty_isolated_database(isolated_database_url):
             "users", "projects", "assets", "messages", "jobs", "usage_ledger",
             "request_events", "rate_limit_counters",
         } <= tables
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone()
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0008",)
         refs = connection.execute(
             "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
             "WHERE table_schema='public' AND table_name='messages' AND column_name='refs'",
         ).fetchone()
         assert refs[0:2] == ("jsonb", "NO")
         assert "[]" in refs[2]
+        trace = connection.execute(
+            "SELECT data_type, is_nullable FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name='messages' AND column_name='trace'",
+        ).fetchone()
+        assert trace == ("jsonb", "YES")
+        can_regenerate = connection.execute(
+            "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name='messages' "
+            "AND column_name='can_regenerate'",
+        ).fetchone()
+        assert can_regenerate == ("boolean", "NO", "false")

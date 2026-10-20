@@ -154,7 +154,7 @@ class API:
         assert events and events[-1]["event"] == "done", "SSE must terminate with done"
         errors = [event["data"] for event in events if event["event"] == "error"]
         assert not errors, f"SSE error codes: {[error.get('code') for error in errors]}"
-        assert all(event["event"] in {"token", "card", "job", "done"} for event in events)
+        assert all(event["event"] in {"token", "card", "job", "trace", "done"} for event in events)
         return events
 
     def state(self, project_id):
