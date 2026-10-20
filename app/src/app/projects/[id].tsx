@@ -15,6 +15,7 @@ import { ImageInteractions, useImageInteractions } from '../../components/ImageI
 import { feedback } from '../../lib/haptics';
 import { canRephrase } from '../../lib/conversation';
 import { useSession } from '../../context/Session';
+import { MessageTrace } from '../../components/MessageTrace';
 
 function ReferenceThumbnail({ image, testID }: { image: OutfitImage; testID: string }) {
   const interaction = useImageInteractions();
@@ -118,7 +119,8 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         {typeof state?.cost_cny === 'number' ? <View style={styles.costRow}><Ionicons name="wallet-outline" size={13} color={colors.muted} /><Text testID="project-cost" style={styles.cost}>项目累计约 ¥{state.cost_cny.toFixed(1)}</Text></View> : null}
         {messages.map((message, index) => <AnimatedEntry key={message.id} delay={Math.min(index * 30, 120)} style={[styles.message, message.role === 'user' ? styles.userMessage : styles.assistantMessage]}>
           {message.role === 'assistant' && <View style={styles.assistantIdentity}><View style={styles.assistantIcon}><Ionicons name="sparkles-outline" size={13} color={colors.redText} /></View><Text style={styles.identityText}>衣序 · 你的穿搭搭子</Text></View>}
-          {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={({ pressed }) => [styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble, pressed && styles.pressed]}><Text selectable style={styles.messageText}>{messageText(message, state)}</Text></Pressable> : busy && message.id.startsWith('local-') ? <ProgressStrip title="正在整理你的灵感…" /> : null}
+          {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={({ pressed }) => [styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble, pressed && styles.pressed]}><Text selectable style={styles.messageText}>{messageText(message, state)}</Text></Pressable> : busy && message.role === 'assistant' ? <ProgressStrip title="正在整理你的灵感…" /> : null}
+          <MessageTrace message={message} />
           {!busy && canRephrase(message, messages, state) ? <Pressable testID="rephrase-message" accessibilityRole="button" accessibilityLabel="换个说法" onPress={() => { void send({ action: { type: 'regenerate_reply', message_id: message.id } }); }} style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}><Ionicons name="refresh-outline" size={14} color={colors.redText} /><Text style={styles.textActionLabel}>换个说法</Text></Pressable> : null}
           {message.refs?.length ? <View style={styles.messageReferences}>{message.refs.map(imageId => {
             const image = state?.images.find(item => item.id === imageId);
@@ -127,7 +129,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         </AnimatedEntry>)}
         {failedMessages.map(message => <AnimatedEntry key={message.id} style={styles.failedMessage}><View testID={`failed-${message.id}`} style={styles.failedBubble}><Pressable accessibilityRole="button" accessibilityLabel={`消息：${message.text}`} onLongPress={() => setSelectedMessage({ id: message.id, role: 'user', text: message.text, cards: [], refs: message.input.refs, created_at: message.createdAt })} style={styles.failedTextButton}><Text style={styles.messageText}>{message.input.action ? `操作未完成：${message.text}` : message.text}</Text></Pressable><View style={styles.failureLabel}><Ionicons name="alert-circle-outline" size={14} color={colors.danger} /><Text style={styles.failureText}>{message.certain ? '发送失败' : '发送状态待确认'}</Text></View><Pressable testID={message.certain ? 'retry-failed-message' : 'check-uncertain-message'} accessibilityRole="button" accessibilityLabel={message.certain ? '重发消息' : '核对发送状态'} disabled={busy} onPress={() => { void retryMessage(message); }} style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}><Text style={styles.textActionLabel}>{message.certain ? '重发消息' : '核对发送状态'}</Text></Pressable></View></AnimatedEntry>)}
         {state?.active_jobs.length ? <ProgressStrip title="正在生成，完成后会自动出现在这里" detail="可以继续聊灵感，我们会为你保留每个版本。" /> : null}
-        <Cards cards={visibleCards} state={state} busy={busy} onAction={action => { void send({ action }); }} onPreview={preview} />
+        <Cards cards={visibleCards} state={state} busy={busy} onAction={action => { void send({ action }); }} onText={value => { void send({ text: value }); }} onPreview={preview} />
         {state?.script && state.stage !== 'script' ? <ScriptHistory versions={state.script_versions} busy={busy} generating={Boolean(state.active_jobs.length)} onAction={action => { void send({ action }); }} /> : null}
         {!loading && !messages.length && !busy && <StatePanel icon="chatbubbles-outline" title="从一个灵感开始" description="说说这次合作的想法，我们一起开始。" actionLabel="说说合作想法" onAction={() => input.current?.focus()} />}
       </ScrollView>

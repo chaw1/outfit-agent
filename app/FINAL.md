@@ -1,26 +1,21 @@
-结论：本轮功能已实现，规定的本地检查通过，可交复测；原生通知、相册和系统分享仍待真机验收。
+结论：Q1–Q5 均通过本地验收，可交复测；全程只用假服务，真机原生体验尚未验收。
 
-- P1 完成：多张本人照片、设默认/移除、昵称/身高/体型/偏好保存，新建项目默认带档案照片并可换；旧字段、GET/PATCH 404 优雅降级。证据：product.spec.ts、profile-projects.test.ts、mock-server.test.ts，截图 39、40、43。
-- P2 完成：标题/品牌搜索、下拉/按钮刷新、阶段/封面、长按/按钮删除及二次确认；取消后可正常打开，删除后列表消失且 project/state/messages 均 404。证据：product-evidence.json，截图 41、42；mock 级联清理任务/生成文件，保留上传原图。
-- P3 完成：准备发布依次复制文案、按清单保存全图、保存视频、打开系统分享；逐项清单与声明确认；首个失败暂停，仅继续未完成项，重开/刷新保留媒体断点。证据：publish.test.ts、workflow.spec.ts、evidence.json，截图 48–51。
-- P4 实现并通过逻辑验证：图片批次/自动修复/改图/视频分组完成、持久化去重、账号/服务器隔离、后台静音通知、点按项目路由、前台提示、拒绝权限静默；6 项通知引擎测试及截图 52。没有冒充真机通知验收。
-- P5 完成：查看器/缩略图/预览去掉重复角标；差异点两行折叠/展开；长按复制；明确失败消息可重发且先核对历史；最后安全回复可换说法；三屏首次引导与关于/版本/隐私。证据：conversation.test.ts、两份 E2E，截图 36–38、43–47；连续两次拒绝仍只有一个重发项。
-- P6 通过：Node v22.23.1，npm run verify 五项全绿（93/93 测试、类型、lint、iOS/Android 导出）；npm run test:e2e 2/2 通过（约 1.9 分钟，pageErrors=[]）；npx expo prebuild --platform ios 含 CocoaPods 安装成功。
+- Q1 通过：全流程 9 条智能体消息显示能力/耗时/费用，可展开模型与分步；缺 trace 隐藏。SSE 重写在 GET 503 下仍同 ID 更新，断流后同 ID 历史恢复，无重复消息；截图 53、56、64。
+- Q2 通过：出图估价 ¥4.32、视频 ¥1.50 与 state 一致；余额 ¥0.10 时两类确认均禁用并中文提示；缺字段隐藏且保留旧确认。假服务余额扣排队预留，成功费用与账本一致；截图 55、57–60。
+- Q3 通过：“换一组”发送“换一组方向，保留我刚才说的偏好”，同 card.id 单实例覆盖，保留偏好并显示新方向预览；截图 54。
+- Q4 通过：标题 20 字计数、正文编辑、话题增删、声明默认勾选、图片调序；草稿保存后刷新恢复全部编辑与声明状态；复制/分享及图片保存顺序使用编辑值；截图 61–63。
+- Q5 通过：Node v22.23.1，npm run verify 五项全绿（105/105 测试、类型、lint、iOS/Android 导出）；全套 E2E 6/6（3.3 分钟），最终边界复跑 3/3（44.9 秒，pageErrors=[]）；npx expo prebuild --platform ios 含 CocoaPods 成功。
 
-证据：verification/summary.json 与同目录检查日志；e2e.txt；prebuild-ios.txt、prebuild-ios-full.txt；screenshots/evidence.json、product-evidence.json。
-截图：55 张均 390×844，尺寸/SHA256 见 verification/screenshots.json；全部与新增总览为 contact-sheet.jpg、contact-sheet-new.jpg，新增 20 张已目视。
-新增截图（screenshots/，均 .png，沿用已有 35 之后编号）：
-- 36-onboarding-1、37-onboarding-2、38-onboarding-3、39-profile-photos-default、40-new-project-default-profile、41-project-search-brand。
-- 42-project-delete-confirmation、42-project-delete-completed、43-about-privacy、43-profile-patch-404、43-profile-old-fields。
-- 44-safe-rephrase、45-message-copy-menu、46-failed-message-retry、47-fidelity-diffs-expanded、48-publish-partial-retry、49-publish-checklist-ready。
-- 50-publish-video-saved、51-publish-resumed-no-duplicates、52-foreground-generation-notice。
+证据：verification/fix5/summary.json、verify.txt、各项检查日志、e2e.txt/json、e2e-round6.txt/json、round6-evidence.json、prebuild-ios.txt、final-audit.json。
+截图共新增 12 张，均 390×844，已目视复核；尺寸/SHA256 见 verification/fix5/screenshots.json，总览 contact-sheet.jpg。
+截图清单（screenshots/，均 .png）：
+- 53-agent-trace-expanded、54-regenerated-directions-preview、55-script-estimate-and-budget。
+- 56-same-id-rewrite-stream-trace、57-video-estimate-and-budget、58-script-insufficient-budget。
+- 59-legacy-fields-hidden、60-video-insufficient-budget、61-note-form-draft-saved。
+- 62-note-draft-restored、63-edited-note-publish-ready、64-same-id-disconnect-recovered。
 
-原生依赖：expo-notifications ~58.1.5、expo-background-task ~58.0.11、expo-task-manager ~58.0.12、AsyncStorage 2.2.0，按 SDK 58 版本安装；分享复用 React Native Share。
-权限：app.json 配置通知/后台任务插件、Android POST_NOTIFICATIONS 与照片/视频读取、相册读取/保存中文文案；iOS 后台标识与 processing 模式已由插件生成；ios/ 未提交。
-未定部分的实现理由：档案只约定资产 ID，因此本机缓存预览，换设备暂无预览时仍能选 ID/重新上传；PATCH height_cm:null 清空选填身高。
-未定部分的实现理由：增加可选 can_regenerate 与 regenerate_reply，仅服务明确认定原轮未建生成任务才显示，旧服务无标记隐藏；同 ID 只改文字，不重跑工具、不增费用。
-发布边界：系统分享发送文案，素材已入相册；用户在目标平台按清单选媒体、勾声明。已保存后改顺序会提醒在平台重排，不重复下载。
-原生边界：后台检查使用 15 分钟调度提示，实际由系统决定，无法保证挂起后立即通知或被杀后通知；通知授权/点按、相册顺序/视频写入和原生分享需在本机安装包复测。
-其他限制：未连接真实后端；mock 用固定素材/像素修改模拟，不验证真实媒体烧录标识；发送结果不明时只核对历史，不自动重放可能付费的请求。
-
-续接：先读 PROGRESS.md、本文件与 README；全部本地服务已退出。代码提交 2871318、0dc92b0、02d8fc2；验收材料在本文件所在提交，仅 feat/app，未 push/合并；未改 server/、设计约定或其他 worktree，未读钥匙串、未调用真实付费接口、未访问前公司环境。
+实现口径：编辑只在本地覆盖发布内容，不回写服务端；草稿需点保存，按服务/账号/项目隔离，不跨设备同步。声明勾选不会代替目标平台设置。
+已知限制：未接真实后端；假服务 trace 耗时与费用用于演示，不验证真实模型计费。手机键盘、相册、系统分享、通知与原生手势仍需个人真机复测。
+范围：未新增依赖，未改 server/ 或设计约定；ios/ 未提交。原有四份验证日志与全部旧截图按字节保留，已有 screenshots-live/run-1、run-2 未动。
+续接：先读 PROGRESS.md；本轮日志/JSON/总览留本地，源码、正式文档和新增截图提交。Playwright、Metro、假服务均已退出。
+提交：d9f8373、8371b5b、dc01c3f、f332cb8；验收资料在最终提交。仅 feat/app，中文一行，作者 chaw1 <97000945@qq.com>，未 push/合并。

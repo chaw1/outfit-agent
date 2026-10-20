@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Asset, AuthResponse, Project, ProjectState } from '../src/api/types';
 
-const shots = path.resolve('screenshots/polish');
+const shots = path.resolve(process.env.E2E_SCREENSHOTS_DIR || 'screenshots/polish');
 const apiBase = 'http://localhost:19301/api';
 const fontScale = 1.15;
 
@@ -238,7 +238,7 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
     await capture('75-preview-image-recovered-font115.png', 'preview-image-recovered');
     await capture('76-preview-reading-font115.png', 'preview-reading', page.getByTestId('note-body'));
     await reachable('预览 AI 声明确认', page.getByTestId('publish-ai-confirm'));
-    await page.getByTestId('publish-ai-confirm').click();
+    await expect(page.getByTestId('publish-ai-confirm')).toHaveAttribute('aria-checked', 'true');
     await reachable('预览准备发布（仅检查可达）', page.getByTestId('prepare-publish'));
     await capture('77-preview-publish-font115.png', 'preview-publish');
     expect(pageErrors).toEqual([]);

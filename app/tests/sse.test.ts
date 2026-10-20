@@ -62,3 +62,16 @@ test('an event without data is ignored and a colon only removes one leading spac
   parser.push('event: unused\n\n:comment\ndata:  retained\n\n');
   assert.deepEqual(events, [{ event: 'message', data: ' retained', id: undefined }]);
 });
+
+test('trace survives fragmented SSE before done, including steps and image references', () => {
+  const trace = { tool: 'write_script', model: 'local-text', duration_ms: 4800, cost_cny: 0.01, refs: ['image-1'], steps: [{ label: '看图 2 件', duration_ms: 3100 }, { label: '写脚本', duration_ms: 1700 }] };
+  const source = `event: trace\ndata: ${JSON.stringify(trace)}\n\nevent: done\ndata: {"message_id":"m1"}\n\n`;
+  const events: unknown[] = [];
+  const parser = new SSEParser(event => events.push(parseStreamEvent(event)));
+  for (const character of source) parser.push(character);
+  parser.finish();
+  assert.deepEqual(events, [{ type: 'trace', data: trace }, { type: 'done', data: { message_id: 'm1' } }]);
+  for (const broken of [{ ...trace, duration_ms: -1 }, { ...trace, refs: [2] }, { ...trace, steps: [{ label: '步骤', duration_ms: '1' }] }, { tool: 'chat' }]) {
+    assert.throws(() => parseStreamEvent({ event: 'trace', data: JSON.stringify(broken) }), SSEProtocolError);
+  }
+});

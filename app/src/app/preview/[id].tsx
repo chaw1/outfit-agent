@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type ComponentRef } from 'react';
 import {
   Pressable,
   Platform,
@@ -16,13 +16,15 @@ import type { Action, ProjectState } from '../../api/types';
 import { ImageInteractions, useImageInteractions } from '../../components/ImageInteractions';
 import { VideoPlayer } from '../../components/VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from '../../components/GenerationInfo';
-import { AnimatedEntry, Badge, Button, FadeImage, Header, LoadingSkeleton, Notice, Page, ProgressStrip, StatePanel, Toast, errorText } from '../../components/ui';
+import { AnimatedEntry, Badge, Button, FadeImage, Field, Header, LoadingSkeleton, Notice, Page, ProgressStrip, StatePanel, Toast, errorText } from '../../components/ui';
 import { colors, radius, space, type } from '../../theme';
 import { useSession } from '../../context/Session';
 import { saveImages, saveVideo, shareNote } from '../../lib/media';
 import { noteText, preparePublish, savedImagesAreInOrder, videoKey, type PublishProgress } from '../../lib/publish';
 import { readPublishCheckpoint, writePublishCheckpoint } from '../../lib/publishCheckpoint';
 import { observeGeneration } from '../../lib/notificationRuntime';
+import { applyNoteDraft, cleanTag, draftFromNote, limitTitle, moveDraftImage, NOTE_TITLE_LIMIT, readNoteDraft, titleLength, writeNoteDraft, type NoteDraft } from '../../lib/noteDraft';
+import { localDraftStorage } from '../../lib/noteDraftStorage';
 
 function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url?: string; index: number; onRefresh: () => void; disabled?: boolean }) {
   const [failedUrl, setFailedUrl] = useState<string>();
@@ -62,12 +64,15 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   const [savedCount, setSavedCount] = useState(0);
   const [saveFailed, setSaveFailed] = useState(false);
   const checkpointScope = `${api.baseUrl}|${user?.id ?? 'anonymous'}|${projectId ?? 'missing'}`;
+  const [draft, setDraft] = useState<NoteDraft | null>(() => readNoteDraft(checkpointScope, localDraftStorage));
+  const [draftStatus, setDraftStatus] = useState(() => draft ? '已恢复本地草稿' : '');
+  const [tagInput, setTagInput] = useState('');
+  const carouselRef = useRef<ComponentRef<typeof ScrollView>>(null);
   const [publishProgress, setPublishProgress] = useState(() => readPublishCheckpoint(checkpointScope));
   const publishRef = useRef(publishProgress);
   const [preparing, setPreparing] = useState(false);
   const [publishStep, setPublishStep] = useState('');
   const [publishFailed, setPublishFailed] = useState(false);
-  const [aiConfirmed, setAiConfirmed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editActions, setEditActions] = useState<Extract<Action, { type: 'edit_image' }>[]>([]);
   const savingRef = useRef(false);
@@ -89,6 +94,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         const [next, history] = await Promise.all([api.state(projectId), api.messages(projectId)]);
         if (alive) {
           setState(next);
+          if (next.note) setDraft(current => current ?? draftFromNote(next.note!));
           setNotFound(false);
           observeGeneration(projectId, '合作项目', next);
           setEditActions(history.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : []));
@@ -111,12 +117,53 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     return () => { alive = false; clearInterval(timer); };
   }, [api, projectId, retry]));
 
-  const note = state?.note;
+  const note = state?.note ? applyNoteDraft(state.note, draft) : undefined;
+  const aiConfirmed = draft?.aiConfirmed ?? true;
+  const titleCount = titleLength(note?.title ?? '');
+  const titleValid = !!note?.title.trim() && titleCount <= NOTE_TITLE_LIMIT;
   const images = note?.image_ids.map(imageId => {
     const source = state?.images.find(image => image.id === imageId);
     return { id: imageId, url: source?.url, status: source?.status, source };
   }) ?? [];
   const nickname = user?.nickname || user?.username || '我的穿搭日记';
+
+  function updateDraft(changes: Partial<NoteDraft>) {
+    if (!note || savingRef.current) return;
+    setDraft(current => ({ ...(current ?? draftFromNote(note)), ...changes }));
+    setDraftStatus('有未保存的编辑，离开前请保存');
+    setCopied(false);
+    setSaveFeedback('');
+  }
+
+  function addTag() {
+    if (!note) return;
+    const tag = cleanTag(tagInput);
+    if (!tag) return;
+    if (note.tags.includes(tag)) { setActionError('这个话题已经添加过了。'); return; }
+    updateDraft({ tags: [...note.tags, tag] });
+    setTagInput('');
+    setActionError('');
+  }
+
+  function reorderImage(index: number, offset: -1 | 1) {
+    if (!note) return;
+    updateDraft({ image_ids: moveDraftImage(note.image_ids, index, offset) });
+    setPage(0);
+    carouselRef.current?.scrollTo({ x: 0, animated: false });
+  }
+
+  function saveDraft() {
+    if (!note || savingRef.current) return;
+    const next = draft ?? draftFromNote(note);
+    if (writeNoteDraft(checkpointScope, next, localDraftStorage)) {
+      setDraftStatus('草稿已保存到本机');
+      setSaveFeedback('草稿已保存到本机，重新打开会恢复。');
+      setActionError('');
+    } else {
+      setDraftStatus('草稿未能保存，请重试');
+      setActionError('本机存储暂时不可用，草稿未能保存。请重试或先复制文案。');
+    }
+  }
 
   function backToStudio() {
     if (notFound) { router.replace('/'); return; }
@@ -178,7 +225,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   }
 
   async function prepareForPublish() {
-    if (!note || !aiConfirmed || savingRef.current) return;
+    if (!note || !aiConfirmed || !titleValid || savingRef.current) return;
     savingRef.current = true;
     setPreparing(true); setPublishFailed(false); setActionError(''); setSaveFeedback('');
     try {
@@ -219,8 +266,8 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   }
 
   return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note', 'done'].includes(state?.stage ?? '')} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
-    <Header title="笔记预览" subtitle="把灵感，穿进日常" onBack={backToStudio} />
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+    <Header title="编辑笔记" subtitle="把灵感，穿进日常" onBack={backToStudio} />
+    <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       {!!error && !!state && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}
       {loading && !state ? <LoadingSkeleton kind="note" /> : !note ? <StatePanel
         icon={notFound ? 'document-text-outline' : error ? 'cloud-offline-outline' : 'document-text-outline'}
@@ -231,6 +278,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
       /> : <>
         <View onLayout={(event) => setCarouselWidth(event.nativeEvent.layout.width)} style={styles.carouselFrame}>
           <ScrollView
+            ref={carouselRef}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
@@ -255,9 +303,28 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <View style={styles.authorInfo}><Text style={styles.authorName}>{nickname}</Text><Text style={styles.authorCaption}>我的穿搭日记</Text></View>
             <Badge label="准备发布" tone="success" />
           </View>
-          <Text selectable testID="note-title" style={styles.noteTitle}>{note.title}</Text>
-          <View testID="note-body" style={styles.paragraphs}>{note.body.split(/\n+/).filter(paragraph => paragraph.trim()).map((paragraph, index) => <Text selectable key={index} style={styles.noteBody}>{paragraph}</Text>)}</View>
-          <View style={styles.tags}>{note.tags.map((tag) => <View key={tag} style={styles.tag}><Text selectable style={styles.tagText}>#{tag.replace(/^#/, '')}</Text></View>)}</View>
+          <View style={styles.formSection}>
+            <Field label="标题" value={note.title} placeholder="写一个让人想点开的标题" editable={!preparing && !saving} onChangeText={title => updateDraft({ title: limitTitle(title) })} testID="note-title" style={styles.noteTitle} />
+            <Text testID="note-title-count" accessibilityLabel={`标题 ${titleCount} 字，最多 ${NOTE_TITLE_LIMIT} 字`} style={[styles.titleCount, !titleValid && styles.actionError]}>{titleCount}/{NOTE_TITLE_LIMIT}</Text>
+            {!titleValid ? <Text style={styles.actionError}>{titleCount > NOTE_TITLE_LIMIT ? '标题最多 20 字，请精简后再发布。' : '加一个标题，让这篇穿搭更容易被看见。'}</Text> : null}
+          </View>
+          <Field label="正文" value={note.body} placeholder="分享今天的穿搭和心情…" multiline editable={!preparing && !saving} onChangeText={body => updateDraft({ body })} testID="note-body" style={styles.noteBody} />
+          <View style={styles.formSection}>
+            <Text style={styles.formLabel}>话题</Text>
+            <View style={styles.tags}>{note.tags.map(tag => <Pressable key={tag} accessibilityRole="button" accessibilityLabel={`删除话题 ${tag}`} disabled={preparing || saving} testID={`remove-note-tag-${tag}`} onPress={() => updateDraft({ tags: note.tags.filter(item => item !== tag) })} style={styles.tag}><Text style={styles.tagText}>#{tag}</Text><Ionicons name="close" size={14} color={colors.redText} /></Pressable>)}</View>
+            <View style={styles.tagInputRow}><View style={styles.tagInput}><Field label="添加话题" value={tagInput} placeholder="例如：周末穿搭" editable={!preparing && !saving} onChangeText={setTagInput} onSubmitEditing={addTag} returnKeyType="done" testID="note-tag-input" /></View><Button title="添加" icon="add" variant="secondary" disabled={!cleanTag(tagInput) || preparing || saving} onPress={addTag} testID="add-note-tag" /></View>
+          </View>
+          <View style={styles.formSection}>
+            <View style={styles.videoHeading}><Ionicons name="images-outline" size={18} color={colors.red} /><Text style={styles.videoTitle}>图片顺序</Text></View>
+            <Text style={styles.checklistHint}>第一张作为封面，保存和发布时按这个顺序。</Text>
+            {images.map((image, index) => <View key={image.id} style={styles.orderRow} testID={`note-image-order-${image.id}`}>
+              {image.url ? <FadeImage source={{ uri: image.url }} style={styles.orderThumbnail} /> : <View style={styles.orderThumbnail}><Ionicons name="image-outline" size={22} color={colors.muted} /></View>}
+              <Text style={styles.orderLabel}>图片 {index + 1}{index === 0 ? ' · 封面' : ''}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 前移`} accessibilityState={{ disabled: index === 0 || preparing || saving }} disabled={index === 0 || preparing || saving} onPress={() => reorderImage(index, -1)} testID={`move-note-image-${image.id}-earlier`} style={[styles.orderButton, (index === 0 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-up" size={18} color={colors.redText} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 后移`} accessibilityState={{ disabled: index === images.length - 1 || preparing || saving }} disabled={index === images.length - 1 || preparing || saving} onPress={() => reorderImage(index, 1)} testID={`move-note-image-${image.id}-later`} style={[styles.orderButton, (index === images.length - 1 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-down" size={18} color={colors.redText} /></Pressable>
+            </View>)}
+          </View>
+          <View style={styles.draftNotice}><Ionicons name="save-outline" size={16} color={colors.muted} /><View style={{ flex: 1, gap: space.xs }}><Text style={styles.checklistHint}>编辑会在本机覆盖发布文案，原始笔记保留在工作台。草稿保存在当前设备。</Text>{!!draftStatus && <Text testID="note-draft-status" accessibilityLiveRegion="polite" style={styles.draftStatus}>{draftStatus}</Text>}</View></View>
           <NoteDisclosure note={note} projectCost={state?.cost_cny} />
           <View style={styles.noteEnd}><View style={styles.endLine} /><Text style={styles.endLabel}>记录穿搭，也记录自己</Text><View style={styles.endLine} /></View>
           {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <ProgressStrip title="短片正在制作" detail="好了会出现在这里，你可以继续查看笔记。" /> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
@@ -270,9 +337,9 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Text testID="publish-video" style={styles.checklistItem}>{state?.video?.status === 'succeeded'
               ? `${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '✓' : '○'} 视频 · ${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '已保存' : '待保存'}`
               : state?.video && ['queued', 'running'].includes(state.video.status) ? '○ 视频 · 制作中，完成后继续' : state?.video?.status === 'failed' ? '— 视频未生成成功，本次仅发布图文' : '— 无视频，本次发布图文'}</Text>
-            <Pressable accessibilityRole="checkbox" accessibilityLabel="发布时勾选平台 AI 内容声明" accessibilityState={{ checked: aiConfirmed, disabled: preparing || saving }} disabled={preparing || saving} aria-checked={aiConfirmed} testID="publish-ai-confirm" onPress={() => setAiConfirmed(value => !value)} style={styles.aiCheckbox}>
+            <Pressable accessibilityRole="checkbox" accessibilityLabel="AI 生成内容，发布时勾选平台 AI 内容声明" accessibilityState={{ checked: aiConfirmed, disabled: preparing || saving }} disabled={preparing || saving} aria-checked={aiConfirmed} testID="publish-ai-confirm" onPress={() => updateDraft({ aiConfirmed: !aiConfirmed })} style={styles.aiCheckbox}>
               <Ionicons name={aiConfirmed ? 'checkbox' : 'square-outline'} size={22} color={aiConfirmed ? colors.red : colors.muted} />
-              <Text style={styles.aiCheckboxText}>{aiConfirmed ? '已确认：发布时勾选平台 AI 内容声明' : '我会在发布时勾选平台 AI 内容声明'}</Text>
+              <Text style={styles.aiCheckboxText}>{aiConfirmed ? 'AI 生成内容 · 已确认发布时勾选平台声明' : 'AI 生成内容 · 我会在发布时勾选平台声明'}</Text>
             </Pressable>
             <Text style={styles.checklistHint}>这里的确认不会替你设置发布平台。请在发布页手动勾选 AI 内容声明，并按清单顺序选择图片和视频。</Text>
             <Text testID="publish-share" style={styles.checklistHint}>{publishProgress.share === 'unavailable' ? '当前浏览器不支持系统分享，可手动打开发布平台。' : publishProgress.share === 'dismissed' ? '分享已取消，可重新打开。' : publishProgress.share === 'shared' ? '系统分享面板已打开；是否发布由你在目标平台确认。' : '素材准备完成后会打开系统分享面板。'}</Text>
@@ -284,7 +351,10 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     {note ? <View style={styles.bottomBar}>
       {!!actionError ? <Toast text={actionError} tone="danger" onDismiss={() => setActionError('')} /> : saveFeedback ? <Toast text={saveFeedback} tone="success" onDismiss={() => setSaveFeedback('')} /> : copied ? <Toast text="文案已复制，可以去发布啦。" tone="success" onDismiss={() => setCopied(false)} /> : null}
       {preparing && <ProgressStrip title={publishStep || '正在准备发布'} detail="文案与媒体会按发布清单依次准备" />}
-      <Button title={preparing ? publishStep || '正在准备发布' : publishFailed ? '继续准备发布' : publishProgress.share ? '重新打开分享' : '准备发布'} icon="share-outline" loading={preparing} disabled={!aiConfirmed || saving || !images.length} onPress={() => void prepareForPublish()} testID="prepare-publish" />
+      <View style={styles.bottomButtons}>
+        <View style={styles.draftButton}><Button title="保存草稿" variant="secondary" icon="save-outline" disabled={saving || preparing} onPress={saveDraft} testID="save-note-draft" /></View>
+        <View style={styles.publishButton}><Button title={preparing ? publishStep || '正在准备发布' : publishFailed ? '继续准备发布' : publishProgress.share ? '重新打开分享' : '准备发布'} icon="share-outline" loading={preparing} disabled={!aiConfirmed || !titleValid || saving || !images.length} onPress={() => void prepareForPublish()} testID="prepare-publish" /></View>
+      </View>
       {!aiConfirmed ? <Text style={styles.checklistHint}>先在发布清单确认 AI 内容声明，即可准备发布。</Text> : null}
       <View style={styles.bottomButtons}>
         <View style={styles.bottomButton}><Button title={copied ? '已复制文案' : '复制文案'} icon={copied ? 'checkmark' : 'copy-outline'} disabled={saving || preparing} variant="secondary" onPress={() => void copyNote()} testID="copy-note" /></View>
@@ -314,11 +384,22 @@ const styles = StyleSheet.create({
   authorName: { ...type.caption, color: colors.ink, fontWeight: '600' },
   authorCaption: { ...type.badge, color: colors.muted },
   noteTitle: { ...type.heading, color: colors.ink, letterSpacing: -0.3 },
-  paragraphs: { gap: space.lg },
-  noteBody: { ...type.reading, color: colors.ink },
+  noteBody: { ...type.reading, color: colors.ink, minHeight: 220 },
+  formSection: { gap: space.sm },
+  formLabel: { ...type.label, color: colors.ink },
+  titleCount: { ...type.caption, color: colors.muted, textAlign: 'right' },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  tag: { backgroundColor: colors.blush, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
+  tag: { backgroundColor: colors.blush, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   tagText: { ...type.caption, color: colors.redText, fontWeight: '500' },
+  tagInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: space.sm },
+  tagInput: { flex: 1 },
+  orderRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.xs },
+  orderThumbnail: { width: 44, height: 58, borderRadius: radius.sm, backgroundColor: colors.imagePlaceholder, alignItems: 'center', justifyContent: 'center' },
+  orderLabel: { ...type.caption, color: colors.ink, flex: 1 },
+  orderButton: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.blush, alignItems: 'center', justifyContent: 'center' },
+  disabledControl: { opacity: 0.35 },
+  draftNotice: { padding: space.md, backgroundColor: colors.paper, borderRadius: radius.sm, flexDirection: 'row', gap: space.sm },
+  draftStatus: { ...type.caption, color: colors.green },
   noteEnd: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   endLine: { height: 1, backgroundColor: colors.border, flex: 1 },
   endLabel: { ...type.badge, color: colors.muted, letterSpacing: 1 },
@@ -333,5 +414,7 @@ const styles = StyleSheet.create({
   bottomBar: { paddingHorizontal: space.lg, paddingVertical: space.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface, gap: space.sm },
   bottomButtons: { flexDirection: 'row', gap: space.md },
   bottomButton: { flex: 1 },
+  draftButton: { flex: 1 },
+  publishButton: { flex: 1.4 },
   actionError: { ...type.caption, color: colors.danger },
 });
