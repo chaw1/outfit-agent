@@ -1145,6 +1145,26 @@
             "maxLength": 3000,
             "minLength": 1,
             "title": "Instruction"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageRegion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mask_strokes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MaskStrokes"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -1218,6 +1238,43 @@
           "providers"
         ],
         "title": "HealthOutput"
+      },
+      "ImageRegion": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y"
+          },
+          "w": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "W"
+          },
+          "h": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "H"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+        ],
+        "title": "ImageRegion"
       },
       "JobOutput": {
         "properties": {
@@ -1322,6 +1379,33 @@
         ],
         "title": "LoginInput"
       },
+      "MaskStrokes": {
+        "properties": {
+          "brush": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Brush"
+          },
+          "strokes": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/NormalizedPoint"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Strokes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "brush",
+          "strokes"
+        ],
+        "title": "MaskStrokes"
+      },
       "MessageInput": {
         "properties": {
           "text": {
@@ -1376,6 +1460,14 @@
               }
             ],
             "title": "Action"
+          },
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Refs"
           }
         },
         "additionalProperties": false,
@@ -1420,6 +1512,13 @@
             ],
             "title": "Action"
           },
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Refs"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1435,6 +1534,29 @@
           "created_at"
         ],
         "title": "MessageOutput"
+      },
+      "NormalizedPoint": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "NormalizedPoint"
       },
       "PendingAction": {
         "properties": {

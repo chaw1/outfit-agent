@@ -125,12 +125,14 @@ class API:
                 data={"kind": kind},
             )
 
-    def send(self, project_id: str, *, text=None, action=None):
+    def send(self, project_id: str, *, text=None, action=None, refs=None):
         payload = {}
         if text is not None:
             payload["text"] = text
         if action is not None:
             payload["action"] = action
+        if refs is not None:
+            payload["refs"] = refs
         events = []
         event_name = "message"
         data_lines: list[str] = []
@@ -339,25 +341,96 @@ def complete(api: API, evidence: Evidence, project_id, state, timeout, *, resumi
         step["reused"] = not bool(jobs)
     with evidence.step("edit_or_reuse_image_version_two") as step:
         original = originals[0]
+        instruction = "这张衬衫塞进裤腰，保持人物和通勤场景不变"
         existing = [i for i in state["images"]
-                    if i["version"] >= 2 and i.get("parent_id") == original["id"]]
+                    if i.get("parent_id") == original["id"]
+                    and i.get("instruction") == instruction]
         if not existing:
             assert state["stage"] == "images", "Existing project has no edit before note/video"
             events = api.send(project_id, action={
                 "type": "edit_image", "image_id": original["id"],
-                "instruction": "这张衬衫塞进裤腰，保持人物和通勤场景不变",
+                "instruction": instruction,
             })
             assert any(e["event"] == "job" for e in events)
         state = api.wait(project_id, lambda s: any(
-            i["version"] == 2 and i.get("parent_id") == original["id"]
+            i.get("instruction") == instruction and i.get("parent_id") == original["id"]
             and i["status"] == "succeeded" for i in s["images"]
         ), timeout=timeout)
         edited = next(i for i in state["images"]
-                      if i["version"] == 2 and i.get("parent_id") == original["id"])
+                      if i.get("instruction") == instruction
+                      and i.get("parent_id") == original["id"])
         assert edited["parent_id"] == original["id"]
         assert edited["shot_id"] == original["shot_id"]
+        assert isinstance(edited["edit_check"]["passed"], bool)
+        assert edited["edit_check"]["reason"]
         step["image"] = edited
         step["reused"] = bool(existing)
+    with evidence.step("local_edit_or_reuse") as step:
+        target = originals[1]
+        instruction = "只把圈选处的袖口放下来，人物和其他区域保持不变"
+        existing = next((i for i in state["images"]
+                         if i.get("parent_id") == target["id"]
+                         and i.get("instruction") == instruction), None)
+        if not existing:
+            assert state["stage"] in {"images", "note"}
+            events = api.send(project_id, action={
+                "type": "edit_image", "image_id": target["id"], "instruction": instruction,
+                "mask_strokes": {"brush": 0.10, "strokes": [
+                    [{"x": 0.25, "y": 0.32}, {"x": 0.29, "y": 0.38}],
+                ]},
+            })
+            assert any(e["event"] == "job" for e in events)
+        state = api.wait(project_id, lambda s: any(
+            i.get("parent_id") == target["id"] and i.get("instruction") == instruction
+            and i["status"] == "succeeded" for i in s["images"]
+        ), timeout=timeout)
+        local = next(i for i in state["images"]
+                     if i.get("parent_id") == target["id"] and i.get("instruction") == instruction)
+        assert local["region"]["w"] > 0 and local["region"]["h"] > 0
+        assert isinstance(local["edit_check"]["passed"], bool) and local["edit_check"]["reason"]
+        step.update(image=local, reused=bool(existing))
+    with evidence.step("referenced_image_edit_or_reuse") as step:
+        target = originals[2]
+        instruction = "这张袖口卷起来了，放下来"
+        history = api.request("GET", f"/api/projects/{project_id}/messages")
+        previous = next((m for m in history
+                         if m["role"] == "user" and m["text"] == instruction
+                         and m.get("refs") == [target["id"]]), None)
+        job_ids = []
+        if previous:
+            for run in reversed(evidence.data.get("previous_runs", [])):
+                recorded = next((s for s in run.get("steps", [])
+                                 if s["name"] == "referenced_image_edit_or_reuse"
+                                 and s.get("refs") == [target["id"]]), None)
+                if recorded:
+                    job_ids = recorded.get("job_ids") or (
+                        [recorded["image"]["id"]] if recorded.get("image") else []
+                    )
+                    break
+            assert job_ids, "Existing referenced request needs its original job evidence to resume"
+        step["refs"] = [target["id"]]
+        if not previous:
+            assert state["stage"] in {"images", "note"}
+            events = api.send(project_id, text=instruction, refs=[target["id"]])
+            job_ids = [e["data"]["id"] for e in events if e["event"] == "job"]
+            assert len(job_ids) == 1
+            step["job_ids"] = job_ids
+            evidence.write()
+            history = api.request("GET", f"/api/projects/{project_id}/messages")
+            assert any(m["text"] == instruction and m.get("refs") == [target["id"]]
+                       for m in history if m["role"] == "user")
+        state = api.wait(project_id, lambda s: (
+            not s["active_jobs"] and any(i.get("parent_id") == target["id"]
+                                        and i["id"] in job_ids
+                                        and not (i.get("instruction") or "").startswith("自动还原")
+                                        and i["status"] == "succeeded" for i in s["images"])
+        ), timeout=timeout)
+        referenced = [i for i in state["images"] if i.get("parent_id") == target["id"]
+                      and i["id"] in job_ids
+                      and not (i.get("instruction") or "").startswith("自动还原")]
+        assert referenced and referenced[-1]["shot_id"] == target["shot_id"]
+        assert isinstance(referenced[-1]["edit_check"]["passed"], bool)
+        step.update(refs=[target["id"]], image=referenced[-1], reused=bool(previous))
     with evidence.step("approve_or_reuse_note") as step:
         image_ids = [edited["id"], *[i["id"] for i in originals[1:]]]
         reused_note = bool(state.get("note"))
