@@ -93,6 +93,16 @@ uv run ruff check .
 
 OpenAPI 静态导出位于 [`openapi.json`](openapi.json)，运行中还可查看 `http://localhost:18080/docs` 和 `/openapi.json`。SSE 事件为 `token/card/job/done/error`。看图完成的 garments 卡片提前发送，完成后仍会发送完整卡片并持久化展示消息；同 ID 卡片覆盖即可。文本是在完整工具参数通过校验后分片发送，尚未逐 token 透传上游工具参数；等待期间发送 keepalive。客户端重连可读 `/messages` 与 `/state` 恢复工作台。
 
+### 管理端
+
+管理端与 API 使用同一容器：在服务器启动进程环境设置 `ADMIN_TOKEN` 后重新创建 API 容器，访问 `/admin` 输入该口令。默认空值关闭页面和全部 `/api/admin/*`（404）；`.env.example` 仅保留空值。不要将口令写入仓库或命令历史。管理登录签发独立会话，浏览器仅将会话保存在当前标签页的 `sessionStorage`，退出即清除；App JWT 无法访问管理接口。公开环境使用 HTTPS。
+
+五个页面提供总览、按模型/用户/天聚合的用量及 CSV、模型与配额、队列、用户管理。模型从内置候选中选择，配置写入 `app_settings`，API/Worker 下次读取直接生效，无需重启。禁用账号后登录与所有写接口返回中文 403；启用或改层级在下次请求生效。排队任务可取消，失败任务可手动重试；取消在 App 侧仍显示既有 `failed` 状态，管理端单独标注“已取消”。
+
+每日预算按北京时间自然日统计账本估价（含尚未结算及失败预留），默认免费层 12 元、专业层 120 元、全局 1200 元。用户或全局到限时拒绝方向预览、批量出图、改图及视频，并返回中文 SSE 错误；每日预算不阻止对话。可用模型按用户当前层级校验。原真实模式 `MODEL_BUDGET_CNY` 仍是数据库全历史总额的外层安全上限，真实调用仍受其约束；Mock 账本费用为零，通过临时将预算设为零及隔离账本测试验证每日拒绝。
+
+验收见 [`ADMIN.md`](ADMIN.md)，断点见本地 `PROGRESS.md`；截图在 `artifacts/admin/`。本地验收只使用临时管理口令和 Mock，不需要真实模型密钥。
+
 ### 局部编辑、指令核对与图片引用
 
 `edit_image` 动作可额外带 `region: {x,y,w,h}` 或 `mask_strokes: {brush,strokes}`，两者互斥；都省略时整张编辑。坐标为相对原图的 0–1 值，笔刷相对短边，支持单点、多段轨迹和贴边涂抹。API 在入队前检查越界、空轨迹、非法数值以及不足 16 像素的极小区域，并返回中文错误；不同选区参与任务去重。
@@ -220,4 +230,4 @@ docker compose -f compose.yaml -f deploy/compose.production.yaml up -d --build -
 
 宿主 nginx 的现有 TLS 入口代理到 `http://127.0.0.1:18080`，关闭 SSE buffering、允许 16 MB 请求体，并为长连接设置足够 read timeout；证书、TLS server 和宿主 nginx 不在这个 Compose 中。App API 根地址是 `https://47.97.153.127:8443/api`，媒体使用返回的绝对签名 URL。部署后由负责人检查公网健康、SSE、媒体下载及容器重启后的持久性；数据库和 API 端口不直接向公网发布。
 
-自有域名新环境也可选择现存 [`deploy/compose.caddy.yaml`](deploy/compose.caddy.yaml) 与 [`deploy/Caddyfile`](deploy/Caddyfile)：设置 `DOMAIN/PUBLIC_BASE_URL`，在正确 DNS 和 80/443 可用后启动 Caddy overlay，走内部 `api:8000` 自动管理证书；这属于替代部署方案，不与宿主 nginx 生产 overlay 混用。此仓库未内置用户界面、账号找回、对象存储和多机部署。
+自有域名新环境也可选择现存 [`deploy/compose.caddy.yaml`](deploy/compose.caddy.yaml) 与 [`deploy/Caddyfile`](deploy/Caddyfile)：设置 `DOMAIN/PUBLIC_BASE_URL`，在正确 DNS 和 80/443 可用后启动 Caddy overlay，走内部 `api:8000` 自动管理证书；这属于替代部署方案，不与宿主 nginx 生产 overlay 混用。此仓库提供管理端，未内置账号找回、对象存储和多机部署。
