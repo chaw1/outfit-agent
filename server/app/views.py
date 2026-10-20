@@ -69,6 +69,8 @@ def image_items(session: Session, project_id: str) -> list[dict]:
             "instruction": job.payload.get("instruction"),
             "error": job.error,
             "fidelity": job.result.get("fidelity"),
+            "region": job.result.get("region", job.payload.get("region")),
+            "edit_check": job.result.get("edit_check"),
             "script_version": job.payload.get("script_version"),
         }
         for job in jobs
@@ -166,5 +168,6 @@ def message_dict(message: Message, session: Session) -> dict:
         "text": message.text,
         "cards": refresh_cards(message.cards, session, message.project_id),
         "action": message.action,
+        "refs": message.refs or [],
         "created_at": message.created_at.isoformat(),
     }

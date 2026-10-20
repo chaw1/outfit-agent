@@ -699,3 +699,151 @@ def test_three_garment_edit_retains_all_fidelity_sources_with_three_reference_li
     assert payload["garment_asset_ids"] == garment_ids
     assert third.id in payload["garment_asset_ids"]
     assert "原衣服3" in payload["prompt"]
+
+
+def test_reference_context_contains_exact_version_shot_fidelity_and_survives_history(
+    flow, monkeypatch
+):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    ids = [job["id"] for job in generated["jobs"]]
+    succeed_images(session, project)
+    target = session.get(Job, ids[2])
+    target.result = {"fidelity": {"score": 92, "diffs": [], "auto_fixed": False}}
+    session.commit()
+    contexts = []
+
+    def select(tools, context, instruction):
+        contexts.append(context)
+        return "edit_image", {
+            "image_id": context["referenced_images"][0]["id"],
+            "instruction": "把卷起来的袖口放下来",
+            "region": {"x": 0.3, "y": 0.2, "w": 0.2, "h": 0.3},
+            "reply": "收到，这张袖口放下来。",
+        }
+
+    monkeypatch.setattr(graph.workflow.providers, "select_tool", select)
+    edited = run_turn(graph, project, "这张袖口卷起来了，放下来", None, refs=[target.id])
+    payload = session.get(Job, edited["jobs"][0]["id"]).payload
+    assert payload["parent_id"] == target.id
+    assert payload["region"] == {"x": 0.3, "y": 0.2, "w": 0.2, "h": 0.3}
+    context = contexts[0]
+    assert context["refs"] == [target.id]
+    reference = context["referenced_images"][0]
+    assert reference["id"] == target.id and reference["version"] == 1
+    assert reference["shot_id"] == target.payload["shot_id"]
+    assert reference["shot"] == target.payload["shot"]
+    assert reference["fidelity"]["score"] == 92
+    history = get_graph_state(graph, project.id)["messages"]
+    assert history[-2].additional_kwargs["display"]["refs"] == [target.id]
+    assert history[-1].additional_kwargs["display"]["refs"] == []
+
+    monkeypatch.setattr(
+        graph.workflow.providers, "select_tool",
+        lambda tools, context, instruction: (contexts.append(context) or "chat", {"reply": "好的"}),
+    )
+    run_turn(graph, project, "先这样", None)
+    assert contexts[-1]["refs"] == [] and contexts[-1]["referenced_images"] == []
+    assert contexts[-1]["recent_messages"][-2]["refs"] == [target.id]
+
+
+def test_reference_to_old_version_edits_that_version_using_model_fixture(flow):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    source = generated["jobs"][0]["id"]
+    succeed_images(session, project)
+    version_two = run_turn(graph, project, None, {
+        "type": "edit_image", "image_id": source, "instruction": "袖口卷起来",
+    })["jobs"][0]["id"]
+    succeed_images(session, project)
+    edited = run_turn(graph, project, "这张袖口卷起来了，放下来", None, refs=[source])
+    payload = session.get(Job, edited["jobs"][0]["id"]).payload
+    assert payload["parent_id"] == source and payload["parent_id"] != version_two
+    assert payload["version"] == 3
+
+
+@pytest.mark.parametrize("invalid", ["missing", "preview", "queued", "failed", "other_project"])
+def test_invalid_references_do_not_call_model_create_jobs_or_consume_pause(flow, invalid):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    target = session.get(Job, generated["jobs"][0]["id"])
+    if invalid == "preview":
+        target = next(job for job in session.scalars(select(Job)) if job.payload.get("purpose"))
+    elif invalid == "failed":
+        target.status = "failed"
+    elif invalid == "other_project":
+        foreign = Project(
+            user_id=project.user_id, title="其他项目", brand="品牌", brief="测试",
+            garment_asset_ids=project.garment_asset_ids,
+        )
+        session.add(foreign)
+        session.flush()
+        target = Job(
+            project_id=foreign.id, user_id=project.user_id, kind="image", status="succeeded",
+            payload={"shot_id": "shot-1", "version": 1}, dedupe_key="other-project",
+        )
+        session.add(target)
+    session.commit()
+    count = len(session.scalars(select(Job)).all())
+    calls = list(graph.workflow.providers.calls)
+    with pytest.raises(AppError) as error:
+        run_turn(graph, project, "这张袖口放下来", None,
+                 refs=["missing" if invalid == "missing" else target.id])
+    assert error.value.code == (
+        "image_not_ready" if invalid in {"queued", "failed"} else "image_not_found"
+    )
+    assert graph.workflow.providers.calls == calls
+    assert len(session.scalars(select(Job)).all()) == count
+    snapshot = graph.get_state({"configurable": {"thread_id": project.id}})
+    assert snapshot.next == ("await_images",) and any(task.interrupts for task in snapshot.tasks)
+
+
+def test_local_selections_are_queued_and_deduplicated_by_geometry(flow):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    source = generated["jobs"][0]["id"]
+    succeed_images(session, project)
+    asset = session.get(Asset, session.get(Job, source).result_asset_id)
+    asset.width, asset.height = 100, 100
+    session.commit()
+    selections = [
+        {"region": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2}},
+        {"region": {"x": 0.4, "y": 0.1, "w": 0.2, "h": 0.2}},
+        {"mask_strokes": {"brush": 0.1, "strokes": [[{"x": 0.5, "y": 0.5}]]}},
+        {},
+    ]
+    ids = []
+    for selection in selections:
+        action = {"type": "edit_image", "image_id": source, "instruction": "袖口放下", **selection}
+        turn = run_turn(graph, project, None, action)
+        job = session.get(Job, turn["jobs"][0]["id"])
+        assert all(job.payload[key] == value for key, value in selection.items())
+        ids.append(job.id)
+        repeated = run_turn(graph, project, None, action)
+        assert repeated["jobs"][0]["id"] == job.id
+    assert len(set(ids)) == 4
+
+
+def test_tiny_local_selection_is_rejected_before_models_and_keeps_pause(flow):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    source = generated["jobs"][0]["id"]
+    succeed_images(session, project)
+    asset = session.get(Asset, session.get(Job, source).result_asset_id)
+    asset.width, asset.height = 100, 100
+    session.commit()
+    count, calls = len(session.scalars(select(Job)).all()), list(graph.workflow.providers.calls)
+    with pytest.raises(AppError, match="太小"):
+        run_turn(graph, project, None, {
+            "type": "edit_image", "image_id": source, "instruction": "袖口放下",
+            "region": {"x": 0.1, "y": 0.1, "w": 0.001, "h": 0.001},
+        })
+    assert graph.workflow.providers.calls == calls
+    assert len(session.scalars(select(Job)).all()) == count
+    snapshot = graph.get_state({"configurable": {"thread_id": project.id}})
+    assert snapshot.next == ("await_images",) and any(task.interrupts for task in snapshot.tasks)

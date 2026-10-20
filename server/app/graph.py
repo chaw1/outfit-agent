@@ -73,6 +73,7 @@ def _history(event: dict, result: dict) -> list[dict]:
                     "text": event.get("text") or "",
                     "cards": [],
                     "action": deepcopy(event.get("action")),
+                    "refs": deepcopy(event.get("refs", [])),
                     "created_at": created_at.isoformat(timespec="microseconds"),
                 }
             },
@@ -86,6 +87,7 @@ def _history(event: dict, result: dict) -> list[dict]:
                     "text": result.get("turn_text") or "",
                     "cards": deepcopy(result.get("turn_cards", [])),
                     "action": None,
+                    "refs": [],
                     "created_at": (created_at + timedelta(microseconds=1)).isoformat(
                         timespec="microseconds"
                     ),
@@ -193,6 +195,7 @@ def run_turn(
     *,
     workflow: Any = None,
     emit: Callable[[str, dict], None] | None = None,
+    refs: list[str] | None = None,
 ) -> dict:
     workflow = workflow or getattr(graph, "workflow", None)
     if workflow is None:
@@ -203,6 +206,7 @@ def run_turn(
     event = {
         "text": text or "",
         "action": action,
+        "refs": list(refs or []),
         "turn_id": str(uuid4()),
         "created_at": datetime.now(UTC).isoformat(timespec="microseconds"),
     }

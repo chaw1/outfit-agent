@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import logging
+import math
 import re
 import threading
 import time
@@ -63,6 +64,18 @@ def _obj(**properties: dict) -> dict:
 
 STR = {"type": "string"}
 STRINGS = {"type": "array", "items": STR}
+UNIT = {"type": "number", "minimum": 0, "maximum": 1}
+REGION = _obj(x=UNIT, y=UNIT, w={**UNIT, "exclusiveMinimum": 0}, h={**UNIT, "exclusiveMinimum": 0})
+MASK_STROKES = _obj(
+    brush={**UNIT, "exclusiveMinimum": 0},
+    strokes={
+        "type": "array",
+        "minItems": 1,
+        "items": {"type": "array", "minItems": 1, "items": _obj(x=UNIT, y=UNIT)},
+    },
+)
+EDIT_IMAGE = _obj(image_id=STR, instruction=STR, reply=STR)
+EDIT_IMAGE["properties"].update(region=REGION, mask_strokes=MASK_STROKES)
 DIRECTION = _obj(
     id=STR,
     name=STR,
@@ -95,7 +108,7 @@ TOOL_SCHEMAS = {
     "write_note": _obj(title=STR, body=STR, tags=STRINGS, image_ids=STRINGS, reply=STR),
     "chat": _obj(text=STR, reply=STR),
     "generate_images": _obj(reply=STR),
-    "edit_image": _obj(image_id=STR, instruction=STR, reply=STR),
+    "edit_image": EDIT_IMAGE,
     "generate_video": _obj(image_id=STR, reply=STR),
     "restore_script": _obj(checkpoint_id=STR, reply=STR),
 }
@@ -113,7 +126,10 @@ TOOL_DESCRIPTIONS = {
     "write_note": "用已完成图片撰写或修改发布笔记；image_ids为用户选择的图和顺序",
     "chat": "解释、聊天或澄清；越阶段请求只回复并在blocked_tool填对应工具名，其他填空串",
     "generate_images": "用户希望按脚本出图；此选择只提示确认，不能代替独立确认动作",
-    "edit_image": "用户明确要求修改某张已完成图片；从上下文解析真实image_id及修改指令",
+    "edit_image": (
+        "用户明确要求修改某张已完成图片；结合refs与referenced_images解析真实image_id。"
+        "明确提供圈选时可传region或mask_strokes（二选一）；无圈选时省略，不能猜测坐标"
+    ),
     "generate_video": "用户希望出视频；解析首帧image_id，此选择不能代替独立确认动作",
     "restore_script": "恢复历史脚本；从script_versions解析checkpoint_id",
 }
@@ -129,6 +145,11 @@ generate_video/restore_script；普通聊天blocked_tool填空串，不得借其
 图片生成和视频生成都需要独立的确认action，自由文本工具选择不能声称已入队或已生成。
 “第二张”“咖啡馆那张”“衬衫那张”等指代须结合images的顺序、scene、caption、instruction、
 shot_id与script对应镜头、衣服分析解析image_id；多张都符合且无法确定时先chat询问。
+context.refs是本轮引用的真实图片ID，referenced_images含它们的镜头、版本和还原分。
+用户说“这张”“它”“这张袖口卷起来了，放下来”时优先指向本轮引用图片，
+必须保留被引用的具体版本，不擅自切到同镜头的最新版本；多张引用无法唯一确定则chat澄清。
+edit_image仅在用户明确圈选或提供坐标时传region或mask_strokes，二者只能传一个；
+坐标是相对原图的0–1归一化值，没有圈选则整张改，不根据袖口等词语编造坐标。
 选方向用write_script并填当前directions里的direction_id；修改已有脚本用revise_script。
 改发布正文、标题、标签用write_note；改生成照片的画面用edit_image，二者不要混淆。
 write_note中的image_ids保持已有选择，除非用户明确重新选图；首次选图从已完成图解析。
@@ -148,6 +169,32 @@ write_note 必须逐张查看已选 images 的 instruction，按最终选图与�
 围绕衣服分析和已选图片可确认的配色、版型、衣摆处理与搭配建议来写，
 无法确认的面料、性能、身体感受和生活经历直接省略。视频 5 秒，保持人物和衣服一致。
 所有字段填完整，工具参数中不要放额外解释。"""
+
+GARMENT_ACCESSORY_RULE = (
+    "第一优先级：先从参考中剔除所有非服装杂物，再生成或编辑穿搭照片。"
+    "吊牌、悬挂纸牌、价签、白色或其他颜色的矩形纸片、织标贴纸、商品说明贴、"
+    "衣架、包装袋及其他包装不属于衣服，成品中绝对不能出现。"
+    "即使纸牌或贴纸看起来贴在胸口、口袋、裤腰，或有NATURAL FABRIC、DENIM等文字，"
+    "也不能把它当logo、衣服印花或布料补丁；禁止将纸牌变成胸前徽章、布贴或腰部标签。"
+    "参考图中只印在纸牌、贴纸和可拆标签上的文字，绝不可迁移到人物或服装布料。"
+    "把这些物品及其绳子、胶贴和文字彻底去掉，以周围相同颜色的连续面料自然补全，"
+    "胸前口袋和裤腰应为干净连续的原布料，不留下白色矩形、贴片边界或残余字样。"
+    "保留衣服本体的颜色、版型、面料、纽扣、口袋和确认直接印绣在衣服布料上的logo；"
+    "无法确认属于本体的纸片或标签文字一律忽略。"
+)
+
+FIDELITY_SYSTEM_PROMPT = (
+    "你是严格的服装还原质检员，必须先区分衣服本体与可拆商品标签。"
+    "吊牌、纸牌、价签、织标贴纸、衣架和包装及上面的字样不是服装logo；"
+    "不能因为纸牌或贴纸上的文字清楚，就把它误认为衣服印花、刺绣、logo或织唛。"
+    "尤其胸前口袋上方的矩形纸片、腰带处及口袋露出的商品标签，必须视为应去除的杂物，"
+    "即使标签印着NATURAL FABRIC、DENIM等字样，也不得要求恢复、清晰化或补齐这些文字。"
+    "还原分只比较衣服本体，标签在成品中消失应视为正确；成品若残留标签或被转成布贴，"
+    "必须报告具体位置及去除要求并判overall低于60。不能为标签残留的成品给高分。"
+    "只有能确认直接印绣在连续衣服布料上且非独立纸片、贴片或可拆标签的logo才参与还原。"
+    "不确定某文字是否属于衣服本体时不要求补字；先按物体外形、位置与载体判定。"
+    "遵守用户规定的JSON格式，不要输出额外解释。"
+)
 
 _ledger_engines = {}
 _ledger_engines_lock = threading.Lock()
@@ -208,7 +255,7 @@ class ProviderHub:
                 )
                 cap = Decimal(str(getattr(settings, "model_budget_cny", 12)))
                 if Decimal(str(spent)) + estimate > cap:
-                    raise BudgetExceeded("本轮模型预算已接近 12 元，请先核对账单再继续。")
+                    raise BudgetExceeded("模型预算已接近配置上限，请先核对账单再继续。")
             row = UsageLedger(
                 project_id=self.project_id,
                 model=self._model(kind),
@@ -399,6 +446,7 @@ class ProviderHub:
                         "逐张分析衣服，严格输出 JSON 对象 "
                         "{items:[{asset_id,category,color,material,style_tags:[]}]}。"
                         "材质无法确定时写‘视觉判断，待确认’，保留对应的资产 ID。"
+                        "吊牌、价签、织标贴纸、衣架、包装不属于衣服，忽略这些杂物及其文字。"
                     ),
                 }
             ]
@@ -555,19 +603,37 @@ class ProviderHub:
         def check(schema, value):
             kind = schema["type"]
             if kind == "object":
-                if not isinstance(value, dict) or set(value) != set(schema["required"]):
+                if (
+                    not isinstance(value, dict)
+                    or not set(schema["required"]).issubset(value)
+                    or not set(value).issubset(schema["properties"])
+                ):
                     raise ProviderError("对话模型返回字段不完整。")
-                for key, child in schema["properties"].items():
-                    check(child, value[key])
+                for key, item in value.items():
+                    check(schema["properties"][key], item)
             elif kind == "array":
                 if not isinstance(value, list):
                     raise ProviderError("对话模型返回列表格式有误。")
+                if len(value) < schema.get("minItems", 0) or len(value) > schema.get(
+                    "maxItems", math.inf
+                ):
+                    raise ProviderError("对话模型返回列表长度有误，圈选轨迹不能为空。")
                 for item in value:
                     check(schema["items"], item)
             elif kind == "string" and not isinstance(value, str):
                 raise ProviderError("对话模型返回文本格式有误。")
             elif kind == "integer" and (not isinstance(value, int) or isinstance(value, bool)):
                 raise ProviderError("对话模型返回数字格式有误。")
+            elif kind == "number":
+                if (
+                    not isinstance(value, (int, float))
+                    or isinstance(value, bool)
+                    or not math.isfinite(value)
+                    or value < schema.get("minimum", -math.inf)
+                    or value > schema.get("maximum", math.inf)
+                    or value <= schema.get("exclusiveMinimum", -math.inf)
+                ):
+                    raise ProviderError("圈选坐标或笔刷大小无效，请使用 0–1 范围内的有效数值。")
             if "enum" in schema and value not in schema["enum"]:
                 raise ProviderError("对话模型返回字段取值有误。")
 
@@ -575,6 +641,12 @@ class ProviderHub:
         check(schemas[name], result)
         if not result.get("reply", "").strip():
             raise ProviderError("对话模型没有返回回复。")
+        if name == "edit_image":
+            if "region" in result and "mask_strokes" in result:
+                raise ProviderError("框选与涂抹轨迹只能选择一种。")
+            region = result.get("region")
+            if region and (region["x"] + region["w"] > 1 or region["y"] + region["h"] > 1):
+                raise ProviderError("框选区域超出图片范围，请重新圈选。")
         if name == "propose_directions" and not 2 <= len(result["options"]) <= 3:
             raise ProviderError("方向建议必须有 2–3 个。")
         if name in {"write_script", "revise_script"}:
@@ -629,6 +701,13 @@ class ProviderHub:
                         "你是服装还原质检员，下面先给原衣服图，最后一张是穿搭生成图。"
                         "逐件对比品类、版型、颜色、面料纹理、纽扣数量颜色、口袋和logo。"
                         "人物、姿势、背景变化不扣分；不可见细节不要臆测相同。"
+                        "吊牌、价签、织标贴纸、衣架、包装不属于衣服：忽略原衣服图中这些"
+                        "杂物及其文字，不因它们在成品中缺失、文字不一致或不可读而扣还原分。"
+                        "先检查胸前、裤腰、口袋是否存在纸片、矩形贴纸或标签残留，再给还原分。"
+                        "衣服本体的logo与印花仍须比较，不能把吊牌文字当作logo，"
+                        "也不能要求补齐、恢复或清晰化可拆标签上的文字。"
+                        "若成品仍出现吊牌、价签、织标贴纸、衣架或包装，必须在diffs明确写明"
+                        "位置和应去除的杂物，并将overall设为低于60以触发修复。"
                         "缺衣服、错颜色、错版型属于严重差异，overall须低于60。"
                         "只输出JSON：{garments:[{asset_id,score:0到100整数,diffs:[中文差异]}],"
                         "overall:0到100整数,diffs:[可直接用于修图的具体中文差异]}。"
@@ -658,7 +737,10 @@ class ProviderHub:
                         headers=self._headers(settings.dashscope_api_key),
                         json={
                             "model": self._model("vision"),
-                            "messages": [{"role": "user", "content": content}],
+                            "messages": [
+                                {"role": "system", "content": FIDELITY_SYSTEM_PROMPT},
+                                {"role": "user", "content": content},
+                            ],
                             "enable_thinking": False,
                             "response_format": {"type": "json_object"},
                             "max_tokens": 1600,
@@ -691,9 +773,96 @@ class ProviderHub:
         reserve = Decimal(16_384 * (len(reference_assets) + 1) * 3 + 1600 * 30 + 3000)
         return self._call("vision", str(reserve / 1_000_000), operation)
 
+    def check_edit(
+        self,
+        before: Asset,
+        after: Asset,
+        instruction: str,
+        region: dict | None = None,
+    ) -> dict:
+        """Judge the requested change from both images, independently of garment fidelity."""
+        if not instruction.strip():
+            raise ProviderError("请说明需要检查的改图要求。")
+
+        def operation():
+            if self.mock:
+                return (
+                    {"passed": True, "reason": "Mock 指令核对通过；真实模式会逐项对比改图前后。"},
+                    {"purpose": "edit_check", "images": 2},
+                    Decimal(0),
+                )
+            content = [
+                {
+                    "type": "text",
+                    "text": (
+                        "你是严格的改图指令核对员。第一张是改图前，第二张是改图后。"
+                        "必须实际看图对比，不根据提示词、文件名或声称已修改来判断通过。"
+                        "逐项判断用户指令在第二张画面是否已经做到；变化不足、未改变、只做了"
+                        "部分要求、细节不可见或无法确认都判passed=false，并写出具体原因。"
+                        "例如‘衬衫塞进裤腰’须看到衬衫衣摆确实进入裤腰，仍垂在裤腰外不能通过；"
+                        "‘袖口放下来’须看见袖口不再卷起，不能仅因颜色或背景改变而通过。"
+                        "只核对本次指令，人物姿势与无关背景变化不能代替完成指令。"
+                        "若提供region，坐标为相对原图的0–1框选范围，请重点检查该处；"
+                        "指令需要的变化超出圈选能力时也如实失败。忽略右下角AI生成声明角标。"
+                        "只输出JSON对象：{passed:true或false,reason:具体、简短的中文视觉依据}。"
+                        f"\n用户指令：{instruction}\nregion："
+                        + json.dumps(region, ensure_ascii=False)
+                    ),
+                },
+                {"type": "text", "text": "第一张：改图前"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": self._data_url(before, vision=True)},
+                },
+                {"type": "text", "text": "第二张：改图后，需要核对的成品"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": self._data_url(after, vision=True)},
+                },
+            ]
+            with self._client() as client:
+                response = self._json(
+                    client.post(
+                        f"{settings.dashscope_compatible_url.rstrip('/')}/chat/completions",
+                        headers=self._headers(settings.dashscope_api_key),
+                        json={
+                            "model": self._model("vision"),
+                            "messages": [{"role": "user", "content": content}],
+                            "enable_thinking": False,
+                            "response_format": {"type": "json_object"},
+                            "max_tokens": 800,
+                        },
+                    )
+                )
+            result = json.loads(response["choices"][0]["message"]["content"])
+            if (
+                not isinstance(result, dict)
+                or set(result) != {"passed", "reason"}
+                or not isinstance(result["passed"], bool)
+                or not isinstance(result["reason"], str)
+                or not result["reason"].strip()
+            ):
+                raise ProviderError("改图指令核对返回了无效结果。")
+            usage = response.get("usage", {})
+            tokens = usage.get("prompt_tokens", 0)
+            rate = Decimal("1") if tokens <= 32_768 else Decimal("1.5")
+            if tokens > 131_072:
+                rate = Decimal("3")
+            cost = Decimal(tokens) + Decimal(usage.get("completion_tokens", 0)) * 10
+            cost = cost * rate / 1_000_000 if "prompt_tokens" in usage else None
+            return (
+                {"passed": result["passed"], "reason": result["reason"].strip()[:1000]},
+                {**usage, "purpose": "edit_check", "images": 2},
+                cost,
+            )
+
+        reserve = Decimal(16_384 * 2 * 3 + 800 * 30 + 3000) / 1_000_000
+        return self._call("vision", str(reserve), operation)
+
     def image(self, prompt: str, reference_assets: list[Asset]) -> GeneratedMedia:
         if len(reference_assets) > 3:
             raise ProviderError("单张图片最多支持 3 张参考素材，请拆分穿搭。")
+        prompt = GARMENT_ACCESSORY_RULE + "\n" + prompt
 
         def operation():
             if self.mock:
@@ -855,6 +1024,10 @@ class ProviderHub:
                 "暗一点",
                 "塞进",
                 "修一下",
+                "放下来",
+                "放下",
+                "卷起来",
+                "去掉吊牌",
             )
         )
         question = (
@@ -886,6 +1059,19 @@ class ProviderHub:
             number = ordinal(value, "张")
             if target is None and number and number <= len(images):
                 target = images[number - 1]
+            refs = context.get("refs") or []
+            referenced = context.get("referenced_images") or []
+            if target is None and len(refs) == 1:
+                target = next(
+                    (
+                        image
+                        for image in [*images, *referenced]
+                        if image["id"] == refs[0] and image.get("status") == "succeeded"
+                    ),
+                    None,
+                )
+            if target is None and len(refs) > 1:
+                return None
             if target is None and len(images) == 1:
                 target = images[0]
             return target
@@ -1003,6 +1189,10 @@ class ProviderHub:
             for key in TOOL_SCHEMAS[name]["required"]:
                 if key != "reply":
                     result[key] = str(action.get(key) or context.get(key) or "")
+            if name == "edit_image":
+                for key in ("region", "mask_strokes"):
+                    if key in action:
+                        result[key] = action[key]
             return result
         result = ProviderHub._mock_content(name, context, instruction)
         brief = context.get("brief")

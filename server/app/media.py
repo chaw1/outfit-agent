@@ -108,12 +108,15 @@ def store_generated(
     media,
     parent_id: str | None = None,
     prompt: str | None = None,
+    preserve_visible_label: bool = False,
 ) -> Asset:
     width, height = media.width, media.height
     data, mime = media.data, media.mime
     if media.mime.startswith("image/"):
         width, height, _ = inspect_image(media.data)
-        data, mime = label_generated_image(media.data, media.model), "image/png"
+        data, mime = label_generated_image(
+            media.data, media.model, draw_label=not preserve_visible_label
+        ), "image/png"
     asset = Asset(
         user_id=user_id,
         project_id=project_id,
@@ -132,15 +135,16 @@ def store_generated(
     return asset
 
 
-def label_generated_image(data: bytes, model: str) -> bytes:
+def label_generated_image(data: bytes, model: str, *, draw_label: bool = True) -> bytes:
     """Embed a visible disclosure and portable PNG provenance metadata.
 
     The two Chinese glyphs use simple strokes so production images do not
     depend on a system font being installed in the slim worker container.
     """
     with Image.open(io.BytesIO(data)) as source:
-        image = source.convert("RGB")
-    scale = max(1, round(min(image.size) / 1024))
+        image = source.convert("RGB") if draw_label else source.copy()
+    if not draw_label:
+        return _generated_png(image, model)
     # Draw at a fixed large size then resize with the canvas for tiny test assets.
     label = Image.new("RGBA", (116, 34), (20, 20, 20, 210))
     draw = ImageDraw.Draw(label)
@@ -166,15 +170,25 @@ def label_generated_image(data: bytes, model: str) -> bytes:
     for offset, strokes in zip((44, 76), glyphs, strict=True):
         for stroke in strokes:
             draw.line([(offset + x * 1.5, 5 + y * 1.5) for x, y in stroke], fill="white", width=2)
-    target_width = min(image.width, 116 * scale)
-    target_height = max(1, round(target_width * 34 / 116))
+    left, top, right, bottom = label_bounds(image.size)
+    target_width, target_height = right - left, bottom - top
     label = label.resize((target_width, target_height), Image.Resampling.LANCZOS)
-    margin = min(10 * scale, max(0, (image.width - target_width) // 2))
-    image.paste(
-        label,
-        (image.width - target_width - margin, max(0, image.height - target_height - margin)),
-        label,
-    )
+    image.paste(label, (left, top), label)
+    return _generated_png(image, model)
+
+
+def label_bounds(size: tuple[int, int]) -> tuple[int, int, int, int]:
+    """The inherited disclosure occupies this exact pixel box on every version."""
+    width, height = size
+    scale = max(1, round(min(size) / 1024))
+    label_width = min(width, 116 * scale)
+    label_height = max(1, round(label_width * 34 / 116))
+    margin = min(10 * scale, max(0, (width - label_width) // 2))
+    left, top = width - label_width - margin, max(0, height - label_height - margin)
+    return left, top, left + label_width, min(height, top + label_height)
+
+
+def _generated_png(image: Image.Image, model: str) -> bytes:
     metadata = PngInfo()
     metadata.add_itxt("AIGC", "AI生成")
     metadata.add_itxt("Source", "generated")

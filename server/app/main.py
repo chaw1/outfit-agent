@@ -112,8 +112,19 @@ async def app_error_handler(request, exc):
 
 @app.exception_handler(RequestValidationError)
 async def validation_handler(request, exc):
+    message = "请求字段无效，请检查输入"
+    for error in exc.errors():
+        location = set(error.get("loc", ()))
+        if location & {"region", "mask_strokes", "refs", "edit_image"}:
+            detail = (error.get("ctx") or {}).get("error")
+            message = str(detail) if isinstance(detail, ValueError) else (
+                "引用图片字段无效，请提供图片编号列表。"
+                if "refs" in location
+                else "局部编辑字段无效，请检查坐标、框选范围和涂抹轨迹。"
+            )
+            break
     return JSONResponse(
-        {"error": {"code": "VALIDATION_ERROR", "message": "请求字段无效，请检查输入"}}, 422
+        {"error": {"code": "VALIDATION_ERROR", "message": message}}, 422
     )
 
 
@@ -326,6 +337,7 @@ def restore_messages(session: Session, project_id: str, state: dict) -> str | No
                 text=content,
                 cards=metadata.get("cards", []),
                 action=metadata.get("action"),
+                refs=metadata.get("refs", []),
                 created_at=datetime.fromisoformat(metadata["created_at"]),
             )
         )
@@ -433,8 +445,10 @@ def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -
             project_lock(session, project_id)
             project = owned_project(session, project_id, user_id)
             graph, workflow = graph_for(session, project)
-            action = body.action.model_dump() if body.action else None
-            result = run_turn(graph, project, body.text, action, workflow=workflow, emit=emit)
+            action = body.action.model_dump(exclude_none=True) if body.action else None
+            result = run_turn(
+                graph, project, body.text, action, workflow=workflow, emit=emit, refs=body.refs
+            )
             project.stage = result["stage"]
             project.updated_at = utcnow()
             assistant_id = restore_messages(session, project_id, get_graph_state(graph, project_id))

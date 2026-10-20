@@ -164,7 +164,9 @@ def test_fidelity_compares_original_and_render_and_accounts_vision(provider_data
     def handler(request):
         body = json.loads(request.content)
         assert body["model"] == "qwen3-vl-plus"
-        content = body["messages"][0]["content"]
+        content = next(
+            message["content"] for message in body["messages"] if message["role"] == "user"
+        )
         assert len([part for part in content if part["type"] == "image_url"]) == 2
         assert any(asset_id in part.get("text", "") for part in content)
         return httpx.Response(
@@ -256,3 +258,212 @@ def test_video_request_includes_watermark_and_identity_constraint(provider_datab
             "轻轻转身", session.get(Asset, asset_id), on_submitted=submitted.append
         )
         assert media.data == b"video" and submitted == ["task-local"]
+
+
+@pytest.mark.parametrize("passed", [True, False])
+def test_edit_check_compares_before_after_and_records_actual_verdict(
+    provider_database, monkeypatch, passed
+):
+    factory, asset_id = provider_database
+    region = {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}
+    expected = {
+        "passed": passed,
+        "reason": "衣摆已进入裤腰。" if passed else "衣摆仍在裤腰外，指令没有做到。",
+    }
+
+    def handler(request):
+        body = json.loads(request.content)
+        assert body["model"] == "qwen3-vl-plus"
+        assert body["response_format"] == {"type": "json_object"}
+        content = body["messages"][0]["content"]
+        images = [part for part in content if part["type"] == "image_url"]
+        assert len(images) == 2
+        prompt = content[0]["text"]
+        assert "衬衫塞进裤腰" in prompt and json.dumps(region, ensure_ascii=False) in prompt
+        assert "第一张是改图前，第二张是改图后" in prompt
+        assert "无法确认都判passed=false" in prompt
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": json.dumps(expected, ensure_ascii=False)}}],
+                "usage": {"prompt_tokens": 2500, "completion_tokens": 100},
+            },
+        )
+
+    intercept(monkeypatch, handler)
+    with factory() as session:
+        before = session.get(Asset, asset_id)
+        after = Asset(path="original.png", mime="image/png")
+        assert ProviderHub(session).check_edit(before, after, "衬衫塞进裤腰", region) == expected
+        ledger = session.scalar(select(UsageLedger))
+        assert ledger.kind == "vision" and ledger.units["purpose"] == "edit_check"
+        assert ledger.units["images"] == 2
+        assert ledger.estimated_cny == Decimal("0.003500") and ledger.status == "succeeded"
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"passed": "true", "reason": "看起来做好了"},
+        {"passed": 1, "reason": "看起来做好了"},
+        {"passed": True, "reason": " "},
+        {"passed": False, "reason": []},
+        {"passed": True},
+        [True, "做好了"],
+    ],
+)
+def test_edit_check_rejects_untrustworthy_model_results(provider_database, monkeypatch, invalid):
+    factory, asset_id = provider_database
+    intercept(
+        monkeypatch,
+        lambda request: httpx.Response(
+            200, json={"choices": [{"message": {"content": json.dumps(invalid)}}]}
+        ),
+    )
+    with factory() as session:
+        asset = session.get(Asset, asset_id)
+        with pytest.raises(ProviderError, match="指令核对返回了无效结果"):
+            ProviderHub(session).check_edit(asset, asset, "袖口放下来")
+        ledger = session.scalar(select(UsageLedger))
+        assert ledger.status == "failed" and ledger.estimated_cny > 0
+
+
+def test_mock_edit_check_stays_local_and_is_explicitly_mock(provider_database, monkeypatch):
+    factory, asset_id = provider_database
+    monkeypatch.setattr(settings, "mock_providers", True)
+
+    def no_client(self):
+        raise AssertionError("Mock edit check must never use HTTP")
+
+    monkeypatch.setattr(ProviderHub, "_client", no_client)
+    with factory() as session:
+        asset = session.get(Asset, asset_id)
+        result = ProviderHub(session).check_edit(asset, asset, "袖口放下来")
+        assert result["passed"] is True and "Mock" in result["reason"]
+        ledger = session.scalar(select(UsageLedger))
+        assert ledger.units["purpose"] == "edit_check" and ledger.estimated_cny == 0
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        {},
+        {"region": {"x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}},
+        {"mask_strokes": {"brush": 0.05, "strokes": [[{"x": 0.2, "y": 0.4}]]}},
+    ],
+)
+def test_edit_tool_accepts_optional_local_selection(selection):
+    result = {"image_id": "current", "instruction": "袖口放下来", "reply": "好。", **selection}
+    ProviderHub._validate_text("edit_image", result, {}, selection=True)
+    schema = SELECTION_TOOL_SCHEMAS["edit_image"]
+    assert set(schema["required"]) == {"image_id", "instruction", "reply"}
+    assert {"region", "mask_strokes"}.issubset(schema["properties"])
+
+
+@pytest.mark.parametrize(
+    "selection",
+    [
+        {"region": {"x": 0.8, "y": 0, "w": 0.3, "h": 0.4}},
+        {"region": {"x": 0, "y": 0, "w": 0, "h": 0.4}},
+        {"region": {"x": True, "y": 0, "w": 0.3, "h": 0.4}},
+        {"region": {"x": float("nan"), "y": 0, "w": 0.3, "h": 0.4}},
+        {"mask_strokes": {"brush": 0.05, "strokes": []}},
+        {"mask_strokes": {"brush": 0.05, "strokes": [[]]}},
+        {"mask_strokes": {"brush": 0.05, "strokes": [[{"x": -0.2, "y": 0.4}]]}},
+        {
+            "region": {"x": 0, "y": 0, "w": 0.3, "h": 0.4},
+            "mask_strokes": {"brush": 0.05, "strokes": [[{"x": 0.2, "y": 0.4}]]},
+        },
+    ],
+)
+def test_edit_tool_rejects_invalid_or_ambiguous_local_selection(selection):
+    result = {"image_id": "current", "instruction": "袖口放下来", "reply": "好。", **selection}
+    with pytest.raises(ProviderError):
+        ProviderHub._validate_text("edit_image", result, {}, selection=True)
+
+
+def test_mock_reference_resolves_exact_older_version_and_does_not_guess_multiple_refs():
+    old = {"id": "image-v1", "shot_id": "shot-1", "version": 1, "status": "succeeded"}
+    newer = {"id": "image-v2", "shot_id": "shot-1", "version": 2, "status": "succeeded"}
+    context = {
+        "stage": "images",
+        "images": [newer, old],
+        "refs": [old["id"]],
+        "referenced_images": [old],
+    }
+    name, result = ProviderHub._mock_select_tool(
+        ["chat", "edit_image"], context, "这张袖口卷起来了，放下来"
+    )
+    assert name == "edit_image" and result["image_id"] == old["id"]
+    name, result = ProviderHub._mock_select_tool(
+        ["chat", "edit_image"], {**context, "refs": [old["id"], newer["id"]]}, "这张袖口放下来"
+    )
+    assert name == "chat"
+
+
+@pytest.mark.parametrize("instruction", ["生成全身穿搭图", "编辑图：衬衫塞进裤腰"])
+def test_generation_and_edit_prompts_exclude_source_tags_and_packaging(
+    provider_database, monkeypatch, instruction
+):
+    factory, asset_id = provider_database
+
+    def handler(request):
+        body = json.loads(request.content)
+        content = body["input"]["messages"][0]["content"]
+        prompt = content[-1]["text"]
+        assert instruction in prompt
+        for item in ("吊牌", "价签", "织标贴纸", "衣架", "包装", "不能出现", "logo"):
+            assert item in prompt
+        assert "绝不可迁移" in prompt and "禁止将纸牌变成胸前徽章" in prompt
+        return httpx.Response(
+            200,
+            json={
+                "output": {
+                    "choices": [{"message": {"content": [{"image": "https://media.invalid/a"}]}}]
+                }
+            },
+        )
+
+    intercept(monkeypatch, handler)
+    monkeypatch.setattr(
+        ProviderHub,
+        "_download",
+        staticmethod(lambda *args: GeneratedMedia(b"image", "image/png", "test")),
+    )
+    with factory() as session:
+        assert (
+            ProviderHub(session).image(instruction, [session.get(Asset, asset_id)]).data == b"image"
+        )
+
+
+def test_fidelity_ignores_source_tag_text_but_reports_tags_in_finished_image(
+    provider_database, monkeypatch
+):
+    factory, asset_id = provider_database
+
+    def handler(request):
+        messages = json.loads(request.content)["messages"]
+        assert messages[0]["role"] == "system"
+        system_prompt = messages[0]["content"]
+        assert "不得要求恢复、清晰化或补齐这些文字" in system_prompt
+        assert "NATURAL FABRIC、DENIM" in system_prompt
+        assert "纸片、贴片或可拆标签" in system_prompt
+        content = next(message["content"] for message in messages if message["role"] == "user")
+        prompt = content[0]["text"]
+        for item in ("吊牌", "价签", "织标贴纸", "衣架", "包装"):
+            assert item in prompt
+        assert "不因它们在成品中缺失、文字不一致或不可读而扣还原分" in prompt
+        assert "若成品仍出现" in prompt and "diffs明确写明" in prompt
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": json.dumps({"overall": 100, "diffs": []})}}]},
+        )
+
+    intercept(monkeypatch, handler)
+    with factory() as session:
+        asset = session.get(Asset, asset_id)
+        assert ProviderHub(session).fidelity([asset], asset) == {
+            "score": 100,
+            "diffs": [],
+            "auto_fixed": False,
+        }
