@@ -1,0 +1,5 @@
+视觉打磨已完成，验收说明见 [app/POLISH.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/POLISH.md)（19 行）。
+
+`verify`、93 个单测、E2E 3/3、双平台导出及 iOS prebuild 全通过，已保存 75 张截图。
+
+提交：`daca816`、`62a3600`，未推送。原有改动已保留；真机帧率、键盘、安全区与启动观感仍待验收。
