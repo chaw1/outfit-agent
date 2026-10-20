@@ -2,19 +2,24 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { profilePhotos } from '../../lib/profile';
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import type { Asset, AssetKind } from '../../api/types';
 import { Button, Field, Header, Notice, Page, colors, errorText, styles } from '../../components/ui';
 import { useSession } from '../../context/Session';
 
 export default function NewProject() {
-  const { api } = useSession();
+  const { api, user, photos } = useSession();
   const router = useRouter();
   const [title, setTitle] = useState('');
   const [brand, setBrand] = useState('');
   const [brief, setBrief] = useState('');
   const [garments, setGarments] = useState<Asset[]>([]);
   const [model, setModel] = useState<Asset | null>(null);
+  const [modelChoice, setModelChoice] = useState<string | null | undefined>(undefined);
+  const savedPhotos = profilePhotos(user?.profile?.model_asset_ids || [], photos);
+  const selectedModelId = modelChoice === undefined ? savedPhotos[0]?.id : modelChoice;
+  const selectedModel = model?.id === selectedModelId ? model : savedPhotos.find(photo => photo.id === selectedModelId);
   const [uploading, setUploading] = useState<AssetKind | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -32,7 +37,7 @@ export default function NewProject() {
         const nativeFile = { uri: item.uri, name: item.fileName || `outfit-${Date.now()}.jpg`, type: item.mimeType || 'image/jpeg' };
         const file = Platform.OS === 'web' ? item.file || new File([await (await fetch(item.uri)).blob()], nativeFile.name, { type: nativeFile.type }) : nativeFile;
         const asset = await api.uploadAsset(file, kind);
-        if (kind === 'model') setModel(asset); else setGarments(previous => [...previous, asset]);
+        if (kind === 'model') { setModel(asset); setModelChoice(asset.id); } else setGarments(previous => [...previous, asset]);
       }
     } catch (e) { setError(`图片没传好：${errorText(e)}`); } finally { setUploading(null); }
   }
@@ -41,7 +46,7 @@ export default function NewProject() {
     if (!garments.length) return setError('先上传至少一张品牌衣服图吧。');
     setBusy(true); setError('');
     try {
-      const result = await api.createProject({ title: title.trim(), brand: brand.trim(), brief: brief.trim(), garment_asset_ids: garments.map(item => item.id), ...(model ? { model_asset_id: model.id } : {}) });
+      const result = await api.createProject({ title: title.trim(), brand: brand.trim(), brief: brief.trim(), garment_asset_ids: garments.map(item => item.id), ...(selectedModelId ? { model_asset_id: selectedModelId } : {}) });
       router.replace({ pathname: '/projects/[id]', params: { id: result.id } });
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
@@ -57,7 +62,10 @@ export default function NewProject() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>{garments.map((item, index) => <View key={item.id} style={{ width: 96, height: 116 }}><Image source={{ uri: item.url }} style={{ width: '100%', height: '100%', borderRadius: 13, backgroundColor: colors.paper }} /><Pressable accessibilityRole="button" accessibilityLabel={`移除衣服图 ${index + 1}`} onPress={() => setGarments(previous => previous.filter(asset => asset.id !== item.id))} style={{ position: 'absolute', top: 5, right: 5, borderRadius: 10, padding: 3, backgroundColor: 'rgba(255,255,255,0.92)' }}><Ionicons name="close" size={14} /></Pressable></View>)}</View>
           <Pressable accessibilityRole="button" accessibilityLabel="上传衣服图" testID="upload-garments" disabled={!!uploading || busy} onPress={() => void pick('garment')} style={{ borderWidth: 1, borderStyle: 'dashed', borderColor: '#D8D4CA', borderRadius: 16, padding: 24, alignItems: 'center', backgroundColor: colors.paper, gap: 9 }}><Ionicons name="add" size={24} color={colors.red} /><Text style={{ color: colors.ink, fontSize: 13, fontWeight: '600' }}>{uploading === 'garment' ? '正在上传衣服图…' : '添加衣服图'}</Text><Text style={{ color: colors.muted, fontSize: 11 }}>平铺、挂拍或商品图都可以</Text></Pressable>
         </View>
-        <View style={{ gap: 12 }}><Text style={styles.section}>让你来当主角 <Text style={{ fontSize: 12, color: colors.muted, fontWeight: '400' }}>选填</Text></Text><Text style={[styles.subtitle, { fontSize: 12 }]}>上传你的照片作为模特；留空就用默认模特。</Text>{model && <View style={styles.row}><Image source={{ uri: model.url }} style={{ width: 72, height: 90, borderRadius: 12 }} /><Button title="移除照片" variant="ghost" onPress={() => setModel(null)} /></View>}<Button title={uploading === 'model' ? '正在上传…' : model ? '更换我的照片' : '上传我的照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} /></View>
+        <View style={{ gap: 12 }}><Text style={styles.section}>让你来当主角 <Text style={{ fontSize: 12, color: colors.muted, fontWeight: '400' }}>选填</Text></Text><Text style={[styles.subtitle, { fontSize: 12 }]}>{savedPhotos.length ? '已默认带上档案里的本人照片，也可以选择另一张。' : '上传你的照片作为模特；留空就用默认模特。'}</Text>
+          {!!savedPhotos.length && <ScrollView horizontal contentContainerStyle={{ gap: 10 }}>{savedPhotos.map((photo, index) => <Pressable key={photo.id} accessibilityRole="button" accessibilityLabel={`选择档案照片 ${index + 1}`} accessibilityState={{ selected: selectedModelId === photo.id }} aria-selected={selectedModelId === photo.id} onPress={() => setModelChoice(photo.id)} style={{ borderWidth: 2, borderColor: selectedModelId === photo.id ? colors.red : colors.border, borderRadius: 13, padding: 3, gap: 5 }}>{photo.url ? <Image source={{ uri: photo.url }} style={{ width: 76, height: 96, borderRadius: 8 }} /> : <View style={{ width: 76, height: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.paper }}><Ionicons name="person-outline" size={24} color={colors.muted} /></View>}<Text style={{ fontSize: 10, color: colors.muted, textAlign: 'center' }}>{index === 0 ? '档案默认' : `照片 ${index + 1}`}{selectedModelId === photo.id ? ' ✓' : ''}</Text></Pressable>)}</ScrollView>}
+          {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={styles.row}>{selectedModel.url && <Image source={{ uri: selectedModel.url }} style={{ width: 72, height: 90, borderRadius: 12 }} />}<Text style={styles.subtitle}>本次合作的本人照片</Text><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
+          <Button title={uploading === 'model' ? '正在上传…' : selectedModelId ? '更换我的照片' : '上传我的照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} /></View>
         {!!error && <Notice text={error} />}
         <Button title="开始聊灵感" icon="arrow-forward" loading={busy} disabled={!!uploading} onPress={() => void submit()} />
       </ScrollView>

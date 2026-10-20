@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import path from 'node:path';
 import { test } from 'node:test';
 import sharp from 'sharp';
 import type { MockServerOptions } from '../mock-server/index.mjs';
 
-interface User { id: string; username: string; nickname: string; created_at: string }
+interface User { id: string; username: string; nickname: string; created_at: string; tier?: string; daily_budget_cny?: number; today_cost_cny?: number; profile?: { model_asset_ids: string[]; height_cm?: number; body_notes?: string; style_notes?: string } }
 interface Account { token: string; user: User }
 interface Asset { id: string; url: string; width: number; height: number; source: string; mime: string }
 interface Project { id: string; stage: string; cover_url?: string }
@@ -27,7 +27,7 @@ interface State {
   script_versions: { version: number; checkpoint_id: string; created_at: string; summary: string; current: boolean }[];
 }
 interface Card { id: string; type: string; items?: Image[]; options?: { id: string }[]; status?: string; url?: string; poster_url?: string }
-interface Message { id: string; role: string; text: string; cards: Card[]; action?: Record<string, unknown>; refs?: string[] }
+interface Message { id: string; role: string; text: string; cards: Card[]; action?: Record<string, unknown>; refs?: string[]; can_regenerate?: boolean }
 interface Event { type: string; data: Record<string, unknown> }
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -99,6 +99,170 @@ async function upload(base: string, token: string, kind = 'garment') {
   assert.ok(result.body.width > 0 && result.body.height > 0);
   return result.body;
 }
+
+test('profile updates keep photo order, validate ownership atomically, and apply defaults and preferences to new projects', async () => {
+  const dataDir = await temporaryData('outfit-mock-profile-');
+  const { server, base } = await startServer(dataDir);
+  try {
+    const owner = await register(base, 'profile-owner');
+    const other = await register(base, 'profile-other');
+    assert.equal(owner.user.tier, 'free');
+    assert.equal(owner.user.daily_budget_cny, 20);
+    assert.equal(owner.user.today_cost_cny, 0);
+    assert.deepEqual(owner.user.profile, { model_asset_ids: [] });
+    const garment = await upload(base, owner.token);
+    const first = await upload(base, owner.token, 'model');
+    const second = await upload(base, owner.token, 'model');
+    const foreign = await upload(base, other.token, 'model');
+    const patch = (body: Record<string, unknown>) => request<User>(base, '/api/me', { token: owner.token, method: 'PATCH', body });
+    for (const ids of [[foreign.id], [garment.id], [first.id, first.id], ['missing']]) {
+      assert.equal((await patch({ nickname: '不应写入', profile: { model_asset_ids: ids } })).response.status, 400);
+    }
+    assert.equal((await request<User>(base, '/api/me', { token: owner.token })).body.nickname, owner.user.nickname);
+    assert.equal((await patch({ profile: { height_cm: '170' } })).response.status, 400);
+    assert.equal((await patch({ nickname: '   ' })).response.status, 400);
+    const saved = await patch({ nickname: '新昵称', profile: { model_asset_ids: [second.id, first.id], height_cm: 168, body_notes: '肩宽', style_notes: '喜欢通勤，不穿高跟鞋' } });
+    assert.equal(saved.response.status, 200);
+    assert.equal(saved.body.nickname, '新昵称');
+    assert.deepEqual(saved.body.profile?.model_asset_ids, [second.id, first.id]);
+    const partial = await patch({ profile: { height_cm: null, body_notes: '自然体型' } });
+    assert.deepEqual(partial.body.profile, { model_asset_ids: [second.id, first.id], body_notes: '自然体型', style_notes: '喜欢通勤，不穿高跟鞋' });
+    const input = { title: '默认形象', brand: '个人品牌', brief: '自然日常', garment_asset_ids: [garment.id] };
+    const project = (await request<Project>(base, '/api/projects', { token: owner.token, body: input })).body;
+    const override = (await request<Project>(base, '/api/projects', { token: owner.token, body: { ...input, model_asset_id: first.id } })).body;
+    const stored = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as { projects: { id: string; modelAssetId: string }[] };
+    assert.equal(stored.projects.find((item) => item.id === project.id)?.modelAssetId, second.id);
+    assert.equal(stored.projects.find((item) => item.id === override.id)?.modelAssetId, first.id);
+    const events = await send(base, project.id, owner.token, { text: '请给我几个方向' });
+    const directionCard = events.find((event) => event.type === 'card' && event.data.type === 'directions')!.data as { options: { id: string; why: string }[] };
+    assert.equal(directionCard.options[0].id, 'direction_work');
+    assert.ok(directionCard.options.every((option) => option.why.includes('不穿高跟鞋')));
+    await send(base, project.id, owner.token, { action: { type: 'choose_direction', direction_id: directionCard.options[0].id } });
+    const state = (await request<State>(base, `/api/projects/${project.id}/state`, { token: owner.token })).body;
+    assert.ok(state.script?.shots.every((shot) => shot.pose.includes('不穿高跟鞋')));
+    await patch({ profile: { model_asset_ids: [] } });
+    assert.deepEqual((await request<User>(base, '/api/me', { token: owner.token })).body.profile?.model_asset_ids, []);
+    assert.equal((await fetch(first.url)).status, 200);
+    const options = await fetch(`${base}/api/me`, { method: 'OPTIONS' });
+    assert.match(options.headers.get('access-control-allow-methods') || '', /PATCH/);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('reply regeneration rewrites only the latest safe assistant text, never queues jobs or changes cost/state', async () => {
+  const dataDir = await temporaryData('outfit-mock-regenerate-');
+  const { server, base } = await startServer(dataDir, { clock: () => Date.parse('2026-10-21T01:00:00Z') });
+  try {
+    const account = await register(base, 'regenerate-owner');
+    const garment = await upload(base, account.token);
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '改写回复', brand: '个人品牌', brief: '舒服自然', garment_asset_ids: [garment.id] } })).body;
+    const messages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
+    const state = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    await send(base, project.id, account.token, { text: '给我几个方向' });
+    const paid = (await messages()).at(-1)!;
+    assert.equal(paid.can_regenerate, false);
+    const denied = await send(base, project.id, account.token, { action: { type: 'regenerate_reply', message_id: paid.id } });
+    assert.equal(denied[0].data.code, 'REGENERATE_NOT_ALLOWED');
+    const initial = await state();
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: initial.directions[0].id } });
+    const beforeMessages = await messages();
+    const safe = beforeMessages.at(-1)!;
+    assert.equal(safe.can_regenerate, true);
+    const before = await state();
+    const replaced = await send(base, project.id, account.token, { action: { type: 'regenerate_reply', message_id: safe.id } });
+    assert.deepEqual(replaced.filter((event) => event.type === 'job' || event.type === 'card'), []);
+    assert.equal(replaced.at(-1)?.data.message_id, safe.id);
+    const afterMessages = await messages();
+    assert.equal(afterMessages.length, beforeMessages.length);
+    assert.equal(afterMessages.at(-1)?.id, safe.id);
+    assert.notEqual(afterMessages.at(-1)?.text, safe.text);
+    assert.equal(afterMessages.at(-1)?.can_regenerate, true);
+    assert.deepEqual(await state(), before);
+    assert.equal((await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny, 0);
+    await send(base, project.id, account.token, { text: '封面姿势自然一点' });
+    const previousDenied = await send(base, project.id, account.token, { action: { type: 'regenerate_reply', message_id: safe.id } });
+    assert.equal(previousDenied[0].data.code, 'REGENERATE_NOT_ALLOWED');
+    assert.equal((await messages()).find((message) => message.id === safe.id)?.can_regenerate, false);
+    await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    const queued = await state();
+    const newest = (await messages()).at(-1)!;
+    assert.equal(newest.can_regenerate, false);
+    const unsafe = await send(base, project.id, account.token, { action: { type: 'regenerate_reply', message_id: newest.id } });
+    assert.equal(unsafe[0].data.code, 'REGENERATE_NOT_ALLOWED');
+    assert.deepEqual(await state(), queued);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('project deletion cascades generated assets and files, messages and jobs while preserving reusable uploads and daily usage', async () => {
+  const dataDir = await temporaryData('outfit-mock-delete-');
+  let clock = Date.parse('2026-10-21T01:00:00Z');
+  const { server, base } = await startServer(dataDir, { clock: () => clock });
+  try {
+    const account = await register(base, 'delete-owner');
+    const garment = await upload(base, account.token);
+    const model = await upload(base, account.token, 'model');
+    const input = { title: '将删除', brand: '个人品牌', brief: '舒服自然', garment_asset_ids: [garment.id], model_asset_id: model.id };
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: input })).body;
+    const other = (await request<Project>(base, '/api/projects', { token: account.token, body: { ...input, title: '保留的项目' } })).body;
+    const state = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    await send(base, project.id, account.token, { text: '给我几个方向' });
+    clock += 100;
+    const directions = await state();
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: directions.directions[0].id } });
+    const jobs = (await send(base, project.id, account.token, { action: { type: 'confirm_script' } })).filter((event) => event.type === 'job');
+    clock += 250;
+    await state();
+    clock += 200;
+    const images = (await state()).images.filter((image) => image.status === 'succeeded');
+    await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: images[0].id, instruction: '把衣服塞进裤腰' } });
+    clock += 200;
+    const edited = await state();
+    assert.equal(edited.active_jobs.length, 0);
+    const last = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body.at(-1)!;
+    assert.equal(last.can_regenerate, false);
+    const stored = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as { assets: { id: string; projectId?: string; filename?: string; source: string }[] };
+    const generated = stored.assets.filter((asset) => asset.projectId === project.id);
+    const localFile = generated.find((asset) => asset.filename)!;
+    assert.ok(localFile);
+    assert.ok((await stat(path.join(dataDir, 'uploads', localFile.filename!))).isFile());
+    const generatedUrl = edited.images.at(-1)!.url!;
+    assert.equal((await fetch(generatedUrl)).status, 200);
+    const cost = (await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny!;
+    assert.ok(cost > 0);
+    assert.equal((await request(base, `/api/projects/${project.id}`, { token: account.token, method: 'DELETE' })).response.status, 204);
+    for (const route of ['', '/state', '/messages']) assert.equal((await request(base, `/api/projects/${project.id}${route}`, { token: account.token })).response.status, 404);
+    assert.equal((await request(base, `/api/jobs/${jobs[0].data.id}`, { token: account.token })).response.status, 404);
+    assert.equal((await fetch(generatedUrl)).status, 404);
+    await assert.rejects(stat(path.join(dataDir, 'uploads', localFile.filename!)), { code: 'ENOENT' });
+    assert.equal((await fetch(garment.url)).status, 200);
+    assert.equal((await fetch(model.url)).status, 200);
+    const remaining = (await request<Project[]>(base, '/api/projects', { token: account.token })).body;
+    assert.deepEqual(remaining.map((item) => item.id), [other.id]);
+    assert.equal((await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny, cost);
+    const after = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as { assets: { id: string }[]; jobs: { project_id: string }[] };
+    assert.ok(generated.every((asset) => !after.assets.some((item) => item.id === asset.id)));
+    assert.ok(!after.jobs.some((job) => job.project_id === project.id));
+    clock += 86_400_000;
+    assert.equal((await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny, 0);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+for (const mode of ['missing', 'old-fields'] as const) test(`legacy ${mode} profile mode preserves existing project and conversation endpoints`, async () => {
+  const dataDir = await temporaryData('outfit-mock-legacy-');
+  const { server, base } = await startServer(dataDir, { legacyProfile: mode });
+  try {
+    const account = await register(base, `legacy-${mode}`);
+    assert.equal(account.user.profile, undefined);
+    const me = await request<User>(base, '/api/me', { token: account.token });
+    assert.equal(me.response.status, mode === 'missing' ? 404 : 200);
+    if (mode === 'old-fields') assert.deepEqual(Object.keys(me.body).sort(), ['created_at', 'id', 'nickname', 'username']);
+    assert.equal((await request(base, '/api/me', { token: account.token, method: 'PATCH', body: { nickname: '新昵称' } })).response.status, 404);
+    const garment = await upload(base, account.token);
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '旧服务', brand: '个人品牌', brief: '自然穿搭', garment_asset_ids: [garment.id] } })).body;
+    assert.ok((await send(base, project.id, account.token, { text: '帮我做穿搭笔记' })).some((event) => event.type === 'done'));
+    assert.equal((await request(base, `/api/projects/${project.id}/state`, { token: account.token })).response.status, 200);
+    assert.equal((await request(base, `/api/projects/${project.id}`, { token: account.token, method: 'DELETE' })).response.status, 204);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
 
 test('mock authentication validates credentials, stores bcrypt, and isolates user assets/projects', async () => {
   const dataDir = await temporaryData('outfit-mock-auth-');

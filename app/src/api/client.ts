@@ -1,7 +1,7 @@
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
   Asset, AssetKind, AuthResponse, CreateProjectInput, DoneData, ErrorData, HealthResponse,
-  Job, LoginInput, Message, Project, ProjectState, RegisterInput, SendMessageInput, StreamEvent, User,
+  Job, LoginInput, Message, Project, ProjectState, RegisterInput, SendMessageInput, StreamEvent, UpdateMeInput, User,
 } from './types';
 
 export class ApiError extends Error {
@@ -116,6 +116,9 @@ export class ApiClient {
   }
 
   me(): Promise<User> { return this.request('/me'); }
+  patchMe(input: UpdateMeInput): Promise<User> {
+    return this.request('/me', { method: 'PATCH', body: JSON.stringify(input) });
+  }
 
   uploadAsset(file: File | NativeUploadFile, kind: AssetKind): Promise<Asset> {
     const body = new FormData();

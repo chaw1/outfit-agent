@@ -13,6 +13,8 @@ export interface MockServerOptions {
   videoDelayMs?: number;
   runningDelayMs?: number;
   tokenDelayMs?: number;
+  /** Exercise App fallback against a missing /me route or a pre-profile user shape. */
+  legacyProfile?: 'missing' | 'old-fields';
 }
 
 /** The first local edit per project reports edit_check.passed=false; later edits pass. */
