@@ -132,6 +132,22 @@ npm run test:e2e
 
 主服务端口为 `19300` / `19301`，集成测试只在 `19410–19499` 中选择空闲端口，不停止占用端口的进程；测试临时数据也留在本 worktree 的 `mock-server/.data/tests/` 并在测试后清理。
 
+## 档案、发布与通知
+
+首次打开完成三屏引导；设置里的“我的形象”可上传多张本人照片、设默认、移除和保存身高/体型/偏好，昵称一并保存。照片预览按服务和账号保存在本机；接口只有资产 ID，所以换设备会显示占位，可重新上传。旧服务没有 profile 或返回 404 时提示未开通，上传衣服、项目和对话保持可用。
+
+项目列表支持按标题/品牌搜索、下拉或按钮刷新、长按/按钮删除并二次确认。删除后服务必须让项目、state、messages 均返回 404；本地假服务同时清理该项目任务和生成文件，保留上传原图。
+
+笔记预览先核对“发布清单”并确认发布时勾选平台声明，再点“准备发布”：复制文案、按顺序保存图片、保存已完成视频、打开系统文案分享。媒体先进入相册，目标平台的选图、排列和声明仍由用户操作。第一项保存失败即暂停；重试只继续未完成项。媒体 ID 断点按服务/账号/项目保存，重开页面仍生效；图片已保存后改笔记顺序会提醒按新清单在平台排列。网页不支持系统分享时显示手动发布说明。
+
+通知使用本地通知，不接推送平台：生成任务被观察后，即使离开工作台仍在应用级检查；前台只显示应用内提示，后台获授权时静音通知，点按进入对应项目。拒绝权限不影响生成结果。系统挂起 JS 时由 expo-background-task 检查持久化的任务进度（minimumInterval=15 分钟），操作系统决定实际时间，不能承诺立即通知或被杀进程后通知。此限制见 [Expo BackgroundTask](https://docs.expo.dev/versions/latest/sdk/background-task/) 与 [Apple 后台策略](https://developer.apple.com/documentation/BackgroundTasks/choosing-background-strategies-for-your-app)。原生通知与后台任务需要开发包/本机安装包，网页测试仅覆盖通知决策，不等于真机通过。
+
+“换个说法”使用第 10.4 节未指定传输方式的本地增量约定：消息可选 can_regenerate=true，发送 action={type: "regenerate_reply", message_id}。只有最后一条助手回复且服务确认原轮没有创建生成任务才展示；仅替换该消息文本，SSE 返回 token/done，不重新跑工具或增加费用。旧服务无该标记时隐藏入口。明确拒绝且未执行的消息或确认可重发；断线不明时只核对历史，避免重复生成。
+
+本轮复测：npm run verify；npm run test:e2e；npx expo prebuild --platform ios。新流程为 e2e/product.spec.ts，发布重试、重发和改写扩展在 workflow.spec.ts。假服务可用 MOCK_LEGACY_PROFILE=missing 或 old-fields 模拟旧服务；请使用独立本地数据目录复测，不对真实服务执行付费步骤。
+
+原生验收仍需在自己的手机上检查：通知允许/拒绝、后台/前台、冷启动点按路由、不同账号隔离；照片与视频相册写入、系统分享、长按、双指手势。新增依赖是 expo-notifications、expo-background-task、expo-task-manager 和 AsyncStorage；app.json 已配置插件、静音通知频道、照片/视频读取与保存文案，iOS 生成目录不提交。
+
 ## 真实线上联调与断点
 
 `npm run test:live` 使用独立的 `playwright.live.config.ts` 和 19310 web 端口。只有设置 `LIVE_API_BASE` 才运行；始终无头、390×844、校验 TLS，不启动假服务，不自动重试付费动作。真实模型会计费，只连接个人或明确授权的环境。

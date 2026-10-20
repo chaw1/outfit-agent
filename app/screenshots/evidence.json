@@ -1,17 +1,17 @@
 {
   "viewport": "390×844",
-  "passedAt": "2026-10-20T15:49:44.452Z",
-  "firstEditedImage": "image_58122dc2-e2f4-434a-b3b9-57b169bee8fc",
+  "passedAt": "2026-10-20T17:22:08.207Z",
+  "firstEditedImage": "image_83f0557b-3a11-4944-a4b9-3970b6ba3adf",
   "imageInteractions": {
-    "firstId": "image_58122dc2-e2f4-434a-b3b9-57b169bee8fc",
-    "wholeImageId": "image_3ad5796a-89fc-44ad-96bc-8de447140081",
-    "localImageId": "image_fb006052-5271-4bdd-9963-1543efba2335",
-    "retryImageId": "image_06307b75-23a7-4a7c-bc3e-aa240a13b894",
-    "rectangleImageId": "image_37b7ccf2-e745-4950-9a94-ac75709b80a0",
+    "firstId": "image_83f0557b-3a11-4944-a4b9-3970b6ba3adf",
+    "wholeImageId": "image_be9b1415-b8b0-488d-90ba-9e90f213ffe5",
+    "localImageId": "image_44e97d13-2d21-49a6-ba10-0e5d761c7d11",
+    "retryImageId": "image_61123f28-9433-4178-8a60-c211dbb994f3",
+    "rectangleImageId": "image_4dfaa211-55fd-4b66-879c-2fe49c8e5d76",
     "brushMessage": {
       "action": {
         "type": "edit_image",
-        "image_id": "image_3ad5796a-89fc-44ad-96bc-8de447140081",
+        "image_id": "image_be9b1415-b8b0-488d-90ba-9e90f213ffe5",
         "instruction": "袖口放下来",
         "mask_strokes": {
           "brush": 0.1365097083376165,
@@ -89,7 +89,7 @@
     "retryMessage": {
       "action": {
         "type": "edit_image",
-        "image_id": "image_3ad5796a-89fc-44ad-96bc-8de447140081",
+        "image_id": "image_be9b1415-b8b0-488d-90ba-9e90f213ffe5",
         "instruction": "袖口放下来",
         "mask_strokes": {
           "brush": 0.1365097083376165,
@@ -167,7 +167,7 @@
     "rectangleMessage": {
       "action": {
         "type": "edit_image",
-        "image_id": "image_06307b75-23a7-4a7c-bc3e-aa240a13b894",
+        "image_id": "image_61123f28-9433-4178-8a60-c211dbb994f3",
         "instruction": "背景亮一点",
         "region": {
           "x": 0.3384078325950012,
@@ -180,29 +180,51 @@
     "referenceMessage": {
       "text": "这张袖口现在合适了，保留这个自然的感觉。",
       "refs": [
-        "image_37b7ccf2-e745-4950-9a94-ac75709b80a0"
+        "image_4dfaa211-55fd-4b66-879c-2fe49c8e5d76"
       ]
     }
   },
   "selectedOrder": [
-    "image_84ec5e5e-097c-4045-80ea-cb19c1f7403d",
-    "image_37b7ccf2-e745-4950-9a94-ac75709b80a0",
-    "image_71c5e257-5cd8-493b-9c03-8847a1a2219a"
+    "image_ecf7dd1d-8847-4214-8922-13c03d697e4e",
+    "image_4dfaa211-55fd-4b66-879c-2fe49c8e5d76",
+    "image_bd08295c-b051-49f7-a6c0-1720c39bcbe0"
   ],
-  "stateRequests": 52,
-  "historyRequests": 32,
+  "stateRequests": 98,
+  "historyRequests": 44,
   "proactiveMessage": true,
-  "restoredCheckpoint": "checkpoint_9b172938-bc0c-4d86-941d-8f3b895e1133",
+  "restoredCheckpoint": "checkpoint_a9cc14e2-6803-41b2-945b-1827b835a584",
   "retainedImageIds": [
-    "image_514e02a8-e4f6-4dfc-8acf-882a2df15115",
-    "image_5cd2dff1-c280-4aee-bf3c-e1761bcba846",
-    "image_add8e9dd-5d19-4b07-ba01-b1d30de9c1aa",
-    "image_5e0ce9ad-7bcd-4079-ac91-ca94436887e0"
+    "image_fd208fea-7915-4513-9983-fe9874e38eae",
+    "image_4ba33955-d1c1-42b7-a0e3-5316bb0e057b",
+    "image_9d9d41bb-23ac-4c83-a711-50160ad863c0",
+    "image_19579e91-fcb1-4a9a-a702-3b7892a926b6"
   ],
   "previewImages": true,
   "autoFixedFidelity": 92,
   "noteCostCny": 18.9,
   "aiLabel": "本篇图片和视频含 AI 生成内容，发布时请勾选平台的 AI 内容声明。",
   "videoPlayed": true,
+  "publishing": {
+    "downloads": [
+      "outfit-image_4dfaa211-55fd-4b66-879c-2fe49c8e5d76.png",
+      "outfit-image_ecf7dd1d-8847-4214-8922-13c03d697e4e.jpg",
+      "outfit-image_4dfaa211-55fd-4b66-879c-2fe49c8e5d76.png",
+      "outfit-image_bd08295c-b051-49f7-a6c0-1720c39bcbe0.png",
+      "outfit-video-job_1f142a87-7319-4d32-8635-34392b115955.mp4"
+    ],
+    "shares": 3,
+    "orderedIds": [
+      "image_ecf7dd1d-8847-4214-8922-13c03d697e4e",
+      "image_4dfaa211-55fd-4b66-879c-2fe49c8e5d76",
+      "image_bd08295c-b051-49f7-a6c0-1720c39bcbe0"
+    ],
+    "partialRetry": true,
+    "resumedNoDuplicates": true
+  },
+  "conversation": {
+    "safeRewrite": true,
+    "longPressCopy": true,
+    "failedTextRetry": true
+  },
   "pageErrors": []
 }

@@ -1,3 +1,20 @@
+# 第四轮断点（APP_FIX3，已完成本地交付）
+
+- 开始：2026-10-21 01:02（Asia/Shanghai）；收尾：2026-10-21 01:25；墙钟上限03:02前完成。分支feat/app，只本worktree。
+- 唯一约定：docs/设计.md 第10节（10.1–10.4、10.6）；未改设计或server/，只运行本地假服务，不访问前公司环境、真实付费接口或钥匙串。
+- P1/P2：多图档案/默认/昵称/偏好、创建项目选档案图、旧接口降级；搜索/刷新/阶段封面/长按删除/二次确认/404清空详情；假服务级联清理保留上传。
+- P3：复制、顺序全图、视频、系统文案分享与清单；首失败停/断点续存/刷新去重/顺序变更提示。
+- P4/P5：通知持久去重/后台任务/账号隔离/前台提示；去叠加角标、两行折叠、长按复制、已拒绝消息重发、安全文本重写、三屏引导、关于隐私。
+- 最终验证：npm run verify五项全绿（93/93）；npm run test:e2e 2/2，约1.9分钟，pageErrors=[]；原始npx expo prebuild --platform ios含CocoaPods成功。
+- 证据：verification/summary.json、e2e.txt、prebuild-ios-full.txt、final-audit.json；55张390×844截图，其中新增36–52共20张，尺寸/SHA与总览已核验和目视。
+- 代码提交：2871318（档案/项目/假服务）、0dc92b0（通知/对话/原生配置）、02d8fc2（发布）；验收材料在本文件所在提交。均为chaw1 <97000945@qq.com>，中文一行，无署名附记，不push/合并。
+- 新原生依赖：expo-notifications、expo-background-task、expo-task-manager、AsyncStorage；app.json已配置权限。ios/保留本地且忽略，已安装Pods。
+- 设计未定项：profile只给ID，本机缓存预览；height_cm:null清空；可选can_regenerate + regenerate_reply防止重复付费；RN Share分享文案，媒体先入相册，平台选媒体/声明由用户操作。细节见FINAL/README。
+- 已知边界：后台检查15分钟调度提示由系统决定，不保证实时或进程被杀；原生通知/点按、相册图片顺序/视频、分享仍待个人真机。未联真实后端，mock不验证真实媒体标识。
+- 本轮服务已退出。原有未跟踪screenshots-live/run-1与run-2保留未纳入提交；其余本轮材料均精确暂存。下一步先读FINAL/README，在自己的安装包复测原生行为。
+
+---
+
 # 真实线上联调续接（已完成）
 
 - 任务：完整执行 `docs/codex/APP_LIVE_PROMPT.md`；唯一约定 `docs/设计.md`；交付 `app/LIVE.md`（≤40 行，结论优先）。

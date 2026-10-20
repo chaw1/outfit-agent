@@ -57,6 +57,7 @@ export async function imageInteractions(page: Page, state: () => ProjectState | 
 
   await page.getByTestId(`image-select-${firstId}`).click();
   await expect(page.getByTestId('image-viewer')).toBeVisible();
+  await expect(page.getByText('AI生成', { exact: true })).toHaveCount(0);
   await expect(canvas).toBeVisible();
   await shot(page, '25-image-viewer.png');
   await canvas.dblclick({ position: { x: 160, y: 180 }, delay: 100 });
