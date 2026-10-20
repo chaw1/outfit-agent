@@ -156,6 +156,15 @@ export type Action =
   | { type: 'restore_script'; checkpoint_id: string }
   | { type: 'regenerate_reply'; message_id: string };
 
+export interface MessageTrace {
+  tool: 'chat' | 'propose_directions' | 'write_script' | 'revise_script' | 'edit_image' | 'write_note' | 'generate_images' | 'generate_video' | 'restore_script';
+  model: string;
+  duration_ms: number;
+  cost_cny: number;
+  refs: string[];
+  steps: { label: string; duration_ms: number }[];
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -164,6 +173,7 @@ export interface Message {
   action?: Action;
   refs?: string[];
   can_regenerate?: boolean;
+  trace?: MessageTrace;
   created_at: string;
 }
 
@@ -182,6 +192,14 @@ export interface Job {
 export interface PendingAction {
   type: 'choose_direction' | 'confirm_script' | 'confirm_video';
   prompt: string;
+  estimated_cost_cny?: number;
+}
+
+export interface ProjectBudget {
+  tier: string;
+  daily_budget_cny: number;
+  today_cost_cny: number;
+  remaining_cny: number;
 }
 
 export interface ProjectState {
@@ -198,6 +216,7 @@ export interface ProjectState {
   cost_cny?: number;
   last_message_id?: string | null;
   script_versions?: ScriptVersion[];
+  budget?: ProjectBudget;
 }
 
 export interface SendMessageInput { text?: string; action?: Action; refs?: string[] }
@@ -208,6 +227,7 @@ export type StreamEvent =
   | { type: 'token'; data: { delta: string } }
   | { type: 'card'; data: Card }
   | { type: 'job'; data: Job }
+  | { type: 'trace'; data: MessageTrace }
   | { type: 'done'; data: DoneData }
   | { type: 'error'; data: ErrorData };
 

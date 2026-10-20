@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { copyFile, mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import path from 'node:path';
 import { test } from 'node:test';
 import sharp from 'sharp';
 import type { MockServerOptions } from '../mock-server/index.mjs';
+import type { MessageTrace, ProjectBudget } from '../src/api/types';
 
 interface User { id: string; username: string; nickname: string; created_at: string; tier?: string; daily_budget_cny?: number; today_cost_cny?: number; profile?: { model_asset_ids: string[]; height_cm?: number; body_notes?: string; style_notes?: string } }
 interface Account { token: string; user: User }
@@ -15,19 +16,20 @@ interface Job { id: string; kind: string; status: string; result_asset_id?: stri
 interface State {
   stage: string;
   images: Image[];
-  directions: { id: string; preview_status?: string; preview_url?: string }[];
+  directions: { id: string; name: string; scene: string; mood: string; why: string; preview_status?: string; preview_url?: string }[];
   garments: { asset_id: string; url: string }[];
   script?: { status: string; cover: { scene: string }; shots: { scene: string; pose: string; caption: string }[] };
   note?: { image_ids: string[]; title: string; body: string; tags: string[]; cost_cny?: number; ai_label: string };
   video?: { status: string; url?: string };
   active_jobs: Job[];
-  pending_action: { type: string } | null;
+  pending_action: { type: string; estimated_cost_cny?: number } | null;
+  budget?: ProjectBudget;
   cost_cny: number;
   last_message_id: string | null;
   script_versions: { version: number; checkpoint_id: string; created_at: string; summary: string; current: boolean }[];
 }
 interface Card { id: string; type: string; items?: Image[]; options?: { id: string }[]; status?: string; url?: string; poster_url?: string }
-interface Message { id: string; role: string; text: string; cards: Card[]; action?: Record<string, unknown>; refs?: string[]; can_regenerate?: boolean }
+interface Message { id: string; role: string; text: string; cards: Card[]; action?: Record<string, unknown>; refs?: string[]; can_regenerate?: boolean; trace?: MessageTrace }
 interface Event { type: string; data: Record<string, unknown> }
 
 const wait = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -258,8 +260,15 @@ for (const mode of ['missing', 'old-fields'] as const) test(`legacy ${mode} prof
     assert.equal((await request(base, '/api/me', { token: account.token, method: 'PATCH', body: { nickname: '新昵称' } })).response.status, 404);
     const garment = await upload(base, account.token);
     const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '旧服务', brand: '个人品牌', brief: '自然穿搭', garment_asset_ids: [garment.id] } })).body;
-    assert.ok((await send(base, project.id, account.token, { text: '帮我做穿搭笔记' })).some((event) => event.type === 'done'));
-    assert.equal((await request(base, `/api/projects/${project.id}/state`, { token: account.token })).response.status, 200);
+    const events = await send(base, project.id, account.token, { text: '帮我做穿搭笔记' });
+    assert.ok(events.some((event) => event.type === 'done'));
+    assert.ok(!events.some((event) => event.type === 'trace'));
+    const state = (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    assert.equal(state.budget, undefined);
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: state.directions[0].id } });
+    const script = (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    assert.equal(script.pending_action?.estimated_cost_cny, undefined);
+    assert.ok((await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body.every((message) => !message.trace));
     assert.equal((await request(base, `/api/projects/${project.id}`, { token: account.token, method: 'DELETE' })).response.status, 204);
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });
@@ -808,5 +817,161 @@ test('long passwords remain distinct beyond bcrypt 72-byte input limit', async (
     assert.equal((await request(base, '/api/auth/register', { body: { username: 'long-password', password } })).response.status, 200);
     assert.equal((await request(base, '/api/auth/login', { body: { username: 'long-password', password } })).response.status, 200);
     assert.equal((await request(base, '/api/auth/login', { body: { username: 'long-password', password: `${'长'.repeat(30)}b` } })).response.status, 401);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('sixth-round streams and restores traces, replaces directions with previews while keeping preferences, and matches worker cost to budget', async () => {
+  const dataDir = await temporaryData('outfit-mock-transparent-');
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const options = { clock: () => time };
+  let { server, base } = await startServer(dataDir, options);
+  try {
+    const account = await register(base, 'transparent-flow');
+    const garment = await upload(base, account.token);
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '透明创作', brand: '木棉', brief: '日常合作', garment_asset_ids: [garment.id] } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    const getMessages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
+    const sendTraced = async (body: Record<string, unknown>, tool: MessageTrace['tool']) => {
+      const events = await send(base, project.id, account.token, body);
+      const traceIndex = events.findIndex((event) => event.type === 'trace');
+      assert.ok(traceIndex >= 0 && traceIndex < events.findIndex((event) => event.type === 'done'));
+      const trace = events[traceIndex].data;
+      assert.equal(trace.tool, tool);
+      assert.equal(trace.cost_cny, 0, 'local text/tool dispatch does not bill providers');
+      assert.deepEqual((await getMessages()).at(-1)?.trace, trace);
+      return events;
+    };
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 0, remaining_cny: 20 });
+    const first = await sendTraced({ text: '想要通勤，傍晚拍摄，自然一点' }, 'propose_directions');
+    const firstCard = first.find((event) => event.type === 'card' && event.data.type === 'directions')!.data;
+    time += 250;
+    let state = await getState();
+    assert.equal(state.cost_cny, 1.5);
+    const oldDirections = structuredClone(state.directions);
+    const second = await sendTraced({ text: '换一组方向，保留我刚才说的偏好' }, 'propose_directions');
+    const nextCard = second.find((event) => event.type === 'card' && event.data.type === 'directions')!.data;
+    assert.equal(nextCard.id, firstCard.id);
+    state = await getState();
+    assert.ok(state.directions.every((direction) => !oldDirections.some((old) => old.id === direction.id || old.name === direction.name)));
+    assert.ok(state.directions[0].id.startsWith('direction_work_'));
+    assert.ok(state.directions.every((direction) => direction.scene.startsWith('傍晚的') && direction.mood.includes('自然') && direction.why.includes('通勤')));
+    assert.ok(state.directions.every((direction) => direction.preview_status === 'queued'));
+    time += 250;
+    state = await getState();
+    assert.ok(state.directions.every((direction) => direction.preview_status === 'succeeded' && direction.preview_url));
+    assert.equal((await fetch(state.directions[0].preview_url!)).status, 200);
+    assert.equal((await getMessages()).at(-1)?.trace?.cost_cny, 1.5);
+    assert.match((await getMessages()).at(-1)?.trace?.steps[0].label || '', /方向预览 3 张/);
+    await sendTraced({ action: { type: 'choose_direction', direction_id: state.directions[0].id } }, 'write_script');
+    state = await getState();
+    assert.equal(state.pending_action?.estimated_cost_cny, 4.32);
+    assert.equal(state.budget?.remaining_cny, 17);
+    const safeReply = (await getMessages()).at(-1)!;
+    const regenerated = await sendTraced({ action: { type: 'regenerate_reply', message_id: safeReply.id } }, 'chat');
+    assert.equal(regenerated.at(-1)?.data.message_id, safeReply.id);
+    assert.ok(!regenerated.some((event) => ['card', 'job'].includes(event.type)));
+    await sendTraced({ text: '封面姿势自然一点' }, 'revise_script');
+    const checkpoint = (await getState()).script_versions[0].checkpoint_id;
+    await sendTraced({ action: { type: 'restore_script', checkpoint_id: checkpoint } }, 'restore_script');
+    await sendTraced({ action: { type: 'confirm_script' } }, 'generate_images');
+    time += 250;
+    await getState();
+    time += 250;
+    state = await getState();
+    const completed = (await getMessages()).at(-1)!;
+    assert.equal(completed.trace?.tool, 'generate_images');
+    assert.equal(completed.trace?.cost_cny, 4.8);
+    assert.equal(completed.trace?.duration_ms, 500, 'worker trace includes the sequential automatic repair');
+    assert.ok(completed.trace?.steps.some((step) => step.label === '出图 3 张'));
+    assert.ok(completed.trace?.steps.some((step) => step.label === '自动修复 1 张'));
+    assert.deepEqual(state.budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 7.8, remaining_cny: 12.2 });
+    const image = state.images[0];
+    await sendTraced({ action: { type: 'edit_image', image_id: image.id, instruction: '背景更明亮' }, refs: [image.id] }, 'edit_image');
+    assert.deepEqual((await getMessages()).at(-1)?.trace?.refs, [image.id]);
+    time += 250;
+    state = await getState();
+    assert.equal((await getMessages()).at(-1)?.trace?.cost_cny, 1.2);
+    await sendTraced({ action: { type: 'approve_images', image_ids: [image.id] } }, 'write_note');
+    state = await getState();
+    assert.equal(state.pending_action?.estimated_cost_cny, 1.5);
+    await sendTraced({ action: { type: 'confirm_video', image_id: image.id } }, 'generate_video');
+    time += 250;
+    state = await getState();
+    const messages = await getMessages();
+    assert.ok(messages.filter((message) => message.role === 'assistant').every((message) => message.trace && message.trace.steps.length > 0 && message.trace.duration_ms >= 0));
+    assert.equal(messages.at(-1)?.trace?.cost_cny, 1.5);
+    assert.equal(state.cost_cny, state.budget?.today_cost_cny);
+    assert.equal((await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny, state.budget?.today_cost_cny);
+    const savedTrace = messages.at(-1)?.trace;
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, options));
+    assert.deepEqual((await getMessages()).at(-1)?.trace, savedTrace);
+    assert.deepEqual((await getState()).budget, state.budget);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('sixth-round budget rejects paid actions atomically, reserves queued jobs, caps automatic repair, and resets daily balance', async () => {
+  const dataDir = await temporaryData('outfit-mock-budget-');
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const options = { clock: () => time };
+  let { server, base } = await startServer(dataDir, options);
+  try {
+    const account = await register(base, 'budget-owner');
+    const garment = await upload(base, account.token);
+    const input = { title: '预算控制', brand: '木棉', brief: '自然日常', garment_asset_ids: [garment.id] };
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: input })).body;
+    const another = (await request<Project>(base, '/api/projects', { token: account.token, body: input })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    const getMessages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
+    const setLimit = async (limit: number) => {
+      await closeServer(server);
+      const file = path.join(dataDir, 'db.json');
+      const db = JSON.parse(await readFile(file, 'utf8')) as { users: { id: string; daily_budget_cny?: number }[] };
+      db.users.find((user) => user.id === account.user.id)!.daily_budget_cny = limit;
+      await writeFile(file, JSON.stringify(db));
+      ({ server, base } = await startServer(dataDir, options));
+    };
+    await setLimit(2.5);
+    await send(base, project.id, account.token, { text: '给我三个方向' });
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 2.5, today_cost_cny: 0, remaining_cny: 1 });
+    assert.equal((await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny, 0, 'queued reservations are not billed as successful usage');
+    const otherState = (await request<State>(base, `/api/projects/${another.id}/state`, { token: account.token })).body;
+    assert.equal(otherState.budget?.remaining_cny, 1, 'all projects display the same account-wide available balance');
+    const competing = await send(base, another.id, account.token, { text: '给我三个方向' });
+    assert.equal(competing[0].data.code, 'BUDGET_EXCEEDED', 'queued costs reserve budget across projects');
+    time += 250;
+    let state = await getState();
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: state.directions[0].id } });
+    state = await getState();
+    const historyBefore = await getMessages();
+    const denied = await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    assert.equal(denied[0].data.code, 'BUDGET_EXCEEDED');
+    assert.match(String(denied[0].data.message), /余额不足/);
+    assert.deepEqual(await getState(), state);
+    assert.deepEqual(await getMessages(), historyBefore);
+    await setLimit(6);
+    await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 6, today_cost_cny: 1.5, remaining_cny: 0.9 });
+    time += 250;
+    state = await getState();
+    assert.equal(state.images.length, 3, 'automatic repair must fit the remaining budget');
+    assert.equal(state.active_jobs.length, 0);
+    assert.equal(state.budget?.today_cost_cny, 5.1);
+    assert.equal(state.budget?.remaining_cny, 0.9);
+    const image = state.images[0];
+    assert.equal((await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: image.id, instruction: '背景亮一点' } }))[0].data.code, 'BUDGET_EXCEEDED');
+    await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: [image.id] } });
+    const noteState = await getState();
+    assert.equal(noteState.pending_action?.estimated_cost_cny, 1.5);
+    assert.equal((await send(base, project.id, account.token, { action: { type: 'confirm_video', image_id: image.id } }))[0].data.code, 'BUDGET_EXCEEDED');
+    assert.deepEqual(await getState(), noteState);
+    time += 86_400_000;
+    assert.equal((await getState()).budget?.remaining_cny, 6);
+    await send(base, project.id, account.token, { action: { type: 'confirm_video', image_id: image.id } });
+    time += 250;
+    state = await getState();
+    assert.equal(state.budget?.today_cost_cny, 1.5);
+    assert.equal(state.budget?.remaining_cny, 4.5);
+    assert.equal(state.cost_cny, 6.6, 'project ledger keeps lifetime spend while daily usage resets');
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });

@@ -13,6 +13,8 @@ const DAY = 86_400;
 const activeStatuses = new Set(['queued', 'running']);
 const newId = (prefix) => `${prefix}_${randomUUID()}`;
 const failure = (status, code, message) => Object.assign(new Error(message), { status, code });
+const PRICES = { preview: 0.5, image: 1.2, edit: 1.2, video: 1.5 };
+const money = (value) => Math.round(value * 100) / 100;
 
 function dimensions(bytes, mime) {
   if (mime === 'image/png' && bytes.length >= 24) return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
@@ -108,6 +110,27 @@ export async function createMockServer(options = {}) {
       profile: structuredClone(user.profile || { model_asset_ids: [] }),
     };
   }
+  function budgetFor(project) {
+    const owner = db.users.find((user) => user.id === project.ownerId);
+    const user = publicUser(owner);
+    const daily = owner.daily_budget_cny ?? 20;
+    const today = owner.todayUsage?.date === now().slice(0, 10) ? owner.todayUsage.cost_cny : 0;
+    const reserved = db.jobs.filter((job) => job.ownerId === project.ownerId && activeStatuses.has(job.status)).reduce((sum, job) => sum + jobCost(job), 0);
+    return { tier: user.tier || 'free', daily_budget_cny: daily, today_cost_cny: today, remaining_cny: Math.max(0, money(daily - today - reserved)) };
+  }
+  const jobCost = (job) => PRICES[job.directionId ? 'preview' : job.kind];
+  function availableBudget(project) {
+    return budgetFor(project).remaining_cny;
+  }
+  function requireBudget(project, cost, released = 0) {
+    if (money(availableBudget(project) + released) < cost) throw failure(409, 'BUDGET_EXCEEDED', '今日余额不足，请等待明天额度恢复后再生成');
+  }
+  const scriptEstimate = (project) => money((project.state.script?.shots.length || 0) * PRICES.image * 1.2);
+  function makeTrace(tool, refs = [], detail = {}) {
+    const labels = { chat: '整理回复', propose_directions: '给出方向', write_script: '写脚本', revise_script: '修改脚本', edit_image: '提交改图', write_note: '写笔记', generate_images: '提交出图', generate_video: '提交视频', restore_script: '恢复脚本' };
+    const duration_ms = detail.duration_ms ?? (['write_script', 'revise_script'].includes(tool) ? 4800 : tool === 'propose_directions' ? 3100 : 1200);
+    return { tool, model: detail.model || 'local-mock', duration_ms, cost_cny: detail.cost_cny ?? 0, refs: [...refs], steps: detail.steps || [{ label: labels[tool], duration_ms }] };
+  }
   function patchedProfile(user, body) {
     if (body.nickname !== undefined && (typeof body.nickname !== 'string' || !body.nickname.trim() || body.nickname.trim().length > 64)) throw failure(400, 'INVALID_NICKNAME', '昵称需要 1–64 个字符');
     if (body.profile === undefined) return user.profile || { model_asset_ids: [] };
@@ -197,10 +220,11 @@ export async function createMockServer(options = {}) {
       ...(note ? { note } : {}),
       ...(project.state.video ? { video: publicVideo(project, base) } : {}),
       active_jobs: db.jobs.filter((job) => job.project_id === project.id && activeStatuses.has(job.status)).map((job) => publicJob(job, base)),
-      pending_action: pending_action || null,
+      pending_action: pending_action ? { ...pending_action, ...(!options.legacyProfile && ['confirm_script', 'confirm_video'].includes(pending_action.type) ? { estimated_cost_cny: pending_action.type === 'confirm_script' ? scriptEstimate(project) : PRICES.video } : {}) } : null,
       cost_cny: project.state.cost_cny || 0,
       last_message_id: project.messages.at(-1)?.id || null,
       script_versions: (project.scriptHistory || []).map(({ version, checkpoint_id, created_at, summary }) => ({ version, checkpoint_id, created_at, summary, current: version === project.currentScriptVersion })),
+      ...(!options.legacyProfile ? { budget: budgetFor(project) } : {}),
     };
   }
   function card(project, type, base) {
@@ -224,7 +248,7 @@ export async function createMockServer(options = {}) {
   }
   function publicMessages(project, base) {
     return project.messages.map((message, index) => ({
-      ...Object.fromEntries(Object.entries(message).filter(([key]) => !['originalText', 'regenerateCount'].includes(key))),
+      ...Object.fromEntries(Object.entries(message).filter(([key]) => !['originalText', 'regenerateCount', ...(options.legacyProfile ? ['trace'] : [])].includes(key))),
       ...(message.role === 'assistant' ? { can_regenerate: index === project.messages.length - 1 && message.can_regenerate === true && !options.legacyProfile } : {}),
       cards: message.cards.map((item) => {
         if (['note', 'script', 'video'].includes(item.type) && !project.state[item.type]) {
@@ -247,8 +271,8 @@ export async function createMockServer(options = {}) {
     project.scriptHistory.push({ version, checkpoint_id: newId('checkpoint'), created_at: now(), summary, script: structuredClone(project.state.script) });
     project.currentScriptVersion = version;
   }
-  function announce(project, text, types, base) {
-    project.messages.push({ id: newId('message'), role: 'assistant', text, cards: types.map((type) => card(project, type, base)), created_at: now() });
+  function announce(project, text, types, base, trace) {
+    project.messages.push({ id: newId('message'), role: 'assistant', text, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: false, created_at: now() });
   }
   const assetPath = (asset) => asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
   async function addGeneratedAsset(project, job, image) {
@@ -327,7 +351,7 @@ export async function createMockServer(options = {}) {
             image.fidelity = needsFix
               ? { score: 54, diffs: ['左侧胸袋缺失', '纽扣位置与原衣服不一致'], auto_fixed: false }
               : { score: image.automatic ? 92 : 96, diffs: [], auto_fixed: Boolean(image.automatic) };
-            if (needsFix) {
+            if (needsFix && money(availableBudget(project) - jobCost(job)) >= PRICES.edit) {
               image.autoFixAttempted = true;
               const repaired = {
                 id: newId('image'), shot_id: image.shot_id, status: 'queued',
@@ -339,13 +363,13 @@ export async function createMockServer(options = {}) {
               queueJob(project, 'edit', repaired, 0, { groupId: job.groupId });
             }
           }
-          const cost = job.directionId ? 0.5 : job.kind === 'video' ? 1.5 : 1.2;
-          project.state.cost_cny = Math.round(((project.state.cost_cny || 0) + cost) * 100) / 100;
+          const cost = jobCost(job);
+          project.state.cost_cny = money((project.state.cost_cny || 0) + cost);
           const owner = db.users.find((user) => user.id === project.ownerId);
           if (owner) {
             const date = now().slice(0, 10);
             if (owner.todayUsage?.date !== date) owner.todayUsage = { date, cost_cny: 0 };
-            owner.todayUsage.cost_cny = Math.round((owner.todayUsage.cost_cny + cost) * 100) / 100;
+            owner.todayUsage.cost_cny = money(owner.todayUsage.cost_cny + cost);
           }
           if (project.state.note) project.state.note.cost_cny = project.state.cost_cny;
           if (job.kind === 'video') {
@@ -401,7 +425,15 @@ export async function createMockServer(options = {}) {
           : autoFixed ? '3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。'
           : first.kind === 'edit' ? '这张图改好了，原图也保留着，可以对比后再选。'
           : '这批穿搭图片都好了，可以挑选笔记用图了。';
-        announce(project, text, [type], base);
+        const successful = jobs.filter((job) => job.status === 'succeeded');
+        const duration_ms = Math.max(0, Math.max(...jobs.map((job) => Date.parse(job.updated_at))) - Math.min(...jobs.map((job) => Date.parse(job.created_at))));
+        const tool = first.directionId ? 'propose_directions' : first.kind === 'video' ? 'generate_video' : first.kind === 'edit' ? 'edit_image' : 'generate_images';
+        const primaryJobs = jobs.filter((job) => first.kind === 'edit' || job.kind !== 'edit');
+        const primaryDuration = Math.max(0, ...primaryJobs.map((job) => Date.parse(job.updated_at) - Date.parse(job.created_at)));
+        const steps = first.kind === 'video'
+          ? [{ label: `生成视频 ${successful.length} 条`, duration_ms }]
+          : [{ label: `${first.directionId ? '方向预览' : first.kind === 'edit' ? '改图' : '出图'} ${successful.filter((job) => job.kind !== 'edit').length || successful.length} 张`, duration_ms: primaryDuration }, ...(autoFixed ? [{ label: '自动修复 1 张', duration_ms: jobs.filter((job) => job.kind === 'edit').reduce((sum, job) => sum + Date.parse(job.updated_at) - Date.parse(job.created_at), 0) }] : [])];
+        announce(project, text, [type], base, makeTrace(tool, jobs.map((job) => job.imageId || job.result_asset_id).filter(Boolean), { duration_ms, cost_cny: money(successful.reduce((sum, job) => sum + jobCost(job), 0)), model: 'local-fixture', steps }));
       }
     }
     return changed;
@@ -417,7 +449,9 @@ export async function createMockServer(options = {}) {
     return job;
   }
   function queuePreviews(project) {
-    for (const job of db.jobs.filter((item) => item.project_id === project.id && item.directionId && activeStatuses.has(item.status))) {
+    const replacing = db.jobs.filter((item) => item.project_id === project.id && item.directionId && activeStatuses.has(item.status));
+    requireBudget(project, money(project.state.directions.length * PRICES.preview), replacing.reduce((sum, job) => sum + jobCost(job), 0));
+    for (const job of replacing) {
       job.status = 'failed'; job.error = '方向已调整，已替换为新版预览任务'; job.updated_at = now();
       project.notifiedGroups ||= [];
       project.notifiedGroups.push(job.groupId);
@@ -434,17 +468,28 @@ export async function createMockServer(options = {}) {
       { id: 'direction_work', name: '轻松通勤日', scene: '明亮办公楼外、窗边咖啡桌', mood: '利落、干净、轻盈', palette: '白 / 灰 / 深蓝', why: '用简洁搭配突出衣服质感，上班和下班见朋友都合适。', sample_title: '早八也能轻松出门的质感穿搭' },
       { id: 'direction_nature', name: '出走去公园', scene: '公园长椅、开阔草地和树影', mood: '清新、温柔、随性', palette: '米白 / 草绿 / 浅棕', why: '自然光让衣服颜色和面料更清楚，适合分享舒服的周末状态。', sample_title: '把周末交给阳光和舒服的衣服' },
     ];
-    const request = `${project.brief} ${project.styleNotes || ''} ${revision}`;
+    const request = `${project.brief} ${project.styleNotes || ''} ${(project.directionPreferences || []).join(' ')} ${revision}`;
     const preferred = /通勤|上班|办公室/.test(request) ? 'direction_work' : /公园|户外|露营/.test(request) ? 'direction_nature' : 'direction_city';
     result.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
     if (project.styleNotes) for (const option of result) option.why += ` 博主风格偏好：${project.styleNotes}。`;
     if (revision) {
       for (const option of result) {
-        option.why += ` 已参考你的想法：${revision}`;
-        if (/松弛|自然一点|随性|舒服/.test(revision)) option.mood = `更松弛自然，${option.mood}`;
-        if (/夜景|晚上|傍晚/.test(revision)) option.scene = `傍晚的${option.scene}`;
+        option.why += ` 已参考你的想法：${(project.directionPreferences || []).join('；') || revision}`;
+        if (/松弛|自然一点|随性|舒服/.test(request)) option.mood = `更松弛自然，${option.mood}`;
+        if (/夜景|晚上|傍晚/.test(request)) option.scene = `傍晚的${option.scene}`;
       }
       result[0].name = `${result[0].name} · 调整版`;
+    }
+    if (project.directionRevision) {
+      const alternatives = project.directionRevision % 2
+        ? { direction_city: ['旧书店的慢时光', '独立书店、安静的复古街角'], direction_work: ['下班后的微度假', '创意园区、沿街露台咖啡店'], direction_nature: ['河边的一点绿意', '河岸步道、树荫下的石阶'] }
+        : { direction_city: ['巷子里的周末', '老街小巷、街边花店'], direction_work: ['轻盈的工作间隙', '美术馆外、干净的玻璃走廊'], direction_nature: ['走进秋日植物园', '植物园、阳光下的温室'] };
+      for (const option of result) {
+        const alternative = alternatives[option.id];
+        option.id = `${option.id}_${project.directionRevision + 1}`;
+        option.name = alternative[0];
+        option.scene = `${/夜景|晚上|傍晚/.test(request) ? '傍晚的' : ''}${alternative[1]}`;
+      }
     }
     return result;
   }
@@ -512,18 +557,21 @@ export async function createMockServer(options = {}) {
       last.originalText ||= last.text;
       last.regenerateCount = (last.regenerateCount || 0) + 1;
       last.text = `${last.regenerateCount % 2 ? '换个表达：' : '我换种方式说：'}${last.originalText}`;
+      last.trace = makeTrace('chat', last.trace?.refs || []);
       touch(project);
-      return { reply: last.text, cards: [], jobs: [], message_id: last.id };
+      return { reply: last.text, cards: [], jobs: [], message_id: last.id, trace: last.trace };
     }
     const jobs = [];
     let types = [];
     let reply = '';
+    let tool = 'chat';
     if (action) {
       switch (action.type) {
         case 'choose_direction': {
           if (!['direction', 'script'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '先和我聊聊需求，再选择一个方向吧');
           if (!state.directions.some((item) => item.id === action.direction_id)) throw failure(400, 'INVALID_DIRECTION', '这个方向不存在，请重新选择');
           state.chosen_direction_id = action.direction_id;
+          tool = 'write_script';
           state.script = makeScript(project);
           saveScriptVersion(project, `按“${state.directions.find((item) => item.id === action.direction_id).name}”创建脚本`);
           state.stage = 'script';
@@ -535,6 +583,8 @@ export async function createMockServer(options = {}) {
         case 'confirm_script': {
           if (state.stage !== 'script' || state.script?.status !== 'draft') throw failure(409, 'SCRIPT_NOT_READY', '请先选择方向，确认拍摄脚本后再生成');
           if (db.jobs.some((job) => job.project_id === project.id && !job.directionId && activeStatuses.has(job.status))) throw failure(409, 'JOBS_RUNNING', '已有图片或视频仍在生成，完成后再确认这版脚本');
+          requireBudget(project, scriptEstimate(project));
+          tool = 'generate_images';
           state.script.status = 'confirmed';
           const images = state.script.shots.map((shot) => ({ id: newId('image'), shot_id: shot.id, status: 'queued', version: Math.max(0, ...state.images.filter((item) => item.shot_id === shot.id).map((item) => item.version)) + 1, script_version: project.currentScriptVersion }));
           state.images.push(...images);
@@ -551,6 +601,7 @@ export async function createMockServer(options = {}) {
         case 'restore_script': {
           const saved = project.scriptHistory?.find((item) => item.checkpoint_id === action.checkpoint_id);
           if (!saved) throw failure(400, 'INVALID_CHECKPOINT', '没有找到这个脚本版本，请刷新历史后重试');
+          tool = 'restore_script';
           state.script = structuredClone(saved.script);
           state.script.status = 'draft';
           project.currentScriptVersion = saved.version;
@@ -566,6 +617,8 @@ export async function createMockServer(options = {}) {
           const instruction = typeof action.instruction === 'string' ? action.instruction.trim() : '';
           if (!original || !instruction) throw failure(400, 'INVALID_EDIT', '请选择一张已完成的图片，并写下修改想法');
           const selection = editSelection(action);
+          requireBudget(project, PRICES.edit);
+          tool = 'edit_image';
           const isLocal = Boolean(selection.region || selection.mask_strokes);
           const source = db.assets.find((item) => item.id === original.assetId);
           const region = selectionBounds(selection, source.width, source.height);
@@ -582,6 +635,7 @@ export async function createMockServer(options = {}) {
           if (!['images', 'note', 'done'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '请先生成图片，再选择笔记用图');
           const ids = action.image_ids;
           if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length || ids.some((id) => !state.images.some((item) => item.id === id && item.status === 'succeeded'))) throw failure(400, 'INVALID_IMAGES', '请选择已生成完成的图片，每张只选一次');
+          tool = 'write_note';
           state.note = {
             title: state.script.title_ideas[0],
             body: `最近喜欢把穿搭做减法，舒服自在就很好。\n\n这次和${project.brand}一起，把喜欢的单品穿进日常。干净的颜色、舒服的版型，随手一搭就能出门。\n\n${state.script.shots.map((shot) => shot.caption).join('。')}。\n\n你们更喜欢哪一张？欢迎一起聊聊今日穿搭。`,
@@ -600,6 +654,8 @@ export async function createMockServer(options = {}) {
           if (!['note', 'done'].includes(state.stage) || !state.note) throw failure(409, 'NOTE_NOT_READY', '先选好笔记图片，再生成短视频');
           const image = state.images.find((item) => item.id === action.image_id && item.status === 'succeeded' && state.note.image_ids.includes(item.id));
           if (!image) throw failure(400, 'INVALID_IMAGE', '请选择一张笔记中已完成的图片');
+          requireBudget(project, PRICES.video);
+          tool = 'generate_video';
           const job = queueJob(project, 'video');
           jobs.push(job);
           state.video = { status: 'queued', job_id: job.id, posterAssetId: image.assetId };
@@ -615,6 +671,11 @@ export async function createMockServer(options = {}) {
       const text = typeof body.text === 'string' ? body.text.trim() : '';
       if (!text) throw failure(400, 'EMPTY_MESSAGE', '写一句你的想法再发送吧');
       if (['brief', 'direction'].includes(state.stage)) {
+        const replacing = db.jobs.filter((job) => job.project_id === project.id && job.directionId && activeStatuses.has(job.status));
+        requireBudget(project, 3 * PRICES.preview, replacing.reduce((sum, job) => sum + jobCost(job), 0));
+        tool = 'propose_directions';
+        if (/换一组/.test(text)) project.directionRevision = (project.directionRevision || 0) + 1;
+        else project.directionPreferences = [...(project.directionPreferences || []), text];
         state.directions = makeDirections(project, text);
         jobs.push(...queuePreviews(project));
         state.stage = 'direction';
@@ -622,15 +683,19 @@ export async function createMockServer(options = {}) {
         types = ['garments', 'directions'];
         reply = `我看过衣服和${project.brand}的合作需求了，整体适合自然、舒服的日常表达。给你整理了三个场景方向，你喜欢哪一种？也可以继续告诉我想调整的感觉。`;
       } else if (state.stage === 'script') {
+        tool = 'revise_script';
         state.script = makeScript(project, text);
         saveScriptVersion(project, text);
         types = ['script'];
         reply = `可以，我按“${text}”调整了脚本。再看看这版，确认后我们就开始出图。`;
       } else if (['note', 'done'].includes(state.stage)) {
+        tool = 'write_note';
         state.note.body = `${state.note.body}\n\n${text}`;
         types = ['note'];
         reply = '我已经把你的想法补进笔记里了，打开预览就能看到。';
       } else if (state.stage === 'images' && /重试|重新生成|再试/.test(text) && state.images.some((image) => image.status === 'failed')) {
+        requireBudget(project, money(state.images.filter((image) => image.status === 'failed').reduce((sum, image) => sum + PRICES[image.parent_id ? 'edit' : 'image'], 0)));
+        tool = 'generate_images';
         const groupId = newId('group');
         for (const image of state.images.filter((item) => item.status === 'failed')) {
           image.status = 'queued';
@@ -645,10 +710,11 @@ export async function createMockServer(options = {}) {
       }
     }
     touch(project);
+    const trace = makeTrace(tool, refs || (tool === 'propose_directions' ? project.garmentAssetIds : []), tool === 'propose_directions' ? { steps: [{ label: `看图 ${project.garmentAssetIds.length} 件`, duration_ms: 1800 }, { label: '给出 3 个方向', duration_ms: 1300 }] } : {});
     const userMessage = { id: newId('message'), role: 'user', text: typeof body.text === 'string' ? body.text.trim() : '', cards: [], ...(action ? { action: normalizedAction(action) } : {}), ...(refs !== undefined ? { refs: [...refs] } : {}), created_at: now() };
-    const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), can_regenerate: jobs.length === 0, created_at: now() };
+    const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: jobs.length === 0, created_at: now() };
     project.messages.push(userMessage, assistant);
-    return { reply, cards: types.map((type) => card(project, type, base)), jobs: jobs.map((job) => publicJob(job, base)), message_id: assistant.id };
+    return { reply, cards: types.map((type) => card(project, type, base)), jobs: jobs.map((job) => publicJob(job, base)), message_id: assistant.id, trace };
   }
   async function readBody(req) {
     const chunks = [];
@@ -687,6 +753,7 @@ export async function createMockServer(options = {}) {
     }
     for (const value of result.cards) event('card', value);
     for (const value of result.jobs) event('job', value);
+    if (result.trace && !options.legacyProfile) event('trace', result.trace);
     event('done', { message_id: result.message_id });
     res.end();
   }
