@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cardsFromState, mergeCards, mergeImages, mergeJobs, mergeProjectState, mergeStateIntoCards } from '../src/api/merge';
-import type { Card, Job, JobStatus, ProjectState } from '../src/api/types';
+import { cardsFromState, mergeCards, mergeImages, mergeJobs, mergeProjectState, mergeStateIntoCards, stateWithCard } from '../src/api/merge';
+import type { Card, Job, JobStatus, ProjectState, ScriptData } from '../src/api/types';
 
 function job(status: JobStatus, updated = '2026-10-20T02:00:00Z'): Job {
   return { id: 'j1', project_id: 'p1', kind: 'image', status, created_at: '2026-10-20T01:00:00Z', updated_at: updated };
@@ -85,4 +85,73 @@ test('authoritative state clears old note/video and empty jobs while retaining i
   assert.equal(merged.images[0]?.status, 'succeeded');
   assert.equal(merged.images[0]?.url, '/one.jpg');
   assert.equal(mergeProjectState(undefined, previous), previous);
+});
+
+const script: ScriptData = {
+  status: 'draft', title_ideas: ['初版标题'], cover: { scene: '咖啡馆', pose: '侧身', text_overlay: '' },
+  shots: [{ id: 's1', scene: '咖啡馆', outfit_asset_ids: [], pose: '侧身', camera: '全身', caption: '一杯咖啡' }],
+  video: { prompt: '走向镜头', duration: 5 },
+};
+
+test('state cards carry previews, fidelity, script provenance, note cost and disclosure without mutating history', () => {
+  const snapshot = state({
+    stage: 'note', cost_cny: 3.25, last_message_id: 'm2',
+    directions: [{ id: 'd1', name: '午后', scene: '咖啡馆', mood: '自然', palette: ['白'], why: '日常', sample_title: '午后出门', preview_status: 'succeeded', preview_url: '/preview.jpg' }],
+    images: [{ id: 'i2', shot_id: 's1', status: 'succeeded', version: 2, parent_id: 'i1', url: '/fixed.jpg', instruction: '保留胸前口袋', script_version: 2, fidelity: { score: 92, diffs: ['恢复口袋'], auto_fixed: true } }],
+    note: { title: '今天这样穿', body: '一身刚刚好', tags: [], image_ids: ['i2'], cost_cny: 3.25, ai_label: '含 AI 生成内容，发布时请勾选平台声明。' },
+    script_versions: [{ version: 2, checkpoint_id: 'cp2', created_at: '2026-10-20T02:00:00Z', summary: '口袋和场景', current: true }],
+  });
+  const old: Card = { id: 'directions-card', type: 'directions', options: [] };
+  const cards = mergeStateIntoCards([old], snapshot);
+  const directions = cards.find(card => card.type === 'directions');
+  const images = cards.find(card => card.type === 'images');
+  const note = cards.find(card => card.type === 'note');
+  assert.equal(directions?.id, old.id);
+  assert.equal(directions?.type === 'directions' && directions.options[0]?.preview_url, '/preview.jpg');
+  assert.equal(images?.type === 'images' && images.items[0]?.fidelity?.score, 92);
+  assert.equal(images?.type === 'images' && images.items[0]?.script_version, 2);
+  assert.equal(note?.type === 'note' && note.cost_cny, 3.25);
+  assert.equal(note?.type === 'note' && note.ai_label, snapshot.note?.ai_label);
+  assert.deepEqual(old.options, []);
+  assert.deepEqual(mergeCards(cards, [{ ...snapshot.note!, id: note!.id, type: 'note', cost_cny: 4.5 }]).find(card => card.type === 'note'), { ...snapshot.note, id: note!.id, type: 'note', cost_cny: 4.5 });
+});
+
+test('a later images event extends note/video stages and retains their content and new project fields', () => {
+  const note = { title: '笔记', body: '正文', tags: [], image_ids: ['i1'], cost_cny: 2.4, ai_label: 'AI生成' };
+  for (const stage of ['note', 'video', 'done'] as const) {
+    const previous = state({
+      stage, note, video: { status: 'succeeded', url: '/one.mp4' }, cost_cny: 2.4, last_message_id: 'm1',
+      images: [{ id: 'i1', shot_id: 's1', status: 'succeeded', version: 1, url: '/one.jpg' }],
+    });
+    const result = stateWithCard(previous, { id: 'images', type: 'images', items: [{ id: 'i2', shot_id: 's1', status: 'succeeded', version: 2, parent_id: 'i1', fidelity: { score: 93, diffs: [], auto_fixed: true } }] });
+    assert.equal(result.stage, stage);
+    assert.equal(result.note, note);
+    assert.equal(result.video, previous.video);
+    assert.equal(result.cost_cny, 2.4);
+    assert.equal(result.last_message_id, 'm1');
+    assert.deepEqual(result.images.map(image => image.id), ['i1', 'i2']);
+  }
+});
+
+test('restoring a draft script and then receiving preserved images stays in script until confirmation', () => {
+  const image = { id: 'i1', shot_id: 's1', status: 'succeeded' as const, version: 1, url: '/one.jpg', script_version: 2 };
+  const previous = state({ stage: 'done', script: { ...script, status: 'confirmed' }, images: [image] });
+  const restored = stateWithCard(previous, { ...script, id: 'script', type: 'script' });
+  const afterImages = stateWithCard(restored, { id: 'images', type: 'images', items: [image] });
+  assert.equal(afterImages.stage, 'script');
+  assert.equal(afterImages.script?.status, 'draft');
+  assert.deepEqual(afterImages.images, [image]);
+  const confirmed = stateWithCard(afterImages, { ...script, id: 'script', type: 'script', status: 'confirmed' });
+  assert.equal(stateWithCard(confirmed, { id: 'images', type: 'images', items: [image] }).stage, 'images');
+});
+
+test('restored authoritative history replaces current script metadata while keeping previously generated images', () => {
+  const oldImage = { id: 'i1', shot_id: 's1', status: 'succeeded' as const, version: 1, url: '/one.jpg', script_version: 2 };
+  const previous = state({ stage: 'note', script: { ...script, status: 'confirmed' }, images: [oldImage], script_versions: [{ version: 2, checkpoint_id: 'cp2', created_at: '2026-10-20T02:00:00Z', summary: '新版', current: true }] });
+  const result = mergeProjectState(previous, state({ stage: 'script', script, script_versions: [{ version: 1, checkpoint_id: 'cp1', created_at: '2026-10-20T01:00:00Z', summary: '初版', current: true }, { ...previous.script_versions![0]!, current: false }], pending_action: { type: 'confirm_script', prompt: '确认恢复后的脚本' } }));
+  assert.equal(result.stage, 'script');
+  assert.equal(result.script?.title_ideas[0], '初版标题');
+  assert.deepEqual(result.images, [oldImage]);
+  assert.equal(result.script_versions?.find(version => version.current)?.checkpoint_id, 'cp1');
+  assert.equal(result.pending_action?.type, 'confirm_script');
 });

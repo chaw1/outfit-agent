@@ -63,6 +63,8 @@ export interface Direction {
   palette: string | string[];
   why: string;
   sample_title: string;
+  preview_url?: string;
+  preview_status?: JobStatus;
 }
 
 export interface ScriptShot {
@@ -82,6 +84,14 @@ export interface ScriptData {
   video: { prompt: string; duration: number };
 }
 
+export interface ScriptVersion {
+  version: number;
+  checkpoint_id: string;
+  created_at: string;
+  summary: string;
+  current: boolean;
+}
+
 export interface OutfitImage {
   id: string;
   shot_id: string;
@@ -91,10 +101,19 @@ export interface OutfitImage {
   parent_id?: string;
   instruction?: string;
   error?: string;
+  fidelity?: { score: number; diffs: string[]; auto_fixed: boolean };
+  script_version?: number;
 }
 
 export type Image = OutfitImage;
-export interface NoteData { title: string; body: string; tags: string[]; image_ids: string[] }
+export interface NoteData {
+  title: string;
+  body: string;
+  tags: string[];
+  image_ids: string[];
+  cost_cny?: number;
+  ai_label?: string;
+}
 export interface VideoData { status: JobStatus; url?: string; poster_url?: string; job_id?: string }
 
 export type Card =
@@ -110,7 +129,8 @@ export type Action =
   | { type: 'confirm_script' }
   | { type: 'edit_image'; image_id: string; instruction: string }
   | { type: 'approve_images'; image_ids: string[] }
-  | { type: 'confirm_video'; image_id: string };
+  | { type: 'confirm_video'; image_id: string }
+  | { type: 'restore_script'; checkpoint_id: string };
 
 export interface Message {
   id: string;
@@ -149,6 +169,9 @@ export interface ProjectState {
   video?: VideoData;
   active_jobs: Job[];
   pending_action?: PendingAction | null;
+  cost_cny?: number;
+  last_message_id?: string | null;
+  script_versions?: ScriptVersion[];
 }
 
 export interface SendMessageInput { text?: string; action?: Action }

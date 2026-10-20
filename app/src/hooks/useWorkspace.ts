@@ -1,25 +1,13 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { mergeCards, mergeImages, mergeJobs, mergeProjectState, mergeStateIntoCards } from '../api/merge';
+import { emptyProjectState, mergeCards, mergeJobs, mergeProjectState, mergeStateIntoCards, stateWithCard } from '../api/merge';
 import type { Card, Job, Message, Project, ProjectState, SendMessageInput } from '../api/types';
+import { WorkspaceHistorySync } from '../api/workspaceSync';
 import { errorText } from '../components/ui';
 import { useSession } from '../context/Session';
 
-const emptyState = (): ProjectState => ({ stage: 'brief', garments: [], directions: [], images: [], active_jobs: [] });
 const active = (job: Job) => job.status === 'queued' || job.status === 'running';
-
-function stateWithCard(previous: ProjectState | undefined, card: Card): ProjectState {
-  const state = previous ?? emptyState();
-  switch (card.type) {
-    case 'garments': return { ...state, garments: card.items };
-    case 'directions': return { ...state, stage: 'direction', directions: card.options, pending_action: undefined };
-    case 'script': return { ...state, stage: 'script', script: card, pending_action: undefined };
-    case 'images': return { ...state, stage: 'images', images: mergeImages(state.images, card.items), note: undefined, video: undefined, pending_action: null };
-    case 'note': return { ...state, stage: 'note', note: card, pending_action: undefined };
-    case 'video': return { ...state, stage: card.status === 'succeeded' ? 'done' : 'video', video: card, pending_action: null };
-  }
-}
 
 export function useWorkspace(id: string) {
   const { api, token } = useSession();
@@ -41,12 +29,14 @@ export function useWorkspace(id: string) {
   const sending = useRef(false);
   const stateRequest = useRef(0);
   const historyRequest = useRef(0);
+  const historySync = useRef(new WorkspaceHistorySync());
   const conversationVersion = useRef(0);
   const dataVersion = useRef(0);
   const liveJobs = useRef(new Map<string, Job>());
   const currentMessages = useRef(messages);
   const optimistic = useRef<{ assistantId: string; expectedId?: string; baseline: Set<string> } | null>(null);
   const stream = useRef<{ controller: AbortController; streaming: boolean } | null>(null);
+  const appStatus = useRef(AppState.currentState);
 
   useLayoutEffect(() => { latestOwner.current = owner; currentMessages.current = messages; }, [owner, messages]);
 
@@ -58,14 +48,14 @@ export function useWorkspace(id: string) {
     const epoch = focusEpoch.current;
     if (!id || !token || !isCurrent(owner, epoch)) return;
     const request = ++stateRequest.current;
-    const history = withHistory ? ++historyRequest.current : 0;
     const conversation = conversationVersion.current;
     const data = dataVersion.current;
     const [fresh, details] = await Promise.all([
       api.state(id),
-      withHistory ? Promise.all([api.project(id), api.messages(id)]) : Promise.resolve(undefined),
+      withHistory ? api.project(id) : Promise.resolve(undefined),
     ]);
     if (!isCurrent(owner, epoch) || conversation !== conversationVersion.current) return;
+    if (request === stateRequest.current) historySync.current.observeState(fresh);
     if (request === stateRequest.current && data === dataVersion.current) {
       // During a stream, a just-received job may not yet appear in a concurrent snapshot.
       // Terminal events remain useful afterwards; running jobs disappear when state says done.
@@ -73,17 +63,22 @@ export function useWorkspace(id: string) {
       const snapshot = { ...fresh, active_jobs: mergeJobs(fresh.active_jobs, events).filter(active) };
       setState(previous => isCurrent(owner, epoch) ? mergeProjectState(previous, snapshot) : previous);
     }
-    if (details && history === historyRequest.current) {
-      setProject(details[0]);
-      if (!stream.current?.streaming) {
-        const turn = optimistic.current;
-        const persisted = !turn || (turn.expectedId
-          ? details[1].some(message => message.id === turn.expectedId)
-          : details[1].some(message => message.role === 'assistant' && !turn.baseline.has(message.id)));
-        if (persisted) {
-          optimistic.current = null; currentMessages.current = details[1]; setMessages(details[1]);
-          setRecovering(details[1].at(-1)?.role === 'user');
-        } else setRecovering(true);
+    if (details && request === stateRequest.current) setProject(details);
+    if (historySync.current.needsHistory(Boolean(stream.current?.streaming), withHistory)) {
+      const history = ++historyRequest.current;
+      const persistedMessages = await api.messages(id);
+      if (!isCurrent(owner, epoch) || conversation !== conversationVersion.current || history !== historyRequest.current || stream.current?.streaming) return fresh;
+      const turn = optimistic.current;
+      const persisted = !turn || (turn.expectedId
+        ? persistedMessages.some(message => message.id === turn.expectedId)
+        : persistedMessages.some(message => message.role === 'assistant' && !turn.baseline.has(message.id)));
+      if (persisted && historySync.current.canApplyHistory(persistedMessages)) {
+        historySync.current.appliedHistory(persistedMessages);
+        optimistic.current = null; currentMessages.current = persistedMessages; setMessages(persistedMessages);
+        setRecovering(persistedMessages.at(-1)?.role === 'user');
+      } else {
+        // Keep the marker pending until history contains it, even after the last job disappears.
+        setRecovering(true);
       }
     }
     return fresh;
@@ -101,7 +96,7 @@ export function useWorkspace(id: string) {
     const assistantId = `${prefix}-assistant`;
     optimistic.current = { assistantId, baseline: new Set(currentMessages.current.map(message => message.id)) };
     const now = new Date().toISOString();
-    const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。' };
+    const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。' };
     const text = input.text || (input.action?.type === 'edit_image' ? input.action.instruction : actionLabels[input.action?.type || ''] || '');
     setMessages(previous => [...previous, { id: `${prefix}-user`, role: 'user', text, cards: [], action: input.action, created_at: now }, { id: assistantId, role: 'assistant', text: '', cards: [], created_at: now }]);
     try {
@@ -121,7 +116,7 @@ export function useWorkspace(id: string) {
             const merged = mergeJobs(previous ? [previous] : [], [event.data])[0];
             if (merged) liveJobs.current.set(merged.id, merged);
             setState(previousState => {
-              const current = previousState ?? emptyState();
+              const current = previousState ?? emptyProjectState();
               return { ...current, active_jobs: mergeJobs(current.active_jobs, merged ? [merged] : []).filter(active) };
             });
           }
@@ -157,6 +152,7 @@ export function useWorkspace(id: string) {
     if (loadedOwner.current !== owner) {
       loadedOwner.current = owner;
       autoStarted.current = false; liveJobs.current.clear(); optimistic.current = null;
+      historySync.current = new WorkspaceHistorySync();
       setRecovering(false);
       currentMessages.current = [];
       setProject(undefined); setState(undefined); setMessages([]);
@@ -179,13 +175,12 @@ export function useWorkspace(id: string) {
     };
   }, [owner, token, id, refresh, send, isCurrent]));
 
-  const hasJobs = Boolean(state?.active_jobs.some(active));
   useEffect(() => {
-    if (!focused || (!hasJobs && !recovering)) return;
+    if (!focused || loading) return;
     const epoch = focusEpoch.current;
     let polling = false;
     const timer = setInterval(() => {
-      if (polling) return;
+      if (polling || (appStatus.current && appStatus.current !== 'active')) return;
       polling = true;
       void refresh(recovering && !stream.current?.streaming).then(fresh => {
         if (fresh && isCurrent(owner, epoch)) setError(previous => previous.startsWith('进度暂时没同步：') ? '' : previous);
@@ -194,10 +189,11 @@ export function useWorkspace(id: string) {
       }).finally(() => { polling = false; });
     }, 3000);
     return () => clearInterval(timer);
-  }, [focused, hasJobs, recovering, refresh, owner, isCurrent]);
+  }, [focused, loading, recovering, refresh, owner, isCurrent]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', status => {
+      appStatus.current = status;
       const epoch = focusEpoch.current;
       if (status === 'active' && isCurrent(owner, epoch)) {
         void refresh(!stream.current?.streaming).catch(e => { if (isCurrent(owner, epoch)) setError(errorText(e)); });
