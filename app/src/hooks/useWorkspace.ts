@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 import { emptyProjectState, mergeCards, mergeJobs, mergeProjectState, mergeStateIntoCards, stateWithCard } from '../api/merge';
 import type { Card, Job, Message, Project, ProjectState, SendMessageInput } from '../api/types';
 import { WorkspaceHistorySync } from '../api/workspaceSync';
+import { ApiError } from '../api/client';
 import { errorText } from '../components/ui';
 import { useSession } from '../context/Session';
 
@@ -86,7 +87,7 @@ export function useWorkspace(id: string) {
 
   const send = useCallback(async (input: SendMessageInput) => {
     const epoch = focusEpoch.current;
-    if (sending.current || !id || !token || !isCurrent(owner, epoch)) return;
+    if (sending.current || !id || !token || !isCurrent(owner, epoch)) return false;
     sending.current = true;
     conversationVersion.current += 1;
     setBusy(true); setRecovering(false); setError('');
@@ -98,7 +99,10 @@ export function useWorkspace(id: string) {
     const now = new Date().toISOString();
     const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。' };
     const text = input.text || (input.action?.type === 'edit_image' ? input.action.instruction : actionLabels[input.action?.type || ''] || '');
-    setMessages(previous => [...previous, { id: `${prefix}-user`, role: 'user', text, cards: [], action: input.action, created_at: now }, { id: assistantId, role: 'assistant', text: '', cards: [], created_at: now }]);
+    setMessages(previous => [...previous, { id: `${prefix}-user`, role: 'user', text, cards: [], action: input.action, refs: input.refs, created_at: now }, { id: assistantId, role: 'assistant', text: '', cards: [], created_at: now }]);
+    let accepted = false;
+    let rejectedByServer = false;
+    let mutationObserved = false;
     try {
       await api.sendMessage(id, input, {
         signal: flight.controller.signal,
@@ -106,11 +110,13 @@ export function useWorkspace(id: string) {
           if (!isCurrent(owner, epoch) || stream.current !== flight) return;
           if (event.type === 'token') setMessages(previous => previous.map(message => message.id === assistantId ? { ...message, text: message.text + event.data.delta } : message));
           if (event.type === 'card') {
+            mutationObserved = true;
             dataVersion.current += 1;
             setMessages(previous => previous.map(message => message.id === assistantId ? { ...message, cards: mergeCards(message.cards, [event.data]) } : message));
             setState(previous => stateWithCard(previous, event.data));
           }
           if (event.type === 'job') {
+            mutationObserved = true;
             dataVersion.current += 1;
             const previous = liveJobs.current.get(event.data.id);
             const merged = mergeJobs(previous ? [previous] : [], [event.data])[0];
@@ -121,15 +127,21 @@ export function useWorkspace(id: string) {
             });
           }
           if (event.type === 'done' && optimistic.current?.assistantId === assistantId) optimistic.current.expectedId = event.data.message_id;
-          if (event.type === 'error') setError(event.data.message);
+          if (event.type === 'error') { rejectedByServer = true; setError(event.data.message); }
         },
       });
+      accepted = true;
       flight.streaming = false;
       if (isCurrent(owner, epoch)) await refresh();
     } catch (e) {
       flight.streaming = false;
       if (!flight.controller.signal.aborted && isCurrent(owner, epoch)) {
-        setError(`${errorText(e)} 这轮可能已被接收，先刷新查看进度。`); setRecovering(true);
+        const rejected = !accepted && !mutationObserved && (rejectedByServer || (e instanceof ApiError && Boolean(e.status && e.status >= 400 && e.status < 500)));
+        if (rejected) {
+          optimistic.current = null;
+          setMessages(previous => previous.filter(message => !message.id.startsWith(prefix)));
+        }
+        setError(rejected ? errorText(e) : `${errorText(e)} 这轮可能已被接收，先刷新查看进度。`); setRecovering(!rejected);
         try { await refresh(); } catch { /* 保留流中已经收到的内容，用户可手动刷新。 */ }
       }
     } finally {
@@ -138,6 +150,7 @@ export function useWorkspace(id: string) {
         if (isCurrent(owner, epoch)) setBusy(false);
       }
     }
+    return accepted;
   }, [api, id, token, owner, isCurrent, refresh]);
 
   useEffect(() => {

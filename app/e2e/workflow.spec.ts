@@ -2,6 +2,7 @@ import { expect, test, type Page, type Locator } from '@playwright/test';
 import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { ProjectState } from '../src/api/types';
+import { imageInteractions } from './image-interactions';
 
 const shots = path.resolve('screenshots');
 async function shot(page: Page, name: string, focus?: Locator) {
@@ -20,6 +21,7 @@ async function waitForModal(locator: Locator) {
 }
 
 test('博主从注册、上传到笔记与视频的完整合作流程', async ({ page }) => {
+  test.setTimeout(240_000);
   await mkdir(shots, { recursive: true });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -117,17 +119,9 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByTestId('approve-images')).toBeEnabled();
   await expect.poll(() => latestState!.images.length).toBeGreaterThan(retainedIds.length);
   expect(retainedIds.every(id => latestState!.images.some(image => image.id === id))).toBe(true);
-  const edit = page.getByTestId(/^edit-image-/).first();
-  const firstId = (await edit.getAttribute('data-testid'))!.replace('edit-image-', '');
-  await edit.click();
-  await page.getByTestId('edit-suggestion-0').click();
-  await expect(page.getByTestId('edit-instruction')).toHaveValue('衬衫塞进裤腰');
-  await shot(page, '08-edit-image.png');
-  const beforeEditIds = latestState!.images.map(image => image.id);
-  await page.getByTestId('submit-edit').click();
+  const interactions = await imageInteractions(page, () => latestState, shot);
+  const firstId = interactions.firstId;
   await expect(page.getByTestId('approve-images')).toBeEnabled();
-  await expect.poll(() => latestState!.images.some(image => !beforeEditIds.includes(image.id) && image.parent_id === firstId && image.status === 'succeeded')).toBe(true);
-  await shot(page, '09-image-new-version.png', page.getByText('你的穿搭影像'));
   const selectedIds = await page.getByTestId(/^move-up-/).evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')!.replace('move-up-', '')));
   // 默认选最新版本；向后移动封面，验证发送的图片顺序会被保留。
   expect(selectedIds.length).toBeGreaterThanOrEqual(3);
@@ -147,6 +141,14 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByTestId('note-cost')).toContainText('这篇成本约 ¥');
   await expect(page.getByTestId('note-ai-label')).toContainText('AI');
   await shot(page, '23-note-cost-and-ai-label.png', page.getByTestId('note-cost'));
+  await page.getByTestId(`preview-image-${orderedIds[0]}`).click();
+  await expect(page.getByTestId('image-viewer')).toBeVisible();
+  await page.getByTestId('viewer-reference').click();
+  await expect(page.getByTestId(`chat-ref-${orderedIds[0]}`)).toBeVisible();
+  await shot(page, '34-preview-reference.png', page.getByTestId(`chat-ref-${orderedIds[0]}`));
+  await page.getByTestId(`remove-chat-ref-${orderedIds[0]}`).click();
+  await page.getByTestId('preview-note').click();
+  await expect(page.getByTestId('note-title')).toBeVisible();
   await page.getByTestId('copy-note').click();
   await expect(page.getByText('文案已复制，可以去发布啦。')).toBeVisible();
   const download = page.waitForEvent('download');
@@ -187,5 +189,5 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' })).toBeVisible();
   await shot(page, '18-network-recovered.png', page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' }));
   expect(errors).toEqual([]);
-  await writeFile(path.join(shots, 'evidence.json'), JSON.stringify({ viewport: '390×844', passedAt: new Date().toISOString(), firstEditedImage: firstId, selectedOrder: orderedIds, stateRequests: polls.length, historyRequests: historyRequests.length, proactiveMessage: true, restoredCheckpoint, retainedImageIds: retainedIds, previewImages: true, autoFixedFidelity: 92, noteCostCny: latestState?.note?.cost_cny, aiLabel: latestState?.note?.ai_label, videoPlayed: true, pageErrors: errors }, null, 2));
+  await writeFile(path.join(shots, 'evidence.json'), JSON.stringify({ viewport: '390×844', passedAt: new Date().toISOString(), firstEditedImage: firstId, imageInteractions: interactions, selectedOrder: orderedIds, stateRequests: polls.length, historyRequests: historyRequests.length, proactiveMessage: true, restoredCheckpoint, retainedImageIds: retainedIds, previewImages: true, autoFixedFidelity: 92, noteCostCny: latestState?.note?.cost_cny, aiLabel: latestState?.note?.ai_label, videoPlayed: true, pageErrors: errors }, null, 2));
 });

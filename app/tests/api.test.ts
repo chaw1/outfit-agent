@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiClient, ApiError } from '../src/api/client';
 import type { StreamXHR } from '../src/api/client';
-import type { StreamEvent } from '../src/api/types';
+import type { Card, Message, OutfitImage, SendMessageInput, StreamEvent } from '../src/api/types';
 
 class FakeXHR implements StreamXHR {
   readyState = 0;
@@ -133,6 +133,34 @@ test('stream detects unexpected EOF and never retries the action', async () => {
   xhr.finish();
   await assert.rejects(promise, (error: unknown) => error instanceof ApiError && error.code === 'STREAM_INTERRUPTED');
   assert.equal(xhr.sends, 1);
+});
+
+test('local edits preserve precise selections, refs, and failed checks through streaming and restored history', async () => {
+  const region = { x: 0, y: 0.123456789, w: 1, h: 0.25 };
+  const mask = { brush: 0.0375, strokes: [[{ x: 0, y: 0 }, { x: 0.333333333, y: 0.625 }], [{ x: 1, y: 1 }]] };
+  const inputs: SendMessageInput[] = [
+    { text: '只改框出的袖口', action: { type: 'edit_image', image_id: 'image-original', instruction: '袖口放下来', region }, refs: ['image-original'] },
+    { action: { type: 'edit_image', image_id: 'image-original', instruction: '去掉吊牌', mask_strokes: mask }, refs: ['image-original', 'image-previous'] },
+  ];
+  for (const input of inputs) {
+    const snapshot = structuredClone(input);
+    const xhr = new FakeXHR();
+    const events: StreamEvent[] = [];
+    const queued: Card = { id: 'project-images', type: 'images', items: [{ id: 'image-edited', shot_id: 'shot-1', status: 'queued', version: 2, parent_id: 'image-original', instruction: input.action?.type === 'edit_image' ? input.action.instruction : '', region }] };
+    const completedItems: OutfitImage[] = queued.items.map(image => ({ ...image, status: 'succeeded', url: '/edited.png', edit_check: { passed: false, reason: '袖口仍卷着，请再试一次。' } }));
+    const completed: Card = { ...queued, items: completedItems };
+    const history: Message[] = [{ id: 'user-ref', role: 'user', text: input.text ?? '', cards: [], action: input.action, refs: input.refs, created_at: '2026-10-20T16:00:00Z' }];
+    const client = new ApiClient({ baseUrl: 'http://localhost:19080', xhrFactory: () => xhr, fetchImpl: (async () => json(history)) as typeof fetch });
+    const sending = client.sendMessage('p1', input, { onEvent: event => events.push(event) });
+    assert.deepEqual(JSON.parse(xhr.body), snapshot);
+    const frames = `event: card\ndata: ${JSON.stringify(queued)}\n\nevent: card\ndata: ${JSON.stringify(completed)}\n\nevent: done\ndata: {"message_id":"assistant-done"}\n\n`;
+    for (let offset = 0; offset < frames.length; offset += 11) xhr.chunk(frames.slice(offset, offset + 11));
+    assert.deepEqual(await sending, { message_id: 'assistant-done' });
+    assert.deepEqual(events.filter(event => event.type === 'card').map(event => event.data), [queued, completed]);
+    assert.deepEqual(await client.messages('p1'), history);
+    assert.deepEqual(input, snapshot, 'sending must preserve the selection for an explicit retry');
+    assert.equal(xhr.sends, 1);
+  }
 });
 
 test('stream cancellation aborts the transport; already-aborted requests do not send', async () => {

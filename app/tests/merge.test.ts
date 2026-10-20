@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { cardsFromState, mergeCards, mergeImages, mergeJobs, mergeProjectState, mergeStateIntoCards, stateWithCard } from '../src/api/merge';
-import type { Card, Job, JobStatus, ProjectState, ScriptData } from '../src/api/types';
+import type { Card, Job, JobStatus, OutfitImage, ProjectState, ScriptData } from '../src/api/types';
 
 function job(status: JobStatus, updated = '2026-10-20T02:00:00Z'): Job {
   return { id: 'j1', project_id: 'p1', kind: 'image', status, created_at: '2026-10-20T01:00:00Z', updated_at: updated };
@@ -51,6 +51,41 @@ test('image versions are separate records and completed results do not regress',
   ]);
   assert.equal(images[0]?.status, 'succeeded');
   assert.equal(images[1]?.parent_id, 'i1');
+});
+
+test('local edit progress retains selection, check failures survive stale frames, and retry adds a distinct successful version', () => {
+  const region = { x: 0, y: 0.423456789, w: 1, h: 0.1 };
+  const original: OutfitImage = { id: 'original', shot_id: 'shot-1', status: 'succeeded', version: 1, url: '/original.jpg' };
+  const queued: OutfitImage = { id: 'local-edit', shot_id: 'shot-1', status: 'queued', version: 2, parent_id: original.id, instruction: '袖口放下来', region };
+  let images = mergeImages([original], [queued]);
+  images = mergeImages(images, [{ id: queued.id, shot_id: queued.shot_id, version: queued.version, status: 'running' }]);
+  assert.deepEqual(images[1]?.region, region);
+  assert.equal(images[1]?.parent_id, original.id);
+  const failedCheck: OutfitImage = { id: queued.id, shot_id: queued.shot_id, version: queued.version, status: 'succeeded', url: '/attempt.png', edit_check: { passed: false, reason: '袖口仍卷着。' } };
+  images = mergeImages(images, [failedCheck]);
+  images = mergeImages(images, [queued, { ...failedCheck, status: 'running', edit_check: undefined }]);
+  const failedVersion = Object.freeze(images[1]!);
+  assert.equal(failedVersion.status, 'succeeded');
+  assert.deepEqual(failedVersion.region, region);
+  assert.deepEqual(failedVersion.edit_check, failedCheck.edit_check);
+  const retry: OutfitImage = { id: 'local-retry', shot_id: queued.shot_id, version: 3, parent_id: queued.id, instruction: queued.instruction, status: 'queued', region };
+  images = mergeImages([original, failedVersion], [retry]);
+  images = mergeImages(images, [{ ...retry, status: 'succeeded', url: '/retry.png', edit_check: { passed: true, reason: '袖口已放下。' } }]);
+  assert.deepEqual(images.map(image => [image.id, image.parent_id, image.edit_check?.passed]), [[original.id, undefined, undefined], [queued.id, original.id, false], [retry.id, queued.id, true]]);
+  assert.equal(failedVersion.edit_check?.passed, false);
+  for (const stage of ['script', 'note', 'video', 'done'] as const) {
+    const previous = state({ stage, images, ...(stage === 'script' ? { script: { status: 'draft' as const, title_ideas: [], cover: { scene: '', pose: '', text_overlay: '' }, shots: [], video: { prompt: '', duration: 5 } } } : {}), note: { title: '已选笔记', body: '正文', tags: [], image_ids: [original.id] }, video: { status: 'succeeded', url: '/video.mp4' } });
+    const next = stateWithCard(previous, { id: 'progress', type: 'images', items: [queued] });
+    assert.equal(next.stage, stage);
+    assert.equal(next.note, previous.note);
+    assert.equal(next.video, previous.video);
+    assert.equal(next.images[1]?.edit_check?.passed, false);
+    assert.deepEqual(next.images[2]?.region, region);
+    const cards = mergeStateIntoCards([{ id: 'stable-card', type: 'images', items: [] }], next);
+    const restored = cards.find(card => card.type === 'images');
+    assert.equal(restored?.id, 'stable-card');
+    assert.deepEqual(restored?.type === 'images' ? restored.items[1]?.edit_check : undefined, failedCheck.edit_check);
+  }
 });
 
 test('state restores cards and polling refreshes an existing stable card id', () => {

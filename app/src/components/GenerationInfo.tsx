@@ -13,6 +13,7 @@ export function ImageRevisionInfo({ image }: { image: OutfitImage }) {
     {image.fidelity?.auto_fixed ? <Text testID={`auto-fixed-${image.id}`} style={styles.fixed}>已自动修一版</Text> : null}
     {image.instruction ? <Text style={styles.detail}>{image.instruction}</Text> : null}
     {image.fidelity?.diffs.length ? <Text style={styles.detail}>差异点：{image.fidelity.diffs.join('；')}</Text> : null}
+    {image.edit_check ? <Text testID={`edit-check-${image.id}`} style={[styles.detail, { color: image.edit_check.passed ? colors.green : '#AE2940' }]}>{image.edit_check.passed ? '已按要求改好' : '可能没改到位'}：{image.edit_check.reason}</Text> : null}
   </View>;
 }
 

@@ -6,6 +6,7 @@ import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import bcrypt from 'bcryptjs';
+import sharp from 'sharp';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DAY = 86_400;
@@ -27,6 +28,35 @@ function dimensions(bytes, mime) {
     }
   }
   return [1024, 1024];
+}
+
+const normalizedCoordinate = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+function editSelection(action) {
+  if (action.region !== undefined && action.mask_strokes !== undefined) throw failure(400, 'INVALID_SELECTION', '框选和涂抹只能选一种');
+  if (action.region !== undefined) {
+    const region = action.region;
+    if (!region || typeof region !== 'object' || Array.isArray(region) || !['x', 'y', 'w', 'h'].every((key) => normalizedCoordinate(region[key])) || region.w <= 0 || region.h <= 0 || region.x + region.w > 1 + Number.EPSILON || region.y + region.h > 1 + Number.EPSILON) throw failure(400, 'INVALID_REGION', '框选区域需要在图片内，宽高不能为零');
+    return { region: { x: region.x, y: region.y, w: region.w, h: region.h } };
+  }
+  if (action.mask_strokes !== undefined) {
+    const mask = action.mask_strokes;
+    if (!mask || typeof mask !== 'object' || Array.isArray(mask) || !normalizedCoordinate(mask.brush) || mask.brush <= 0 || !Array.isArray(mask.strokes) || !mask.strokes.length || mask.strokes.length > 128 || mask.strokes.some((stroke) => !Array.isArray(stroke) || !stroke.length || stroke.length > 2048 || stroke.some((point) => !point || typeof point !== 'object' || Array.isArray(point) || !normalizedCoordinate(point.x) || !normalizedCoordinate(point.y))) || mask.strokes.reduce((count, stroke) => count + stroke.length, 0) > 8192) throw failure(400, 'INVALID_MASK', '请在图片内涂抹，并使用有效的笔刷粗细');
+    return { mask_strokes: { brush: mask.brush, strokes: mask.strokes.map((stroke) => stroke.map(({ x, y }) => ({ x, y }))) } };
+  }
+  return {};
+}
+
+function selectionBounds(selection, width, height) {
+  if (selection.region) return selection.region;
+  if (!selection.mask_strokes) return undefined;
+  const { brush, strokes } = selection.mask_strokes;
+  const radius = brush * Math.min(width, height) / 2;
+  const points = strokes.flat();
+  const x = Math.max(0, Math.min(...points.map((point) => point.x)) - radius / width);
+  const y = Math.max(0, Math.min(...points.map((point) => point.y)) - radius / height);
+  const right = Math.min(1, Math.max(...points.map((point) => point.x)) + radius / width);
+  const bottom = Math.min(1, Math.max(...points.map((point) => point.y)) + radius / height);
+  return { x, y, w: right - x, h: bottom - y };
 }
 
 /** Local-only fake backend. Timings and clock can be shortened in integration tests. */
@@ -102,7 +132,7 @@ export async function createMockServer(options = {}) {
     return { id, kind, url: mediaUrl(id, base), width, height, mime, created_at, source, ...(parent_id ? { parent_id } : {}), ...(prompt ? { prompt } : {}) };
   }
   function publicImage(image, base) {
-    const { assetId, autoFixAttempted: _autoFixAttempted, automatic: _automatic, ...result } = image;
+    const { assetId, autoFixAttempted: _autoFixAttempted, automatic: _automatic, editSelection: _editSelection, ...result } = image;
     return { ...result, ...(assetId ? { url: mediaUrl(assetId, base) } : {}) };
   }
   function publicDirection(direction, base) {
@@ -186,7 +216,8 @@ export async function createMockServer(options = {}) {
   function announce(project, text, types, base) {
     project.messages.push({ id: newId('message'), role: 'assistant', text, cards: types.map((type) => card(project, type, base)), created_at: now() });
   }
-  function addGeneratedAsset(project, job, image) {
+  const assetPath = (asset) => asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
+  async function addGeneratedAsset(project, job, image) {
     const isVideo = job.kind === 'video';
     const parentImage = image?.parent_id ? project.state.images.find((item) => item.id === image.parent_id) : undefined;
     const asset = {
@@ -196,6 +227,37 @@ export async function createMockServer(options = {}) {
       ...(parentImage?.assetId ? { parent_id: parentImage.assetId } : {}),
       prompt: image?.instruction || project.brief,
     };
+    if (job.kind === 'edit' && parentImage?.assetId) {
+      const originalAsset = db.assets.find((item) => item.id === parentImage.assetId);
+      const { data, info } = await sharp(assetPath(originalAsset)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const { width, height, channels } = info;
+      const selection = image.editSelection || {};
+      const region = selectionBounds(selection, width, height);
+      if (region) image.region = region;
+      let mask;
+      if (selection.mask_strokes) {
+        const { brush, strokes } = selection.mask_strokes;
+        const thickness = brush * Math.min(width, height);
+        const paths = strokes.map((stroke) => stroke.length === 1
+          ? `<circle cx="${stroke[0].x * width}" cy="${stroke[0].y * height}" r="${thickness / 2}" fill="white"/>`
+          : `<path d="${stroke.map((point, index) => `${index ? 'L' : 'M'}${point.x * width},${point.y * height}`).join(' ')}" fill="none" stroke="white" stroke-width="${thickness}" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+        mask = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${paths}</svg>`)).ensureAlpha().raw().toBuffer();
+      }
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const pixel = y * width + x;
+          const selected = mask ? mask[pixel * 4 + 3] > 0 : !region || ((x + 0.5) / width >= region.x && (x + 0.5) / width < region.x + region.w && (y + 0.5) / height >= region.y && (y + 0.5) / height < region.y + region.h);
+          if (!selected) continue;
+          const offset = pixel * channels;
+          data[offset] = Math.round(data[offset] * 0.3 + 255 * 0.7);
+          data[offset + 1] = Math.round(data[offset + 1] * 0.3 + 105 * 0.7);
+          data[offset + 2] = Math.round(data[offset + 2] * 0.3 + 55 * 0.7);
+        }
+      }
+      asset.width = width; asset.height = height; asset.mime = 'image/png'; asset.filename = `${asset.id}.png`;
+      delete asset.fixture;
+      await sharp(data, { raw: { width, height, channels } }).png().toFile(assetPath(asset));
+    }
     db.assets.push(asset);
     return asset;
   }
@@ -218,12 +280,15 @@ export async function createMockServer(options = {}) {
         try {
           const fixture = await stat(path.join(fixtures, job.kind === 'video' ? 'v-wan.mp4' : 't-wan-v.jpg'));
           if (!fixture.isFile() || !fixture.size) throw new Error('Missing fixture');
-          const asset = addGeneratedAsset(project, job, image);
+          const asset = await addGeneratedAsset(project, job, image);
           job.status = 'succeeded';
           job.result_asset_id = asset.id;
           if (direction) { direction.preview_status = 'succeeded'; direction.previewAssetId = asset.id; }
           if (image) {
             image.status = 'succeeded'; image.assetId = asset.id;
+            if (job.kind === 'edit') image.edit_check = job.editCheckShouldFail
+              ? { passed: false, reason: '演示检查：选区细节仍未改到位，请再试一次或换个说法。' }
+              : { passed: true, reason: image.region ? '圈选区域已按指令完成处理，区域外保持原图。' : '已完成整张图片的修改，并保留上一版。' };
             const needsFix = job.kind === 'image' && image.shot_id === 'shot_3' && !image.autoFixAttempted;
             image.fidelity = needsFix
               ? { score: 54, diffs: ['左侧胸袋缺失', '纽扣位置与原衣服不一致'], auto_fixed: false }
@@ -291,6 +356,7 @@ export async function createMockServer(options = {}) {
           ? `${first.directionId ? '方向预览' : first.kind === 'video' ? '视频' : '图片'}有 ${failed} 个任务未完成，演示素材暂时不可用，可以恢复素材后重试。`
           : first.directionId ? '三个方向的灵感预览图都准备好了，看看哪种感觉更像你。'
           : first.kind === 'video' ? '5 秒穿搭短视频做好啦，可以打开预览播放。'
+          : jobs.some((job) => project.state.images.find((image) => image.id === job.imageId)?.edit_check?.passed === false) ? '这版已经生成，但可能没改到位。查看检查原因后，可以再试一次或换个说法。'
           : autoFixed ? '3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。'
           : first.kind === 'edit' ? '这张图改好了，原图也保留着，可以对比后再选。'
           : '这批穿搭图片都好了，可以挑选笔记用图了。';
@@ -384,12 +450,14 @@ export async function createMockServer(options = {}) {
   }
   function normalizedAction(action) {
     const fields = { choose_direction: ['direction_id'], confirm_script: [], edit_image: ['image_id', 'instruction'], approve_images: ['image_ids'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
-    return { type: action.type, ...Object.fromEntries(fields[action.type].map((key) => [key, action[key]])) };
+    return { type: action.type, ...Object.fromEntries(fields[action.type].map((key) => [key, action[key]])), ...(action.type === 'edit_image' ? editSelection(action) : {}) };
   }
   function processMessage(project, body, base) {
     const action = body.action;
     if ((body.text !== undefined && typeof body.text !== 'string') || (action != null && (typeof action !== 'object' || Array.isArray(action)))) throw failure(400, 'INVALID_MESSAGE', '消息内容需要是文字或有效操作');
     const state = project.state;
+    const refs = body.refs;
+    if (refs !== undefined && (!Array.isArray(refs) || refs.length > 20 || new Set(refs).size !== refs.length || refs.some((id) => typeof id !== 'string' || !state.images.some((image) => image.id === id && image.status === 'succeeded')))) throw failure(400, 'INVALID_REFS', '引用的图片需要来自当前项目，并且已经生成完成');
     const jobs = [];
     let types = [];
     let reply = '';
@@ -440,9 +508,15 @@ export async function createMockServer(options = {}) {
           const original = state.images.find((item) => item.id === action.image_id && item.status === 'succeeded');
           const instruction = typeof action.instruction === 'string' ? action.instruction.trim() : '';
           if (!original || !instruction) throw failure(400, 'INVALID_EDIT', '请选择一张已完成的图片，并写下修改想法');
-          const image = { id: newId('image'), shot_id: original.shot_id, status: 'queued', version: Math.max(...state.images.filter((item) => item.shot_id === original.shot_id).map((item) => item.version)) + 1, parent_id: original.id, instruction, script_version: original.script_version };
+          const selection = editSelection(action);
+          const isLocal = Boolean(selection.region || selection.mask_strokes);
+          const source = db.assets.find((item) => item.id === original.assetId);
+          const region = selectionBounds(selection, source.width, source.height);
+          const editCheckShouldFail = isLocal && !project.localEditCheckDemonstrated;
+          if (isLocal) project.localEditCheckDemonstrated = true;
+          const image = { id: newId('image'), shot_id: original.shot_id, status: 'queued', version: Math.max(...state.images.filter((item) => item.shot_id === original.shot_id).map((item) => item.version)) + 1, parent_id: original.id, instruction, script_version: original.script_version, ...(region ? { region } : {}), editSelection: selection };
           state.images.push(image);
-          jobs.push(queueJob(project, 'edit', image));
+          jobs.push(queueJob(project, 'edit', image, 0, { editCheckShouldFail }));
           types = ['images'];
           reply = `收到，我按“${instruction}”修改这张，原图会保留，你可以对比后再选。`;
           break;
@@ -514,7 +588,7 @@ export async function createMockServer(options = {}) {
       }
     }
     touch(project);
-    const userMessage = { id: newId('message'), role: 'user', text: typeof body.text === 'string' ? body.text.trim() : '', cards: [], ...(action ? { action: normalizedAction(action) } : {}), created_at: now() };
+    const userMessage = { id: newId('message'), role: 'user', text: typeof body.text === 'string' ? body.text.trim() : '', cards: [], ...(action ? { action: normalizedAction(action) } : {}), ...(refs !== undefined ? { refs: [...refs] } : {}), created_at: now() };
     const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), created_at: now() };
     project.messages.push(userMessage, assistant);
     return { reply, cards: types.map((type) => card(project, type, base)), jobs: jobs.map((job) => publicJob(job, base)), message_id: assistant.id };
@@ -568,7 +642,7 @@ export async function createMockServer(options = {}) {
     if (!exp || !/^\d+$/.test(exp) || Number(exp) < clock() / 1000 || !equal(url.searchParams.get('sig'), sign(`${id}:${exp}`))) throw failure(403, 'MEDIA_EXPIRED', '图片链接已过期，请刷新项目');
     const asset = db.assets.find((item) => item.id === id);
     if (!asset) throw failure(404, 'ASSET_NOT_FOUND', '没有找到这个文件');
-    const filename = asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
+    const filename = assetPath(asset);
     const info = await stat(filename);
     const common = { 'Content-Type': asset.mime, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
     let start = 0;

@@ -12,7 +12,8 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import type { ProjectState } from '../../api/types';
+import type { Action, ProjectState } from '../../api/types';
+import { ImageInteractions, useImageInteractions } from '../../components/ImageInteractions';
 import { VideoPlayer } from '../../components/VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from '../../components/GenerationInfo';
 import { Button, Header, Loading, Notice, Page, colors, errorText } from '../../components/ui';
@@ -21,13 +22,14 @@ import { saveImages } from '../../lib/media';
 
 function PreviewImage({ id, url, index, onRefresh }: { id: string; url?: string; index: number; onRefresh: () => void }) {
   const [failedUrl, setFailedUrl] = useState<string>();
+  const interaction = useImageInteractions();
   if (!url) return <View style={styles.imagePlaceholder}><Ionicons name="image-outline" size={34} color="#C0B3A6" /><Text style={styles.placeholderText}>图片还在路上</Text></View>;
   if (failedUrl === url) return <View style={styles.imagePlaceholder}>
     <Ionicons name="image-outline" size={34} color="#C0B3A6" />
     <Text style={styles.placeholderText}>图片暂时没能加载</Text>
     <Pressable accessibilityRole="button" accessibilityLabel={`重新加载第 ${index + 1} 张图片`} testID={`retry-preview-${id}`} onPress={() => { setFailedUrl(undefined); onRefresh(); }}><Text style={{ color: colors.red, fontSize: 12, padding: 12 }}>重新加载</Text></Pressable>
   </View>;
-  return <Image source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} />;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={{ flex: 1 }}><Image source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /><Text style={{ position: 'absolute', bottom: 12, right: 12, fontSize: 10, color: 'white', backgroundColor: '#25252288', borderRadius: 4, padding: 5 }}>AI生成</Text></Pressable>;
 }
 
 export default function NotePreview() {
@@ -53,6 +55,8 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   const [actionError, setActionError] = useState('');
   const [savedCount, setSavedCount] = useState(0);
   const [saveFailed, setSaveFailed] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editActions, setEditActions] = useState<Extract<Action, { type: 'edit_image' }>[]>([]);
   const savedIds = useRef(new Set<string>());
   const savingRef = useRef(false);
 
@@ -70,9 +74,10 @@ function PreviewPage({ projectId }: { projectId?: string }) {
       }
       inFlight = true;
       try {
-        const next = await api.state(projectId);
+        const [next, history] = await Promise.all([api.state(projectId), api.messages(projectId)]);
         if (alive) {
           setState(next);
+          setEditActions(history.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : []));
           hasActiveJobs = next.active_jobs.length > 0;
           setError('');
         }
@@ -145,7 +150,19 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     }
   }
 
-  return <Page>
+  async function editImage(action: Action) {
+    if (!projectId || editing) return;
+    setEditing(true); setActionError('');
+    try {
+      await api.sendMessage(projectId, { action }, { onEvent: () => {} });
+      try { setState(await api.state(projectId)); }
+      catch (cause) { setActionError(`修改已提交，进度暂时没同步：${errorText(cause)}`); }
+      setRetry(value => value + 1);
+    } catch (cause) { setActionError(errorText(cause)); throw cause; }
+    finally { setEditing(false); }
+  }
+
+  return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note', 'done'].includes(state?.stage ?? '')} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
     <Header title="笔记预览" subtitle="把灵感，穿进日常" onBack={backToStudio} />
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       {!!error && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}
@@ -200,7 +217,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         <View style={styles.bottomButton}><Button title={saving ? `保存中 ${progress.finished}/${progress.total}` : saveFailed ? savedCount ? '重试未保存' : '重试保存图片' : '保存图片'} variant="secondary" icon="download-outline" loading={saving} disabled={!images.length} onPress={() => void saveNoteImages()} testID="save-images" /></View>
       </View>
     </View> : null}
-  </Page>;
+  </Page></ImageInteractions>;
 }
 
 const styles = StyleSheet.create({

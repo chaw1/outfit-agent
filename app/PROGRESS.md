@@ -1,4 +1,18 @@
-# 续接记录
+# 第三轮续接（已完成）
+
+- 任务：完整执行 `docs/codex/APP_FIX2_PROMPT.md`；唯一契约 `docs/设计.md`，重点第 8 节。
+- 开始：2026-10-20 23:32（Asia/Shanghai），墙钟截止 2026-10-21 01:32。
+- 分支 `feat/app`；初始四份 verification 日志有未提交重跑改动；本轮完成后刷新验证证据。不 push、不合并。
+- 仅当前 worktree，本地 19xxx、无头浏览器；不访问真实模型/钥匙串/前公司环境，不开模拟器。
+- 并行分工：viewer 负责 ImageViewer / imageGeometry / 坐标测试；mock_contract 负责假服务 / types / 集成测试；e2e 负责无头流程与截图；主线负责入口、长按菜单、引用、验证及交付。
+- 已安装 SDK58 bundledNativeModules 指定的 RNGH/Reanimated/worklets/SVG/haptics；sharp 仅用于本地假服务生成明显局部效果。
+- 已接入：根手势容器、ImageInteractions 菜单/保存、点图查看与独立选图、workspace 引用展示/发送/删除、note preview 图片入口与引用返回工作台。
+- 已完成组件集成；修复签名URL轮询导致选区/缩放丢失、移动工具误切selection类型、短拖重复圆点、双指接管误涂、同指令不同mask重试匹配；键盘可见时收起部分工具保证提交，SVG高亮裁到图片内。
+- 最终 Node22 verify 五项通过，51/51 测试；iOS prebuild 成功。标签遮挡修复后的最终无头全链 1/1 通过（约1.7分钟），pageErrors=[]。已通过zoom/pan坐标逆算、跨轮询保留、failed重开精确retry、框选→移动→region、refs持久化、菜单保存下载、preview引用往返和原视频/断网流程。
+- 截图34张均390×844，新增25–34；已逐项目视新增图及总览，修复compare label被还原分覆盖，深色状态栏改浅色。尺寸/哈希在verification/screenshots.json，总览contact-sheet.jpg。
+- 提交断点：1f83dcb（契约/依赖/坐标/测试）、fe3a6f7（假服务）；界面/端到端/最终证据与覆盖后的FINAL在最终提交，见git log。FINAL共31行。
+- 完成：2026-10-20 23:51（Asia/Shanghai，约19分钟），未超过2小时；未做真实后端、签名安装或真机验收。下一步按README在自己的iPhone复测双指、键盘、触感、相册及真实媒体水印/元数据。
+- Node22：`PATH=/Users/jiawei/.local/share/mise/installs/node/22.23.1/bin:$PATH`；无头流程已自动退出19300/19301，无任务服务常驻。复测会自动起停，请勿同时启动第二套。
 
 ## 第二轮续接
 
