@@ -15,4 +15,5 @@ export interface MockServerOptions {
   tokenDelayMs?: number;
 }
 
+/** The first local edit per project reports edit_check.passed=false; later edits pass. */
 export function createMockServer(options?: MockServerOptions): Promise<Server>;
