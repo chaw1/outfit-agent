@@ -1,0 +1,5 @@
+已完成，约 24 分钟。4 个提交保留在 `feat/app`，最新 `bd3bb75`，未 push。
+
+验证全绿：93 项测试、E2E 2/2、双平台导出、iOS prebuild（含 CocoaPods）；新增 20 张截图。
+
+已覆盖 [app/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/FINAL.md)，断点保存在 `app/PROGRESS.md`。原生通知、相册和系统分享仍需真机验收。
