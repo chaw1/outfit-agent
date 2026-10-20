@@ -6,6 +6,7 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from app.errors import AppError
 from app.graph import build_graph, get_graph_state, run_turn
@@ -33,6 +34,25 @@ class LocalProvider:
             for item in assets
         ]
 
+    def select_tool(self, tools, context, instruction=""):
+        name, result = ProviderHub._mock_select_tool(tools, context, instruction)
+        if name in {"propose_directions", "write_script", "revise_script", "write_note"}:
+            selected_context = context
+            if name == "write_script":
+                selected_context = {
+                    **context,
+                    "chosen_direction": next(
+                        item
+                        for item in context["directions"]
+                        if item["id"] == result["direction_id"]
+                    ),
+                }
+            elif name == "write_note":
+                selected_context = {**context, "selected_image_ids": result["image_ids"]}
+            content = self.text(name, selected_context, instruction)
+            result = {**result, **content}
+        return name, result
+
     def text(self, tool, context, instruction=""):
         self.calls.append(tool)
         return ProviderHub._mock_text(tool, context, instruction)
@@ -41,7 +61,11 @@ class LocalProvider:
 @pytest.fixture
 def flow(monkeypatch):
     monkeypatch.setattr("app.workflow.ProviderHub", LocalProvider)
-    engine = create_engine("sqlite+pysqlite:///:memory:")
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     with Session(engine) as session:
         user = User(username="graph-test", password_hash="unused", nickname="测试")
@@ -81,7 +105,11 @@ def choose_script(graph, project):
 
 
 def succeed_images(session, project):
-    jobs = session.scalars(select(Job).where(Job.kind.in_(["image", "edit"]))).all()
+    jobs = session.scalars(
+        select(Job)
+        .where(Job.payload["purpose"].as_string().is_(None))
+        .where(Job.kind.in_(["image", "edit"]))
+    ).all()
     for job in jobs:
         if job.status == "succeeded":
             continue
@@ -109,7 +137,9 @@ def test_restart_restores_script_pause_and_free_text_revision(flow):
     assert script_turn["pending_action"]["type"] == "confirm_script"
     assert script_turn["cards"][0]["status"] == "draft"
     assert len(script_turn["cards"][0]["shots"]) >= 4
-    assert session.scalars(select(Job)).all() == []
+    assert (
+        session.scalars(select(Job).where(Job.payload["purpose"].as_string().is_(None))).all() == []
+    )
     original = script_turn["cards"][0]["shots"][0]["scene"]
     session.commit()
 
@@ -126,7 +156,9 @@ def test_restart_restores_script_pause_and_free_text_revision(flow):
     assert "测试品牌" in state["brief"]["summary"]
     assert "白色衬衫" in state["brief"]["summary"]
     assert "夏季新品" in state["brief"]["summary"]
-    assert session.scalars(select(Job)).all() == []
+    assert (
+        session.scalars(select(Job).where(Job.payload["purpose"].as_string().is_(None))).all() == []
+    )
 
 
 def test_provider_context_has_only_limited_recent_conversation_text(flow):
@@ -140,7 +172,7 @@ def test_provider_context_has_only_limited_recent_conversation_text(flow):
             "content": [{"type": "text", "text": "正文"}, {"type": "tool_call", "name": "private"}],
         },
     ]
-    context = graph._outfit_workflow._context({"stage": "script", "messages": messages})
+    context = graph.workflow._context({"stage": "script", "messages": messages})
     recent = context["recent_messages"]
     assert len(recent) <= 12
     assert recent[0]["text"] == "earlier-5"
@@ -178,7 +210,7 @@ def test_checkpoint_messages_keep_recoverable_display_metadata(flow):
 
 def test_first_provider_failure_can_restart_initialization(flow, monkeypatch):
     _, project, _, graph = flow
-    provider = graph._outfit_workflow.providers
+    provider = graph.workflow.providers
     original = provider.text
 
     def unavailable(*args, **kwargs):
@@ -199,7 +231,7 @@ def test_first_provider_failure_can_restart_initialization(flow, monkeypatch):
 def test_script_provider_failure_can_resume_with_corrected_input(flow, monkeypatch):
     _, project, _, graph = flow
     run_turn(graph, project, "开始", None)
-    provider = graph._outfit_workflow.providers
+    provider = graph.workflow.providers
     original = provider.text
 
     def unavailable(*args, **kwargs):
@@ -231,7 +263,7 @@ def test_natural_image_edit_and_note_revision_stay_in_their_stage(flow, monkeypa
     assert edit_job.payload["parent_id"] == first_image
 
     run_turn(graph, project, None, {"type": "approve_images", "image_ids": ids[:2]})
-    provider = graph._outfit_workflow.providers
+    provider = graph.workflow.providers
     original = provider.text
     captured = []
 
@@ -246,7 +278,16 @@ def test_natural_image_edit_and_note_revision_stay_in_their_stage(flow, monkeypa
     assert revised["pending_action"]["type"] == "confirm_video"
     assert captured[-1][0] == "write_note"
     assert captured[-1][1]["selected_image_ids"] == ids[:2]
-    assert len(session.scalars(select(Job).where(Job.kind == "video")).all()) == 0
+    assert (
+        len(
+            session.scalars(
+                select(Job)
+                .where(Job.payload["purpose"].as_string().is_(None))
+                .where(Job.kind == "video")
+            ).all()
+        )
+        == 0
+    )
 
 
 @pytest.mark.parametrize(
@@ -263,7 +304,9 @@ def test_forbidden_tools_do_not_create_jobs_or_consume_pause(flow, action):
     run_turn(graph, project, "开始", None)
     with pytest.raises(AppError, match="当前阶段"):
         run_turn(graph, project, None, action)
-    assert not session.scalars(select(Job)).all()
+    assert not session.scalars(
+        select(Job).where(Job.payload["purpose"].as_string().is_(None))
+    ).all()
     snapshot = graph.get_state({"configurable": {"thread_id": project.id}})
     assert snapshot.next == ("await_direction",)
     assert any(task.interrupts for task in snapshot.tasks)
@@ -278,7 +321,10 @@ def test_confirmations_queue_once_edit_has_parent_and_note_has_video_pause(flow)
     ids = [job["id"] for job in images_turn["jobs"]]
     repeated = run_turn(graph, project, None, {"type": "confirm_script"})
     assert [job["id"] for job in repeated["jobs"]] == ids
-    assert len(session.scalars(select(Job)).all()) == 4
+    assert (
+        len(session.scalars(select(Job).where(Job.payload["purpose"].as_string().is_(None))).all())
+        == 4
+    )
     succeed_images(session, project)
 
     edited = run_turn(
@@ -298,7 +344,10 @@ def test_confirmations_queue_once_edit_has_parent_and_note_has_video_pause(flow)
         None,
         {"type": "edit_image", "image_id": ids[0], "instruction": "衬衫塞进裤腰"},
     )
-    assert len(session.scalars(select(Job)).all()) == 5
+    assert (
+        len(session.scalars(select(Job).where(Job.payload["purpose"].as_string().is_(None))).all())
+        == 5
+    )
     succeed_images(session, project)
 
     note_turn = run_turn(
@@ -307,13 +356,24 @@ def test_confirmations_queue_once_edit_has_parent_and_note_has_video_pause(flow)
     assert note_turn["stage"] == "note"
     assert note_turn["pending_action"]["type"] == "confirm_video"
     assert note_turn["cards"][0]["image_ids"] == [edit_id, ids[1]]
-    assert not session.scalars(select(Job).where(Job.kind == "video")).all()
+    assert not session.scalars(
+        select(Job).where(Job.payload["purpose"].as_string().is_(None)).where(Job.kind == "video")
+    ).all()
     video_turn = run_turn(graph, project, None, {"type": "confirm_video", "image_id": edit_id})
     assert video_turn["stage"] == "video"
     video_job = session.get(Job, video_turn["jobs"][0]["id"])
     assert video_job.payload["image_asset_id"] == edit_job.result_asset_id
     run_turn(graph, project, None, {"type": "confirm_video", "image_id": edit_id})
-    assert len(session.scalars(select(Job).where(Job.kind == "video")).all()) == 1
+    assert (
+        len(
+            session.scalars(
+                select(Job)
+                .where(Job.payload["purpose"].as_string().is_(None))
+                .where(Job.kind == "video")
+            ).all()
+        )
+        == 1
+    )
 
 
 def test_checkpoint_intents_repair_rolled_back_business_jobs(flow):
@@ -323,12 +383,22 @@ def test_checkpoint_intents_repair_rolled_back_business_jobs(flow):
     generated = run_turn(graph, project, None, {"type": "confirm_script"})
     ids = [job["id"] for job in generated["jobs"]]
     session.rollback()
-    assert not session.scalars(select(Job)).all()
+    assert not session.scalars(
+        select(Job).where(Job.payload["purpose"].as_string().is_(None))
+    ).all()
     state = get_graph_state(graph, project.id)
     assert state["stage"] == "images"
-    assert len(state["job_intents"]) == 4
+    assert (
+        len([item for item in state["job_intents"] if item["payload"].get("purpose") != "preview"])
+        == 4
+    )
     Workflow(session, project).restore_jobs(state)
-    assert sorted(job.id for job in session.scalars(select(Job)).all()) == sorted(ids)
+    assert sorted(
+        job.id
+        for job in session.scalars(
+            select(Job).where(Job.payload["purpose"].as_string().is_(None))
+        ).all()
+    ) == sorted(ids)
 
 
 @pytest.mark.parametrize("target_stage", ["video", "done"])
@@ -359,7 +429,12 @@ def test_note_text_revision_preserves_existing_video_and_stage(flow, target_stag
         session.commit()
         assert run_turn(graph, project, "视频好了吗", None)["stage"] == "done"
     before = get_graph_state(graph, project.id)
-    jobs_before = [job.id for job in session.scalars(select(Job)).all()]
+    jobs_before = [
+        job.id
+        for job in session.scalars(
+            select(Job).where(Job.payload["purpose"].as_string().is_(None))
+        ).all()
+    ]
 
     revised = run_turn(graph, project, "标题改成：清爽通勤灵感", None)
     after = get_graph_state(graph, project.id)
@@ -372,8 +447,22 @@ def test_note_text_revision_preserves_existing_video_and_stage(flow, target_stag
     assert revised["jobs"] == []
     assert after["video"] == before["video"]
     assert after["video"]["job_id"] == video_id
-    assert [job.id for job in session.scalars(select(Job)).all()] == jobs_before
-    assert len(session.scalars(select(Job).where(Job.kind == "video")).all()) == 1
+    assert [
+        job.id
+        for job in session.scalars(
+            select(Job).where(Job.payload["purpose"].as_string().is_(None))
+        ).all()
+    ] == jobs_before
+    assert (
+        len(
+            session.scalars(
+                select(Job)
+                .where(Job.payload["purpose"].as_string().is_(None))
+                .where(Job.kind == "video")
+            ).all()
+        )
+        == 1
+    )
 
 
 def test_foreign_image_cannot_be_edited_even_after_script_confirmation(flow):
@@ -407,4 +496,206 @@ def test_foreign_image_cannot_be_edited_even_after_script_confirmation(flow):
             {"type": "edit_image", "image_id": job.id, "instruction": "换背景"},
         )
     assert error.value.code == "image_not_found"
-    assert len(session.scalars(select(Job).where(Job.kind == "edit")).all()) == 0
+    assert (
+        len(
+            session.scalars(
+                select(Job)
+                .where(Job.payload["purpose"].as_string().is_(None))
+                .where(Job.kind == "edit")
+            ).all()
+        )
+        == 0
+    )
+
+
+def test_garments_custom_event_arrives_before_direction_selection_finishes(flow, monkeypatch):
+    from threading import Event
+
+    _, project, _, graph = flow
+    release = Event()
+    provider = graph.workflow.providers
+    original = provider.select_tool
+    phases = []
+
+    def slow_select(*args):
+        phases.append("select_started")
+        assert release.wait(2), "garments stream was blocked by direction generation"
+        phases.append("select_finished")
+        return original(*args)
+
+    def received(event, value):
+        if event == "card" and value["type"] == "garments":
+            assert "select_finished" not in phases
+            phases.append("garments_received")
+            release.set()
+
+    monkeypatch.setattr(provider, "select_tool", slow_select)
+    result = run_turn(graph, project, "夏季新品", None, emit=received)
+    assert "garments_received" in phases
+    assert phases.index("garments_received") < phases.index("select_finished")
+    assert result["stage"] == "direction"
+    assert len(result["jobs"]) == 3
+    assert all(card.get("preview_status") == "queued" for card in result["cards"][1]["options"])
+
+
+def test_model_selects_content_once_and_code_rejects_forbidden_tool(flow, monkeypatch):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    provider = graph.workflow.providers
+    context = graph.workflow._context(get_graph_state(graph, project.id))
+    revised = ProviderHub._mock_text("revise_script", context, "换成通勤风")
+    revised["reply"] = "这版封面放到写字楼树荫里，白衬衫会很干净。"
+    calls = []
+
+    def selected(tools, actual_context, text):
+        calls.append((tools, actual_context, text))
+        return "revise_script", revised
+
+    def forbidden_forced_call(*args):
+        raise AssertionError("free text must use the selected tool output directly")
+
+    monkeypatch.setattr(provider, "select_tool", selected)
+    monkeypatch.setattr(provider, "text", forbidden_forced_call)
+    turn = run_turn(graph, project, "换个更利落的构图", None)
+    assert turn["text"] == revised["reply"]
+    assert len(calls) == 1
+    assert "chat" in calls[0][0]
+    assert "generate_video" not in calls[0][0]
+    before_jobs = list(session.scalars(select(Job)).all())
+    monkeypatch.setattr(
+        provider, "select_tool", lambda *args: ("generate_video", {"reply": "越界"})
+    )
+    with pytest.raises(AppError, match="当前阶段"):
+        run_turn(graph, project, "越阶段请求", None)
+    assert list(session.scalars(select(Job)).all()) == before_jobs
+
+
+@pytest.mark.parametrize("stage", ["images", "note"])
+def test_script_revisions_restore_history_and_preserve_existing_images(flow, stage):
+    from app.graph import script_versions
+
+    session, project, _, graph = flow
+    original = choose_script(graph, project)["cards"][0]
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    old_ids = [job["id"] for job in generated["jobs"]]
+    succeed_images(session, project)
+    if stage == "note":
+        run_turn(graph, project, None, {"type": "approve_images", "image_ids": old_ids[:2]})
+    changed = run_turn(graph, project, "把脚本换成通勤风", None)
+    assert changed["stage"] == "script"
+    assert changed["pending_action"]["type"] == "confirm_script"
+    assert changed["cards"][0]["version"] == 2
+    assert {image["id"] for image in get_graph_state(graph, project.id)["images"]} == set(old_ids)
+    history = script_versions(graph, project.id)
+    assert [item["version"] for item in history] == [1, 2]
+    assert [item["version"] for item in history if item["current"]] == [2]
+    restored = run_turn(
+        graph,
+        project,
+        None,
+        {
+            "type": "restore_script",
+            "checkpoint_id": history[0]["checkpoint_id"],
+        },
+    )
+    assert restored["cards"][0]["version"] == 1
+    assert restored["cards"][0]["shots"] == original["shots"]
+    assert restored["pending_action"]["type"] == "confirm_script"
+    assert restored["stage"] == "script"
+    confirmed = run_turn(graph, project, None, {"type": "confirm_script"})
+    assert [job["id"] for job in confirmed["jobs"]] == old_ids
+    assert [item["version"] for item in script_versions(graph, project.id) if item["current"]] == [
+        1
+    ]
+
+
+def test_edit_in_note_keeps_video_confirmation_and_original_garment_references(flow):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    ids = [job["id"] for job in generated["jobs"]]
+    succeed_images(session, project)
+    run_turn(graph, project, None, {"type": "approve_images", "image_ids": ids[:2]})
+    before = get_graph_state(graph, project.id)
+    edited = run_turn(
+        graph,
+        project,
+        None,
+        {
+            "type": "edit_image",
+            "image_id": ids[0],
+            "instruction": "背景稍微亮一点",
+        },
+    )
+    after = get_graph_state(graph, project.id)
+    assert edited["stage"] == "note"
+    assert edited["pending_action"] == before["pending_action"]
+    assert after["note"] == before["note"]
+    payload = session.get(Job, edited["jobs"][0]["id"]).payload
+    assert payload["reference_asset_ids"][0] == session.get(Job, ids[0]).result_asset_id
+    assert 2 <= len(payload["reference_asset_ids"]) <= 3
+    assert set(payload["garment_asset_ids"]).issubset(project.garment_asset_ids)
+    assert payload["script_version"] == 1
+    assert all(
+        part in payload["prompt"] for part in ("白色", "衬衫", "版型", "纽扣", "口袋", "logo")
+    )
+
+
+def test_free_text_generation_requires_explicit_confirmation(flow, monkeypatch):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    monkeypatch.setattr(
+        graph.workflow.providers,
+        "select_tool",
+        lambda *args: ("generate_images", {"reply": "准备好开始啦，点一下确认。"}),
+    )
+    result = run_turn(graph, project, "开始出图吧", None)
+    assert result["stage"] == "script"
+    assert result["pending_action"]["type"] == "confirm_script"
+    assert result["jobs"] == []
+    assert not session.scalars(
+        select(Job).where(Job.payload["purpose"].as_string().is_(None))
+    ).all()
+
+
+def test_three_garment_edit_retains_all_fidelity_sources_with_three_reference_limit(flow):
+    session, project, _, graph = flow
+    third = Asset(
+        user_id=project.user_id,
+        kind="garment",
+        path="third.png",
+        mime="image/png",
+        source="upload",
+    )
+    session.add(third)
+    session.flush()
+    garment_ids = [*project.garment_asset_ids, third.id]
+    project.garment_asset_ids = garment_ids
+    project.model_asset_id = None
+    session.commit()
+    script = choose_script(graph, project)
+    assert script["cards"][0]["shots"][0]["outfit_asset_ids"] == garment_ids
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    source_id = generated["jobs"][0]["id"]
+    succeed_images(session, project)
+    edited = run_turn(
+        graph,
+        project,
+        None,
+        {
+            "type": "edit_image",
+            "image_id": source_id,
+            "instruction": "背景稍微亮一点",
+        },
+    )
+    payload = session.get(Job, edited["jobs"][0]["id"]).payload
+    assert project.model_asset_id is None
+    assert payload["reference_asset_ids"] == [
+        session.get(Job, source_id).result_asset_id,
+        *garment_ids[:2],
+    ]
+    assert len(payload["reference_asset_ids"]) == 3
+    # Worker fidelity reads garment_asset_ids, independently of image-model references.
+    assert payload["garment_asset_ids"] == garment_ids
+    assert third.id in payload["garment_asset_ids"]
+    assert "原衣服3" in payload["prompt"]

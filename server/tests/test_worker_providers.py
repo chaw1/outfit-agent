@@ -113,7 +113,7 @@ def test_text_uses_only_current_function_and_accounts_actual_usage(local_db, mon
     def handler(request):
         body = json.loads(request.content)
         assert [tool["function"]["name"] for tool in body["tools"]] == ["chat"]
-        assert body["tool_choice"]["function"]["name"] == "chat"
+        assert body["tool_choice"] == "required"
         assert body["thinking"] == {"type": "disabled"}
         return httpx.Response(
             200,
@@ -125,7 +125,8 @@ def test_text_uses_only_current_function_and_accounts_actual_usage(local_db, mon
                                 {
                                     "function": {
                                         "name": "chat",
-                                        "arguments": '{"text":"轻松一点就很好～"}',
+                                        "arguments": ('{"text":"轻松一点就很好～",'
+                                                      '"reply":"轻松一点就很好～"}'),
                                     },
                                 }
                             ]
@@ -150,7 +151,7 @@ def test_text_uses_only_current_function_and_accounts_actual_usage(local_db, mon
         assert ledger.estimated_cny == Decimal("0.003150")
         assert ledger.duration_ms >= 0
         with pytest.raises(ProviderError, match="不允许"):
-            ProviderHub(session, project_id).text("generate_video", {})
+            ProviderHub(session, project_id).text("delete_project", {})
 
 
 def test_ten_garments_are_analyzed_in_accounted_batches(local_db):

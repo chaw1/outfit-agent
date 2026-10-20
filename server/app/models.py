@@ -62,6 +62,7 @@ class Asset(Base):
     parent_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    analysis: Mapped[dict | None] = mapped_column(json_type, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

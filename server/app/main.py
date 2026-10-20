@@ -24,7 +24,8 @@ from starlette.exceptions import HTTPException
 from app.config import settings
 from app.db import SessionLocal
 from app.errors import AppError
-from app.graph import build_graph, get_graph_state, run_turn
+from app.graph import build_graph, get_graph_state, run_turn, script_versions
+from app.log_errors import log_exception
 from app.media import asset_dict, asset_path, store_upload
 from app.models import Asset, Job, Message, Project, User, utcnow
 from app.schemas import (
@@ -50,7 +51,16 @@ from app.security import (
     media_signature,
     verify_password,
 )
-from app.views import image_items, job_dict, message_dict, project_dict, refresh_cards, user_dict
+from app.views import (
+    direction_items,
+    image_items,
+    job_dict,
+    message_dict,
+    project_cost_cny,
+    project_dict,
+    refresh_cards,
+    user_dict,
+)
 from app.workflow import Workflow
 
 log = logging.getLogger("outfit")
@@ -70,6 +80,7 @@ async def lifespan(application: FastAPI):
         saver = PostgresSaver(pool)
         saver.setup()
         application.state.checkpointer = saver
+        application.state.graph = build_graph(saver)
         settings.media_dir.mkdir(parents=True, exist_ok=True)
         yield
 
@@ -115,7 +126,7 @@ async def http_error_handler(request, exc):
 
 @app.exception_handler(Exception)
 async def internal_error_handler(request, exc):
-    log.error("Request failed: %s", type(exc).__name__)
+    log_exception(log, "Request failed", exc)
     return JSONResponse(
         {"error": {"code": "INTERNAL_ERROR", "message": "服务暂时不可用，请稍后重试"}}, 500
     )
@@ -132,9 +143,11 @@ def owned_project(session: Session, project_id: str, user_id: str) -> Project:
     return project
 
 
-def project_lock(session: Session, project_id: str):
+def project_lock(session: Session, project_id: str, *, wait: bool = True) -> bool:
     lock_id = int.from_bytes(hashlib.sha256(project_id.encode()).digest()[:8], "big", signed=True)
-    session.execute(sql_text("SELECT pg_advisory_xact_lock(:id)"), {"id": lock_id})
+    function = "pg_advisory_xact_lock" if wait else "pg_try_advisory_xact_lock"
+    result = session.scalar(sql_text(f"SELECT {function}(:id)"), {"id": lock_id})
+    return True if wait else bool(result)
 
 
 @app.get("/api/health", response_model=HealthOutput)
@@ -282,7 +295,7 @@ def delete_project(
 
 def graph_for(session: Session, project: Project):
     workflow = Workflow(session, project)
-    return build_graph(app.state.checkpointer, workflow), workflow
+    return app.state.graph, workflow
 
 
 def restore_messages(session: Session, project_id: str, state: dict) -> str | None:
@@ -325,12 +338,13 @@ def restore_messages(session: Session, project_id: str, state: dict) -> str | No
 def get_state(
     project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
-    project_lock(session, project_id)
+    can_repair = project_lock(session, project_id, wait=False)
     project = owned_project(session, project_id, user.id)
     graph, workflow = graph_for(session, project)
     state = get_graph_state(graph, project_id)
-    workflow.restore_jobs(state)
-    restore_messages(session, project_id, state)
+    if can_repair:
+        workflow.restore_jobs(state)
+        restore_messages(session, project_id, state)
     images = image_items(session, project_id)
     jobs = session.scalars(
         select(Job)
@@ -351,23 +365,41 @@ def get_state(
                 video["poster_url"] = asset_dict(session.get(Asset, source))["url"]
     stage = (
         "done"
-        if video and video.get("status") == "succeeded"
+        if state.get("stage") in {"video", "done"} and video and video.get("status") == "succeeded"
         else state.get("stage", project.stage)
     )
-    if project.stage != stage:
+    if can_repair and project.stage != stage:
         project.stage = stage
+    cost = project_cost_cny(session, project_id)
+    note = state.get("note")
+    if note:
+        note = {
+            **note,
+            "cost_cny": cost,
+            "ai_label": "内容含 AI 生成图片，发布时请勾选平台的 AI 内容声明。",
+        }
+    latest_message_id = session.scalar(
+        select(Message.id)
+        .where(Message.project_id == project_id)
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .limit(1)
+    )
+    directions = direction_items(session, project_id, state.get("directions", []))
     session.commit()
     return {
         "stage": stage,
         "garments": garments,
-        "directions": state.get("directions", []),
+        "directions": directions,
         "chosen_direction_id": state.get("chosen_direction_id"),
         "script": state.get("script"),
         "images": images,
-        "note": state.get("note"),
+        "note": note,
         "video": video,
         "active_jobs": [job_dict(job) for job in jobs],
         "pending_action": state.get("pending_action"),
+        "cost_cny": cost,
+        "last_message_id": latest_message_id,
+        "script_versions": script_versions(graph, project_id),
     }
 
 
@@ -375,12 +407,13 @@ def get_state(
 def list_messages(
     project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
-    project_lock(session, project_id)
+    can_repair = project_lock(session, project_id, wait=False)
     project = owned_project(session, project_id, user.id)
     graph, workflow = graph_for(session, project)
     state = get_graph_state(graph, project_id)
-    workflow.restore_jobs(state)
-    restore_messages(session, project_id, state)
+    if can_repair:
+        workflow.restore_jobs(state)
+        restore_messages(session, project_id, state)
     session.commit()
     rows = session.scalars(
         select(Message)
@@ -394,14 +427,14 @@ def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-def process_turn(project_id: str, user_id: str, body: MessageInput) -> list[str]:
+def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -> list[str]:
     with SessionLocal() as session:
         try:
             project_lock(session, project_id)
             project = owned_project(session, project_id, user_id)
-            graph, _ = graph_for(session, project)
+            graph, workflow = graph_for(session, project)
             action = body.action.model_dump() if body.action else None
-            result = run_turn(graph, project, body.text, action)
+            result = run_turn(graph, project, body.text, action, workflow=workflow, emit=emit)
             project.stage = result["stage"]
             project.updated_at = utcnow()
             assistant_id = restore_messages(session, project_id, get_graph_state(graph, project_id))
@@ -418,9 +451,10 @@ def process_turn(project_id: str, user_id: str, body: MessageInput) -> list[str]
             return events
         except Exception as exc:
             session.rollback()
+            if not isinstance(exc, AppError):
+                log_exception(log, "Conversation failed", exc)
             if hasattr(exc, "code") and hasattr(exc, "message"):
                 return [sse("error", {"code": exc.code, "message": exc.message})]
-            log.error("Conversation failed: %s", type(exc).__name__)
             return [sse("error", {"code": "AGENT_ERROR", "message": "这次没完成，请稍后再试"})]
 
 
@@ -445,15 +479,37 @@ def post_message(
     session.rollback()  # Release the authentication connection before the long SSE response.
 
     async def generate():
-        task = asyncio.create_task(asyncio.to_thread(process_turn, project_id, user_id, body))
+        loop = asyncio.get_running_loop()
+        queue = asyncio.Queue()
+
+        def emit(event, data):
+            loop.call_soon_threadsafe(queue.put_nowait, sse(event, data))
+
+        task = asyncio.create_task(asyncio.to_thread(process_turn, project_id, user_id, body, emit))
+        received = None
         try:
-            while not task.done():
-                done, _ = await asyncio.wait({task}, timeout=10)
+            while not task.done() or not queue.empty():
+                if not queue.empty():
+                    yield queue.get_nowait()
+                    continue
+                received = asyncio.create_task(queue.get())
+                done, _ = await asyncio.wait(
+                    {task, received}, timeout=10, return_when=asyncio.FIRST_COMPLETED
+                )
+                if received in done:
+                    yield received.result()
+                else:
+                    received.cancel()
+                    await asyncio.gather(received, return_exceptions=True)
+                received = None
                 if not done:
                     yield ": keepalive\n\n"
             for event in await task:
                 yield event
         finally:
+            if received is not None:
+                received.cancel()
+                await asyncio.gather(received, return_exceptions=True)
             # Client disconnect does not cancel durable graph work running in its own thread.
             if not task.done():
                 task.add_done_callback(

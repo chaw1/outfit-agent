@@ -91,8 +91,13 @@ class ConfirmVideo(StrictInput):
     image_id: str
 
 
+class RestoreScript(StrictInput):
+    type: Literal["restore_script"]
+    checkpoint_id: str = Field(min_length=1, max_length=100)
+
+
 Action = Annotated[
-    ChooseDirection | ConfirmScript | EditImage | ApproveImages | ConfirmVideo,
+    ChooseDirection | ConfirmScript | EditImage | ApproveImages | ConfirmVideo | RestoreScript,
     Field(discriminator="type"),
 ]
 
@@ -145,6 +150,9 @@ class StateOutput(BaseModel):
     video: dict | None = None
     active_jobs: list[JobOutput]
     pending_action: PendingAction | None = None
+    cost_cny: float = 0
+    last_message_id: str | None = None
+    script_versions: list[dict] = Field(default_factory=list)
 
 
 class ErrorDetail(BaseModel):

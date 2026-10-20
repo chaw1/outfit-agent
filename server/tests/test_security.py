@@ -42,7 +42,8 @@ def test_media_signature_binds_asset_and_expiry():
     assert signature != media_signature(first, exp + 1)
     parsed = urlsplit(signed_url(first))
     params = parse_qs(parsed.query)
-    assert 86390 <= int(params["exp"][0]) - int(time.time()) <= 86400
+    assert 86400 <= int(params["exp"][0]) - int(time.time()) <= 108000
+    assert int(params["exp"][0]) % (6 * 3600) == 0
 
 
 @pytest.mark.integration
