@@ -1,0 +1,341 @@
+- Clearing ios
+✔ Cleared ios code
+- Creating native directory (./ios)
+✔ Created native directory
+- Updating package.json
+✔ Updated package.json | no changes
+- Running prebuild
+✔ Finished prebuild
+- Installing CocoaPods...
+> pod install
+- Installing CocoaPods...
+Using Expo modules
+[34m[Expo] [0mEnabling modular headers for pod [32mExpoModulesCore[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-Core[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mExpoModulesJSI[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-RCTAppDelegate[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-RCTFabric[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReactAppDependencyProvider[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReactCodegen[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mRCTRequired[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mRCTTypeSafety[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-bridging[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReactCommon[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-NativeModulesApple[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mYoga[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-Fabric[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-graphics[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-utils[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-featureflags[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-debug[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-ImageManager[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-rendererdebug[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-jsi[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-renderercss[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-cxxstableapi[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mhermes-engine[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mglog[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mboost[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mDoubleConversion[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mfast_float[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mfmt[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mRCT-Folly[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mSocketRocket[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mExpoTaskManager[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mReact-jsinspector[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mRNScreens[0m
+[34m[Expo] [0mEnabling modular headers for pod [32mUMAppLoader[0m
+[34m[Expo-precompiled] [0m[33mRNReanimated: building from source (prebuilt tarball not found)[0m
+[34m[Expo-precompiled] [0m  Expected tarball: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/packages/precompile/.build/react-native-reanimated/output/4.7.1/0.88.0/260318099.0.2/debug/xcframeworks/RNReanimated.tar.gz
+[34m[Expo-precompiled] [0m[33mreact-native-safe-area-context: building from source (prebuilt tarball not found)[0m
+[34m[Expo-precompiled] [0m  Expected tarball: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/packages/precompile/.build/react-native-safe-area-context/output/5.10.1/0.88.0/260318099.0.2/debug/xcframeworks/RNCSafeAreaContext.tar.gz
+[34m[Expo-precompiled] [0m[33mRNScreens: building from source (prebuilt tarball not found)[0m
+[34m[Expo-precompiled] [0m  Expected tarball: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/packages/precompile/.build/react-native-screens/output/4.30.0/0.88.0/260318099.0.2/debug/xcframeworks/RNScreens.tar.gz
+[34m[Expo-precompiled] [0m[33mRNSVG: building from source (prebuilt tarball not found)[0m
+[34m[Expo-precompiled] [0m  Expected tarball: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/packages/precompile/.build/react-native-svg/output/15.16.0/0.88.0/260318099.0.2/debug/xcframeworks/RNSVG.tar.gz
+[34m[Expo-precompiled] [0m[33mRNWorklets: building from source (prebuilt tarball not found)[0m
+[34m[Expo-precompiled] [0m  Expected tarball: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/packages/precompile/.build/react-native-worklets/output/0.13.0/0.88.0/260318099.0.2/debug/xcframeworks/RNWorklets.tar.gz
+[34m[Expo-precompiled] [0m[33mRNCAsyncStorage: building from source (prebuilt tarball not found)[0m
+[34m[Expo-precompiled] [0m  Expected tarball: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/packages/precompile/.build/@react-native-async-storage/async-storage/output/2.2.0/0.88.0/260318099.0.2/debug/xcframeworks/RNCAsyncStorage.tar.gz
+[RNScreens] Gamma project enabled. Including source files.
+Found 9 modules for target `app`
+link_native_modules! {ios_packages: [{configurations: [], name: "@react-native-async-storage/async-storage", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/@react-native-async-storage/async-storage", path: "../node_modules/@react-native-async-storage/async-storage", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/@react-native-async-storage/async-storage/RNCAsyncStorage.podspec", script_phases: []}, {configurations: [], name: "@react-native-masked-view/masked-view", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/@react-native-masked-view/masked-view", path: "../node_modules/@react-native-masked-view/masked-view", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/@react-native-masked-view/masked-view/RNCMaskedView.podspec", script_phases: []}, {configurations: [], name: "expo", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/expo", path: "../node_modules/expo", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/expo/Expo.podspec", script_phases: []}, {configurations: [], name: "react-native-gesture-handler", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-gesture-handler", path: "../node_modules/react-native-gesture-handler", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-gesture-handler/RNGestureHandler.podspec", script_phases: []}, {configurations: [], name: "react-native-reanimated", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-reanimated", path: "../node_modules/react-native-reanimated", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-reanimated/RNReanimated.podspec", script_phases: []}, {configurations: [], name: "react-native-safe-area-context", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-safe-area-context", path: "../node_modules/react-native-safe-area-context", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-safe-area-context/react-native-safe-area-context.podspec", script_phases: []}, {configurations: [], name: "react-native-screens", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-screens", path: "../node_modules/react-native-screens", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-screens/RNScreens.podspec", script_phases: []}, {configurations: [], name: "react-native-svg", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-svg", path: "../node_modules/react-native-svg", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-svg/RNSVG.podspec", script_phases: []}, {configurations: [], name: "react-native-worklets", root: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-worklets", path: "../node_modules/react-native-worklets", podspec_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/node_modules/react-native-worklets/RNWorklets.podspec", script_phases: []}], ios_project_root_path: "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios", react_native_path: "../node_modules/react-native"}
+[RNScreens] Gamma project enabled. Including source files.
+Auto-linking React Native modules for target `app`: RNCAsyncStorage, RNCMaskedView, RNGestureHandler, RNReanimated, RNSVG, RNScreens, RNWorklets, and react-native-safe-area-context
+Framework build type is static library
+[32m[ReactNativeDependencies] [0mSetting up ReactNativeDependencies...
+[32m[ReactNativeDependencies] [0mBuilding from source: false
+[32m[ReactNativeDependencies] [0mUsing tarball from URL: https://repo.reactnative.dev/maven2/com/facebook/react/react-native-artifacts/0.88.0/react-native-artifacts-0.88.0-reactnative-dependencies-debug.tar.gz
+[32m[ReactNativeDependencies] [0mVerifying checksum for cached reactnative-dependencies-0.88.0-debug.tar.gz...
+[32m[Cache] [0mSHA1 verified for reactnative-dependencies-0.88.0-debug.tar.gz
+[32m[ReactNativeDependencies] [0mCache hit: copying reactnative-dependencies-0.88.0-debug.tar.gz from shared cache (/Users/jiawei/Library/Caches/ReactNative)
+[32m[ReactNativeDependencies] [0mVerifying checksum for cached reactnative-dependencies-0.88.0-release.tar.gz...
+[32m[Cache] [0mSHA1 verified for reactnative-dependencies-0.88.0-release.tar.gz
+[32m[ReactNativeDependencies] [0mCache hit: copying reactnative-dependencies-0.88.0-release.tar.gz from shared cache (/Users/jiawei/Library/Caches/ReactNative)
+[32m[ReactNativeDependencies] [0mSource: {http: "https://repo.reactnative.dev/maven2/com/facebook/react/react-native-artifacts/0.88.0/react-native-artifacts-0.88.0-reactnative-dependencies-debug.tar.gz"}
+[32m[ReactNativeCore] [0mSetting up ReactNativeCore...
+[32m[ReactNativeCore] [0mBuilding from source: false
+Configuring the target with the New Architecture
+[32m[ReactNativeCore] [0mUsing React Native Core and React Native Dependencies prebuilt versions.
+[36m[1m[Codegen][0m Analyzing /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/package.json[0m
+[36m[1m[Codegen][0m [33mSearching for codegen-enabled libraries in the app.[0m
+[36m[1m[Codegen][0m [33mThe "codegenConfig" field is not defined in package.json. Assuming there is nothing to generate at the app level.[0m
+[36m[1m[Codegen][0m [33mSearching for codegen-enabled libraries in react-native.config.js[0m
+[36m[1m[Codegen][0m Found @react-native-async-storage/async-storage[0m
+[36m[1m[Codegen][0m Found react-native-gesture-handler[0m
+[36m[1m[Codegen][0m Found react-native-reanimated[0m
+[36m[1m[Codegen][0m Found react-native-safe-area-context[0m
+[36m[1m[Codegen][0m Found react-native-screens[0m
+[36m[1m[Codegen][0m Found react-native-svg[0m
+[36m[1m[Codegen][0m Found react-native-worklets[0m
+[36m[1m[Codegen][0m Processing rnasyncstorage[0m
+[36m[1m[Codegen][0m [33mSearching for podspec in the project dependencies.[0m
+[36m[1m[Codegen][0m Supported Apple platforms: ios, macos, tvos, visionos for rnasyncstorage[0m
+[36m[1m[Codegen][0m Processing rngesturehandler_codegen[0m
+[36m[1m[Codegen][0m [33mSearching for podspec in the project dependencies.[0m
+[36m[1m[Codegen][0m Supported Apple platforms: ios, macos, tvos, visionos for rngesturehandler_codegen[0m
+[36m[1m[Codegen][0m Processing rnreanimated[0m
+[36m[1m[Codegen][0m [33mSearching for podspec in the project dependencies.[0m
+[36m[1m[Codegen][0m Supported Apple platforms: ios, macos, tvos, visionos for rnreanimated[0m
+[36m[1m[Codegen][0m Processing safeareacontext[0m
+[36m[1m[Codegen][0m [33mSearching for podspec in the project dependencies.[0m
+[36m[1m[Codegen][0m Supported Apple platforms: ios, macos, tvos, visionos for safeareacontext[0m
+[36m[1m[Codegen][0m Processing rnscreens[0m
+[36m[1m[Codegen][0m [33mSearching for podspec in the project dependencies.[0m
+[36m[1m[Codegen][0m Supported Apple platforms: ios, tvos, visionos for rnscreens[0m
+[36m[1m[Codegen][0m Processing rnsvg[0m
+[36m[1m[Codegen][0m [33mSearching for podspec in the project dependencies.[0m
+[36m[1m[Codegen][0m Supported Apple platforms: ios, macos, tvos, visionos for rnsvg[0m
+[36m[1m[Codegen][0m Processing rnworklets[0m
+[36m[1m[Codegen][0m [33mSearching for podspec in the project dependencies.[0m
+[36m[1m[Codegen][0m Supported Apple platforms: ios, macos, tvos, visionos for rnworklets[0m
+[36m[1m[Codegen][0m Generating Native Code for rnasyncstorage - ios[0m
+[36m[1m[Codegen][0m Generated artifacts: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen[0m
+[36m[1m[Codegen][0m Generating Native Code for rngesturehandler_codegen - ios[0m
+[36m[1m[Codegen][0m Generated artifacts: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen[0m
+[36m[1m[Codegen][0m Generating Native Code for rnreanimated - ios[0m
+[36m[1m[Codegen][0m Generated artifacts: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen[0m
+[36m[1m[Codegen][0m Generating Native Code for safeareacontext - ios[0m
+[36m[1m[Codegen][0m Generated artifacts: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen[0m
+[36m[1m[Codegen][0m Generating Native Code for rnscreens - ios[0m
+[36m[1m[Codegen][0m Generated artifacts: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen[0m
+[36m[1m[Codegen][0m Generating Native Code for rnsvg - ios[0m
+[36m[1m[Codegen][0m Generated artifacts: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen[0m
+[36m[1m[Codegen][0m Generating Native Code for rnworklets - ios[0m
+[36m[1m[Codegen][0m Generated artifacts: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen[0m
+[36m[1m[Codegen][0m Generating RCTThirdPartyComponentsProvider.h[0m
+[36m[1m[Codegen][0m Generated artifact: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen/RCTThirdPartyComponentsProvider.h[0m
+[36m[1m[Codegen][0m Generating RCTThirdPartyComponentsProvider.mm[0m
+[36m[1m[Codegen][0m Generated artifact: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen/RCTThirdPartyComponentsProvider.mm[0m
+[36m[1m[Codegen][0m Generating RCTModulesProvider.h[0m
+[36m[1m[Codegen][0m Generated artifact: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen/RCTModuleProviders.h[0m
+[36m[1m[Codegen][0m Generating RCTModuleProviders.mm[0m
+[36m[1m[Codegen][0m Generated artifact: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen/RCTModuleProviders.mm[0m
+[36m[1m[Codegen][0m Generating RCTAppDependencyProvider[0m
+[36m[1m[Codegen][0m Generated artifact: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactAppDependencyProvider/RCTAppDependencyProvider.h[0m
+[36m[1m[Codegen][0m Generated artifact: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactAppDependencyProvider/RCTAppDependencyProvider.mm[0m
+[36m[1m[Codegen][0m Generated podspec: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactAppDependencyProvider/ReactAppDependencyProvider.podspec[0m
+[36m[1m[Codegen][0m Generated podspec: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/ReactCodegen/ReactCodegen.podspec[0m
+[36m[1m[Codegen][0m Generating Package.swift[0m
+[36m[1m[Codegen][0m Generated artifact: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/build/generated/ios/Package.swift[0m
+[36m[1m[Codegen][0m [33mDone.[0m
+Analyzing dependencies
+Fetching podspec for `ExpoFileSystem` from `../node_modules/expo-file-system/ios/ExpoFileSystem.podspec`
+Fetching podspec for `ExpoFont` from `../node_modules/expo-font/ios/ExpoFont.podspec`
+Fetching podspec for `ExpoMediaLibrary` from `../node_modules/expo-media-library/ios/ExpoMediaLibrary.podspec`
+Fetching podspec for `ExpoModulesCore` from `../node_modules/expo-modules-core/ExpoModulesCore.podspec`
+Fetching podspec for `ExpoModulesWorklets` from `../node_modules/expo-modules-core/ExpoModulesWorklets.podspec`
+Fetching podspec for `ExpoVideo` from `../node_modules/expo-video/ios/ExpoVideo.podspec`
+[RNScreens] Gamma project enabled. Including source files.
+Fetching podspec for `React-Core-prebuilt` from `../node_modules/react-native/React-Core-prebuilt.podspec`
+[32m[ReactNativeCore] [0mVerifying checksum for cached reactnative-core-0.88.0-debug.tar.gz...
+[32m[Cache] [0mSHA1 verified for reactnative-core-0.88.0-debug.tar.gz
+[32m[ReactNativeCore] [0mCache hit: copying reactnative-core-0.88.0-debug.tar.gz from shared cache (/Users/jiawei/Library/Caches/ReactNative)
+[32m[ReactNativeCore] [0mVerifying checksum for cached reactnative-core-0.88.0-release.tar.gz...
+[32m[Cache] [0mSHA1 verified for reactnative-core-0.88.0-release.tar.gz
+[32m[ReactNativeCore] [0mCache hit: copying reactnative-core-0.88.0-release.tar.gz from shared cache (/Users/jiawei/Library/Caches/ReactNative)
+[32m[ReactNativeCore] [0mResolved stable ReactNativeCore-prebuilt version:
+[32m[ReactNativeCore] [0m  ../../ios/Pods/ReactNativeCore-artifacts/reactnative-core-0.88.0-debug.tar.gz
+[32m[ReactNativeCore] [0m  ../../ios/Pods/ReactNativeCore-artifacts/reactnative-core-0.88.0-release.tar.gz
+Fetching podspec for `ReactNativeDependencies` from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`
+[32m[ReactNativeDependencies] [0mUsing tarball from URL: https://repo.reactnative.dev/maven2/com/facebook/react/react-native-artifacts/0.88.0/react-native-artifacts-0.88.0-reactnative-dependencies-debug.tar.gz
+[32m[ReactNativeDependencies] [0mTarball reactnative-dependencies-0.88.0-debug.tar.gz already exists in Pods. Skipping download.
+[32m[ReactNativeDependencies] [0mTarball reactnative-dependencies-0.88.0-release.tar.gz already exists in Pods. Skipping download.
+Fetching podspec for `hermes-engine` from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`
+[33m[Hermes] Using release tarball from URL: https://repo.reactnative.dev/maven2/com/facebook/hermes/hermes-ios/260318099.0.4/hermes-ios-260318099.0.4-hermes-ios-debug.tar.gz[0m
+[32m[Hermes] Verifying checksum for cached hermes-ios-260318099.0.4-debug.tar.gz...[0m
+[32m[Hermes] SHA1 verified for hermes-ios-260318099.0.4-debug.tar.gz[0m
+[32m[Hermes] Cache hit: copying hermes-ios-260318099.0.4-debug.tar.gz from shared cache (/Users/jiawei/Library/Caches/ReactNative)[0m
+[32m[Hermes] Verifying checksum for cached hermes-ios-260318099.0.4-release.tar.gz...[0m
+[32m[Hermes] SHA1 verified for hermes-ios-260318099.0.4-release.tar.gz[0m
+[32m[Hermes] Cache hit: copying hermes-ios-260318099.0.4-release.tar.gz from shared cache (/Users/jiawei/Library/Caches/ReactNative)[0m
+Downloading dependencies
+[32mInstalling DoubleConversion (1.1.6)[0m
+[32mInstalling EXConstants (58.0.12)[0m
+[32mInstalling Expo (58.0.16)[0m
+[32mInstalling ExpoApplication (58.1.2)[0m
+[32mInstalling ExpoAsset (58.0.17)[0m
+[32mInstalling ExpoBackgroundTask (58.0.11)[0m
+[32mInstalling ExpoClipboard (58.0.3)[0m
+[32mInstalling ExpoDomWebView (58.0.2)[0m
+[32mInstalling ExpoFileSystem (58.0.10)[0m
+[32mInstalling ExpoFont (58.0.9)[0m
+[32mInstalling ExpoGlassEffect (58.0.4)[0m
+[32mInstalling ExpoHaptics (58.0.7)[0m
+[32mInstalling ExpoImagePicker (58.0.10)[0m
+[32mInstalling ExpoKeepAwake (58.0.3)[0m
+[32mInstalling ExpoLinking (58.0.13)[0m
+[32mInstalling ExpoLogBox (58.0.12)[0m
+[32mInstalling ExpoMediaLibrary (58.0.11)[0m
+[32mInstalling ExpoModulesCore (58.0.23)[0m
+[32mInstalling ExpoModulesJSI (58.0.16)[0m
+[32mInstalling ExpoModulesWorklets (58.0.23)[0m
+[32mInstalling ExpoModulesWorkletsAdapter (58.0.23)[0m
+[32mInstalling ExpoNotifications (58.1.5)[0m
+[32mInstalling ExpoRouter (58.0.24)[0m
+[32mInstalling ExpoSecureStore (58.0.2)[0m
+[32mInstalling ExpoSplashScreen (58.0.10)[0m
+[32mInstalling ExpoTaskManager (58.0.12)[0m
+[32mInstalling ExpoVideo (58.0.12)[0m
+[32mInstalling FBLazyVector (0.88.0)[0m
+[32mInstalling RCT-Folly (2024.11.18.00)[0m
+[32mInstalling RCTDeprecation (0.88.0)[0m
+[32mInstalling RCTRequired (0.88.0)[0m
+[32mInstalling RCTSwiftUI (0.88.0)[0m
+[32mInstalling RCTSwiftUIWrapper (0.88.0)[0m
+[32mInstalling RCTTypeSafety (0.88.0)[0m
+[32mInstalling RNCAsyncStorage (2.2.0)[0m
+[32mInstalling RNCMaskedView (0.3.2)[0m
+[32mInstalling RNGestureHandler (3.3.0)[0m
+[32mInstalling RNReanimated (4.7.1)[0m
+[32mInstalling RNSVG (15.16.0)[0m
+[32mInstalling RNScreens (4.30.0)[0m
+[32mInstalling RNWorklets (0.13.0)[0m
+[32mInstalling React (0.88.0)[0m
+[32mInstalling React-Core (0.88.0)[0m
+[32mInstalling React-Core-prebuilt (0.88.0)[0m
+[32mInstalling React-CoreModules (0.88.0)[0m
+[32mInstalling React-Fabric (0.88.0)[0m
+[32mInstalling React-FabricComponents (0.88.0)[0m
+[32mInstalling React-FabricImage (0.88.0)[0m
+[32mInstalling React-ImageManager (0.88.0)[0m
+[32mInstalling React-Mapbuffer (0.88.0)[0m
+[32mInstalling React-NativeModulesApple (0.88.0)[0m
+[32mInstalling React-RCTActionSheet (0.88.0)[0m
+[32mInstalling React-RCTAnimatedModuleProvider (0.88.0)[0m
+[32mInstalling React-RCTAnimation (0.88.0)[0m
+[32mInstalling React-RCTAppDelegate (0.88.0)[0m
+[32mInstalling React-RCTBlob (0.88.0)[0m
+[32mInstalling React-RCTFBReactNativeSpec (0.88.0)[0m
+[32mInstalling React-RCTFabric (0.88.0)[0m
+[32mInstalling React-RCTImage (0.88.0)[0m
+[32mInstalling React-RCTLinking (0.88.0)[0m
+[32mInstalling React-RCTNetwork (0.88.0)[0m
+[32mInstalling React-RCTRuntime (0.88.0)[0m
+[32mInstalling React-RCTSettings (0.88.0)[0m
+[32mInstalling React-RCTText (0.88.0)[0m
+[32mInstalling React-RCTVibration (0.88.0)[0m
+[32mInstalling React-RuntimeApple (0.88.0)[0m
+[32mInstalling React-RuntimeCore (0.88.0)[0m
+[32mInstalling React-RuntimeHermes (0.88.0)[0m
+[32mInstalling React-bridging (0.88.0)[0m
+[32mInstalling React-callinvoker (0.88.0)[0m
+[32mInstalling React-cxxreact (0.88.0)[0m
+[32mInstalling React-cxxstableapi (0.88.0)[0m
+[32mInstalling React-debug (0.88.0)[0m
+[32mInstalling React-defaultsnativemodule (0.88.0)[0m
+[32mInstalling React-domnativemodule (0.88.0)[0m
+[32mInstalling React-featureflags (0.88.0)[0m
+[32mInstalling React-featureflagsnativemodule (0.88.0)[0m
+[32mInstalling React-graphics (0.88.0)[0m
+[32mInstalling React-hermes (0.88.0)[0m
+[32mInstalling React-idlecallbacksnativemodule (0.88.0)[0m
+[32mInstalling React-intersectionobservernativemodule (0.88.0)[0m
+[32mInstalling React-jserrorhandler (0.88.0)[0m
+[32mInstalling React-jsi (0.88.0)[0m
+[32mInstalling React-jsiexecutor (0.88.0)[0m
+[32mInstalling React-jsinspector (0.88.0)[0m
+[32mInstalling React-jsinspectorcdp (0.88.0)[0m
+[32mInstalling React-jsinspectornetwork (0.88.0)[0m
+[32mInstalling React-jsinspectortracing (0.88.0)[0m
+[32mInstalling React-jsitooling (0.88.0)[0m
+[32mInstalling React-jsitracing (0.88.0)[0m
+[32mInstalling React-logger (0.88.0)[0m
+[32mInstalling React-microtasksnativemodule (0.88.0)[0m
+[32mInstalling React-mutationobservernativemodule (0.88.0)[0m
+[32mInstalling React-networking (0.88.0)[0m
+[32mInstalling React-oscompat (0.88.0)[0m
+[32mInstalling React-perflogger (0.88.0)[0m
+[32mInstalling React-performancecdpmetrics (0.88.0)[0m
+[32mInstalling React-performancetimeline (0.88.0)[0m
+[32mInstalling React-rendererconsistency (0.88.0)[0m
+[32mInstalling React-renderercss (0.88.0)[0m
+[32mInstalling React-rendererdebug (0.88.0)[0m
+[32mInstalling React-resizeobservernativemodule (0.88.0)[0m
+[32mInstalling React-runtimeexecutor (0.88.0)[0m
+[32mInstalling React-runtimescheduler (0.88.0)[0m
+[32mInstalling React-timing (0.88.0)[0m
+[32mInstalling React-utils (0.88.0)[0m
+[32mInstalling React-viewtransitionnativemodule (0.88.0)[0m
+[32mInstalling React-webperformancenativemodule (0.88.0)[0m
+[32mInstalling ReactAppDependencyProvider (0.88.0)[0m
+[32mInstalling ReactCodegen (0.88.0)[0m
+[32mInstalling ReactCommon (0.88.0)[0m
+[32mInstalling ReactNativeDependencies (0.88.0)[0m
+[32mInstalling SocketRocket (0.7.1)[0m
+[32mInstalling UMAppLoader (58.0.2)[0m
+[32mInstalling Yoga (0.0.0)[0m
+[32mInstalling boost (1.84.0)[0m
+[32mInstalling fast_float (8.0.0)[0m
+[32mInstalling fmt (12.1.0)[0m
+[32mInstalling glog (0.3.5)[0m
+[32mInstalling hermes-engine (260318099.0.4)[0m
+[32mInstalling react-native-safe-area-context (5.10.1)[0m
+[Expo] Ensuring required slices in ExpoModulesJSI.xcframework
+Generating Pods project
+Setting USE_HERMES build settings
+Setting REACT_NATIVE_PATH build settings
+Setting SWIFT_ACTIVE_COMPILATION_CONDITIONS build settings
+[Ccache]: Removing Ccache from CC, LD, CXX & LDPLUSPLUS build settings
+[32m[ReactNativeCore] [0mConfiguring xcconfig for prebuilt React Native Core...
+[32m[ReactNativeCore] [0mPrebuilt xcconfig configuration complete
+[32m[ReactNativeDependencies] [0mConfiguring xcconfig for prebuilt React Native Dependencies...
+[32m[ReactNativeDependencies] [0mPrebuilt deps xcconfig configuration complete
+[SPM] Cleaning old SPM dependencies from Pods project
+[SPM] Adding SPM dependencies to Pods project
+[Privacy Manifest Aggregation] No existing PrivacyInfo.xcprivacy file found, creating a new one.
+[Privacy Manifest Aggregation] Reading .xcprivacy files to aggregate all used Required Reason APIs.
+file_root: app
+Setting CLANG_CXX_LANGUAGE_STANDARD to c++20 on /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/app.xcodeproj
+
+[33m==================== DEPRECATION NOTICE =====================[0m
+[33mCalling `pod install` directly is deprecated in React Native[0m
+[33mbecause we are moving away from Cocoapods toward alternative[0m
+[33msolutions to build the project.[0m
+[33m* If you are using Expo, please run:[0m
+[33m`npx expo run:ios`[0m
+[33m* If you are using the Community CLI, please run:[0m
+[33m`yarn ios`[0m
+[33m=============================================================[0m
+
+[32mPod install took 29 [s] to run[0m
+Integrating client project
+[32m
+[!] Please close any current Xcode sessions and use `app.xcworkspace` for this project from now on.[0m
+[34m[Expo] [0mInstalling the build script for target [32mapp[0m
+[32mPod installation complete! There are 122 dependencies from the Podfile and 121 total pods installed.[0m
+[34m[Expo-precompiled] [0mPrecompiled modules:
+[34m[Expo-precompiled] [0m  📦 [32mExpoFileSystem[0m [2m(58.0.10)[0m
+[34m[Expo-precompiled] [0m  📦 [32mExpoFont[0m [2m(58.0.9)[0m
+[34m[Expo-precompiled] [0m  📦 [32mExpoMediaLibrary[0m [2m(58.0.11)[0m
+[34m[Expo-precompiled] [0m  📦 [32mExpoModulesCore[0m [2m(58.0.23)[0m
+[34m[Expo-precompiled] [0m  📦 [32mExpoModulesWorklets[0m [2m(58.0.23)[0m
+[34m[Expo-precompiled] [0m  📦 [32mExpoVideo[0m [2m(58.0.12)[0m
+[34m[Expo] [0mDisabling SWIFT_EMIT_MODULE_INTERFACE for pod targets (prebuilt React compatibility)
+[34m[Expo] [0mEnsured modular React header flags on 0 xcconfig(s)
+[34m[Expo-precompiled] [0mLooking for ExpoModulesCore.xcframework at: /Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/ios/Pods/ExpoModulesCore/ExpoModulesCore.xcframework
+[34m[Expo-precompiled] [0mAdding ExpoModulesJSI header search paths to all targets
+[34m[Expo-precompiled] [0mAdding ExpoModulesWorklets header search paths to ExpoModulesWorkletsAdapter
+[34m[Expo] [0mAdding '[Expo] Remove duplicate codegen output' build phase to ReactCodegen
+[34m[Expo] [0m[33mRaised resource bundle deployment targets to match their pods: RNCAsyncStorage-RNCAsyncStorage_resources[0m
+✔ Installed CocoaPods

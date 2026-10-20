@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Image, Platform, Pressable, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '../api/client';
 import type { User, UserProfile } from '../api/types';
 import { useSession } from '../context/Session';
 import { parseHeight, profilePhotos, setDefaultPhoto } from '../lib/profile';
-import { Button, Field, Notice, colors, errorText, styles } from './ui';
+import { Badge, Button, FadeImage, Field, Notice, Toast, errorText, styles } from './ui';
+import { colors, radius, space, type } from '../theme';
 
 export function ProfileEditor({ user }: { user: User & { profile: UserProfile } }) {
   const { api, photos, updateMe, cacheProfilePhoto } = useSession();
@@ -56,24 +57,50 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
   }
 
   if (unavailable) return <Notice text="当前服务未开通我的形象，其他创作功能可以继续使用。" />;
-  return <View style={{ gap: 18 }}>
-    <View><Text style={styles.section}>我的形象</Text><Text style={[styles.subtitle, { fontSize: 12, marginTop: 7 }]}>保存你的照片和偏好，下次合作从熟悉的你开始。</Text></View>
+  return <View style={localStyles.editor}>
+    <View style={localStyles.heading}>
+      <View style={localStyles.headingIcon}><Ionicons name="person-outline" size={24} color={colors.redText} /></View>
+      <View style={{ flex: 1, gap: space.xs }}><Text style={styles.section}>我的形象</Text><Text style={styles.subtitle}>保存你的照片和偏好，下次合作从熟悉的你开始。</Text></View>
+    </View>
     <Field label="昵称" value={nickname} maxLength={40} onChangeText={value => { setNickname(value); changed(); }} />
-    <View style={{ gap: 10 }}><Text style={styles.label}>本人照片 · 第一张为默认</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>{profilePhotos(ids, photos).map((photo, index) => <View key={photo.id} style={{ width: 136, gap: 7 }}>
-        {photo.url ? <Image accessibilityLabel={`本人照片 ${index + 1}`} source={{ uri: photo.url }} style={{ width: 136, height: 166, borderRadius: 14, backgroundColor: colors.paper }} /> : <View style={{ width: 136, height: 166, borderRadius: 14, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', padding: 10, gap: 8 }}><Ionicons name="person-outline" size={30} color={colors.muted} /><Text style={{ color: colors.muted, fontSize: 11, textAlign: 'center' }}>照片已保存{ '\n' }本机暂无预览</Text></View>}
-        <View style={[styles.row, { justifyContent: 'space-between', gap: 4 }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={index === 0 ? `默认照片 ${index + 1}` : `设照片 ${index + 1} 为默认`} disabled={busy || index === 0} onPress={() => { setIds(previous => setDefaultPhoto(previous, photo.id)); changed(); }} style={{ paddingVertical: 8 }}><Text style={{ fontSize: 12, color: colors.red }}>{index === 0 ? '✓ 默认' : '设为默认'}</Text></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`删除本人照片 ${index + 1}`} disabled={busy} onPress={() => { setIds(previous => previous.filter(id => id !== photo.id)); changed(); }} style={{ padding: 8 }}><Ionicons name="trash-outline" size={17} color={colors.muted} /></Pressable>
+    <View style={{ gap: space.md }}><Text style={styles.label}>本人照片 · 第一张为默认</Text>
+      <View style={localStyles.photoGrid}>{profilePhotos(ids, photos).map((photo, index) => <View key={photo.id} style={localStyles.photoCard}>
+        <View>
+          {photo.url ? <FadeImage accessibilityLabel={`本人照片 ${index + 1}`} source={{ uri: photo.url }} style={localStyles.portrait} /> : <View style={[localStyles.portrait, localStyles.placeholder]}><Ionicons name="person-outline" size={30} color={colors.muted} /><Text style={localStyles.placeholderText}>照片已保存{ '\n' }本机暂无预览</Text></View>}
+          {index === 0 && <View style={localStyles.defaultBadge}><Badge label="默认形象" tone="brand" /></View>}
+        </View>
+        <View style={localStyles.photoActions}>
+          <Pressable accessibilityRole="button" accessibilityLabel={index === 0 ? `默认照片 ${index + 1}` : `设照片 ${index + 1} 为默认`} disabled={busy || index === 0} onPress={() => { setIds(previous => setDefaultPhoto(previous, photo.id)); changed(); }} style={({ pressed }) => [localStyles.defaultAction, pressed && localStyles.pressed]}><Text style={{ ...type.caption, color: index === 0 ? colors.green : colors.redText, fontWeight: '600' }}>{index === 0 ? '✓ 默认' : '设为默认'}</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`删除本人照片 ${index + 1}`} disabled={busy} onPress={() => { setIds(previous => previous.filter(id => id !== photo.id)); changed(); }} style={({ pressed }) => [localStyles.removeAction, pressed && localStyles.pressed]}><Ionicons name="trash-outline" size={18} color={colors.danger} /></Pressable>
         </View>
       </View>)}</View>
       <Button title="添加本人照片" variant="secondary" icon="images-outline" disabled={busy} onPress={() => void upload()} />
     </View>
-    <Field label="身高（厘米）" placeholder="选填，例如 168" keyboardType="decimal-pad" value={height} maxLength={5} onChangeText={value => { setHeight(value); changed(); }} />
-    <Field label="体型描述" placeholder="例如：肩宽、梨形，想突出腰线" value={body} maxLength={500} multiline onChangeText={value => { setBody(value); changed(); }} />
-    <Field label="风格偏好" placeholder="例如：喜欢松弛感，不穿高跟鞋" value={style} maxLength={1000} multiline onChangeText={value => { setStyle(value); changed(); }} />
+    <View style={localStyles.preferences}>
+      <Text style={styles.section}>你的穿搭偏好</Text>
+      <Field label="身高（厘米）" placeholder="选填，例如 168" keyboardType="decimal-pad" value={height} maxLength={5} onChangeText={value => { setHeight(value); changed(); }} />
+      <Field label="体型描述" placeholder="例如：肩宽、梨形，想突出腰线" value={body} maxLength={500} multiline onChangeText={value => { setBody(value); changed(); }} />
+      <Field label="风格偏好" placeholder="例如：喜欢松弛感，不穿高跟鞋" value={style} maxLength={1000} multiline onChangeText={value => { setStyle(value); changed(); }} />
+    </View>
     {!!error && <Notice text={error} />}
-    {saved && <Text accessibilityRole="alert" style={{ color: colors.green, fontSize: 13 }}>形象已保存，新建合作会默认带上你的照片。</Text>}
+    {saved && <Toast text="形象已保存，新建合作会默认带上你的照片。" tone="success" onDismiss={() => setSaved(false)} />}
     <Button title="保存我的形象" loading={busy} onPress={() => void save()} />
   </View>;
 }
+
+const localStyles = StyleSheet.create({
+  editor: { gap: space.xl },
+  heading: { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' },
+  headingIcon: { width: 48, height: 48, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.blush },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
+  photoCard: { width: 136, gap: space.xs, backgroundColor: colors.paper, borderRadius: radius.md, padding: space.xs, borderWidth: 1, borderColor: colors.border },
+  portrait: { width: '100%', aspectRatio: 3 / 4, borderRadius: radius.sm, backgroundColor: colors.imagePlaceholder },
+  placeholder: { alignItems: 'center', justifyContent: 'center', padding: space.sm, gap: space.sm },
+  placeholderText: { ...type.caption, color: colors.muted, textAlign: 'center' },
+  defaultBadge: { position: 'absolute', left: space.sm, top: space.sm },
+  photoActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  defaultAction: { flex: 1, minHeight: 44, justifyContent: 'center', alignItems: 'center', borderRadius: radius.sm },
+  removeAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  pressed: { opacity: 0.6, backgroundColor: colors.blush },
+  preferences: { gap: space.xl, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.xl },
+});
