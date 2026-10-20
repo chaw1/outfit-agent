@@ -201,7 +201,7 @@ export async function createMockServer(options = {}) {
   }
   function publicProject(project, base) {
     const { id, title, brand, brief, stage, created_at, updated_at, coverAssetId } = project;
-    return { id, title, brand, brief, stage, ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
+    return { id, title, brand, brief: project.analyzedBrief || brief, stage, ...(project.referenceAssetIds ? { reference_asset_ids: [...project.referenceAssetIds] } : {}), ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
   }
   function publicVideo(project, base) {
     if (!project.state.video) return undefined;
@@ -231,6 +231,7 @@ export async function createMockServer(options = {}) {
     const state = publicState(project, base);
     const contents = {
       garments: { items: state.garments },
+      references: { items: (project.references || []).map((item) => ({ ...item, url: mediaUrl(item.asset_id, base) })) },
       directions: { options: state.directions },
       script: state.script,
       images: { items: state.images },
@@ -275,6 +276,19 @@ export async function createMockServer(options = {}) {
     project.messages.push({ id: newId('message'), role: 'assistant', text, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: false, created_at: now() });
   }
   const assetPath = (asset) => asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
+  function generationPrompt(project, job, image) {
+    let prompt = image?.instruction || project.analyzedBrief || project.brief;
+    if (project.referenceStyleSummary) {
+      const direction = job.directionId ? project.state.directions.find((item) => item.id === job.directionId) : undefined;
+      const shot = image ? project.state.script?.shots.find((item) => item.id === image.shot_id) : undefined;
+      prompt += `；参考图风格：${project.referenceStyleSummary}`;
+      if (direction) prompt += `；方向预览：${direction.scene}，${direction.mood}，${direction.palette}`;
+      if (shot) prompt += `；拍摄脚本：${shot.scene}，${shot.camera}，${shot.pose}`;
+    }
+    if (project.modelAssetId && image) prompt += '；保持博主本人五官、体型和妆发一致';
+    if (image?.anchor_id) prompt += `；以封面 ${image.anchor_id} 为锚点，保持同一人、同一妆发和光线氛围`;
+    return prompt;
+  }
   async function addGeneratedAsset(project, job, image) {
     const isVideo = job.kind === 'video';
     const parentImage = image?.parent_id ? project.state.images.find((item) => item.id === image.parent_id) : undefined;
@@ -283,7 +297,7 @@ export async function createMockServer(options = {}) {
       width: isVideo ? 830 : 675, height: isVideo ? 1108 : 900,
       mime: isVideo ? 'video/mp4' : 'image/jpeg', created_at: now(), fixture: isVideo ? 'v-wan.mp4' : 't-wan-v.jpg',
       ...(parentImage?.assetId ? { parent_id: parentImage.assetId } : {}),
-      prompt: image?.instruction || project.brief,
+      prompt: generationPrompt(project, job, image),
     };
     if (job.kind === 'edit' && parentImage?.assetId) {
       const originalAsset = db.assets.find((item) => item.id === parentImage.assetId);
@@ -332,6 +346,16 @@ export async function createMockServer(options = {}) {
       const project = db.projects.find((item) => item.id === job.project_id);
       if (!project) continue;
       const image = project.state.images.find((item) => item.id === job.imageId);
+      if (job.waitingForImageId) {
+        const anchor = project.state.images.find((item) => item.id === job.waitingForImageId);
+        if (anchor && activeStatuses.has(anchor.status)) continue;
+        if (anchor?.status === 'succeeded' && image) image.anchor_id = anchor.id;
+        delete job.waitingForImageId;
+        job.runningAt = clock() + runningDelay;
+        job.dueAt = clock() + timings.image + (job.delayOffset || 0);
+        delete job.delayOffset;
+        changed = true;
+      }
       const direction = job.directionId ? project.state.directions.find((item) => item.id === job.directionId) : undefined;
       let jobChanged = false;
       if (clock() >= job.dueAt) {
@@ -351,12 +375,15 @@ export async function createMockServer(options = {}) {
             image.fidelity = needsFix
               ? { score: 54, diffs: ['左侧胸袋缺失', '纽扣位置与原衣服不一致'], auto_fixed: false }
               : { score: image.automatic ? 92 : 96, diffs: [], auto_fixed: Boolean(image.automatic) };
+            if (project.modelAssetId) image.fidelity.person_score = 92;
+            if (image.anchor_id) image.fidelity.anchor_score = 94;
             if (needsFix && money(availableBudget(project) - jobCost(job)) >= PRICES.edit) {
               image.autoFixAttempted = true;
               const repaired = {
                 id: newId('image'), shot_id: image.shot_id, status: 'queued',
                 version: Math.max(...project.state.images.filter((item) => item.shot_id === image.shot_id).map((item) => item.version)) + 1,
                 parent_id: image.id, script_version: image.script_version, automatic: true,
+                ...(image.anchor_id ? { anchor_id: image.anchor_id } : {}),
                 instruction: '自动修复：补回左侧胸袋，恢复原衣服的纽扣位置，保持面料和颜色一致',
               };
               project.state.images.push(repaired);
@@ -417,7 +444,7 @@ export async function createMockServer(options = {}) {
         const failed = jobs.filter((job) => job.status === 'failed').length;
         const type = first.directionId ? 'directions' : first.kind === 'video' ? 'video' : 'images';
         const autoFixed = jobs.some((job) => project.state.images.find((image) => image.id === job.imageId)?.automatic);
-        const text = failed
+        let text = failed
           ? `${first.directionId ? '方向预览' : first.kind === 'video' ? '视频' : '图片'}有 ${failed} 个任务未完成，演示素材暂时不可用，可以恢复素材后重试。`
           : first.directionId ? '三个方向的灵感预览图都准备好了，看看哪种感觉更像你。'
           : first.kind === 'video' ? '5 秒穿搭短视频做好啦，可以打开预览播放。'
@@ -425,6 +452,12 @@ export async function createMockServer(options = {}) {
           : autoFixed ? '3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。'
           : first.kind === 'edit' ? '这张图改好了，原图也保留着，可以对比后再选。'
           : '这批穿搭图片都好了，可以挑选笔记用图了。';
+        if (!failed && !first.directionId && first.kind !== 'video') {
+          const completedImages = jobs.map((job) => project.state.images.find((image) => image.id === job.imageId)).filter((image) => image?.status === 'succeeded');
+          const personScores = completedImages.map((image) => image.fidelity?.person_score).filter((score) => typeof score === 'number');
+          const anchorScores = completedImages.map((image) => image.fidelity?.anchor_score).filter((score) => typeof score === 'number');
+          if (personScores.length || anchorScores.length) text += ` ${[...(personScores.length ? [`人像一致性 ${Math.min(...personScores)}`] : []), ...(anchorScores.length ? [`封面一致性 ${Math.min(...anchorScores)}`] : [])].join('，')}。`;
+        }
         const successful = jobs.filter((job) => job.status === 'succeeded');
         const duration_ms = Math.max(0, Math.max(...jobs.map((job) => Date.parse(job.updated_at))) - Math.min(...jobs.map((job) => Date.parse(job.created_at))));
         const tool = first.directionId ? 'propose_directions' : first.kind === 'video' ? 'generate_video' : first.kind === 'edit' ? 'edit_image' : 'generate_images';
@@ -472,6 +505,10 @@ export async function createMockServer(options = {}) {
     const preferred = /通勤|上班|办公室/.test(request) ? 'direction_work' : /公园|户外|露营/.test(request) ? 'direction_nature' : 'direction_city';
     result.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
     if (project.styleNotes) for (const option of result) option.why += ` 博主风格偏好：${project.styleNotes}。`;
+    if (project.referenceStyleSummary) for (const option of result) {
+      option.why += ` 参考图风格：${project.referenceStyleSummary}。`;
+      option.mood += '，参考图的松弛氛围';
+    }
     if (revision) {
       for (const option of result) {
         option.why += ` 已参考你的想法：${(project.directionPreferences || []).join('；') || revision}`;
@@ -516,6 +553,11 @@ export async function createMockServer(options = {}) {
       result.cover.pose += `；遵循博主偏好：${project.styleNotes}`;
       for (const shot of result.shots) shot.pose += `；遵循博主偏好：${project.styleNotes}`;
       result.video.prompt += `；遵循博主偏好：${project.styleNotes}`;
+    }
+    if (project.referenceStyleSummary) {
+      result.cover.scene += `；参考图风格：${project.referenceStyleSummary}`;
+      for (const shot of result.shots) shot.camera += `；参考图风格：${project.referenceStyleSummary}`;
+      result.video.prompt += `；参考图风格：${project.referenceStyleSummary}`;
     }
     if (!revision) return result;
     const draft = structuredClone(project.state.script || result);
@@ -589,7 +631,8 @@ export async function createMockServer(options = {}) {
           const images = state.script.shots.map((shot) => ({ id: newId('image'), shot_id: shot.id, status: 'queued', version: Math.max(0, ...state.images.filter((item) => item.shot_id === shot.id).map((item) => item.version)) + 1, script_version: project.currentScriptVersion }));
           state.images.push(...images);
           const groupId = newId('group');
-          images.forEach((image, index) => jobs.push(queueJob(project, 'image', image, index * (options.imageStaggerMs ?? 500), { groupId })));
+          const useAnchor = Boolean(project.modelAssetId || project.referenceAssetIds?.length);
+          images.forEach((image, index) => jobs.push(queueJob(project, 'image', image, index * (options.imageStaggerMs ?? 500), { groupId, ...(useAnchor && index > 0 ? { waitingForImageId: images[0].id, delayOffset: (index - 1) * (options.imageStaggerMs ?? 500) } : {}) })));
           state.stage = 'images';
           state.pending_action = null;
           delete state.note;
@@ -624,7 +667,7 @@ export async function createMockServer(options = {}) {
           const region = selectionBounds(selection, source.width, source.height);
           const editCheckShouldFail = isLocal && !project.localEditCheckDemonstrated;
           if (isLocal) project.localEditCheckDemonstrated = true;
-          const image = { id: newId('image'), shot_id: original.shot_id, status: 'queued', version: Math.max(...state.images.filter((item) => item.shot_id === original.shot_id).map((item) => item.version)) + 1, parent_id: original.id, instruction, script_version: original.script_version, ...(region ? { region } : {}), editSelection: selection };
+          const image = { id: newId('image'), shot_id: original.shot_id, status: 'queued', version: Math.max(...state.images.filter((item) => item.shot_id === original.shot_id).map((item) => item.version)) + 1, parent_id: original.id, instruction, script_version: original.script_version, ...(original.anchor_id ? { anchor_id: original.anchor_id } : {}), ...(region ? { region } : {}), editSelection: selection };
           state.images.push(image);
           jobs.push(queueJob(project, 'edit', image, 0, { editCheckShouldFail }));
           types = ['images'];
@@ -680,8 +723,9 @@ export async function createMockServer(options = {}) {
         jobs.push(...queuePreviews(project));
         state.stage = 'direction';
         state.pending_action = { type: 'choose_direction', prompt: '选一个喜欢的方向，也可以继续告诉我你的想法' };
-        types = ['garments', 'directions'];
+        types = ['garments', ...(project.referenceAssetIds?.length ? ['references'] : []), 'directions'];
         reply = `我看过衣服和${project.brand}的合作需求了，整体适合自然、舒服的日常表达。给你整理了三个场景方向，你喜欢哪一种？也可以继续告诉我想调整的感觉。`;
+        if (project.referenceStyleSummary) reply += ` 参考图的场景、光线、构图、氛围和配色已整理进需求：${project.referenceStyleSummary}。`;
       } else if (state.stage === 'script') {
         tool = 'revise_script';
         state.script = makeScript(project, text);
@@ -849,12 +893,16 @@ export async function createMockServer(options = {}) {
         const brief = typeof body.brief === 'string' ? body.brief.trim() : '';
         const ids = body.garment_asset_ids;
         if (!title || !brand || !brief || !Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) throw failure(400, 'INVALID_PROJECT', '请填写标题、品牌和需求，并上传至少一张衣服图');
+        const referenceIds = body.reference_asset_ids === undefined ? [] : body.reference_asset_ids;
+        if (!Array.isArray(referenceIds) || referenceIds.length > 3 || new Set(referenceIds).size !== referenceIds.length || referenceIds.some((id) => typeof id !== 'string' || !db.assets.some((asset) => asset.id === id && asset.ownerId === user.id && asset.kind === 'reference' && asset.source === 'upload'))) throw failure(400, 'INVALID_REFERENCE_ASSETS', '参考图最多 3 张，必须是当前账号上传的参考图，每张只选一次');
         const assets = ids.map((id) => db.assets.find((item) => item.id === id && item.ownerId === user.id && item.kind === 'garment'));
         const modelId = body.model_asset_id || (!options.legacyProfile ? user.profile?.model_asset_ids[0] : undefined);
         const model = modelId ? db.assets.find((item) => item.id === modelId && item.ownerId === user.id && item.kind === 'model' && item.source === 'upload') : undefined;
         if (assets.some((item) => !item) || (modelId && !model)) throw failure(400, 'INVALID_ASSET', '图片不属于当前账号，或图片类型不正确');
         const created_at = now();
-        const project = { id: newId('project'), title, brand, brief, stage: 'brief', ownerId: user.id, garmentAssetIds: ids, ...(model ? { modelAssetId: model.id } : {}), ...(!options.legacyProfile && user.profile?.style_notes ? { styleNotes: user.profile.style_notes } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
+        const referenceStyleTags = ['街角咖啡馆', '柔和自然光', '竖构图', '松弛日常', '奶白·浅卡其配色'];
+        const referenceStyleSummary = referenceIds.length ? referenceStyleTags.join('、') : undefined;
+        const project = { id: newId('project'), title, brand, brief, stage: 'brief', ownerId: user.id, garmentAssetIds: ids, referenceAssetIds: [...referenceIds], ...(referenceStyleSummary ? { references: referenceIds.map((asset_id) => ({ asset_id, style_tags: [...referenceStyleTags] })), referenceStyleSummary, analyzedBrief: `${brief}\n参考图整理要点（场景 / 光线 / 构图 / 氛围 / 配色）：${referenceStyleSummary}` } : {}), ...(model ? { modelAssetId: model.id } : {}), ...(!options.legacyProfile && user.profile?.style_notes ? { styleNotes: user.profile.style_notes } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
         db.projects.push(project); await persist(); json(res, 200, publicProject(project, base)); return;
       }
       const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)(?:\/(state|messages))?$/);

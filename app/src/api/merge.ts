@@ -51,6 +51,7 @@ export function mergeImages(previous: readonly OutfitImage[], incoming: readonly
 export function stateWithCard(previous: ProjectState | undefined, card: Card): ProjectState {
   const state = previous ?? emptyProjectState();
   switch (card.type) {
+    case 'references': return state;
     case 'garments': return { ...state, garments: card.items };
     case 'directions': return { ...state, stage: 'direction', directions: card.options, pending_action: undefined };
     case 'script': return { ...state, stage: 'script', script: card, pending_action: undefined };
