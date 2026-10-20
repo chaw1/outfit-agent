@@ -1,0 +1,19 @@
+结论：本轮视觉打磨完成，V1–V4 本地验收通过；V5 真机部分待验，未将 Web 验证冒充真机通过。
+- V1：通过。`src/theme.ts` 已用于全部 8 个页面及共享组件，未保留页面独立色盘。
+- Token：space=4/8/12/16/24/32；radius=12/16/20；type=brand/title/heading/subtitle/body/reading/label/caption/badge/button；colors、motion、layout 集中管理。
+- 品牌色仍为 #FF2442；小字用 redText、实心按钮用 action 加深红色，主要文字颜色对比均 ≥4.5:1（最低 4.513）。
+- V2：通过。`npm run test:e2e` 最终 3/3（原有两套 + 新增视觉）通过；截图 `screenshots/polish/` 共 75 张，均 390×844。
+- 截图覆盖：首页/新建/工作台方向、脚本、生成、改图、笔记、视频/查看器与菜单/预览/设置与形象/关于/三屏引导/空态、断网、过期、图片失败及恢复。
+- V3：通过。Node 22.23.1 `npm run verify`：typecheck、lint、93/93 单测、iOS 与 Android 导出；`npx expo prebuild --platform ios` 含 CocoaPods 成功。
+- V4：通过。93/93 单测与原有两套 E2E 最终合跑全过；接口、假服务、通知执行、发布函数及依赖清单无变更；未改 server/ 与设计约定。
+- V5：本地部分通过。新增自定义动效用 Reanimated shared values/entering，支持系统减少动态效果；Web 无未处理异常与 Reanimated/worklet console error。
+- 改动页面：首页、登录、新建、工作台、笔记预览、设置/形象、关于、引导；另精修图片工具栏、版本条、长按菜单、脚本历史和视频播放器。
+- 手感与状态：44pt 点击区、统一按压/Badge/轻提示、图片淡入、三类骨架、卡片/消息进入、呼吸进度与四步指示、统一删除确认和错误恢复动作。
+- 可访问性：115% Web 字体检查无横向溢出；截图可见控件尺寸与名称检查通过，重要操作可滚动到达；这是 Web 代理测试，非原生 Dynamic Type。
+- 证据：`verification/polish/summary.json`、`verify.txt`、`prebuild.txt`、`e2e.json/txt`、`contrast.json`、`screenshots.json`、5 张 contact-sheet；截图目录另含流程和可访问性 JSON。
+- 图标/启动图：已目视检查本地素材，保留现有品牌衣架、透明启动图与留白；没有进行真机启动页检查。
+- 已知限制：真机帧率、触感、系统键盘/刘海/相册、动态字体与启动观感待验；既有查看器手势仍含 runOnJS(true)，本轮未重构几何与手势逻辑。
+- 接续：在 app/ 使用 Node22，运行 `npm run test:e2e`；截图与对比度证据可由 `node scripts/polish-evidence.mjs` 重建；详细断点见 `PROGRESS.md`。
+- 初始 verification 四份 WIP 已按字节恢复；本轮结果独立存放；原 screenshots-live/run-1、run-2 保留。POLISH.md 按报告规则留本地。
+- 仅 feat/app，未 push/合并，未提交 ios/；全程本地假服务，无线上模型调用、钥匙串或前公司环境访问；01:29–01:49，约20分钟。
+- 代码提交：`daca816`（统一界面样式并打磨交互反馈）；验收证据提交 `62a3600`。
