@@ -1,0 +1,5 @@
+已完成，交接见 [server/ADMIN.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-server/server/server/ADMIN.md)。
+
+A1–A6 验证通过：220 项测试、ruff、Mock 端到端、E1–E4及五页 390px 检查。截图、证据和断点已保存。
+
+提交：`3fc9a9f`、`0d1b479`，均在 `feat/server`，未 push 或部署。全程 Mock、费用 0 元，耗时约 12 分钟；本机管理端已恢复关闭。
