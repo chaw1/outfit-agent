@@ -342,7 +342,7 @@ class Workflow:
             key: value for key, value in result.items() if key not in {"reply", "direction_id"}
         }
         shots = script.get("shots", [])
-        if len(shots) < 4:
+        if len(shots) < 3:
             raise AppError("provider_invalid_response", "脚本镜头不足，请再试一次。", 502)
         clean_shots = []
         for index, shot in enumerate(shots, 1):

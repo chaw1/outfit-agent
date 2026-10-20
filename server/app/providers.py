@@ -90,7 +90,7 @@ SCRIPT = _obj(
     status={"type": "string", "enum": ["draft"]},
     title_ideas=STRINGS,
     cover=_obj(scene=STR, pose=STR, text_overlay=STR),
-    shots={"type": "array", "items": SHOT, "minItems": 4, "maxItems": 6},
+    shots={"type": "array", "items": SHOT, "minItems": 3, "maxItems": 6},
     video=_obj(prompt=STR, duration={"type": "integer", "enum": [5]}),
 )
 TOOL_SCHEMAS = {
@@ -154,7 +154,8 @@ edit_image仅在用户明确圈选或提供坐标时传region或mask_strokes，�
 改发布正文、标题、标签用write_note；改生成照片的画面用edit_image，二者不要混淆。
 write_note中的image_ids保持已有选择，除非用户明确重新选图；首次选图从已完成图解析。
 方向给 2–3 个，场景、氛围、配色各不相同，id 使用 direction-1 这样的稳定短标识。
-脚本至少 4 个镜头，id 为 shot-1 等，outfit_asset_ids 必须引用上下文的衣服资产 ID，
+脚本 3–6 个镜头（品牌需求指定了张数就按需求，否则 4–5 个），id 为 shot-1 等，
+outfit_asset_ids 必须引用上下文的衣服资产 ID，
 每个镜头引用衣服数量不得超过 context.max_outfit_assets_per_shot，衣服多时分镜分开搭配。
 保持已存在镜头的 id，覆盖封面、全身、细节和生活场景。修改时逐条落实用户指令，
 例如“换成通勤风”要重写场景、动作、文案；status 始终 draft 等博主确认。
@@ -600,7 +601,7 @@ class ProviderHub:
 
     @staticmethod
     def _validate_text(name: str, result: dict, context: dict, *, selection: bool = False) -> None:
-        def check(schema, value):
+        def check(schema, value, path="结果"):
             kind = schema["type"]
             if kind == "object":
                 if (
@@ -610,16 +611,20 @@ class ProviderHub:
                 ):
                     raise ProviderError("对话模型返回字段不完整。")
                 for key, item in value.items():
-                    check(schema["properties"][key], item)
+                    check(schema["properties"][key], item, key)
             elif kind == "array":
                 if not isinstance(value, list):
                     raise ProviderError("对话模型返回列表格式有误。")
                 if len(value) < schema.get("minItems", 0) or len(value) > schema.get(
                     "maxItems", math.inf
                 ):
-                    raise ProviderError("对话模型返回列表长度有误，圈选轨迹不能为空。")
+                    if path == "strokes":
+                        raise ProviderError("圈选轨迹不能为空，请重新涂抹要改的地方。")
+                    raise ProviderError(
+                        f"对话模型返回的 {path} 列表长度有误（{len(value)} 项），请再试一次。"
+                    )
                 for item in value:
-                    check(schema["items"], item)
+                    check(schema["items"], item, path)
             elif kind == "string" and not isinstance(value, str):
                 raise ProviderError("对话模型返回文本格式有误。")
             elif kind == "integer" and (not isinstance(value, int) or isinstance(value, bool)):
@@ -650,8 +655,8 @@ class ProviderHub:
         if name == "propose_directions" and not 2 <= len(result["options"]) <= 3:
             raise ProviderError("方向建议必须有 2–3 个。")
         if name in {"write_script", "revise_script"}:
-            if not 4 <= len(result["shots"]) <= 6:
-                raise ProviderError("脚本镜头不足 4 个。")
+            if not 3 <= len(result["shots"]) <= 6:
+                raise ProviderError("脚本镜头需要 3–6 个。")
             garment_ids = set(
                 context.get("garment_asset_ids")
                 or [item["asset_id"] for item in (context.get("garments") or [])]
