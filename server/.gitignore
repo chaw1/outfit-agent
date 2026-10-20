@@ -1,0 +1,7 @@
+.pytest_cache/
+.ruff_cache/
+artifacts/
+evidence/
+CONTRACT.md
+AGENT_NOTES.md
+PROVIDER_NOTES.md
