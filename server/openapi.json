@@ -3879,6 +3879,14 @@
               }
             ],
             "title": "Model Asset Id"
+          },
+          "reference_asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Reference Asset Ids"
           }
         },
         "additionalProperties": false,
@@ -3921,6 +3929,13 @@
               "done"
             ],
             "title": "Stage"
+          },
+          "reference_asset_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reference Asset Ids"
           },
           "cover_url": {
             "anyOf": [

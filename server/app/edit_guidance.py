@@ -4,7 +4,8 @@ from app.local_edit import EditSelection
 
 
 def local_edit_prompt(
-    instruction: str, selection: EditSelection, *, full_reference: bool = False
+    instruction: str, selection: EditSelection, *, full_reference: bool = False,
+    anchor_reference: bool = False,
 ) -> str:
     left, top, _, _ = selection.crop_box
     x0, y0, x1, y1 = selection.mask.getbbox()
@@ -16,12 +17,21 @@ def local_edit_prompt(
         f"({(x1 - left + offset_x) / width:.3f},"
         f"{(y1 - top + offset_y) / height:.3f})"
     )
-    reference_roles = (
-        "最后一张参考图是唯一待编辑的局部裁剪画布；倒数第二张是其完整原图，"
-        "只用于理解人物、衣服结构和裁剪位置；更前面的图片仅供原衣服细节参考。"
-        if full_reference else
-        "最后一张参考图是唯一待编辑的局部裁剪画布；前面的图片仅供原衣服细节参考。"
-    )
+    if anchor_reference:
+        reference_roles = (
+            "最后一张参考图是唯一待编辑的局部裁剪画布；倒数第二张是封面锚点，"
+            "仅用于保持同一人物身份、同一妆发与同一光线氛围，不是编辑画布；"
+            "更前面的图片仅供原衣服细节参考。"
+        )
+    elif full_reference:
+        reference_roles = (
+            "最后一张参考图是唯一待编辑的局部裁剪画布；倒数第二张是其完整原图，"
+            "只用于理解人物、衣服结构和裁剪位置；更前面的图片仅供原衣服细节参考。"
+        )
+    else:
+        reference_roles = (
+            "最后一张参考图是唯一待编辑的局部裁剪画布；前面的图片仅供原衣服细节参考。"
+        )
     return (
         reference_roles +
         "严格保持最后一张图的画幅、镜头、人物位置和局部构图，输出同一裁剪块。"

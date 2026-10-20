@@ -200,6 +200,86 @@ def test_every_edit_compares_full_before_after_and_retries_once(
     assert not list(settings.media_dir.glob(".edit-*"))
 
 
+@pytest.mark.parametrize("selection", [
+    {"region": {"x": 0.3, "y": 0.4, "w": 0.15, "h": 0.1}},
+    {"mask_strokes": {"brush": 0.05, "strokes": [
+        [{"x": 0.3, "y": 0.4}, {"x": 0.4, "y": 0.5}],
+    ]}},
+])
+@pytest.mark.parametrize("retry", [False, True])
+def test_local_anchor_keeps_all_garments_and_anchor_before_crop(
+    editbench, monkeypatch, selection, retry,
+):
+    factory, ids = editbench
+    with factory() as session:
+        extra = [
+            Asset(user_id=ids[0], kind="garment", path="source.png", mime="image/png")
+            for _ in range(2)
+        ]
+        anchor = Asset(
+            user_id=ids[0], project_id=ids[1], kind="reference", path="source.png",
+            mime="image/png", source="generated",
+        )
+        session.add_all([*extra, anchor])
+        session.flush()
+        garments, anchor_asset_id = [ids[2], *[item.id for item in extra]], anchor.id
+        session.add(Job(
+            id="cover-image", project_id=ids[1], user_id=ids[0], kind="image",
+            status="succeeded", result_asset_id=anchor.id, dedupe_key="cover-test",
+            payload={"shot_id": "cover"},
+        ))
+        session.commit()
+    job_id = enqueue_edit(
+        factory, ids, **selection, garment_asset_ids=garments,
+        reference_asset_ids=[ids[3], *garments, anchor_asset_id],
+        anchor_asset_id=anchor_asset_id, anchor_id="cover-image",
+        reference_style_prompt="参考风格：夜晚街头霓虹。",
+    )
+    generated, checks, inspections = [], [], []
+
+    def image(self, prompt, references):
+        reference_ids = [item.id for item in references]
+        generated.append(reference_ids)
+        assert reference_ids[:-1] == [*garments, anchor_asset_id]
+        assert references[-1].id not in [*ids, *garments, anchor_asset_id]
+        assert ids[3] not in reference_ids
+        assert "最后一张参考图是唯一待编辑的局部裁剪画布" in prompt
+        assert "倒数第二张是封面锚点" in prompt
+        assert "同一人物身份、同一妆发与同一光线氛围" in prompt
+        assert "不是编辑画布" in prompt and "不要输出全身照" in prompt
+        assert "参考风格：夜晚街头霓虹。" in prompt
+        with Image.open(asset_path(references[-1])) as cropped:
+            return GeneratedMedia(
+                png(Image.new("RGB", cropped.size, "red")), "image/png", "mock-edit"
+            )
+
+    def fidelity(self, originals, media, **identity):
+        inspections.append(identity["anchor_asset"].id)
+        assert [item.id for item in originals] == garments
+        with Image.open(io.BytesIO(media.data)) as composed:
+            assert composed.size == (512, 768)
+        return {"score": 94, "diffs": [], "anchor_score": 93}
+
+    def check(self, *args):
+        checks.append(True)
+        return {"passed": not retry or len(checks) == 2, "reason": "袖口已放下"}
+
+    monkeypatch.setattr(ProviderHub, "image", image)
+    monkeypatch.setattr(ProviderHub, "fidelity", fidelity)
+    monkeypatch.setattr(ProviderHub, "check_edit", check)
+    assert worker.run_once(factory)
+    assert len(generated) == len(checks) == (2 if retry else 1)
+    assert inspections == [anchor_asset_id] * len(generated)
+    with factory() as session:
+        job = session.get(Job, job_id)
+        assert job.status == "succeeded"
+        assert job.result["edit_check"]["passed"] is True
+        item = next(item for item in image_items(session, ids[1]) if item["id"] == job_id)
+        assert item["anchor_id"] == "cover-image"
+        assert item["fidelity"]["anchor_score"] == 93
+    assert not list(settings.media_dir.glob(".edit-*"))
+
+
 def test_fidelity_and_instruction_failures_share_one_retry_budget(editbench, monkeypatch):
     factory, ids = editbench
     calls = []

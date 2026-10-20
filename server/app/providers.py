@@ -149,6 +149,9 @@ SYSTEM_PROMPT = """你是懂小红书穿搭创作的搭档，像博主朋友一�
 context.profile 是博主保存的档案，context.style_notes 是长期风格偏好。
 提出方向、写作和修改脚本时落实这些偏好，例如“不穿高跟鞋”要选平底鞋；
 身高和体型仅作穿搭构图参考，不评价身材；本轮明确要求与偏好冲突时按本轮要求。
+context.references 是用户上传参考图的真实风格分析，context.reference_style_summary 是其整理摘要。
+有参考图时，方向、脚本的场景、光线、构图、氛围与配色必须落实该参考风格，
+结合真实衣服发散而不照搬参考中的人物身份、衣服、文字或品牌；无参考时沿用原流程。
 根据用户本轮意图，从提供的当前阶段工具中自主选择一个，返回完整结构化结果。
 只调用一个允许的工具；参数必须从context与对话理解得出，不能编造资产或方向id。
 每个工具的reply写一两句贴合本项目、用户原话的博主搭子口吻回复，不重复固定模板。
@@ -566,6 +569,124 @@ class ProviderHub:
             set_committed_value(asset, "analysis", dict(by_id[asset.id]))
         return items
 
+    def analyze_references(self, assets: list[Asset]) -> list[dict]:
+        """Read style references separately from garment identity and cache paid work."""
+        if not assets:
+            return []
+        if len(assets) > 3:
+            raise ProviderError("参考图最多 3 张。")
+        dimensions = ("scene", "lighting", "composition", "mood", "palette")
+        public_fields = ("asset_id", *dimensions, "style_tags")
+        cache_mock, cache_model = self.mock, self._model("vision")
+
+        def public_item(item):
+            return {key: item[key] for key in public_fields}
+
+        def valid(item, asset_id):
+            return (
+                isinstance(item, dict)
+                and item.get("asset_id") == asset_id
+                and all(isinstance(item.get(key), str) and item[key].strip() for key in dimensions)
+                and isinstance(item.get("style_tags"), list)
+                and bool(item["style_tags"])
+                and all(isinstance(tag, str) and tag.strip() for tag in item["style_tags"])
+            )
+
+        cached = {
+            asset.id: public_item(asset.analysis)
+            for asset in assets
+            if valid(getattr(asset, "analysis", None), asset.id)
+            and asset.analysis.get("_reference_mock") is cache_mock
+            and asset.analysis.get("_reference_model") == cache_model
+        }
+        missing = [asset for asset in assets if asset.id not in cached]
+        if not missing:
+            return [dict(cached[asset.id]) for asset in assets]
+        if cached:
+            cached.update({item["asset_id"]: item for item in self.analyze_references(missing)})
+            return [dict(cached[asset.id]) for asset in assets]
+
+        def operation():
+            nonlocal cache_model
+            cache_model = self._model("vision")
+            units = {"purpose": "analyze_references", "images": len(assets)}
+            if self.mock:
+                items = [
+                    {
+                        "asset_id": asset.id,
+                        "scene": "夜晚街头与霓虹店招",
+                        "lighting": "蓝紫霓虹侧光与暖色环境光",
+                        "composition": "竖版街拍，人物偏侧留出街景空间",
+                        "mood": "都市夜游，轻松有电影感",
+                        "palette": "蓝紫、玫红与暖黄",
+                        "style_tags": ["夜晚街头", "霓虹", "电影感"],
+                    }
+                    for asset in assets
+                ]
+                return items, units, Decimal(0)
+            content = [{"type": "text", "text": (
+                "逐张实际查看用户参考图，仅分析可见的场景、光线、构图、氛围与配色。"
+                "这不是衣服识别，不推断人物身份、品牌、面料或用户经历。"
+                "严格输出JSON对象{items:[{asset_id,scene,lighting,composition,mood,palette,"
+                "style_tags:[]}]}；五个风格维度均为非空中文字符串，style_tags为非空短标签数组。"
+                "每项保留对应asset_id，每张参考必须分别分析，不根据文件名或提示猜测。"
+            )}]
+            for asset in assets:
+                content.extend([
+                    {"type": "text", "text": f"参考图 asset_id={asset.id}"},
+                    {"type": "image_url", "image_url": {
+                        "url": self._data_url(asset, vision=True),
+                    }},
+                ])
+            with self._client() as client:
+                response = self._json(client.post(
+                    f"{settings.dashscope_compatible_url.rstrip('/')}/chat/completions",
+                    headers=self._headers(settings.dashscope_api_key),
+                    json={"model": self._model("vision"),
+                          "messages": [{"role": "user", "content": content}],
+                          "enable_thinking": False, "response_format": {"type": "json_object"},
+                          "max_tokens": 1600},
+                ))
+            payload = json.loads(response["choices"][0]["message"]["content"])
+            items = payload.get("items") if isinstance(payload, dict) else None
+            expected = {asset.id for asset in assets}
+            if (
+                not isinstance(items, list)
+                or len(items) != len(assets)
+                or any(not isinstance(item, dict) for item in items)
+                or {item.get("asset_id") for item in items} != expected
+                or any(not valid(item, item["asset_id"]) for item in items)
+            ):
+                raise ProviderError("参考图风格分析返回了无效结果，请重试。")
+            usage = response.get("usage", {})
+            tokens = usage.get("prompt_tokens", 0)
+            rate = Decimal("1") if tokens <= 32_768 else Decimal("1.5")
+            if tokens > 131_072:
+                rate = Decimal("3")
+            cost = Decimal(tokens) + Decimal(usage.get("completion_tokens", 0)) * 10
+            cost = cost * rate / 1_000_000 if "prompt_tokens" in usage else None
+            return items, {**usage, **units}, cost
+
+        reserve = Decimal(16_384 * len(assets) * 3 + 1600 * 30 + 3000) / 1_000_000
+        items = [public_item(item) for item in self._call("vision", str(reserve), operation)]
+        stored = {
+            item["asset_id"]: {
+                **item, "_reference_mock": cache_mock, "_reference_model": cache_model,
+            }
+            for item in items
+        }
+        with Session(self._ledger_bind()) as cache_session:
+            for item in items:
+                row = cache_session.get(Asset, item["asset_id"])
+                if row is None:
+                    raise ProviderError("参考图已失效，请重新上传。")
+                row.analysis = dict(stored[item["asset_id"]])
+            cache_session.commit()
+        by_id = {item["asset_id"]: item for item in items}
+        for asset in assets:
+            set_committed_value(asset, "analysis", dict(stored[asset.id]))
+        return [dict(by_id[asset.id]) for asset in assets]
+
     def text(self, tool_name: str, context: dict, instruction: str = "") -> dict:
         """Generate content for a validated explicit action, using the same tool protocol."""
         if tool_name not in TOOL_SCHEMAS:
@@ -766,16 +887,30 @@ class ProviderHub:
             if image_ids and not selection:
                 result["image_ids"] = image_ids
 
-    def fidelity(self, reference_assets: list[Asset], generated: Asset | GeneratedMedia) -> dict:
-        """Compare source garments with a completed render before any watermark."""
-        if not reference_assets:
+    def fidelity(
+        self,
+        reference_assets: list[Asset],
+        generated: Asset | GeneratedMedia,
+        *,
+        model_asset: Asset | None = None,
+        anchor_asset: Asset | None = None,
+    ) -> dict:
+        """Compare real references with a completed render before any watermark."""
+        consistency_assets = [
+            (key, asset) for key, asset in (
+                ("person_score", model_asset), ("anchor_score", anchor_asset),
+            ) if asset is not None
+        ]
+        image_count = len(reference_assets) + len(consistency_assets) + 1
+        if not reference_assets and not consistency_assets:
             return {"score": 100, "diffs": [], "auto_fixed": False}
 
         def operation():
             if self.mock:
                 return (
-                    {"score": 92, "diffs": [], "auto_fixed": False},
-                    {"purpose": "fidelity", "images": len(reference_assets) + 1}, Decimal(0),
+                    {"score": 92, "diffs": [], "auto_fixed": False,
+                     **{key: 94 for key, _ in consistency_assets}},
+                    {"purpose": "fidelity", "images": image_count}, Decimal(0),
                 )
             if isinstance(generated, Asset):
                 rendered_url = self._data_url(generated, vision=True)
@@ -818,6 +953,27 @@ class ProviderHub:
                         },
                     ]
                 )
+            if consistency_assets:
+                content[0]["text"] += (
+                    "以下还有明确标注角色的一致性参考图，必须实际看图分别评分，不能根据提示词"
+                    "或声称相同给分；只有给了对应参考才输出该分数。"
+                    "person_score只比较本人照片与成品的面部身份特征，不因衣服、动作、背景变化扣分。"
+                    "anchor_score比较封面锚点与成品的同一人物、妆发、光线氛围与配色一致性，"
+                    "允许脚本要求的姿势、构图和场景变化。脸部不可见或无法确认相同时不能给高分。"
+                    "这两个分数独立于服装overall；服装diffs只写服装问题，不把人像问题混入自动修衣。"
+                    "JSON额外输出以下0到100数值字段："
+                    + "、".join(key for key, _ in consistency_assets) + "。"
+                )
+            for key, asset in consistency_assets:
+                role = "博主本人照片，仅用于person_score" if key == "person_score" else (
+                    "封面锚点，仅用于anchor_score"
+                )
+                content.extend([
+                    {"type": "text", "text": f"{role} asset_id={asset.id}"},
+                    {"type": "image_url", "image_url": {
+                        "url": self._data_url(asset, vision=True),
+                    }},
+                ])
             content.extend(
                 [
                     {"type": "text", "text": "最后一张：需要评分的生成穿搭图"},
@@ -851,6 +1007,15 @@ class ProviderHub:
                 or any(not isinstance(diff, str) for diff in diffs)
             ):
                 raise ProviderError("还原度检查返回了无效结果。")
+            scores = {}
+            for key, _ in consistency_assets:
+                value = result.get(key)
+                if (
+                    not isinstance(value, (int, float)) or isinstance(value, bool)
+                    or not 0 <= value <= 100
+                ):
+                    raise ProviderError("一致性检查返回了无效分数。")
+                scores[key] = round(value)
             usage = response.get("usage", {})
             tokens = usage.get("prompt_tokens", 0)
             rate = Decimal("1") if tokens <= 32_768 else Decimal("1.5")
@@ -859,12 +1024,12 @@ class ProviderHub:
             cost = Decimal(tokens) + Decimal(usage.get("completion_tokens", 0)) * 10
             cost = cost * rate / 1_000_000 if "prompt_tokens" in usage else None
             return (
-                {"score": round(score), "diffs": diffs[:20], "auto_fixed": False},
-                {**usage, "purpose": "fidelity", "images": len(reference_assets) + 1},
+                {"score": round(score), "diffs": diffs[:20], "auto_fixed": False, **scores},
+                {**usage, "purpose": "fidelity", "images": image_count},
                 cost,
             )
 
-        reserve = Decimal(16_384 * (len(reference_assets) + 1) * 3 + 1600 * 30 + 3000)
+        reserve = Decimal(16_384 * image_count * 3 + 1600 * 30 + 3000)
         return self._call("vision", str(reserve / 1_000_000), operation)
 
     def check_edit(
@@ -954,8 +1119,11 @@ class ProviderHub:
         return self._call("vision", str(reserve), operation)
 
     def image(self, prompt: str, reference_assets: list[Asset]) -> GeneratedMedia:
-        if len(reference_assets) > 3:
-            raise ProviderError("单张图片最多支持 3 张参考素材，请拆分穿搭。")
+        # Wan 2.7 supports up to nine inputs; 2.6 supports four. Keep every
+        # garment plus the separate person and cover references in the request.
+        limit = 9 if self._model("image").startswith("wan2.7-") else 4
+        if len(reference_assets) > limit:
+            raise ProviderError(f"当前图片模型最多支持 {limit} 张参考素材，请拆分穿搭。")
         prompt = GARMENT_ACCESSORY_RULE + "\n" + prompt
 
         def operation():
@@ -1289,6 +1457,41 @@ class ProviderHub:
                         result[key] = action[key]
             return result
         result = ProviderHub._mock_content(name, context, instruction)
+        references = context.get("references") or []
+        reference_summary = context.get("reference_style_summary") or "；".join(
+            str(item.get(key) or "")
+            for item in references
+            for key in ("scene", "lighting", "composition", "mood", "palette")
+        )
+        if reference_summary and name in {"propose_directions", "write_script", "revise_script"}:
+            reference = references[0] if references else {}
+            scene = reference.get("scene") or reference_summary
+            if name == "propose_directions":
+                palette = reference.get("palette") or ""
+                palette = palette if isinstance(palette, list) else [
+                    value.strip() for value in re.split(r"[、，,与和]", palette) if value.strip()
+                ]
+                details = ("街角漫步", "橱窗光影", "路边小憩", "巷口转身", "街边等车", "过街抓拍")
+                previous = {option["scene"] for option in (context.get("directions") or [])}
+                fresh = [
+                    detail for detail in details if f"{scene}，{detail}" not in previous
+                ] or details
+                for index, option in enumerate(result["options"]):
+                    detail = fresh[index % len(fresh)]
+                    option.update(
+                        name=f"参考氛围 · {detail}", scene=f"{scene}，{detail}",
+                        mood=reference.get("mood") or option["mood"],
+                        palette=palette or option["palette"],
+                        why=option["why"] + f"；参考风格：{reference_summary}",
+                        sample_title=f"{detail}，把氛围穿出门",
+                    )
+            else:
+                result["cover"]["scene"] = scene
+                for shot in result["shots"]:
+                    shot["scene"] = f"{scene}；参考风格：{reference_summary}"
+                    shot["camera"] += "；" + str(reference.get("composition") or "")
+                    shot["camera"] += "；" + str(reference.get("lighting") or "")
+                result["video"]["prompt"] += f"；参考风格：{reference_summary}"
         brief = context.get("brief")
         subject = context.get("brand") or (
             brief.get("summary", "这组穿搭") if isinstance(brief, dict) else brief or "这组穿搭"

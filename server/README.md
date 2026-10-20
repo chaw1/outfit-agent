@@ -291,3 +291,19 @@ uv run python scripts/verify_trace.py --mock --regenerate
 ```
 
 真实小额验证使用 `scripts/verify_trace.py --run --regenerate`，须仅向子进程注入钥匙串中的两个模型 key。脚本限制官方端点、两张新预览、总预留 ¥1.50，独立保存业务账本与调用断点；已有成功结果复用，`started` 未知结果拒绝重新请求。不能清空或换输出目录来重提未知的图片请求，失败预留须计入当轮总限额。
+
+## 第七轮：参考图与封面锚点
+
+建项目可选传 `reference_asset_ids`，最多三张、不重复，仅接受当前用户上传的 `kind=reference` 资产；项目读回包含同名字段，旧项目迁移后为 `[]`。看图分别分析场景、光线、构图、氛围、配色，整理进 brief 和上下文，并发送 `references` 卡片。方向、脚本、预览和正式出图沿用这些风格；没有参考图时不增加风格分析调用或卡片。回读历史参考卡会刷新签名 URL；参考分析缓存按 Mock/真实模式及当前视觉模型隔离，切换后重新分析。
+
+确认脚本后，首镜先出封面，其余镜头保留在持久队列中等待；封面成功后，所有剩余镜头可由多个 Worker 并行领取，输入保留本人、衣服及封面。封面终态失败或取消时，其余镜头退回无锚图生成；暂态重试继续等待。封面若触发自动修复，等待修复终态，成功采用修复版，修复失败采用原成功封面。`image.anchor_id` 指向实际使用的封面图片 ID。依据[万相官方规格](https://help.aliyun.com/zh/model-studio/wan-image-edit)，2.7 支持最多九张输入图，可完整传入现有镜头的衣服、本人照片和锚图。
+
+还原检查在有本人照片时返回 `fidelity.person_score`，有封面时返回 `anchor_score`，由看图模型比较实际图片；没有对应参考时省略该字段。主动完成消息附一致性摘要。圈选改图仍以最后一张裁剪图为唯一画布，有锚点时将其放在裁剪前，风格要求和蒙版外像素保护继续保留。分数是模型判断，不能替代人工审图。
+
+```bash
+uv run python scripts/verify_anchor.py --mock
+# 已有真实结果完全离线重放，无需模型密钥：
+uv run python scripts/verify_anchor.py --run --offline
+```
+
+首次真实验证仅在已将个人钥匙串凭证注入子进程后运行 `scripts/verify_anchor.py --run`。它使用独立 SQLite 业务库与请求账本，固定 `evidence/anchor-real`，R1/R2 各不超过 2 元、总闸 5 元；每次调用先持久化 `started`，未知结果拒绝重提，成功结果复用，离线模式不新增预留。常驻服务始终保持 Mock。真实验证只执行每组一个方向预览和三镜头，未运行的预览在实验私有库标为失败；其余镜头的并行领取由 PostgreSQL Mock 测试验证。夜晚参考是脚本原创的霓虹街景插画，风格会相应影响结果。结果、调用账本和对比图见 `evidence/anchor-real/anchor-real.json`，交接结论见 [ANCHOR.md](ANCHOR.md)。

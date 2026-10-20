@@ -44,6 +44,7 @@ class Project(Base):
     stage: Mapped[str] = mapped_column(String(20), default="brief")
     garment_asset_ids: Mapped[list] = mapped_column(json_type, default=list)
     model_asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)
+    reference_asset_ids: Mapped[list] = mapped_column(json_type, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

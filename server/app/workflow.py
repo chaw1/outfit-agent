@@ -102,6 +102,9 @@ class Workflow:
             "pending_action",
         )
         context = {key: state.get(key) for key in keys}
+        if state.get("references"):
+            context["references"] = state["references"]
+            context["reference_style_summary"] = self._reference_prompt(state)
         context.update(
             brand=self.project.brand,
             stage=state.get("stage", "brief"),
@@ -300,8 +303,25 @@ class Workflow:
         for item in garments:
             item["url"] = asset_dict(self._asset(item["asset_id"]))["url"]
         garment_card = self._card("garments", {"items": garments})
+        cards = [garment_card]
         if emit:
             emit({"event": "card", "data": garment_card})
+        references = []
+        if self.project.reference_asset_ids:
+            reference_assets = [
+                self._asset(asset_id) for asset_id in self.project.reference_asset_ids
+            ]
+            references = self.providers.analyze_references(reference_assets)
+            for item in references:
+                item["url"] = asset_dict(self._asset(item["asset_id"]))["url"]
+            reference_card = self._card("references", {"items": [
+                {"asset_id": item["asset_id"], "url": item["url"],
+                 "style_tags": item["style_tags"]}
+                for item in references
+            ]})
+            cards.append(reference_card)
+            if emit:
+                emit({"event": "card", "data": reference_card})
         garment_summary = "、".join(
             f"{item.get('color', '')}{item.get('category', '衣服')}" for item in garments
         )
@@ -309,6 +329,8 @@ class Workflow:
         if event.get("text"):
             summary += f"；博主补充：{event['text'][:300]}"
         summary += f"；已识别衣服：{garment_summary}"
+        if references:
+            summary += "；" + self._reference_prompt({"references": references})
         state = {
             "incoming": event,
             "stage": "brief",
@@ -327,6 +349,8 @@ class Workflow:
             "job_intents": [],
             "script_revision": 0,
         }
+        if references:
+            state["references"] = references
         name, result = self.providers.select_tool(
             sorted(ALLOWED_TOOLS["brief"]), self._context(state), event.get("text", "")
         )
@@ -336,7 +360,7 @@ class Workflow:
                 self._allow("brief", result["blocked_tool"])
             state.update(directions=[], pending_action=None)
             return self._finish(
-                state, self._reply(result, "说说这次想拍什么样的穿搭吧。"), [garment_card]
+                state, self._reply(result, "说说这次想拍什么样的穿搭吧。"), cards
             )
         state.update(
             directions=self._directions(result),
@@ -347,7 +371,7 @@ class Workflow:
         return self._finish(
             state,
             self._reply(result, "方向已经整理好了，挑一个喜欢的，我们继续细化。"),
-            [garment_card, self._card("directions", {"options": state["directions"]})],
+            [*cards, self._card("directions", {"options": state["directions"]})],
             jobs,
         )
 
@@ -573,6 +597,24 @@ class Workflow:
                 # Missing paid work is recovered only once permission returns.
                 return
 
+    @staticmethod
+    def _reference_prompt(state: dict) -> str:
+        references = state.get("references") or []
+        if not references:
+            return ""
+        labels = {
+            "scene": "场景", "lighting": "光线", "composition": "构图",
+            "mood": "氛围", "palette": "配色",
+        }
+        descriptions = []
+        for index, reference in enumerate(references, 1):
+            details = [f"{label}：{reference[key]}" for key, label in labels.items()
+                       if reference.get(key)]
+            if reference.get("style_tags"):
+                details.append("风格：" + "、".join(reference["style_tags"]))
+            descriptions.append(f"参考图{index}（{'；'.join(details)}）")
+        return "参考图风格：" + "；".join(descriptions) + "。只借鉴风格，保留品牌衣服与博主身份。"
+
     def _garment_prompt(self, state: dict, asset_ids: list[str]) -> str:
         garments = {item["asset_id"]: item for item in state.get("garments", [])}
         parts = [
@@ -585,6 +627,7 @@ class Workflow:
             "；".join(parts)
             + "。严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变。"
             + "吊牌、价签、织标贴纸、衣架、包装袋不属于衣服，必须忽略并从成品画面去除。"
+            + self._reference_prompt(state)
         )
 
     def _preview_directions(self, state: dict) -> list[Job]:
@@ -627,6 +670,13 @@ class Workflow:
         script["status"] = "confirmed"
         state["script"] = script
         script_hash, jobs = fingerprint(script), []
+        # The first shot is the cover; every dependency is saved in both the
+        # queue payload and graph intent before any worker can see the batch.
+        cover_key = (
+            f"{self.project.id}:image:{script_hash}:{script['shots'][0]['id']}"
+            if script["shots"] else None
+        )
+        cover_id = str(uuid5(NAMESPACE_URL, cover_key)) if cover_key else None
         for shot in script["shots"]:
             references = [self.project.model_asset_id] if self.project.model_asset_id else []
             references = list(dict.fromkeys(references + shot["outfit_asset_ids"]))
@@ -648,6 +698,12 @@ class Workflow:
                 "shot": deepcopy(shot),
             }
             key = f"{self.project.id}:image:{script_hash}:{shot['id']}"
+            if self.project.model_asset_id:
+                payload["model_asset_id"] = self.project.model_asset_id
+            if state.get("references"):
+                payload["reference_style_prompt"] = self._reference_prompt(state)
+            if cover_id and key != cover_key:
+                payload["anchor_job_id"] = cover_id
             jobs.append(self._enqueue(state, "image", payload, key))
         state.update(stage="images", pending_action=None)
         return self._finish(
@@ -696,6 +752,10 @@ class Workflow:
             self.project.garment_asset_ids,
         )
         clothes = list(dict.fromkeys(clothes))
+        anchor_references = (
+            [parent.payload["anchor_asset_id"]] if parent.payload.get("anchor_asset_id") else []
+        )
+        edit_clothes = clothes if anchor_references else clothes[:2]
         payload = {
             "shot_id": shot_id,
             "version": max(versions, default=1) + 1,
@@ -707,13 +767,22 @@ class Workflow:
             + self._garment_prompt(state, clothes)
             + "只做以下修改："
             + instruction,
-            "reference_asset_ids": [parent.result_asset_id, *clothes[:2]],
+            "reference_asset_ids": list(dict.fromkeys([
+                parent.result_asset_id, *edit_clothes, *anchor_references,
+            ])),
             "garment_asset_ids": clothes,
             "script_version": parent.payload.get("script_version"),
             "script_hash": parent.payload.get("script_hash"),
             "shot": deepcopy(parent.payload.get("shot", {})),
             **selection,
         }
+        for field in ("anchor_id", "anchor_asset_id", "model_asset_id"):
+            if parent.payload.get(field):
+                payload[field] = parent.payload[field]
+        if self.project.model_asset_id and not payload.get("model_asset_id"):
+            payload["model_asset_id"] = self.project.model_asset_id
+        if state.get("references"):
+            payload["reference_style_prompt"] = self._reference_prompt(state)
         job = self._enqueue(state, "edit", payload, key)
         # Editing an image must preserve the note and its video-confirmation pause.
         return self._finish(

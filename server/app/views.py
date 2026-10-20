@@ -55,6 +55,7 @@ def project_dict(project: Project, session: Session) -> dict:
         "brand": project.brand,
         "brief": project.brief,
         "stage": project.stage,
+        "reference_asset_ids": list(project.reference_asset_ids or []),
         "cover_url": signed_url(cover.result_asset_id) if cover and cover.result_asset_id else None,
         "created_at": project.created_at.isoformat(),
         "updated_at": project.updated_at.isoformat(),
@@ -95,6 +96,7 @@ def image_items(session: Session, project_id: str) -> list[dict]:
             "region": job.result.get("region", job.payload.get("region")),
             "edit_check": job.result.get("edit_check"),
             "script_version": job.payload.get("script_version"),
+            **({"anchor_id": job.payload["anchor_id"]} if job.payload.get("anchor_id") else {}),
         }
         for job in jobs
         if job.payload.get("purpose") != "preview"
@@ -159,7 +161,7 @@ def refresh_cards(cards: list, session: Session, project_id: str) -> list:
     refreshed = []
     for original in cards:
         card = dict(original)
-        if card.get("type") == "garments":
+        if card.get("type") in {"garments", "references"}:
             card["items"] = [
                 dict(item, url=signed_url(item["asset_id"])) for item in card.get("items", [])
             ]
