@@ -10,6 +10,7 @@ import type { Action, ImageRegion, OutfitImage } from '../api/types';
 import { feedback } from '../lib/haptics';
 import { clamp, constrainTransform, containRect, editActionForResult, IDENTITY_TRANSFORM, imageVersionFamily, regionFromPoints, screenToImage, zoomAtPoint, type ImageTransform, type Point, type Size } from '../lib/imageGeometry';
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
+import { FidelityBadge } from './GenerationInfo';
 import { Badge, FadeImage, ProgressStrip } from './ui';
 
 export type ViewerMode = 'view' | 'local' | 'whole' | 'compare';
@@ -369,7 +370,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
         <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.header}>
             <Pressable testID="viewer-close" accessibilityRole="button" accessibilityLabel="关闭图片查看器" onPress={() => { feedback(); onClose(); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="close" size={24} color={colors.white} /></Pressable>
-            <View style={styles.headerTitle}><Text testID="viewer-current-image" style={styles.title}>镜头 {shotNumber} · v{current.version}</Text><Text style={styles.hint}>{comparing ? '拖动滑块，看修改前后' : localEditing ? tool === 'pan' ? '拖动看细节，再切回涂抹' : '涂抹或框选 · 双指可缩放' : '左右切图 · 双指缩放 · 双击看细节'}</Text></View>
+            <View style={styles.headerTitle}><Text testID="viewer-current-image" style={styles.title}>镜头 {shotNumber} · v{current.version}</Text><Text style={styles.hint}>{comparing ? '拖动滑块，看修改前后' : localEditing ? tool === 'pan' ? '拖动看细节，再切回涂抹' : '涂抹或框选 · 双指可缩放' : '左右切图 · 双指缩放 · 双击看细节'}</Text>{current.anchor_id ? <Text testID={`viewer-anchor-${current.id}`} style={styles.hint}>以封面为锚点</Text> : null}</View>
             <Pressable testID="viewer-reference" accessibilityRole="button" accessibilityLabel="引用到对话" onPress={() => { feedback(); onReference(current); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.white} /></Pressable>
           </Animated.View>
 
@@ -394,7 +395,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
             </Animated.View>}
             {!rect && failedUrl !== current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={36} color={colors.viewerMuted} /><ActivityIndicator color={colors.red} /></View> : null}
             {failedUrl === current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={36} color={colors.viewerMuted} /><Text style={styles.hint}>图片暂时没加载出来，请关闭后重试</Text><ToolButton title="关闭查看器" testID="viewer-error-close" onPress={onClose} /></View> : null}
-            {typeof current.fidelity?.score === 'number' && Number.isFinite(current.fidelity.score) ? <View pointerEvents="none" style={[styles.fidelity, comparing && { top: 48 }]}><Badge label={`还原 ${Math.round(current.fidelity.score)}`} tone={current.fidelity.score >= 60 ? 'success' : 'danger'} /></View> : null}
+            <FidelityBadge image={current} testIDPrefix="viewer-" style={[styles.fidelity, comparing && { top: 48 }]} />
           </View></GestureDetector>
 
           {comparing ? <View style={styles.compareControl}><Text style={styles.hint}>修改后</Text><TrackSlider value={compare} min={.02} max={.98} label="前后对比位置" testID="viewer-compare-slider" onChange={setCompare} /><Text style={styles.hint}>修改前</Text></View> : null}

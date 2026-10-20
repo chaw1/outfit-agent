@@ -1,14 +1,20 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { NoteData, OutfitImage } from '../api/types';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, layout, radius, space, type as typography } from '../theme';
 import { Badge } from './ui';
 
-export function FidelityBadge({ image }: { image: OutfitImage }) {
+export function FidelityBadge({ image, style, testIDPrefix = '' }: { image: OutfitImage; style?: StyleProp<ViewStyle>; testIDPrefix?: string }) {
   const score = image.fidelity?.score;
-  if (typeof score !== 'number' || !Number.isFinite(score)) return null;
-  return <View testID={`fidelity-${image.id}`} style={styles.badge}><Badge label={`还原 ${Math.round(score)}`} tone={score >= 60 ? 'success' : 'danger'} /></View>;
+  const personScore = image.fidelity?.person_score;
+  const hasScore = typeof score === 'number' && Number.isFinite(score);
+  const hasPersonScore = typeof personScore === 'number' && Number.isFinite(personScore);
+  if (!hasScore && !hasPersonScore) return null;
+  return <View pointerEvents="none" style={[styles.badge, style]}>
+    {hasScore ? <View testID={`${testIDPrefix}fidelity-${image.id}`}><Badge label={`还原 ${Math.round(score)}`} tone={score >= 60 ? 'success' : 'danger'} /></View> : null}
+    {hasPersonScore ? <View testID={`${testIDPrefix}person-fidelity-${image.id}`}><Badge label={`人像 ${Math.round(personScore)}`} tone={personScore >= 60 ? 'success' : 'danger'} /></View> : null}
+  </View>;
 }
 
 export function ImageRevisionInfo({ image }: { image: OutfitImage }) {
@@ -30,7 +36,7 @@ export function NoteDisclosure({ note, projectCost, testIDPrefix = 'note' }: { n
 }
 
 const styles = StyleSheet.create({
-  badge: { position: 'absolute', top: space.sm, left: space.sm },
+  badge: { position: 'absolute', top: space.sm, left: space.sm, alignItems: 'flex-start', gap: space.xs },
   revision: { gap: space.sm, marginTop: space.sm },
   fixed: { alignSelf: 'flex-start' },
   detail: { ...typography.caption, color: colors.muted },

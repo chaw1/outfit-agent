@@ -105,7 +105,7 @@ export function parseStreamEvent(raw: RawSSEEvent): StreamEvent | null {
       return { type: 'error', data: { code: data.code, message: data.message } };
     case 'card':
       if (typeof data.id !== 'string' || typeof data.type !== 'string' ||
-          !['garments', 'directions', 'script', 'images', 'note', 'video'].includes(data.type)) {
+          !['garments', 'references', 'directions', 'script', 'images', 'note', 'video'].includes(data.type)) {
         throw new SSEProtocolError();
       }
       return { type: 'card', data: data as unknown as Extract<StreamEvent, { type: 'card' }>['data'] };

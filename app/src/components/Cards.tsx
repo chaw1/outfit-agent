@@ -291,6 +291,14 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
   return <View style={styles.cards}>{cards.map((card) => {
     if (card.type === 'images') return <ImageGrid key={card.id} items={card.items} state={state} busy={busy} onAction={onAction} />;
     if (card.type === 'note') return <NoteCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onPreview={onPreview} />;
+    if (card.type === 'references') return card.items.length ? <View key={card.id} testID={`references-card-${card.id}`} style={styles.card}>
+      <CardHeading icon="images-outline" title="这次的风格参考" detail={`${card.items.length} 张参考图`} />
+      <Text style={styles.intro}>从场景、光线和构图里，找到这组画面的氛围。</Text>
+      {card.items.map((item, index) => <View key={item.asset_id} testID={`reference-item-${item.asset_id}`} style={styles.garmentRow}>
+        <FadeImage source={{ uri: item.url }} style={styles.garmentImage} resizeMode="cover" accessibilityLabel={`风格参考图 ${index + 1}`} />
+        <View style={styles.garmentInfo}><Text style={styles.garmentTitle}>参考图 {String(index + 1).padStart(2, '0')}</Text><View style={styles.tags}>{item.style_tags.map((tag, tagIndex) => <View key={`${tagIndex}-${tag}`} style={styles.garmentTag}><Text style={styles.garmentTagText}>{tag}</Text></View>)}</View></View>
+      </View>)}
+    </View> : null;
     if (card.type === 'garments') return <View key={card.id} style={styles.card}>
       <CardHeading icon="shirt-outline" title="先认识一下这件衣服" detail={`${card.items.length} 件单品`} />
       {card.items.map((item) => <View key={item.asset_id} style={styles.garmentRow}>

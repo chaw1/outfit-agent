@@ -48,6 +48,7 @@ export interface Project {
   title: string;
   brand: string;
   brief: string;
+  reference_asset_ids?: string[];
   stage: Stage;
   cover_url?: string;
   created_at: string;
@@ -60,6 +61,7 @@ export interface CreateProjectInput {
   brief: string;
   garment_asset_ids: string[];
   model_asset_id?: string;
+  reference_asset_ids?: string[];
 }
 
 export interface Garment {
@@ -68,6 +70,12 @@ export interface Garment {
   category: string;
   color: string;
   material: string;
+  style_tags: string[];
+}
+
+export interface ReferenceImage {
+  asset_id: string;
+  url: string;
   style_tags: string[];
 }
 
@@ -120,9 +128,10 @@ export interface OutfitImage {
   status: JobStatus;
   version: number;
   parent_id?: string;
+  anchor_id?: string;
   instruction?: string;
   error?: string;
-  fidelity?: { score: number; diffs: string[]; auto_fixed: boolean };
+  fidelity?: { score: number; diffs: string[]; auto_fixed: boolean; person_score?: number; anchor_score?: number };
   script_version?: number;
   region?: ImageRegion;
   edit_check?: EditCheck;
@@ -141,6 +150,7 @@ export interface VideoData { status: JobStatus; url?: string; poster_url?: strin
 
 export type Card =
   | { id: string; type: 'garments'; items: Garment[] }
+  | { id: string; type: 'references'; items: ReferenceImage[] }
   | { id: string; type: 'directions'; options: Direction[] }
   | ({ id: string; type: 'script' } & ScriptData)
   | { id: string; type: 'images'; items: OutfitImage[] }

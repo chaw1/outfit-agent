@@ -10,15 +10,15 @@ import type { MessageTrace, ProjectBudget } from '../src/api/types';
 interface User { id: string; username: string; nickname: string; created_at: string; tier?: string; daily_budget_cny?: number; today_cost_cny?: number; profile?: { model_asset_ids: string[]; height_cm?: number; body_notes?: string; style_notes?: string } }
 interface Account { token: string; user: User }
 interface Asset { id: string; url: string; width: number; height: number; source: string; mime: string }
-interface Project { id: string; stage: string; cover_url?: string }
-interface Image { id: string; shot_id: string; status: string; version: number; parent_id?: string; url?: string; instruction?: string; script_version?: number; fidelity?: { score: number; diffs: string[]; auto_fixed: boolean }; region?: { x: number; y: number; w: number; h: number }; edit_check?: { passed: boolean; reason: string } }
+interface Project { id: string; stage: string; brief: string; reference_asset_ids?: string[]; cover_url?: string }
+interface Image { id: string; shot_id: string; status: string; version: number; parent_id?: string; anchor_id?: string; url?: string; instruction?: string; script_version?: number; fidelity?: { score: number; diffs: string[]; auto_fixed: boolean; person_score?: number; anchor_score?: number }; region?: { x: number; y: number; w: number; h: number }; edit_check?: { passed: boolean; reason: string } }
 interface Job { id: string; kind: string; status: string; result_asset_id?: string; url?: string }
 interface State {
   stage: string;
   images: Image[];
   directions: { id: string; name: string; scene: string; mood: string; why: string; preview_status?: string; preview_url?: string }[];
   garments: { asset_id: string; url: string }[];
-  script?: { status: string; cover: { scene: string }; shots: { scene: string; pose: string; caption: string }[] };
+  script?: { status: string; cover: { scene: string }; shots: { scene: string; pose: string; camera: string; caption: string }[] };
   note?: { image_ids: string[]; title: string; body: string; tags: string[]; cost_cny?: number; ai_label: string };
   video?: { status: string; url?: string };
   active_jobs: Job[];
@@ -351,11 +351,17 @@ test('full mock workflow streams stable cards, advances jobs, keeps versions/ord
     current = await state();
     assert.equal(current.stage, 'images');
     assert.equal(current.script?.status, 'confirmed');
-    assert.ok(current.images.every((image) => image.status === 'running'));
+    assert.equal(current.images[0].status, 'running');
+    assert.ok(current.images.slice(1).every((image) => image.status === 'queued'));
     await closeServer(server);
     ({ server, base } = await startServer(dataDir));
     assert.equal((await state()).active_jobs.length, 3);
     await wait(190);
+    current = await state();
+    assert.equal(current.images[0].status, 'succeeded');
+    assert.ok(current.images.slice(1).every((image) => image.status === 'queued' && image.anchor_id === current.images[0].id));
+    assert.equal(current.active_jobs.length, 2);
+    await wait(220);
     current = await state();
     assert.equal(current.images.find((image) => image.fidelity?.score === 54)?.shot_id, 'shot_3');
     assert.equal(current.active_jobs.length, 1);
@@ -973,5 +979,173 @@ test('sixth-round budget rejects paid actions atomically, reserves queued jobs, 
     assert.equal(state.budget?.today_cost_cny, 1.5);
     assert.equal(state.budget?.remaining_cny, 4.5);
     assert.equal(state.cost_cny, 6.6, 'project ledger keeps lifetime spend while daily usage resets');
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('reference ownership, limit and style survive SSE, history and restart; cover anchors the set and edit versions', async () => {
+  const dataDir = await temporaryData('outfit-mock-references-');
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const options = { clock: () => time };
+  let { server, base } = await startServer(dataDir, options);
+  try {
+    const owner = await register(base, 'reference-owner');
+    const other = await register(base, 'reference-other');
+    const garment = await upload(base, owner.token);
+    const model = await upload(base, owner.token, 'model');
+    const references = await Promise.all(Array.from({ length: 4 }, () => upload(base, owner.token, 'reference')));
+    const foreign = await upload(base, other.token, 'reference');
+    const input = { title: '参考风格合作', brand: '木棉', brief: '日常穿搭', garment_asset_ids: [garment.id], model_asset_id: model.id };
+    for (const reference_asset_ids of [null, 'wrong', [42], [foreign.id], [garment.id], [model.id], ['missing'], [references[0].id, references[0].id], references.map((item) => item.id)]) {
+      const denied = await request<{ error: { code: string } }>(base, '/api/projects', { token: owner.token, body: { ...input, reference_asset_ids } });
+      assert.equal(denied.response.status, 400);
+      assert.equal(denied.body.error.code, 'INVALID_REFERENCE_ASSETS');
+    }
+    assert.deepEqual((await request<Project[]>(base, '/api/projects', { token: owner.token })).body, []);
+    const referenceIds = references.slice(0, 3).map((item) => item.id);
+    const project = (await request<Project>(base, '/api/projects', { token: owner.token, body: { ...input, reference_asset_ids: referenceIds } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: owner.token })).body;
+    const getMessages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: owner.token })).body;
+    const stored = async () => JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as { assets: { id: string; projectId?: string; source: string; prompt?: string }[] };
+    assert.deepEqual(project.reference_asset_ids, referenceIds);
+    assert.match(project.brief, /参考图整理要点.*场景.*光线.*构图.*氛围.*配色/);
+    assert.deepEqual((await request<Project>(base, `/api/projects/${project.id}`, { token: owner.token })).body.reference_asset_ids, referenceIds);
+    assert.deepEqual((await request<Project[]>(base, '/api/projects', { token: owner.token })).body[0].reference_asset_ids, referenceIds);
+    const first = await send(base, project.id, owner.token, { text: '请根据参考图给出方向' });
+    assert.deepEqual(first.filter((event) => event.type === 'card').map((event) => event.data.type), ['garments', 'references', 'directions']);
+    const referenceCard = first.find((event) => event.type === 'card' && event.data.type === 'references')!.data as unknown as { id: string; items: { asset_id: string; url: string; style_tags: string[] }[] };
+    assert.deepEqual(referenceCard.items.map((item) => item.asset_id), referenceIds);
+    assert.ok(referenceCard.items.every((item) => item.style_tags.length >= 5 && item.url.startsWith(base)));
+    assert.equal((await fetch(referenceCard.items[0].url)).status, 200);
+    time += 100;
+    let state = await getState();
+    assert.ok(state.directions.every((direction) => direction.why.includes('参考图风格') && direction.mood.includes('参考图')));
+    const previews = (await stored()).assets.filter((asset) => asset.projectId === project.id);
+    assert.equal(previews.length, 3);
+    assert.ok(previews.every((asset) => /参考图风格.*方向预览/.test(asset.prompt || '')));
+    const generatedReference = await request(base, '/api/projects', { token: owner.token, body: { ...input, reference_asset_ids: [previews[0].id] } });
+    assert.equal(generatedReference.response.status, 400, 'generated assets cannot be reused as uploaded references');
+    await send(base, project.id, owner.token, { action: { type: 'choose_direction', direction_id: state.directions[0].id } });
+    state = await getState();
+    assert.match(state.script!.cover.scene, /参考图风格/);
+    assert.ok(state.script!.shots.every((shot) => shot.camera.includes('参考图风格')));
+    const confirmed = await send(base, project.id, owner.token, { action: { type: 'confirm_script' } });
+    assert.equal(confirmed.filter((event) => event.type === 'job').length, 3);
+    time += 35;
+    state = await getState();
+    assert.equal(state.images[0].status, 'running');
+    assert.ok(state.images.slice(1).every((image) => image.status === 'queued' && image.anchor_id === undefined));
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, options));
+    time += 220;
+    state = await getState();
+    const cover = state.images[0];
+    assert.equal(cover.status, 'succeeded');
+    assert.equal(cover.fidelity?.person_score, 92);
+    assert.equal(cover.anchor_id, undefined);
+    assert.equal(cover.fidelity?.anchor_score, undefined);
+    assert.ok(state.images.slice(1).every((image) => image.status === 'queued' && image.anchor_id === cover.id));
+    assert.equal(state.active_jobs.length, 2);
+    time += 35;
+    state = await getState();
+    assert.ok(state.images.slice(1).every((image) => image.status === 'running'));
+    time += 220;
+    state = await getState();
+    assert.equal(state.images.length, 4, 'automatic garment repair retains the same cover anchor');
+    assert.ok(state.images.slice(1).every((image) => image.anchor_id === cover.id));
+    time += 200;
+    state = await getState();
+    assert.ok(state.images.every((image) => image.status === 'succeeded' && image.fidelity?.person_score === 92));
+    assert.ok(state.images.slice(1).every((image) => image.fidelity?.anchor_score === 94));
+    assert.match((await getMessages()).at(-1)!.text, /人像一致性 92.*封面一致性 94/);
+    const original = state.images[1];
+    await send(base, project.id, owner.token, { action: { type: 'edit_image', image_id: original.id, instruction: '背景亮一点' } });
+    const editId = (await getState()).images.at(-1)!.id;
+    time += 200;
+    state = await getState();
+    const edited = state.images.find((image) => image.id === editId)!;
+    assert.equal(edited.parent_id, original.id);
+    assert.equal(edited.anchor_id, cover.id);
+    assert.equal(edited.fidelity?.anchor_score, 94);
+    assert.equal(edited.fidelity?.person_score, 92);
+    await send(base, project.id, owner.token, { action: { type: 'edit_image', image_id: cover.id, instruction: '封面背景亮一点' } });
+    time += 200;
+    state = await getState();
+    assert.equal(state.images.at(-1)!.parent_id, cover.id);
+    assert.equal(state.images.at(-1)!.anchor_id, undefined, 'editing the cover must not point its anchor to itself or the edit');
+    assert.equal(state.images.find((image) => image.id === original.id)!.anchor_id, cover.id);
+    const generated = (await stored()).assets.filter((asset) => asset.projectId === project.id && !previews.some((preview) => preview.id === asset.id));
+    assert.ok(generated.every((asset) => asset.prompt?.includes('参考图风格')));
+    assert.ok(generated.some((asset) => asset.prompt?.includes(`以封面 ${cover.id} 为锚点`)));
+    const before = state.images;
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, options));
+    assert.deepEqual((await getState()).images.map(({ url: _url, ...image }) => image), before.map(({ url: _url, ...image }) => image));
+    const historyCard = (await getMessages()).flatMap((message) => message.cards).find((card) => card.type === 'references') as unknown as typeof referenceCard;
+    assert.equal(historyCard.id, referenceCard.id);
+    assert.deepEqual(historyCard.items.map((item) => item.asset_id), referenceIds);
+    assert.ok(historyCard.items.every((item) => item.url.startsWith(base)), 'history refreshes signed reference URLs after restart');
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('cover failure releases remaining shots without anchors and no-photo references omit person scores', async () => {
+  const dataDir = await temporaryData('outfit-mock-anchor-failure-');
+  const fixturesDir = path.join(dataDir, 'fixtures');
+  await mkdir(fixturesDir);
+  const fixture = path.join(fixturesDir, 't-wan-v.jpg');
+  await copyFile(path.resolve(import.meta.dirname, '../../docs/spike/t-wan-v.jpg'), fixture);
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const { server, base } = await startServer(dataDir, { clock: () => time, fixturesDir });
+  try {
+    const account = await register(base, 'anchor-fallback');
+    const garment = await upload(base, account.token);
+    const reference = await upload(base, account.token, 'reference');
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '封面回退', brand: '木棉', brief: '日常穿搭', garment_asset_ids: [garment.id], reference_asset_ids: [reference.id] } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    await send(base, project.id, account.token, { text: '请给出方向' });
+    time += 100;
+    let state = await getState();
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: state.directions[0].id } });
+    await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    await rm(fixture);
+    time += 250;
+    state = await getState();
+    assert.equal(state.images[0].status, 'failed');
+    assert.ok(state.images.slice(1).every((image) => image.status === 'queued' && image.anchor_id === undefined));
+    await copyFile(path.resolve(import.meta.dirname, '../../docs/spike/t-wan-v.jpg'), fixture);
+    time += 250;
+    state = await getState();
+    assert.ok(state.images.slice(1, 3).every((image) => image.status === 'succeeded' && image.anchor_id === undefined && image.fidelity?.person_score === undefined && image.fidelity?.anchor_score === undefined));
+    time += 200;
+    state = await getState();
+    assert.equal(state.active_jobs.length, 0);
+    assert.ok(state.images.every((image) => image.anchor_id === undefined));
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('projects without references or a person keep parallel generation and omit new cards and scores', async () => {
+  const dataDir = await temporaryData('outfit-mock-no-reference-');
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const { server, base } = await startServer(dataDir, { clock: () => time });
+  try {
+    const account = await register(base, 'no-reference');
+    const garment = await upload(base, account.token);
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '原流程', brand: '木棉', brief: '日常穿搭', garment_asset_ids: [garment.id] } })).body;
+    assert.deepEqual(project.reference_asset_ids, []);
+    assert.equal(project.brief, '日常穿搭');
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    const events = await send(base, project.id, account.token, { text: '请给出方向' });
+    assert.ok(!events.some((event) => event.type === 'card' && event.data.type === 'references'));
+    time += 100;
+    const state = await getState();
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: state.directions[0].id } });
+    await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    time += 35;
+    assert.ok((await getState()).images.every((image) => image.status === 'running'));
+    time += 220;
+    await getState();
+    time += 200;
+    const completed = await getState();
+    assert.ok(completed.images.every((image) => image.anchor_id === undefined && image.fidelity?.person_score === undefined && image.fidelity?.anchor_score === undefined));
+    assert.ok(!(await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body.some((message) => /人像一致性|封面一致性/.test(message.text)));
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });

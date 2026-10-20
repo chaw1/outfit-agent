@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { profilePhotos } from '../../lib/profile';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Asset, AssetKind } from '../../api/types';
@@ -16,38 +16,46 @@ export default function NewProject() {
   const [brand, setBrand] = useState('');
   const [brief, setBrief] = useState('');
   const [garments, setGarments] = useState<Asset[]>([]);
+  const [references, setReferences] = useState<Asset[]>([]);
   const [model, setModel] = useState<Asset | null>(null);
   const [modelChoice, setModelChoice] = useState<string | null | undefined>(undefined);
   const savedPhotos = profilePhotos(user?.profile?.model_asset_ids || [], photos);
   const selectedModelId = modelChoice === undefined ? savedPhotos[0]?.id : modelChoice;
   const selectedModel = model?.id === selectedModelId ? model : savedPhotos.find(photo => photo.id === selectedModelId);
   const [uploading, setUploading] = useState<AssetKind | null>(null);
+  const picking = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  async function pick(kind: 'garment' | 'model') {
+  async function pick(kind: AssetKind) {
+    if (picking.current || busy || (kind === 'reference' && references.length >= 3)) return;
+    picking.current = true;
+    setUploading(kind);
     setError('');
     try {
       if (Platform.OS !== 'web') {
         const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!result.granted) { setError('需要允许访问选中的照片，才能上传衣服图。你也可以到系统设置中开启。'); return; }
+        if (!result.granted) { setError('需要允许访问选中的照片，才能上传图片。你也可以到系统设置中开启。'); return; }
       }
-      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: kind === 'garment', selectionLimit: kind === 'garment' ? 9 : 1, quality: 0.9 });
+      const limit = kind === 'reference' ? 3 - references.length : kind === 'garment' ? 9 : 1;
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: kind !== 'model', selectionLimit: limit, quality: 0.9 });
       if (result.canceled) return;
-      setUploading(kind);
-      for (const item of result.assets) {
+      for (const item of result.assets.slice(0, limit)) {
         const nativeFile = { uri: item.uri, name: item.fileName || `outfit-${Date.now()}.jpg`, type: item.mimeType || 'image/jpeg' };
         const file = Platform.OS === 'web' ? item.file || new File([await (await fetch(item.uri)).blob()], nativeFile.name, { type: nativeFile.type }) : nativeFile;
         const asset = await api.uploadAsset(file, kind);
-        if (kind === 'model') { setModel(asset); setModelChoice(asset.id); } else setGarments(previous => [...previous, asset]);
+        if (kind === 'model') { setModel(asset); setModelChoice(asset.id); }
+        else if (kind === 'reference') setReferences(previous => [...previous, asset].slice(0, 3));
+        else setGarments(previous => [...previous, asset]);
       }
-    } catch (e) { setError(`图片没传好：${errorText(e)}`); } finally { setUploading(null); }
+    } catch (e) { setError(`图片没传好：${errorText(e)}`); } finally { picking.current = false; setUploading(null); }
   }
   async function submit() {
+    if (picking.current || busy) return;
     if (!title.trim() || !brand.trim() || !brief.trim()) return setError('项目名、品牌和合作需求都写一点，灵感才有方向。');
     if (!garments.length) return setError('先上传至少一张品牌衣服图吧。');
     setBusy(true); setError('');
     try {
-      const result = await api.createProject({ title: title.trim(), brand: brand.trim(), brief: brief.trim(), garment_asset_ids: garments.map(item => item.id), ...(selectedModelId ? { model_asset_id: selectedModelId } : {}) });
+      const result = await api.createProject({ title: title.trim(), brand: brand.trim(), brief: brief.trim(), garment_asset_ids: garments.map(item => item.id), ...(selectedModelId ? { model_asset_id: selectedModelId } : {}), ...(references.length ? { reference_asset_ids: references.map(item => item.id) } : {}) });
       router.replace({ pathname: '/projects/[id]', params: { id: result.id } });
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
@@ -69,13 +77,23 @@ export default function NewProject() {
           <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}><Text style={styles.section}>品牌衣服图</Text><Badge label="至少 1 张 · 支持多选" /></View>
           {!!garments.length && <View style={localStyles.thumbnails}>{garments.map((item, index) => <View key={item.id} style={localStyles.garment}>
             <FadeImage source={{ uri: item.url }} style={localStyles.garmentImage} />
-            <Pressable accessibilityRole="button" accessibilityLabel={`移除衣服图 ${index + 1}`} onPress={() => setGarments(previous => previous.filter(asset => asset.id !== item.id))} style={({ pressed }) => [localStyles.removeImage, pressed && localStyles.pressed]}><View style={localStyles.removeGlyph}><Ionicons name="close" size={16} color={colors.ink} /></View></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`移除衣服图 ${index + 1}`} disabled={!!uploading || busy} onPress={() => setGarments(previous => previous.filter(asset => asset.id !== item.id))} style={({ pressed }) => [localStyles.removeImage, pressed && localStyles.pressed]}><View style={localStyles.removeGlyph}><Ionicons name="close" size={16} color={colors.ink} /></View></Pressable>
           </View>)}</View>}
           <Pressable accessibilityRole="button" accessibilityLabel="上传衣服图" testID="upload-garments" disabled={!!uploading || busy} onPress={() => void pick('garment')} style={({ pressed }) => [localStyles.uploadArea, pressed && localStyles.uploadPressed, (!!uploading || busy) && { opacity: 0.6 }]}>
             <View style={localStyles.uploadIcon}><Ionicons name="add" size={24} color={colors.redText} /></View>
             <Text style={localStyles.uploadTitle}>{uploading === 'garment' ? '正在上传衣服图…' : '添加衣服图'}</Text>
             <Text style={localStyles.caption}>平铺、挂拍或商品图都可以</Text>
           </Pressable>
+        </View>
+        <View style={localStyles.section}>
+          <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}><Text style={styles.section}>参考图（选填）</Text><Text testID="reference-count" style={localStyles.caption}>{references.length}/3</Text></View>
+          <Text style={styles.subtitle}>带上喜欢的场景、光线或构图，让灵感更贴近你的风格。</Text>
+          {!!references.length && <View style={localStyles.thumbnails}>{references.map((item, index) => <View key={item.id} testID={`reference-asset-${item.id}`} style={localStyles.garment}>
+            <FadeImage source={{ uri: item.url }} style={localStyles.garmentImage} accessibilityLabel={`参考图 ${index + 1}`} />
+            <Pressable accessibilityRole="button" accessibilityLabel={`移除参考图 ${index + 1}`} disabled={!!uploading || busy} onPress={() => setReferences(previous => previous.filter(asset => asset.id !== item.id))} style={({ pressed }) => [localStyles.removeImage, pressed && localStyles.pressed]}><View style={localStyles.removeGlyph}><Ionicons name="close" size={16} color={colors.ink} /></View></Pressable>
+          </View>)}</View>}
+          <Button title={uploading === 'reference' ? '正在上传参考图…' : references.length === 3 ? '已添加 3 张参考图' : '添加参考图'} icon="images-outline" variant="secondary" testID="upload-references" disabled={!!uploading || busy || references.length >= 3} onPress={() => void pick('reference')} />
+          <Text style={localStyles.caption}>最多 3 张，可移除后重新选择。</Text>
         </View>
         <View style={localStyles.section}>
           <View style={styles.row}><Text style={styles.section}>让你来当主角</Text><Badge label="选填" /></View>
@@ -87,7 +105,7 @@ export default function NewProject() {
           {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={[styles.row, { flexWrap: 'wrap' }]}>{selectedModel.url && <FadeImage source={{ uri: selectedModel.url }} style={localStyles.profileImage} />}<Text style={styles.subtitle}>本次合作的本人照片</Text><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
           <Button title={uploading === 'model' ? '正在上传…' : selectedModelId ? '更换我的照片' : '上传我的照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} />
         </View>
-        {!!uploading && <ProgressStrip title={uploading === 'garment' ? '正在上传衣服图…' : '正在上传本人照片…'} detail="稍等一下，马上就能继续创作" />}
+        {!!uploading && <ProgressStrip title={uploading === 'garment' ? '正在上传衣服图…' : uploading === 'reference' ? '正在上传参考图…' : '正在上传本人照片…'} detail="稍等一下，马上就能继续创作" />}
         {!!error && <Notice text={error} />}
         <Button title="开始聊灵感" icon="arrow-forward" loading={busy} disabled={!!uploading} onPress={() => void submit()} />
       </ScrollView>

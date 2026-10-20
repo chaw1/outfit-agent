@@ -11,6 +11,16 @@ function state(overrides: Partial<ProjectState> = {}): ProjectState {
   return { stage: 'brief', garments: [], directions: [], images: [], active_jobs: [], ...overrides };
 }
 
+test('reference cards persist through polling without changing the current stage or pending action', () => {
+  const references: Card = { id: 'refs', type: 'references', items: [{ asset_id: 'r1', url: '/r1.jpg', style_tags: ['柔光'] }] };
+  const snapshot = state({ stage: 'script', pending_action: { type: 'confirm_script', prompt: '确认' } });
+  assert.strictEqual(stateWithCard(snapshot, references), snapshot);
+  const cards = mergeStateIntoCards([references], snapshot);
+  assert.deepEqual(cards.find(card => card.type === 'references'), references);
+  const refreshed: Card = { ...references, items: [{ ...references.items[0], url: '/r1.jpg?fresh=1' }] };
+  assert.deepEqual(mergeCards(cards, [refreshed]), [refreshed]);
+});
+
 test('same-id cards are replaced completely, preserve order, and never mutate inputs', () => {
   const first: Card = { id: 'same', type: 'video', status: 'running', job_id: 'old' };
   const other: Card = { id: 'other', type: 'images', items: [] };

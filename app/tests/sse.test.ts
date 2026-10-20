@@ -75,3 +75,15 @@ test('trace survives fragmented SSE before done, including steps and image refer
     assert.throws(() => parseStreamEvent({ event: 'trace', data: JSON.stringify(broken) }), SSEProtocolError);
   }
 });
+
+test('reference cards and consistency metadata survive fragmented SSE unchanged', () => {
+  const cards = [
+    { id: 'references-1', type: 'references', items: [{ asset_id: 'reference-1', url: '/reference.jpg', style_tags: ['自然光', '街角构图'] }] },
+    { id: 'images-1', type: 'images', items: [{ id: 'image-2', shot_id: 'shot-2', status: 'succeeded', version: 1, anchor_id: 'image-1', fidelity: { score: 92, diffs: [], auto_fixed: false, person_score: 0, anchor_score: 95 } }] },
+  ];
+  const events: unknown[] = [];
+  const parser = new SSEParser(raw => events.push(parseStreamEvent(raw)));
+  for (const character of cards.map(card => `event: card\ndata: ${JSON.stringify(card)}\n\n`).join('')) parser.push(character);
+  parser.finish();
+  assert.deepEqual(events, cards.map(data => ({ type: 'card', data })));
+});
