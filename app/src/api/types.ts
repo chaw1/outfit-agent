@@ -92,6 +92,11 @@ export interface ScriptVersion {
   current: boolean;
 }
 
+export interface ImagePoint { x: number; y: number }
+export interface ImageRegion extends ImagePoint { w: number; h: number }
+export interface ImageMaskStrokes { brush: number; strokes: ImagePoint[][] }
+export interface EditCheck { passed: boolean; reason: string }
+
 export interface OutfitImage {
   id: string;
   shot_id: string;
@@ -103,6 +108,8 @@ export interface OutfitImage {
   error?: string;
   fidelity?: { score: number; diffs: string[]; auto_fixed: boolean };
   script_version?: number;
+  region?: ImageRegion;
+  edit_check?: EditCheck;
 }
 
 export type Image = OutfitImage;
@@ -127,7 +134,7 @@ export type Card =
 export type Action =
   | { type: 'choose_direction'; direction_id: string }
   | { type: 'confirm_script' }
-  | { type: 'edit_image'; image_id: string; instruction: string }
+  | { type: 'edit_image'; image_id: string; instruction: string; region?: ImageRegion; mask_strokes?: ImageMaskStrokes }
   | { type: 'approve_images'; image_ids: string[] }
   | { type: 'confirm_video'; image_id: string }
   | { type: 'restore_script'; checkpoint_id: string };
@@ -138,6 +145,7 @@ export interface Message {
   text: string;
   cards: Card[];
   action?: Action;
+  refs?: string[];
   created_at: string;
 }
 
@@ -174,7 +182,7 @@ export interface ProjectState {
   script_versions?: ScriptVersion[];
 }
 
-export interface SendMessageInput { text?: string; action?: Action }
+export interface SendMessageInput { text?: string; action?: Action; refs?: string[] }
 export interface ErrorData { code: string; message: string }
 export interface DoneData { message_id: string }
 
