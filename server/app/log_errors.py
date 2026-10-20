@@ -13,7 +13,10 @@ from app.config import settings
 
 def log_exception(logger: logging.Logger, message: str, exc: BaseException) -> None:
     detail = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    secrets = [settings.dashscope_api_key, settings.deepseek_api_key, settings.jwt_secret]
+    secrets = [
+        settings.dashscope_api_key, settings.deepseek_api_key,
+        settings.jwt_secret, settings.admin_token,
+    ]
     password = make_url(settings.database_url).password
     if password:
         secrets.append(password)

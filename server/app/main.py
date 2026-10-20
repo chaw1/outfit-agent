@@ -6,6 +6,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import Depends, FastAPI, File, Form, Query, UploadFile
@@ -21,6 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException
 
+from app.admin import router as admin_router
 from app.config import settings
 from app.db import SessionLocal
 from app.errors import AppError
@@ -103,6 +105,31 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(admin_router)
+
+
+@app.middleware("http")
+async def admin_switch(request, call_next):
+    if (request.url.path.rstrip("/") == "/admin" or
+            request.url.path.startswith("/api/admin")) and not settings.admin_token:
+        return JSONResponse(
+            {"error": {"code": "NOT_FOUND", "message": "管理端未启用"}}, 404
+        )
+    response = await call_next(request)
+    if request.url.path.startswith(("/admin", "/api/admin")):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.get("/admin", include_in_schema=False)
+@app.get("/admin/", include_in_schema=False)
+def admin_page():
+    if not settings.admin_token:
+        raise AppError("NOT_FOUND", "管理端未启用", 404)
+    return FileResponse(
+        Path(__file__).parent / "admin_static" / "index.html",
+        headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY"},
+    )
 
 
 @app.exception_handler(AppError)
@@ -163,15 +190,15 @@ def project_lock(session: Session, project_id: str, *, wait: bool = True) -> boo
 
 @app.get("/api/health", response_model=HealthOutput)
 def health(session: Session = Depends(get_session)):
+    from app.runtime_settings import get_runtime_settings
+
     session.execute(sql_text("SELECT 1"))
+    models = get_runtime_settings(session)["models"]
     return {
         "ok": True,
         "version": "0.1.0",
         "providers": {
-            "text": settings.text_model,
-            "vision": settings.vision_model,
-            "image": settings.image_model,
-            "video": settings.video_model,
+            **models,
             "mock": settings.mock_providers,
         },
     }
@@ -198,6 +225,8 @@ def login(body: LoginInput, session: Session = Depends(get_session)):
     user = session.scalar(select(User).where(User.username == body.username))
     if user is None or not verify_password(body.password, user.password_hash):
         raise AppError("INVALID_CREDENTIALS", "用户名或密码错误", 401)
+    if user.disabled:
+        raise AppError("USER_DISABLED", "账号已被禁用，请联系管理员", 403)
     return {"token": issue_token(user.id), "user": user_dict(user)}
 
 
@@ -444,6 +473,9 @@ def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -
         try:
             project_lock(session, project_id)
             project = owned_project(session, project_id, user_id)
+            user = session.get(User, user_id, populate_existing=True)
+            if user is None or user.disabled:
+                raise AppError("USER_DISABLED", "账号已被禁用，请联系管理员", 403)
             graph, workflow = graph_for(session, project)
             action = body.action.model_dump(exclude_none=True) if body.action else None
             result = run_turn(

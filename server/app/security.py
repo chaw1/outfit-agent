@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,7 @@ def issue_token(user_id: str) -> str:
 
 
 def current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     session: Session = Depends(get_session),
 ) -> User:
@@ -55,6 +56,8 @@ def current_user(
         raise AppError("UNAUTHORIZED", "登录已失效，请重新登录", 401) from exc
     if user is None:
         raise AppError("UNAUTHORIZED", "登录已失效，请重新登录", 401)
+    if user.disabled and request.method not in {"GET", "HEAD", "OPTIONS"}:
+        raise AppError("USER_DISABLED", "账号已被禁用，请联系管理员", 403)
     return user
 
 

@@ -12,8 +12,9 @@ from sqlalchemy.orm import Session
 from app.errors import AppError
 from app.local_edit import prepare_selection
 from app.media import asset_dict
-from app.models import Asset, Job, Project, utcnow
+from app.models import Asset, Job, Project, User, utcnow
 from app.providers import ProviderHub
+from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
 from app.views import image_items, job_dict
 
@@ -271,6 +272,11 @@ class Workflow:
                 video_job = self.session.get(Job, (state.get("video") or {}).get("job_id"))
                 if not video_job or video_job.payload.get("image_id") != action["image_id"]:
                     raise AppError("video_already_confirmed", "这个项目已经确认了视频生成。")
+        if kind in {"confirm_script", "edit_image", "confirm_video"}:
+            assert_generation_allowed(
+                self.session, self.project.user_id,
+                kinds=("video",) if kind == "confirm_video" else ("image",),
+            )
 
     def start(self, event: dict, emit=None) -> dict:
         assets = [self._asset(asset_id) for asset_id in self.project.garment_asset_ids]
@@ -514,6 +520,10 @@ class Workflow:
         job = self.session.scalar(select(Job).where(Job.dedupe_key == intent["dedupe_key"]))
         if job:
             return job
+        assert_generation_allowed(
+            self.session, self.project.user_id,
+            kinds=("video",) if intent["kind"] == "video" else ("image",),
+        )
         job = Job(
             id=intent["id"],
             project_id=self.project.id,
@@ -529,8 +539,18 @@ class Workflow:
         return job
 
     def restore_jobs(self, state: dict) -> None:
+        disabled = self.session.scalar(select(User.disabled).where(User.id == self.project.user_id))
+        if disabled:
+            return
         for intent in state.get("job_intents", []):
-            self._restore_job(intent)
+            try:
+                self._restore_job(intent)
+            except AppError as exc:
+                if exc.code not in {"BUDGET_EXCEEDED", "MODEL_NOT_ALLOWED", "USER_DISABLED"}:
+                    raise
+                # State reads and ordinary chat remain available at a daily cap.
+                # Missing paid work is recovered only once permission returns.
+                return
 
     def _garment_prompt(self, state: dict, asset_ids: list[str]) -> str:
         garments = {item["asset_id"]: item for item in state.get("garments", [])}
@@ -547,6 +567,7 @@ class Workflow:
         )
 
     def _preview_directions(self, state: dict) -> list[Job]:
+        assert_generation_allowed(self.session, self.project.user_id)
         jobs = []
         clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
         refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes

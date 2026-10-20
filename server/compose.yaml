@@ -6,6 +6,7 @@ x-common: &common
     MEDIA_DIR: /data/media
     PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:18080}
     JWT_SECRET: ${JWT_SECRET:-local-demo-only-change-before-public-deployment}
+    ADMIN_TOKEN: ${ADMIN_TOKEN:-}
     MOCK_PROVIDERS: ${MOCK_PROVIDERS:-1}
     DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:18080"
     jwt_secret: str = "local-demo-only-change-before-public-deployment"
     jwt_days: int = 7
+    admin_token: str = ""
     signed_url_seconds: int = 86400
     mock_providers: bool = True
     dashscope_api_key: str = ""

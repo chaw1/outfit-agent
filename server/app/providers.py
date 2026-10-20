@@ -20,12 +20,18 @@ from urllib.parse import urlparse
 
 import httpx
 from PIL import Image, ImageDraw, ImageOps
-from sqlalchemy import create_engine, func, select, text
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.config import settings
-from app.models import Asset, UsageLedger
+from app.errors import AppError
+from app.models import Asset, Project, UsageLedger
+from app.runtime_settings import (
+    assert_generation_allowed,
+    budget_lock,
+    get_runtime_settings,
+)
 
 log = logging.getLogger(__name__)
 
@@ -199,25 +205,23 @@ FIDELITY_SYSTEM_PROMPT = (
 
 _ledger_engines = {}
 _ledger_engines_lock = threading.Lock()
+_sqlite_reservation_lock = threading.RLock()
 
 
 class ProviderHub:
     def __init__(self, session: Session, project_id: str | None = None):
         self.session = session
         self.project_id = project_id
+        self._active_models: dict[str, str] = {}
 
     @property
     def mock(self) -> bool:
         return settings.mock_providers
 
     def _model(self, kind: str) -> str:
-        defaults = {
-            "text": "deepseek-flash",
-            "vision": "qwen3-vl-plus",
-            "image": "wan2.7-image-pro",
-            "video": "wan2.6-i2v-flash",
-        }
-        return getattr(settings, f"{kind}_model", defaults[kind])
+        if kind in self._active_models:
+            return self._active_models[kind]
+        return get_runtime_settings(self.session)["models"][kind]
 
     def _ledger_bind(self):
         bind = self.session.get_bind()
@@ -242,9 +246,24 @@ class ProviderHub:
         The Postgres advisory lock serializes reservations across API and workers.
         Outstanding reservations count against the cap even after a process crashes.
         """
-        with Session(self._ledger_bind()) as ledger_session:
-            if ledger_session.bind.dialect.name == "postgresql":
-                ledger_session.execute(text("SELECT pg_advisory_xact_lock(708827141)"))
+        with _sqlite_reservation_lock, Session(self._ledger_bind()) as ledger_session:
+            budget_lock(ledger_session)
+            user_id = (
+                ledger_session.scalar(select(Project.user_id).where(Project.id == self.project_id))
+                if self.project_id else None
+            )
+            try:
+                runtime = assert_generation_allowed(
+                    ledger_session, user_id, kinds=(kind,),
+                    estimate=Decimal(0) if self.mock else estimate,
+                    check_budget=kind in {"image", "video"},
+                )
+            except AppError as exc:
+                if exc.code == "BUDGET_EXCEEDED":
+                    raise BudgetExceeded(exc.message) from exc
+                error = ProviderError(exc.message)
+                error.code = exc.code
+                raise error from exc
             if not self.mock:
                 spent = ledger_session.scalar(
                     select(
@@ -259,7 +278,8 @@ class ProviderHub:
                     raise BudgetExceeded("模型预算已接近配置上限，请先核对账单再继续。")
             row = UsageLedger(
                 project_id=self.project_id,
-                model=self._model(kind),
+                user_id=user_id,
+                model=runtime["models"][kind],
                 kind=kind,
                 duration_ms=0,
                 units={"mock": self.mock, "reserved_cny": str(estimate)},
@@ -270,6 +290,7 @@ class ProviderHub:
             ledger_session.flush()
             ledger_id = row.id
             ledger_session.commit()
+            self._active_models[kind] = runtime["models"][kind]
             return ledger_id
 
     def _finish(
@@ -304,8 +325,11 @@ class ProviderHub:
             if isinstance(exc, (KeyError, ValueError, TypeError)):
                 raise ProviderError("模型返回内容格式有误，请稍后重试。") from None
             raise
-        self._finish_safely(ledger_id, started, units=units, cost=cost)
-        return result
+        else:
+            self._finish_safely(ledger_id, started, units=units, cost=cost)
+            return result
+        finally:
+            self._active_models.pop(kind, None)
 
     def _finish_safely(self, ledger_id: str, started: float, **values) -> None:
         try:

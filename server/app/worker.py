@@ -6,6 +6,7 @@ import hashlib
 import logging
 import signal
 import threading
+import time
 from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import timedelta
@@ -30,6 +31,7 @@ from app.log_errors import log_exception
 from app.media import asset_path, store_generated
 from app.models import Asset, Job, Message, Project, utcnow
 from app.providers import GeneratedMedia, ProviderError, ProviderHub
+from app.runtime_settings import assert_generation_allowed
 from app.views import image_items
 
 logger = logging.getLogger("outfit.worker")
@@ -208,6 +210,11 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
     key = f"{job.project_id}:auto-fix:{job.id}"
     fix_id = str(uuid5(NAMESPACE_URL, key))
     if session.get(Job, fix_id):
+        return
+    try:
+        assert_generation_allowed(session, job.user_id)
+    except AppError as exc:
+        job.result = {**job.result, "auto_fix_skipped": exc.message}
         return
     garment_ids = list(dict.fromkeys(job.payload.get("garment_asset_ids", [])))
     project = session.get(Project, job.project_id)
@@ -527,6 +534,7 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
         job = session.get(Job, job_id)
         if not job or job.status != "running" or job.attempts != attempt:
             return
+        started = time.monotonic()
         project = session.get(Project, job.project_id)
         if not project or project.deleted_at:
             job.status, job.locked_at, job.error = "failed", None, "项目已删除。"
@@ -541,12 +549,26 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
             session.refresh(job)
             if job.attempts != attempt or job.status != "running":
                 raise ProviderError("任务租约已失效。")
-            job.payload = {**job.payload, "provider_task_id": task_id}
-            job.result = {**job.result, "provider_task_id": task_id}
+            provider_model = hub._model("video")
+            job.payload = {
+                **job.payload, "provider_task_id": task_id, "provider_model": provider_model,
+            }
+            job.result = {
+                **job.result, "provider_task_id": task_id, "provider_model": provider_model,
+            }
             session.commit()
 
         try:
             with LeaseHeartbeat(job_id, attempt, session_factory):
+                assert_generation_allowed(
+                    session, job.user_id,
+                    kinds=() if payload.get("provider_task_id") else (
+                        ("video",) if job.kind == "video" else ("image",)
+                    ),
+                    # A saved upstream video task is already paid. Resume only
+                    # its polling/download rather than stranding that result.
+                    check_budget=not bool(payload.get("provider_task_id")),
+                )
                 if not settings.mock_providers:
                     job.result = {**job.result, "external_request_started": True}
                     session.commit()
@@ -566,6 +588,8 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                         provider_task_id=payload.get("provider_task_id"),
                         on_submitted=on_submitted,
                     )
+                    if payload.get("provider_task_id") and payload.get("provider_model"):
+                        media.model = payload["provider_model"]
                 else:
                     raise ProviderError("不支持的生成任务类型。")
                 # Release read snapshots before the brief final write lock.
@@ -591,7 +615,10 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                     preserve_visible_label=bool(outcome and outcome.region is not None),
                 )
                 job.result_asset_id = asset.id
-                job.result = {**job.result, "asset_id": asset.id}
+                job.result = {
+                    **job.result, "asset_id": asset.id,
+                    "duration_ms": round((time.monotonic() - started) * 1000),
+                }
                 if outcome:
                     for key in (
                         "fidelity", "fidelity_error", "edit_check", "region", "retry_error"
@@ -629,6 +656,9 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
             if project is None or project.deleted_at:
                 retryable, message = False, "项目已删除。"
             job.error = message[:500]
+            job.result = {
+                **job.result, "duration_ms": round((time.monotonic() - started) * 1000)
+            }
             job.locked_at = None
             if retryable and attempt < max_attempts():
                 job.status = "queued"
