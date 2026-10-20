@@ -1,0 +1,5 @@
+已完成 W1–W3，用时约 13 分钟；3 条提交保留在 `feat/app`，未 push。
+
+验证全绿：110 项单测、完整 E2E 10/10、iOS prebuild。补齐截图 65–76，原有 WIP 已保留。
+
+[app/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/FINAL.md) 已覆盖为 19 行，断点已更新，可交 Claude 验收。全程使用本地假服务，真机未验。
