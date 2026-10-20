@@ -100,6 +100,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
   const finished = ['video', 'done'].includes(state?.stage || '');
   const activeIndex = finished ? stageOrder.length - 1 : state ? stageOrder.indexOf(state.stage) : -1;
   const visibleCards = cards.filter(card => {
+    if (card.type === 'references') return true;
     if (!state) return true;
     if (state.stage === 'direction' || state.stage === 'brief') return card.type === 'garments' || card.type === 'directions';
     if (state.stage === 'script') return card.type === 'script';
