@@ -1,0 +1,78 @@
+{
+  "checkedAt": "2026-10-20T17:48:41.090Z",
+  "scope": "主要正文、辅助文字、标签和操作按钮颜色对；图片水印和禁用态不在本检查内。",
+  "pairs": [
+    {
+      "foreground": "ink",
+      "foregroundHex": "#252522",
+      "background": "surface",
+      "backgroundHex": "#FFFFFF",
+      "ratio": 15.369,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "muted",
+      "foregroundHex": "#6D6963",
+      "background": "paper",
+      "backgroundHex": "#FCFAF7",
+      "ratio": 5.234,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "muted",
+      "foregroundHex": "#6D6963",
+      "background": "imagePlaceholder",
+      "backgroundHex": "#EEE9E1",
+      "ratio": 4.513,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "redText",
+      "foregroundHex": "#C51D39",
+      "background": "blush",
+      "backgroundHex": "#FFF0F2",
+      "ratio": 5.264,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "green",
+      "foregroundHex": "#32684E",
+      "background": "successSoft",
+      "backgroundHex": "#EDF5EF",
+      "ratio": 5.862,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "danger",
+      "foregroundHex": "#B42338",
+      "background": "blush",
+      "backgroundHex": "#FFF0F2",
+      "ratio": 5.867,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "white",
+      "foregroundHex": "#FFFFFF",
+      "background": "action",
+      "backgroundHex": "#D91B38",
+      "ratio": 5.043,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "white",
+      "foregroundHex": "#FFFFFF",
+      "background": "viewerSurface",
+      "backgroundHex": "#24262C",
+      "ratio": 15.123,
+      "minimum": 4.5
+    },
+    {
+      "foreground": "viewerMuted",
+      "foregroundHex": "#BBBFC8",
+      "background": "viewerCanvas",
+      "backgroundHex": "#17191D",
+      "ratio": 9.553,
+      "minimum": 4.5
+    }
+  ]
+}

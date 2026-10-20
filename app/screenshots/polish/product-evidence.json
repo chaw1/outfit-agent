@@ -1,0 +1,84 @@
+{
+  "completedAt": "2026-10-20T17:46:01.841Z",
+  "viewport": "390×844",
+  "screenshots": [
+    {
+      "file": "36-onboarding-1.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "37-onboarding-2.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "38-onboarding-3.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "53-settings.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "39-profile-photos-default.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "40-new-project-default-profile.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "41-project-search-brand.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "42-project-delete-confirmation.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "42-project-delete-completed.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "43-about-privacy.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "43-profile-patch-404.png",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "file": "43-profile-old-fields.png",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "checks": {
+    "onboardingThreeScreens": true,
+    "onboardingPersistsAfterRefresh": true,
+    "nicknameAndProfilePersist": true,
+    "localPhotoPreviewAfterRefresh": true,
+    "photoCount": 2,
+    "defaultPhotoSelectableInNewProject": true,
+    "titleAndBrandSearch": true,
+    "refresh": true,
+    "deleteCancelled": true,
+    "deleteConfirmed": true,
+    "deletedProjectEndpoints404": true,
+    "aboutPrivacy": true,
+    "patch404Graceful": true,
+    "oldMeFieldsGraceful": true,
+    "me404PreservesProjects": true
+  },
+  "pageErrors": []
+}

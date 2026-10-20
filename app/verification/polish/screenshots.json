@@ -1,0 +1,457 @@
+{
+  "generatedAt": "2026-10-20T17:48:40.406Z",
+  "count": 75,
+  "viewport": "390×844",
+  "screenshots": [
+    {
+      "file": "01-register.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "af949c713b496d8e528424703032c8dcf6c5823f5ff0adfb8cb005e00ed3405e"
+    },
+    {
+      "file": "02-projects-empty.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "e2fb2d111a133ad07676330ed6ef88ba40200e65f684de253ba507457e63ac5c"
+    },
+    {
+      "file": "03-new-project-uploaded.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4da139143e7a67491d50cfe8110289379cb30dd5dd957cf92cfb6de9ebacc5fc"
+    },
+    {
+      "file": "04-garments-and-directions.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "68ee8a77d0d5e2bc6f428a591d045c10a223fef1defa4a9987392caee2ba78fc"
+    },
+    {
+      "file": "05-script-confirmation.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "569b68fbf63f30b7279705b74f060d18ca920bfac13074ae52c29b7c855cd970"
+    },
+    {
+      "file": "06-images-generating.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "f5b5b24ccdde2639725bb95d72ade41674a87a008220246edb88585ff40cbeb4"
+    },
+    {
+      "file": "07-images-ready.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "76ded15ab68bdeeac40b78ee434e9642b636a0fdcf999af1fa8608f24bed7019"
+    },
+    {
+      "file": "08-edit-image.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d16bfe143f76b47129f40293e25d6c8dd2e2efe474955bc58ca3825e2a604dcf"
+    },
+    {
+      "file": "09-image-new-version.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4e062f424a67ce0b20267e038529e4c29658157e5413566dedc77ed83ae39587"
+    },
+    {
+      "file": "10-selected-order.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "fa3a69534a55f476c5f8c94af5e8f07ab4ab4f9f2c7d8324a01e451c0843986e"
+    },
+    {
+      "file": "11-note-card.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "8a0699fb0aac57f05e773e1b1870164ab6a1be9182ee6f8c9c5680b49239901d"
+    },
+    {
+      "file": "12-note-preview.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d7e2c3b75b393ace3e2b2a797e91de6017d5fa85556840cd53ccb9ebb2e0c7fa"
+    },
+    {
+      "file": "13-video-ready.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "feb7372f36a10c584aac9963acdceb28274d4a3f2f69c910d48f6bf3de198069"
+    },
+    {
+      "file": "14-video-playing.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "ab81e24adfb62174d4b03960313f9231d4ff30b25e688c481262e9d145a836a3"
+    },
+    {
+      "file": "15-project-completed.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "45d9b9dcdd7b504a8ad5d62e7fc70e441d439e88fef00a606daeda01bccb4e81"
+    },
+    {
+      "file": "16-expired-session.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "166fa865df9950b8d1f60b82334429544834ba882069a6b25c6b9ed57e36057a"
+    },
+    {
+      "file": "17-network-error.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "abbb3dc712948e93f657cd9b22958c28de1237576aed0722964f44c146f65cf7"
+    },
+    {
+      "file": "18-network-recovered.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "45d9b9dcdd7b504a8ad5d62e7fc70e441d439e88fef00a606daeda01bccb4e81"
+    },
+    {
+      "file": "19-direction-preview-generating.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "8693f39b8b779c08a8c461dac63c736eedbb4b968a5d7c4b923b5185290512d7"
+    },
+    {
+      "file": "20-script-history.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d51841e31d78ee3e18eb782a31d86d0bb2cf96cc75355c3451097f33efd249e6"
+    },
+    {
+      "file": "21-fidelity-auto-fixed.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d8b006a8b7531867c1e45bb1a84d55a47a393c1e8671dab5ff4a5706ea5ba0ea"
+    },
+    {
+      "file": "22-script-restored.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c150e90be48913c1409995c1f76a640afdd0fbe1618548fa254e5bfc5cc890f0"
+    },
+    {
+      "file": "23-note-cost-and-ai-label.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "0ff19bc79f9c1c5083889619ded8998257debd8584c45acb1ffeba9b505b8ddf"
+    },
+    {
+      "file": "24-direction-preview-failed.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "3aa53ded26471fa383b3349588483d14daabd28d707587a9aa9d304edbd9e1b9"
+    },
+    {
+      "file": "25-image-viewer.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "bde246d721a72f691db77340794ccbfbde7d27b147acba7669ed021ca2c698a9"
+    },
+    {
+      "file": "26-viewer-zoom.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "669d7bcd9827f245c198990eac19581362581ca0e3ea5d226638032b97075cef"
+    },
+    {
+      "file": "27-viewer-version-compare.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4a46d0c95a7fdf21f9240c8d48df886b2d47a441c66a52c6766ac79a9fcc79ac"
+    },
+    {
+      "file": "28-viewer-brush.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "ef1b226297c4df7f3b4007443d0ebb567bb08453e2a5d1d77c6a03c80954b814"
+    },
+    {
+      "file": "29-local-edit-result-compare.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7af0500ce9f4d04e39e586e410e8b5749a02dd97d1f16d1d238b304bc0caf349"
+    },
+    {
+      "file": "30-reference-sent.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "207f4ca5733e3c3578f2c5dc2de636534bfa92a1e7727dbc403f8bf21d9d918a"
+    },
+    {
+      "file": "31-image-longpress-menu.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6b29a3726a286efca88e081567a94b606d57bd6a9e9d92e1c874177bbc7dac4e"
+    },
+    {
+      "file": "32-edit-check-failed.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7af0500ce9f4d04e39e586e410e8b5749a02dd97d1f16d1d238b304bc0caf349"
+    },
+    {
+      "file": "33-rectangle-edit-result.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "8bffe3fdff5e0bad495c5019096cc4b4f1a5b73c40bd726fcc9483d5d05720bf"
+    },
+    {
+      "file": "34-preview-reference.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c192f2f5a1833559071cb96d1cc8c4aef664de5524863d82a664cd6b62066c07"
+    },
+    {
+      "file": "35-provider-error-visible.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "77916f714e190726e1a3dbd1f2e2609b33e734f60a5bb056e85bbceb2c89e197"
+    },
+    {
+      "file": "36-onboarding-1.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6c45b7b1f07337b42c53c4e16c1b528b64ea9dcdaf4ad8d6f5cb1b751251d460"
+    },
+    {
+      "file": "37-onboarding-2.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6a68165060b93c3250079592caa7fa4dda55ddbb9b08a95df7d0d8f958505b11"
+    },
+    {
+      "file": "38-onboarding-3.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "e73796ef63522a5db945eceb454cbb1b612b4c957951bf51157a9e71ecde8057"
+    },
+    {
+      "file": "39-profile-photos-default.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a245bbbfa12b4055d0ed2067f2bd9418f716a93c781c6217c3396ee4867ae963"
+    },
+    {
+      "file": "40-new-project-default-profile.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "eb2399ec29017aac78c9c9085f0c6b85fe0d11c7c654bfa3893d2729278678bb"
+    },
+    {
+      "file": "41-project-search-brand.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "963e4dc1be3118339bb57274f3badf510dde2b0e80fb95b23f673eda96fcff31"
+    },
+    {
+      "file": "42-project-delete-completed.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a5fdaae77f3ebae755513781f7775b83bc6f502117edcde5516b6da45c4c2c2a"
+    },
+    {
+      "file": "42-project-delete-confirmation.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4b811b9abe4bb2cdc9bbf58f9d95680d0b38e91e517f25d04c7c3fb9dae31e54"
+    },
+    {
+      "file": "43-about-privacy.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "eb9ce95e6cd8691662e966aae39036bebac89ad5a82337920ff6dff072ee6aef"
+    },
+    {
+      "file": "43-profile-old-fields.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4dfdbb1b3c7060e9247378c08ff346777d8449b2a8e58c8e3048f91db668fc20"
+    },
+    {
+      "file": "43-profile-patch-404.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "8d46aa93ea65c3f6977370b0fe0d8ab1cec05d78d2e7e052347864362a82df9c"
+    },
+    {
+      "file": "44-safe-rephrase.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "e11ccf34c2e18a297ae51c8bbeff8595f18ba15267f735ff776ad218a190060e"
+    },
+    {
+      "file": "45-message-copy-menu.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "56e66638d5a2f27198f2fb13f0bbb56c55ea004e1403e3248fb7cc80501dfe24"
+    },
+    {
+      "file": "46-failed-message-retry.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "327fcd98d64d1fcfb54e264e4aaa33139c072748fab43d621108d6897049a56c"
+    },
+    {
+      "file": "47-fidelity-diffs-expanded.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "1e4a66610a0d4679103a85df825460b459b82a2fd1e8d854cb41b87ee7d14200"
+    },
+    {
+      "file": "48-publish-partial-retry.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "039bf5b1f22b601fc88c6002c04676ee96d4b7b3acf99369e1cb06755db4cedd"
+    },
+    {
+      "file": "49-publish-checklist-ready.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "ba0ed9b51673ce9df417b919a5206d69a7dc422da095c7a62648f15541a0f4ce"
+    },
+    {
+      "file": "50-publish-video-saved.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "dc01305633592fb46664d06b503825c97162255678ca594d555d6bd4e4f0fd4b"
+    },
+    {
+      "file": "51-publish-resumed-no-duplicates.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "62919c30e7b17ae9d750a6c699197a053024810fb82746f8f08722fac1484d56"
+    },
+    {
+      "file": "52-foreground-generation-notice.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "5c98dd8094cbbe060ac2205e8226e42ab393a492c4cc17233e29e74e91e21ba0"
+    },
+    {
+      "file": "53-settings.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "67e8fea2e0103b83d9fb57ce18dfc0533222b1787efde35fd696fd15216fee03"
+    },
+    {
+      "file": "54-note-content.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2cda999f269a6150327c57e37fddb85713ab9dc26934a278e7e480eca9ae3061"
+    },
+    {
+      "file": "60-onboarding-1-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "bbc459f7157ae73095c58d5f372cd063e896af6b75b1f48041d3f39a12c02635"
+    },
+    {
+      "file": "61-onboarding-2-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "fcd623bf1490a642afd7bfc6a891bf3c0798ae15d01a65c4e39dc6ccd314bacf"
+    },
+    {
+      "file": "62-onboarding-3-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "09173e043b3018fc0e7980019e09570d19487ccf09f160ad8ef50e4b3295fd52"
+    },
+    {
+      "file": "63-home-skeleton-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "ebfe3b871c62d7eaecedadd859d96b253b586f7464a7574d30231fa241da9569"
+    },
+    {
+      "file": "64-home-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c6a3720ee0d0b57b8bf3b6e57c9d5fb3340d79b3b024923be870d87b49b6b4f0"
+    },
+    {
+      "file": "65-new-project-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "11de5b5df561e47c8c5ceedc5b95e4f55015c012eae9fa3c8e319102c6ca1317"
+    },
+    {
+      "file": "66-new-project-submit-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "95e4feffa75c9b7d6a0f3eb5cefad2cb4d3b7a3ca09e4cb5a0b34fc293e2894c"
+    },
+    {
+      "file": "67-settings-profile-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "de91b738137e23b090ae777a0a4b73e0e33e8dce924452ef928840ea6674d567"
+    },
+    {
+      "file": "68-settings-service-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a01a58508112b303d910d7634b586123cda6bdbf0cbe83f409a5939eb45df5dc"
+    },
+    {
+      "file": "69-workspace-skeleton-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "9d2c6415938645cd02ab4780a8b8de7b0ea60fdd5bb6d5379881c630a6be24b0"
+    },
+    {
+      "file": "70-workspace-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7ec196539befdbca91a3423a9f2afd9ec50458db5127edb99f975fee3b878aef"
+    },
+    {
+      "file": "71-preview-skeleton-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "3025e0982c4fd59104eaa9222da9f2560120eb90a57a2a46b33543593c51a974"
+    },
+    {
+      "file": "72-preview-empty-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "88cde626d914a676ef1729e2e158b3891c06da696de21db02df388c61df9d3fd"
+    },
+    {
+      "file": "73-preview-no-image-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "bf144fd94b5161d7c32bbc1399472ffd7b816026f38de331866900d111aec3b8"
+    },
+    {
+      "file": "74-preview-image-error-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2109e0a54c73c2107d48a076bfc7cf728a9bb8d689eb89b2643f9b7945c8978f"
+    },
+    {
+      "file": "75-preview-image-recovered-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "f61e7ebf502b9a13f152699864a08c092fd04b4376b2a2f52562f58f784021b7"
+    },
+    {
+      "file": "76-preview-reading-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4dc52e288477ed89671441ffd97933099d03287c5d08065754e11723f6807d3c"
+    },
+    {
+      "file": "77-preview-publish-font115.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "862889fa86a4de562e0eb5499ccd10bf314baa9cefbe5fce58d1be7bd150749b"
+    }
+  ]
+}

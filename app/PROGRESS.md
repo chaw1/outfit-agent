@@ -1,3 +1,17 @@
+## 第五轮视觉打磨（2026-10-21）
+
+- 当前任务：完整执行 `docs/codex/APP_POLISH_PROMPT.md`；唯一约定 `docs/设计.md`。01:29 开始，02:59 墙钟收尾。
+- 范围：仅本 worktree `feat/app`，不 push、不合并；未访问线上服务/前公司/钥匙串，无新增依赖，无接口/假服务/发布/通知逻辑变更。
+- 完成：全局 theme 与 UI 组件；首页/登录/新建/工作台/预览/设置/关于/引导；图片查看器、版本与笔刷菜单、脚本历史、形象编辑。
+- 第一轮：93/93 单测、verify 五项、iOS prebuild（含 CocoaPods）全绿；原有两套 E2E 2/2，无头 390×844。
+- 最终代码已冻结：修正对比度、44pt 窄消息/通知关闭、图片淡入截图等待和笔记骨架封面高度；verify 五项通过，93/93 单测；最终 E2E 3/3 全过（151.7秒，pageErrors/animationErrors 均空）。
+- 证据目标：`screenshots/polish/` 与 `verification/polish/`；最终结论写 `POLISH.md`（≤30行）。真机键盘/触感/动态字体/启动观感待验。
+- 初始 verification 四份 WIP 已备份 `.tools/polish-baseline/` 且已按字节恢复；本轮 verify 与 prebuild 日志已拷到 `verification/polish/`；screenshots-live/run-1、run-2 原样保留。
+- 完成断点：界面提交 `daca816`；75 张 390×844 截图、18 组 115% 字体检查、67 次控件尺寸/名称与12项操作可达检查通过；全部日志/哈希/联系表在 `verification/polish/`；报告 `POLISH.md` 留本地。
+- 已修验证时序：等待含 note 的 state 排除后台旧轮询；截图等待图片 decode/淡入，并对确认后卡片稳定前的 DOM 替换重取定位；断言未删减。
+- 本轮 2026-10-21 01:29–01:49，约20分钟；未 push/合并，ios/ 未提交。真机验收仍需按 POLISH 限制项复测。
+- 续接：Node22 `PATH=/Users/jiawei/.local/share/mise/installs/node/22.23.1/bin:$PATH`；`npm run test:e2e` 自动启停本地19300/19301，无头；`npm run verify`；`CI=1 BROWSER=none npx expo prebuild --platform ios`。
+
 # 第四轮断点（APP_FIX3，已完成本地交付）
 
 - 开始：2026-10-21 01:02（Asia/Shanghai）；收尾：2026-10-21 01:25；墙钟上限03:02前完成。分支feat/app，只本worktree。

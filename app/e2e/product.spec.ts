@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Asset, Project, User } from '../src/api/types';
 
-const shots = path.resolve('screenshots');
+const shots = path.resolve('screenshots/polish');
 const apiBase = 'http://localhost:19301/api';
 
 test('首次引导、形象档案和项目管理，以及旧服务的兼容', async ({ page, request }) => {
@@ -19,7 +19,14 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
     }
   });
   async function shot(file: string) {
-    await page.screenshot({ path: path.join(shots, file), animations: 'disabled' });
+    await page.evaluate(async () => {
+    await Promise.all(Array.from(document.images).filter(image => {
+      const bounds = image.getBoundingClientRect();
+      return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.top < innerHeight;
+    }).map(image => image.decode().catch(() => undefined)));
+  });
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: path.join(shots, file), animations: 'disabled' });
     screenshots.push({ file, ...page.viewportSize()! });
   }
   await page.goto('/');
@@ -44,6 +51,7 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
 
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await expect(page.getByText('我的形象', { exact: true })).toBeVisible();
+  await shot('53-settings.png');
   const fixture = await readFile(path.resolve('../docs/spike/inputs.jpg'));
   const chooser = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: '添加本人照片', exact: true }).click();

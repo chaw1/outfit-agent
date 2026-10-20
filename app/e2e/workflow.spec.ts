@@ -4,9 +4,18 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { ProjectState } from '../src/api/types';
 import { imageInteractions } from './image-interactions';
 
-const shots = path.resolve('screenshots');
+const shots = path.resolve('screenshots/polish');
 async function shot(page: Page, name: string, focus?: Locator) {
-  if (focus) await focus.scrollIntoViewIfNeeded();
+  if (focus) await expect(async () => {
+    await focus.scrollIntoViewIfNeeded({ timeout: 2000 });
+  }).toPass({ timeout: 10000, intervals: [100, 250, 500] });
+  await page.evaluate(async () => {
+    await Promise.all(Array.from(document.images).filter(image => {
+      const bounds = image.getBoundingClientRect();
+      return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.top < innerHeight;
+    }).map(image => image.decode().catch(() => undefined)));
+  });
+  await page.waitForTimeout(350);
   await page.screenshot({ path: path.join(shots, name), animations: 'disabled' });
 }
 
@@ -216,7 +225,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await firstSortDown.click();
   const orderedIds = await page.getByTestId(/^move-up-/).evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')!.replace('move-up-', '')));
   await shot(page, '10-selected-order.png', page.getByTestId('approve-images'));
-  const noteResponse = page.waitForResponse(response => response.url().endsWith('/state') && response.request().method() === 'GET');
+  const noteResponse = page.waitForResponse(async response => response.url().endsWith('/state') && response.request().method() === 'GET' && response.ok() && Boolean((await response.json() as ProjectState).note));
   await page.getByTestId('approve-images').click();
   await expect(page.getByTestId('preview-note')).toBeVisible();
   const noteState = await (await noteResponse).json();
@@ -227,7 +236,8 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await shot(page, '12-note-preview.png');
   await expect(page.getByTestId('note-cost')).toContainText('这篇成本约 ¥');
   await expect(page.getByTestId('note-ai-label')).toContainText('AI');
-  await shot(page, '23-note-cost-and-ai-label.png', page.getByTestId('note-cost'));
+  await shot(page, '54-note-content.png', page.getByTestId('note-body'));
+  await shot(page, '23-note-cost-and-ai-label.png', page.getByTestId('note-ai-label'));
   await page.getByTestId(`preview-image-${orderedIds[0]}`).click();
   await expect(page.getByTestId('image-viewer')).toBeVisible();
   await page.getByTestId('viewer-reference').click();
