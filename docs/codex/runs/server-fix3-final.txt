@@ -1,0 +1,6 @@
+已覆盖重写 [server/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-server/server/FINAL.md)，共 36 行；断点、图片和账本均已保留。
+
+- 193 项测试、ruff、Mock e2e、experiments 全通过。
+- 接缝指标降低 69.3%，蒙版外零像素改动；字体已替换。
+- 真实调用估算 ¥4.523159。袖口和吊牌纹理仍未达标，未证实成功率提升，已如实记录。
+- 用时约 15 分钟，`feat/server` 本地提交 3 笔，未 push、未部署。
