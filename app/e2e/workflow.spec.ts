@@ -33,7 +33,16 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   page.on('response', response => {
     if (response.url().endsWith('/state') && response.ok()) void response.json().then(value => { latestState = value; });
   });
+  const downloads: string[] = [];
+  const shares: { title: string; text: string }[] = [];
+  page.on('download', download => { downloads.push(download.suggestedFilename()); });
+  await page.exposeFunction('recordShare', (payload: { title: string; text: string }) => shares.push(payload));
+  await page.addInitScript(() => Object.defineProperty(navigator, 'share', { configurable: true, value: (payload: { title: string; text: string }) => (window as unknown as { recordShare: (payload: unknown) => Promise<void> }).recordShare(payload) }));
   await page.goto('/');
+  await expect(page.getByTestId('onboarding-1')).toBeVisible();
+  await page.getByRole('button', { name: '下一步', exact: true }).click();
+  await page.getByRole('button', { name: '下一步', exact: true }).click();
+  await page.getByRole('button', { name: '开始创作', exact: true }).click();
   await page.getByRole('button', { name: '注册', exact: true }).click();
   await page.getByLabel('怎么称呼你', { exact: true }).fill('小序');
   const username = `creator_${Date.now()}`;
@@ -81,6 +90,8 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByTestId('chat-input').fill('希望整体再松弛一点。');
   await page.getByTestId('send-message').click();
   await expect(direction).toBeEnabled();
+  await expect.poll(() => latestState?.active_jobs.length).toBe(0);
+  await expect(page.getByTestId('rephrase-message')).toHaveCount(0);
   // 长卡片后的自动滚动不能把服务端拒绝藏到屏幕上方。
   const providerError = '对话模型返回列表长度有误，圈选轨迹不能为空。';
   await page.route('**/api/projects/*/messages', async route => {
@@ -107,6 +118,44 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByTestId('chat-input').fill('把第二张场景换成办公室，做一版通勤脚本。');
   await page.getByTestId('send-message').click();
   await expect(page.getByTestId('confirm-script')).toBeEnabled();
+  // Only a server-approved free round can be rewritten; media jobs and cost remain unchanged.
+  await expect(page.getByTestId('rephrase-message')).toBeVisible();
+  const beforeRewrite = structuredClone(latestState!);
+  const rewriteRequest = page.waitForRequest(request => request.method() === 'POST' && request.url().endsWith('/messages') && request.postDataJSON()?.action?.type === 'regenerate_reply');
+  await page.getByTestId('rephrase-message').click();
+  await rewriteRequest;
+  await expect(page.getByText(/^换个表达：/)).toBeVisible();
+  await expect.poll(() => latestState?.cost_cny).toBe(beforeRewrite.cost_cny);
+  expect(latestState?.images).toEqual(beforeRewrite.images);
+  await shot(page, '44-safe-rephrase.png', page.getByTestId('rephrase-message'));
+  const latestMessage = page.getByTestId(/^message-/).filter({ hasText: /^换个表达：/ }).last();
+  await latestMessage.click({ delay: 650 });
+  await expect(page.getByTestId('copy-message')).toBeVisible();
+  await shot(page, '45-message-copy-menu.png');
+  await page.getByTestId('copy-message').click();
+  await expect(page.getByText('消息文本已复制')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain('换个表达：');
+  // A definitive text rejection is retryable, while ambiguous disconnects never auto-resend.
+  let rejectsRemaining = 2;
+  await page.route('**/api/projects/*/messages', async route => {
+    if (route.request().method() === 'POST' && route.request().postDataJSON()?.text === '重发测试：通勤脚本，想要轻松的文案' && rejectsRemaining > 0) {
+      rejectsRemaining -= 1;
+      return route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ error: { code: 'RATE_LIMITED', message: '稍等片刻再试' } }) });
+    }
+    return route.continue();
+  });
+  await page.getByTestId('chat-input').fill('重发测试：通勤脚本，想要轻松的文案');
+  await page.getByTestId('send-message').click();
+  await expect(page.getByTestId('retry-failed-message')).toBeVisible();
+  await shot(page, '46-failed-message-retry.png', page.getByTestId('retry-failed-message'));
+  const secondRejection = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith('/messages') && response.status() === 429);
+  await page.getByTestId('retry-failed-message').click();
+  await secondRejection;
+  await expect(page.getByTestId('retry-failed-message')).toHaveCount(1);
+  await page.getByTestId('retry-failed-message').click();
+  await expect(page.getByTestId('retry-failed-message')).toHaveCount(0);
+  await expect(page.getByTestId('chat-input')).toHaveValue('');
+  await page.unroute('**/api/projects/*/messages');
   await page.getByTestId('script-history').click();
   await expect(page.getByTestId('script-version-2')).toBeVisible();
   await waitForModal(page.getByTestId('script-version-2'));
@@ -116,6 +165,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   const historyBeforeGeneration = historyRequests.length;
   await page.getByTestId('confirm-script').click();
   await expect(page.getByText('画面生成中').first()).toBeVisible();
+  await expect(page.getByTestId('rephrase-message')).toHaveCount(0);
   await shot(page, '06-images-generating.png', page.getByText('画面生成中').first());
   await expect(page.getByTestId('approve-images')).toBeEnabled();
   await expect(page.getByText('3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。')).toBeVisible();
@@ -123,6 +173,22 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByTestId(/^fidelity-/).filter({ hasText: '还原 92' }).first()).toBeVisible();
   await shot(page, '07-images-ready.png', page.getByText('你的穿搭影像'));
   await shot(page, '21-fidelity-auto-fixed.png', page.getByTestId(/^auto-fixed-/).first());
+  await expect(page.getByTestId('generation-notice')).toBeVisible();
+  await shot(page, '52-foreground-generation-notice.png', page.getByTestId('generation-notice'));
+  await page.getByRole('button', { name: '关闭生成提示', exact: true }).click();
+  const diffs = page.getByTestId(/^fidelity-diffs-/).first();
+  await expect(diffs).toBeVisible();
+  const differencesButton = diffs.locator('..');
+  await expect(differencesButton).toHaveAttribute('aria-expanded', 'false');
+  await expect(diffs).toHaveCSS('-webkit-line-clamp', '2');
+  await differencesButton.click();
+  await expect(differencesButton).toHaveAttribute('aria-expanded', 'true');
+  await expect(diffs).toHaveCSS('-webkit-line-clamp', 'none');
+  await shot(page, '47-fidelity-diffs-expanded.png', diffs);
+  await differencesButton.click();
+  await expect(differencesButton).toHaveAttribute('aria-expanded', 'false');
+  // Generated media already contains its watermark; no second label is painted by the app.
+  await expect(page.getByText('AI生成', { exact: true })).toHaveCount(0);
   const retainedIds = latestState!.images.map(image => image.id);
   await page.getByTestId('script-history').click();
   await expect(page.getByTestId('restore-script-1')).toBeEnabled();
@@ -172,9 +238,33 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByTestId('note-title')).toBeVisible();
   await page.getByTestId('copy-note').click();
   await expect(page.getByText('文案已复制，可以去发布啦。')).toBeVisible();
-  const download = page.waitForEvent('download');
+  await expect(page.getByTestId('prepare-publish')).toBeDisabled();
+  await page.getByTestId('publish-ai-confirm').click();
+  await expect(page.getByTestId('publish-ai-confirm')).toHaveAttribute('aria-checked', 'true');
+  const beforePublishDownloads = downloads.length;
+  const secondImageUrl = latestState!.images.find(image => image.id === orderedIds[1])!.url!;
+  const secondImagePath = new URL(secondImageUrl).pathname;
+  await page.route('**/media/**', route => {
+    if (new URL(route.request().url()).pathname === secondImagePath && route.request().resourceType() === 'fetch') return route.fulfill({ status: 503, body: 'test-download-failed' });
+    return route.continue();
+  });
+  await page.getByTestId('prepare-publish').click();
+  await expect(page.getByRole('alert')).toContainText('只会继续未完成');
+  await expect(page.getByTestId(`publish-image-${orderedIds[0]}`)).toContainText('已保存');
+  expect(downloads.length - beforePublishDownloads).toBe(1);
+  await shot(page, '48-publish-partial-retry.png', page.getByTestId('publish-checklist'));
+  await page.unroute('**/media/**');
+  await page.getByTestId('prepare-publish').click();
+  await expect(page.getByTestId('publish-share')).toContainText('系统分享面板已打开');
+  for (const imageId of orderedIds) await expect(page.getByTestId(`publish-image-${imageId}`)).toContainText('已保存');
+  expect(downloads.slice(beforePublishDownloads)).toEqual(orderedIds.map(id => expect.stringContaining(`outfit-${id}`)));
+  expect(shares).toHaveLength(1);
+  expect(shares[0].text).toContain(latestState!.note!.title);
+  await shot(page, '49-publish-checklist-ready.png', page.getByTestId('publish-checklist'));
+  const downloadCount = downloads.length;
   await page.getByTestId('save-images').click();
-  await (await download).saveAs(path.resolve('test-results/saved-image.jpg'));
+  await expect(page.getByText('这些图片已经保存过啦，无需重复保存。')).toBeVisible();
+  expect(downloads).toHaveLength(downloadCount);
   await page.getByRole('button', { name: '返回', exact: true }).click();
   await expect(page.getByTestId('confirm-video')).toBeEnabled();
   await page.getByTestId('confirm-video').click();
@@ -185,6 +275,25 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(video).toBeVisible();
   await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).currentTime)).toBeGreaterThanOrEqual(1);
   await shot(page, '14-video-playing.png', video);
+  await page.getByTestId('preview-note').click();
+  await expect(page.getByTestId('publish-video')).toContainText('待保存');
+  await page.getByTestId('publish-ai-confirm').click();
+  const beforeVideoDownloads = downloads.length;
+  await page.getByTestId('prepare-publish').click();
+  await expect(page.getByTestId('publish-video')).toContainText('已保存');
+  expect(downloads.slice(beforeVideoDownloads)).toEqual([expect.stringMatching(/\.mp4$/)]);
+  await shot(page, '50-publish-video-saved.png', page.getByTestId('publish-checklist'));
+  await page.reload();
+  await expect(page.getByTestId('publish-video')).toContainText('已保存');
+  await page.getByTestId('publish-ai-confirm').click();
+  const beforeResumeDownloads = downloads.length;
+  await page.getByTestId('prepare-publish').click();
+  await expect(page.getByTestId('publish-share')).toContainText('系统分享面板已打开');
+  expect(downloads).toHaveLength(beforeResumeDownloads);
+  await shot(page, '51-publish-resumed-no-duplicates.png', page.getByTestId('publish-checklist'));
+  await page.getByRole('button', { name: '返回', exact: true }).click();
+  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
+  await expect(page.getByTestId('preview-note')).toBeVisible();
   await page.reload();
   await expect(page.getByTestId('preview-note')).toBeVisible();
   await page.getByRole('button', { name: '返回', exact: true }).click();
@@ -210,5 +319,5 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' })).toBeVisible();
   await shot(page, '18-network-recovered.png', page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' }));
   expect(errors).toEqual([]);
-  await writeFile(path.join(shots, 'evidence.json'), JSON.stringify({ viewport: '390×844', passedAt: new Date().toISOString(), firstEditedImage: firstId, imageInteractions: interactions, selectedOrder: orderedIds, stateRequests: polls.length, historyRequests: historyRequests.length, proactiveMessage: true, restoredCheckpoint, retainedImageIds: retainedIds, previewImages: true, autoFixedFidelity: 92, noteCostCny: latestState?.note?.cost_cny, aiLabel: latestState?.note?.ai_label, videoPlayed: true, pageErrors: errors }, null, 2));
+  await writeFile(path.join(shots, 'evidence.json'), JSON.stringify({ viewport: '390×844', passedAt: new Date().toISOString(), firstEditedImage: firstId, imageInteractions: interactions, selectedOrder: orderedIds, stateRequests: polls.length, historyRequests: historyRequests.length, proactiveMessage: true, restoredCheckpoint, retainedImageIds: retainedIds, previewImages: true, autoFixedFidelity: 92, noteCostCny: latestState?.note?.cost_cny, aiLabel: latestState?.note?.ai_label, videoPlayed: true, publishing: { downloads, shares: shares.length, orderedIds, partialRetry: true, resumedNoDuplicates: true }, conversation: { safeRewrite: true, longPressCopy: true, failedTextRetry: true }, pageErrors: errors }, null, 2));
 });

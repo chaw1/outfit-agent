@@ -1,9 +1,7 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-| (node:16668) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-| (Use `node --trace-warnings ...` to show where the warning was created)
-iOS Bundled 3504ms node_modules/expo-router/entry.js (1910 modules)
+iOS Bundled 3746ms node_modules/expo-router/entry.js (1994 modules)
 
 › Assets (43):
 assets/editorial.jpg (141KB)
@@ -40,7 +38,7 @@ node_modules/expo-router/assets/sitemap.png (465B)
 node_modules/expo-router/assets/unmatched.png (4.8KB)
 
 › ios bundles (1):
-_expo/static/js/ios/entry-b2e4488b2fbe62767b5748f22447be6f.hbc (4.8MB)
+_expo/static/js/ios/entry-5b5d690ae8581679dd8408ae06dfc3da.hbc (5MB)
 
 › Files (1):
 metadata.json (2.9KB)

@@ -6,21 +6,26 @@ import {
   ActivityIndicator,
   Image,
   Pressable,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
+import { ApiError } from '../../api/client';
 import type { Action, ProjectState } from '../../api/types';
 import { ImageInteractions, useImageInteractions } from '../../components/ImageInteractions';
 import { VideoPlayer } from '../../components/VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from '../../components/GenerationInfo';
 import { Button, Header, Loading, Notice, Page, colors, errorText } from '../../components/ui';
 import { useSession } from '../../context/Session';
-import { saveImages } from '../../lib/media';
+import { saveImages, saveVideo, shareNote } from '../../lib/media';
+import { noteText, preparePublish, savedImagesAreInOrder, videoKey, type PublishProgress } from '../../lib/publish';
+import { readPublishCheckpoint, writePublishCheckpoint } from '../../lib/publishCheckpoint';
+import { observeGeneration } from '../../lib/notificationRuntime';
 
-function PreviewImage({ id, url, index, onRefresh }: { id: string; url?: string; index: number; onRefresh: () => void }) {
+function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url?: string; index: number; onRefresh: () => void; disabled?: boolean }) {
   const [failedUrl, setFailedUrl] = useState<string>();
   const interaction = useImageInteractions();
   if (!url) return <View style={styles.imagePlaceholder}><Ionicons name="image-outline" size={34} color="#C0B3A6" /><Text style={styles.placeholderText}>图片还在路上</Text></View>;
@@ -29,13 +34,14 @@ function PreviewImage({ id, url, index, onRefresh }: { id: string; url?: string;
     <Text style={styles.placeholderText}>图片暂时没能加载</Text>
     <Pressable accessibilityRole="button" accessibilityLabel={`重新加载第 ${index + 1} 张图片`} testID={`retry-preview-${id}`} onPress={() => { setFailedUrl(undefined); onRefresh(); }}><Text style={{ color: colors.red, fontSize: 12, padding: 12 }}>重新加载</Text></Pressable>
   </View>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={{ flex: 1 }}><Image source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /><Text style={{ position: 'absolute', bottom: 12, right: 12, fontSize: 10, color: 'white', backgroundColor: '#25252288', borderRadius: 4, padding: 5 }}>AI生成</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} disabled={disabled} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={{ flex: 1 }}><Image source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /></Pressable>;
 }
 
 export default function NotePreview() {
   const { id } = useLocalSearchParams<{ id: string | string[] }>();
+  const { api, user } = useSession();
   const projectId = Array.isArray(id) ? id[0] : id;
-  return <PreviewPage key={projectId ?? 'missing'} projectId={projectId} />;
+  return <PreviewPage key={`${api.baseUrl}|${user?.id}|${projectId}`} projectId={projectId} />;
 }
 
 function PreviewPage({ projectId }: { projectId?: string }) {
@@ -45,6 +51,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   const [state, setState] = useState<ProjectState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notFound, setNotFound] = useState(false);
   const [retry, setRetry] = useState(0);
   const [carouselWidth, setCarouselWidth] = useState(Math.min(width, 520));
   const [page, setPage] = useState(0);
@@ -55,9 +62,15 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   const [actionError, setActionError] = useState('');
   const [savedCount, setSavedCount] = useState(0);
   const [saveFailed, setSaveFailed] = useState(false);
+  const checkpointScope = `${api.baseUrl}|${user?.id ?? 'anonymous'}|${projectId ?? 'missing'}`;
+  const [publishProgress, setPublishProgress] = useState(() => readPublishCheckpoint(checkpointScope));
+  const publishRef = useRef(publishProgress);
+  const [preparing, setPreparing] = useState(false);
+  const [publishStep, setPublishStep] = useState('');
+  const [publishFailed, setPublishFailed] = useState(false);
+  const [aiConfirmed, setAiConfirmed] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editActions, setEditActions] = useState<Extract<Action, { type: 'edit_image' }>[]>([]);
-  const savedIds = useRef(new Set<string>());
   const savingRef = useRef(false);
 
   useFocusEffect(useCallback(() => {
@@ -77,12 +90,17 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         const [next, history] = await Promise.all([api.state(projectId), api.messages(projectId)]);
         if (alive) {
           setState(next);
+          setNotFound(false);
+          observeGeneration(projectId, '合作项目', next);
           setEditActions(history.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : []));
           hasActiveJobs = next.active_jobs.length > 0;
           setError('');
         }
       } catch (cause) {
-        if (alive) setError(errorText(cause));
+        if (alive) {
+          setError(errorText(cause));
+          if (cause instanceof ApiError && cause.status === 404) { setState(null); setEditActions([]); setNotFound(true); hasActiveJobs = false; }
+        }
       } finally {
         inFlight = false;
         if (alive) setLoading(false);
@@ -95,25 +113,33 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   }, [api, projectId, retry]));
 
   const note = state?.note;
-  const images = note?.image_ids.map((imageId) => ({
-    id: imageId,
-    url: state?.images.find((image) => image.id === imageId)?.url,
-    source: state?.images.find((image) => image.id === imageId),
-  })) ?? [];
+  const images = note?.image_ids.map(imageId => {
+    const source = state?.images.find(image => image.id === imageId);
+    return { id: imageId, url: source?.url, status: source?.status, source };
+  }) ?? [];
   const nickname = user?.nickname || user?.username || '我的穿搭日记';
 
   function backToStudio() {
+    if (notFound) { router.replace('/'); return; }
     if (router.canGoBack()) router.back();
     else if (projectId) router.replace({ pathname: '/projects/[id]', params: { id: projectId } });
     else router.replace('/');
+  }
+
+  function updatePublish(next: PublishProgress, step?: string) {
+    publishRef.current = next;
+    setPublishProgress({ ...next, savedImageIds: [...next.savedImageIds], savedVideoKeys: [...next.savedVideoKeys] });
+    writePublishCheckpoint(checkpointScope, next);
+    if (step) setPublishStep(step);
   }
 
   async function copyNote() {
     if (!note) return;
     setActionError('');
     try {
-      const tags = note.tags.map((tag) => `#${tag.replace(/^#/, '')}`).join(' ');
-      await Clipboard.setStringAsync([note.title, note.body, tags].filter(Boolean).join('\n\n'));
+      const text = noteText(note);
+      await Clipboard.setStringAsync(text);
+      updatePublish({ ...publishRef.current, copiedText: text });
       setCopied(true);
     } catch (cause) {
       setActionError(`文案没能复制：${errorText(cause)}`);
@@ -128,13 +154,15 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     setSaveFeedback('');
     setActionError('');
     try {
-      const available = images.flatMap((image) => image.url ? [{ id: image.id, url: image.url }] : []);
-      if (!available.length) throw new Error('图片还没有准备好，稍后再试一次。');
-      const result = await saveImages(available, savedIds.current, (finished, total) => setProgress({ finished, total }));
-      for (const imageId of result.savedIds) savedIds.current.add(imageId);
-      const completed = note.image_ids.filter((imageId) => savedIds.current.has(imageId)).length;
+      const firstMissing = images.findIndex(image => (!image.url || image.status !== 'succeeded') && !publishRef.current.savedImageIds.includes(image.id));
+      const readyPrefix = firstMissing < 0 ? images : images.slice(0, firstMissing);
+      const available = readyPrefix.flatMap((image) => image.url ? [{ id: image.id, url: image.url }] : []);
+      if (!available.length && note.image_ids.some(imageId => !publishRef.current.savedImageIds.includes(imageId))) throw new Error('图片还没有准备好，稍后再试一次。');
+      const result = await saveImages(available, new Set(publishRef.current.savedImageIds), (finished, total) => setProgress({ finished, total }));
+      updatePublish({ ...publishRef.current, savedImageIds: [...new Set([...publishRef.current.savedImageIds, ...result.savedIds])] });
+      const completed = note.image_ids.filter((imageId) => publishRef.current.savedImageIds.includes(imageId)).length;
       setSavedCount(completed);
-      const missing = images.length - available.length;
+      const missing = images.filter(image => (!image.url || image.status !== 'succeeded') && !publishRef.current.savedImageIds.includes(image.id)).length;
       if (result.failed.length || missing) {
         setSaveFailed(true);
         setActionError(`已保存 ${completed}/${images.length} 张，剩下的图片没能保存。再点一次只会重试未完成的图片。`);
@@ -150,12 +178,41 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     }
   }
 
+  async function prepareForPublish() {
+    if (!note || !aiConfirmed || savingRef.current) return;
+    savingRef.current = true;
+    setPreparing(true); setPublishFailed(false); setActionError(''); setSaveFeedback('');
+    try {
+      await preparePublish(note, images, state?.video, publishRef.current, {
+        copy: async text => { await Clipboard.setStringAsync(text); },
+        saveImage: async image => {
+          const result = await saveImages([image]);
+          if (result.failed.length) throw new Error(result.failed[0].message);
+        },
+        saveVideo,
+        share: shareNote,
+        changed: (next, step) => { updatePublish(next, step); setCopied(next.copiedText === noteText(note)); },
+      });
+      setSaveFeedback(publishRef.current.share === 'unavailable'
+        ? '当前浏览器不支持系统分享。文案已复制，媒体已下载，请手动打开发布平台。'
+        : publishRef.current.share === 'dismissed'
+          ? '已取消分享。媒体和文案已准备好，再点一次可重新打开分享。'
+          : '发布素材已准备好，请在目标平台选择相册媒体、粘贴文案。');
+    } catch (cause) {
+      setPublishFailed(true);
+      setActionError(`${errorText(cause)} 再点一次只会继续未完成的步骤。`);
+    } finally {
+      savingRef.current = false;
+      setPreparing(false);
+    }
+  }
+
   async function editImage(action: Action) {
     if (!projectId || editing) return;
     setEditing(true); setActionError('');
     try {
       await api.sendMessage(projectId, { action }, { onEvent: () => {} });
-      try { setState(await api.state(projectId)); }
+      try { const next = await api.state(projectId); setState(next); observeGeneration(projectId, '合作项目', next); }
       catch (cause) { setActionError(`修改已提交，进度暂时没同步：${errorText(cause)}`); }
       setRetry(value => value + 1);
     } catch (cause) { setActionError(errorText(cause)); throw cause; }
@@ -168,9 +225,9 @@ function PreviewPage({ projectId }: { projectId?: string }) {
       {!!error && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}
       {loading && !state ? <Loading text="正在整理这份穿搭笔记…" /> : !note ? <View style={styles.empty}>
         <View style={styles.emptyIcon}><Ionicons name="document-text-outline" size={30} color={colors.red} /></View>
-        <Text style={styles.emptyTitle}>笔记还在酝酿中</Text>
-        <Text style={styles.emptyBody}>先回工作台选好图片，我们就把这份穿搭灵感写成一篇笔记。</Text>
-        <Button title="返回工作台" variant="secondary" onPress={backToStudio} />
+        <Text style={styles.emptyTitle}>{notFound ? '项目已删除或不存在' : '笔记还在酝酿中'}</Text>
+        <Text style={styles.emptyBody}>{notFound ? '这个项目已无法访问，返回列表查看其他合作。' : '先回工作台选好图片，我们就把这份穿搭灵感写成一篇笔记。'}</Text>
+        <Button title={notFound ? '返回项目列表' : '返回工作台'} variant="secondary" onPress={backToStudio} />
       </View> : <>
         <View onLayout={(event) => setCarouselWidth(event.nativeEvent.layout.width)} style={styles.carouselFrame}>
           <ScrollView
@@ -183,7 +240,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             onScroll={(event) => setPage(Math.round(event.nativeEvent.contentOffset.x / carouselWidth))}
           >
             {images.map((image, index) => <View key={image.id} style={{ width: carouselWidth, aspectRatio: 3 / 4 }}>
-              <PreviewImage id={image.id} url={image.url} index={index} onRefresh={() => setRetry(value => value + 1)} />
+              <PreviewImage id={image.id} url={image.url} index={index} disabled={preparing || saving} onRefresh={() => setRetry(value => value + 1)} />
               {image.source ? <View pointerEvents="none" style={{ position: 'absolute', top: 37, left: 8, right: 8, bottom: 0 }}><FidelityBadge image={image.source} /></View> : null}
             </View>)}
           </ScrollView>
@@ -204,6 +261,22 @@ function PreviewPage({ projectId }: { projectId?: string }) {
           <NoteDisclosure note={note} projectCost={state?.cost_cny} />
           <View style={styles.noteEnd}><View style={styles.endLine} /><Text style={styles.endLabel}>记录穿搭，也记录自己</Text><View style={styles.endLine} /></View>
           {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <View style={styles.videoPending}><ActivityIndicator color={colors.red} size="small" /><Text style={styles.videoPendingText}>短片正在制作，好了会出现在这里。</Text></View> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
+          <View style={styles.checklist} testID="publish-checklist">
+            <View style={styles.videoHeading}><Ionicons name="checkbox-outline" size={18} color={colors.red} /><Text style={styles.videoTitle}>发布清单</Text></View>
+            <Text style={styles.checklistHint}>{images.length} 张图片，按以下顺序保存{Platform.OS === 'web' ? '到下载目录' : '到相册'}。图片已有 AI 角标。</Text>
+            {!savedImagesAreInOrder(note.image_ids, publishProgress.savedImageIds) ? <Text accessibilityRole="alert" testID="publish-order-changed" style={styles.actionError}>图片顺序已调整。已保存的图片不会重复下载，请在发布平台按这份清单重新排列。</Text> : null}
+            <Text testID="publish-copy" style={styles.checklistItem}>{publishProgress.copiedText === noteText(note) ? '✓ 文案已复制' : '○ 文案待复制'}</Text>
+            {images.map((image, index) => <Text key={image.id} testID={`publish-image-${image.id}`} style={styles.checklistItem}>{publishProgress.savedImageIds.includes(image.id) ? '✓' : '○'} 图片 {index + 1}{index === 0 ? ' · 封面' : ''} · {publishProgress.savedImageIds.includes(image.id) ? '已保存' : image.url && image.status === 'succeeded' ? '待保存' : '等待生成'}</Text>)}
+            <Text testID="publish-video" style={styles.checklistItem}>{state?.video?.status === 'succeeded'
+              ? `${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '✓' : '○'} 视频 · ${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '已保存' : '待保存'}`
+              : state?.video && ['queued', 'running'].includes(state.video.status) ? '○ 视频 · 制作中，完成后继续' : state?.video?.status === 'failed' ? '— 视频未生成成功，本次仅发布图文' : '— 无视频，本次发布图文'}</Text>
+            <Pressable accessibilityRole="checkbox" accessibilityLabel="发布时勾选平台 AI 内容声明" accessibilityState={{ checked: aiConfirmed, disabled: preparing || saving }} disabled={preparing || saving} aria-checked={aiConfirmed} testID="publish-ai-confirm" onPress={() => setAiConfirmed(value => !value)} style={styles.aiCheckbox}>
+              <Ionicons name={aiConfirmed ? 'checkbox' : 'square-outline'} size={22} color={aiConfirmed ? colors.red : colors.muted} />
+              <Text style={styles.aiCheckboxText}>{aiConfirmed ? '已确认：发布时勾选平台 AI 内容声明' : '我会在发布时勾选平台 AI 内容声明'}</Text>
+            </Pressable>
+            <Text style={styles.checklistHint}>这里的确认不会替你设置发布平台。请在发布页手动勾选 AI 内容声明，并按清单顺序选择图片和视频。</Text>
+            <Text testID="publish-share" style={styles.checklistHint}>{publishProgress.share === 'unavailable' ? '当前浏览器不支持系统分享，可手动打开发布平台。' : publishProgress.share === 'dismissed' ? '分享已取消，可重新打开。' : publishProgress.share === 'shared' ? '系统分享面板已打开；是否发布由你在目标平台确认。' : '素材准备完成后会打开系统分享面板。'}</Text>
+          </View>
           <Button title="返回工作台继续创作" variant="ghost" icon="arrow-back" onPress={backToStudio} />
         </View>
       </>}
@@ -212,9 +285,11 @@ function PreviewPage({ projectId }: { projectId?: string }) {
       {copied && !actionError ? <Text accessibilityRole="status" style={styles.successText}>文案已复制，可以去发布啦。</Text> : null}
       {!!saveFeedback && <Text accessibilityRole="status" style={styles.successText}>{saveFeedback}</Text>}
       {!!actionError && <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text>}
+      <Button title={preparing ? publishStep || '正在准备发布' : publishFailed ? '继续准备发布' : publishProgress.share ? '重新打开分享' : '准备发布'} icon="share-outline" loading={preparing} disabled={!aiConfirmed || saving || !images.length} onPress={() => void prepareForPublish()} testID="prepare-publish" />
+      {!aiConfirmed ? <Text style={styles.checklistHint}>先在发布清单确认 AI 内容声明，即可准备发布。</Text> : null}
       <View style={styles.bottomButtons}>
-        <View style={styles.bottomButton}><Button title={copied ? '已复制文案' : '复制文案'} icon={copied ? 'checkmark' : 'copy-outline'} onPress={() => void copyNote()} testID="copy-note" /></View>
-        <View style={styles.bottomButton}><Button title={saving ? `保存中 ${progress.finished}/${progress.total}` : saveFailed ? savedCount ? '重试未保存' : '重试保存图片' : '保存图片'} variant="secondary" icon="download-outline" loading={saving} disabled={!images.length} onPress={() => void saveNoteImages()} testID="save-images" /></View>
+        <View style={styles.bottomButton}><Button title={copied ? '已复制文案' : '复制文案'} icon={copied ? 'checkmark' : 'copy-outline'} disabled={saving || preparing} variant="secondary" onPress={() => void copyNote()} testID="copy-note" /></View>
+        <View style={styles.bottomButton}><Button title={saving ? `保存中 ${progress.finished}/${progress.total}` : saveFailed ? savedCount ? '重试未保存' : '重试保存图片' : '保存图片'} variant="secondary" icon="download-outline" loading={saving} disabled={!images.length || preparing} onPress={() => void saveNoteImages()} testID="save-images" /></View>
       </View>
     </View> : null}
   </Page></ImageInteractions>;
@@ -250,6 +325,11 @@ const styles = StyleSheet.create({
   noteEnd: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, marginBottom: 2 },
   endLine: { height: 1, backgroundColor: '#F0EAE3', flex: 1 },
   endLabel: { color: '#B8AA9B', fontSize: 9, letterSpacing: 1 },
+  checklist: { padding: 15, backgroundColor: colors.paper, borderRadius: 16, gap: 11, borderWidth: 1, borderColor: colors.border },
+  checklistHint: { color: colors.muted, fontSize: 11, lineHeight: 18 },
+  checklistItem: { color: colors.ink, fontSize: 12, lineHeight: 20 },
+  aiCheckbox: { flexDirection: 'row', gap: 9, alignItems: 'center', paddingVertical: 7 },
+  aiCheckboxText: { color: colors.ink, fontSize: 12, lineHeight: 20, flex: 1 },
   videoSection: { gap: 12 },
   videoHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   videoTitle: { color: colors.ink, fontSize: 13, fontWeight: '600' },

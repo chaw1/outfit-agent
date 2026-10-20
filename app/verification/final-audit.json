@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-21 01:25",
+  "sourceCommits": [
+    "2871318",
+    "0dc92b0",
+    "02d8fc2"
+  ],
+  "verify": {
+    "allPassed": true,
+    "tests": 93,
+    "logsAndBundleHashesMatch": true
+  },
+  "e2e": {
+    "startTime": "2026-10-20T17:20:15.100Z",
+    "duration": 113435.127,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "screenshots": {
+    "count": 55,
+    "newCount": 20,
+    "allHashesMatch": true
+  },
+  "prebuild": {
+    "command": "npx expo prebuild --platform ios",
+    "exitCode": 0,
+    "cocoaPodsInstalled": true,
+    "sha256": "1b6344b8526807ef0918c257c771132d9036055468494a048e8f7aa558393144",
+    "backgroundModes": [
+      "fetch",
+      "processing"
+    ],
+    "backgroundIdentifiers": [
+      "com.expo.modules.backgroundtask.processing"
+    ]
+  },
+  "nativeRuntimeTested": false,
+  "realBackendCalled": false
+}

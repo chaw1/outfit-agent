@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Cards } from '../../components/Cards';
 import { ScriptHistory } from '../../components/ScriptHistory';
 import { Header, IconButton, Loading, Notice, Page, colors, stageNames } from '../../components/ui';
@@ -9,6 +10,8 @@ import { useWorkspace } from '../../hooks/useWorkspace';
 import type { Message, OutfitImage, ProjectState } from '../../api/types';
 import { ImageInteractions, useImageInteractions } from '../../components/ImageInteractions';
 import { feedback } from '../../lib/haptics';
+import { canRephrase } from '../../lib/conversation';
+import { useSession } from '../../context/Session';
 
 function ReferenceThumbnail({ image, testID }: { image: OutfitImage; testID: string }) {
   const interaction = useImageInteractions();
@@ -26,18 +29,22 @@ function messageText(message: Message, state?: ProjectState) {
     case 'approve_images': return `这 ${action.image_ids.length} 张选好了，按这个顺序写笔记。`;
     case 'confirm_video': return '确认，用这张图生成短视频。';
     case 'restore_script': return '恢复到这版脚本。';
+    case 'regenerate_reply': return '换个说法。';
   }
 }
 
 export default function Workspace() {
   const params = useLocalSearchParams<{ id: string; refImage?: string }>();
-  return <WorkspacePage key={params.id} id={params.id || ''} refImage={params.refImage} />;
+  const { api, token } = useSession();
+  return <WorkspacePage key={`${api.baseUrl}|${token}|${params.id}`} id={params.id || ''} refImage={params.refImage} />;
 }
 
 function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
   const router = useRouter();
-  const { project, state, messages, cards, loading, busy, error, send, retry } = useWorkspace(id);
+  const { project, state, messages, cards, loading, busy, error, send, retry, failedMessages, retryMessage, missing } = useWorkspace(id);
   const [text, setText] = useState('');
+  const [selectedMessage, setSelectedMessage] = useState<Message>();
+  const [copyStatus, setCopyStatus] = useState('');
   const [refs, setRefs] = useState<string[]>([]);
   const overlay = useRef(false);
   const overlayChanged = useCallback((visible: boolean) => { overlay.current = visible; }, []);
@@ -54,9 +61,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
   function submit() {
     if (!text.trim() || busy) return;
     const value = text.trim(); feedback(); setText(''); setRefs([]);
-    void send({ text: value, ...(refs.length ? { refs } : {}) }).then(accepted => {
-      if (!accepted) { setText(current => current || value); setRefs(current => [...new Set([...refs, ...current])]); }
-    });
+    void send({ text: value, ...(refs.length ? { refs } : {}) });
   }
   const stageOrder = ['direction', 'script', 'images', 'note'];
   const activeIndex = state ? stageOrder.indexOf(state.stage) : -1;
@@ -69,6 +74,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
     if (state.stage === 'video' || state.stage === 'done') return card.type === 'video' || card.type === 'note';
     return true;
   });
+  if (missing) return <Page><Header title="项目已不可用" onBack={() => router.replace('/')} /><View style={{ padding: 24, gap: 20 }}><Text style={{ color: colors.muted, lineHeight: 24 }}>项目已删除或不存在，返回列表继续创作。</Text><Pressable accessibilityRole="button" accessibilityLabel="返回项目列表" onPress={() => router.replace('/')}><Text style={{ color: colors.red }}>返回项目列表</Text></Pressable></View></Page>;
   return <ImageInteractions images={state?.images ?? []} editActions={messages.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : [])} busy={busy} canEdit={['images', 'note', 'done'].includes(state?.stage ?? '')} onAction={action => send({ action })} onReference={addReference} onVisibilityChange={overlayChanged}><Page>
     <Header title={project?.title || '合作工作台'} subtitle={project?.brand || '把灵感，一起聊出来'} onBack={() => router.replace('/')} right={state?.note ? <IconButton name="document-text-outline" label="笔记预览" onPress={preview} /> : <IconButton name="refresh-outline" label="刷新项目" onPress={retry} />} />
     <View style={{ flexDirection: 'row', paddingHorizontal: 22, paddingVertical: 14, gap: 5, borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -81,12 +87,15 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         {typeof state?.cost_cny === 'number' ? <Text testID="project-cost" style={{ color: colors.muted, fontSize: 11 }}>项目累计约 ¥{state.cost_cny.toFixed(1)}</Text> : null}
         {messages.map(message => <View key={message.id} style={{ alignItems: message.role === 'user' ? 'flex-end' : 'flex-start', gap: 7 }}>
           {message.role === 'assistant' && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><View style={{ backgroundColor: colors.blush, padding: 5, borderRadius: 8 }}><Ionicons name="sparkles-outline" size={12} color={colors.red} /></View><Text style={{ fontSize: 10, color: colors.muted }}>衣序 · 你的穿搭搭子</Text></View>}
-          {messageText(message, state) ? <View style={{ maxWidth: '94%', padding: 14, borderRadius: 15, backgroundColor: message.role === 'user' ? colors.blush : colors.paper, borderTopRightRadius: message.role === 'user' ? 4 : 15, borderTopLeftRadius: message.role === 'assistant' ? 4 : 15 }}><Text selectable style={{ fontSize: 13, lineHeight: 23, color: colors.ink }}>{messageText(message, state)}</Text></View> : busy && message.id.startsWith('local-') ? <ActivityIndicator size="small" color={colors.red} /> : null}
+          {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={{ maxWidth: '94%', padding: 14, borderRadius: 15, backgroundColor: message.role === 'user' ? colors.blush : colors.paper, borderTopRightRadius: message.role === 'user' ? 4 : 15, borderTopLeftRadius: message.role === 'assistant' ? 4 : 15 }}><Text selectable style={{ fontSize: 13, lineHeight: 23, color: colors.ink }}>{messageText(message, state)}</Text></Pressable> : busy && message.id.startsWith('local-') ? <ActivityIndicator size="small" color={colors.red} /> : null}
+          {!busy && canRephrase(message, messages, state) ? <Pressable testID="rephrase-message" accessibilityRole="button" accessibilityLabel="换个说法" onPress={() => { void send({ action: { type: 'regenerate_reply', message_id: message.id } }); }}><Text style={{ fontSize: 12, color: colors.red }}>换个说法</Text></Pressable> : null}
           {message.refs?.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>{message.refs.map(imageId => {
             const image = state?.images.find(item => item.id === imageId);
             return image ? <ReferenceThumbnail key={imageId} image={image} testID={`message-ref-${message.id}-${imageId}`} /> : <Text key={imageId} style={{ color: colors.muted, fontSize: 11 }}>引用图片暂不可用</Text>;
           })}</View> : null}
         </View>)}
+        {failedMessages.map(message => <View key={message.id} testID={`failed-${message.id}`} style={{ alignSelf: 'flex-end', backgroundColor: colors.blush, padding: 14, borderRadius: 15, gap: 8 }}><Pressable accessibilityRole="button" accessibilityLabel={`消息：${message.text}`} onLongPress={() => setSelectedMessage({ id: message.id, role: 'user', text: message.text, cards: [], refs: message.input.refs, created_at: message.createdAt })}><Text style={{ color: colors.ink, lineHeight: 23 }}>{message.input.action ? `操作未完成：${message.text}` : message.text}</Text></Pressable><Text style={{ color: colors.red, fontSize: 11 }}>{message.certain ? '发送失败' : '发送状态待确认'}</Text><Pressable testID={message.certain ? 'retry-failed-message' : 'check-uncertain-message'} accessibilityRole="button" accessibilityLabel={message.certain ? '重发消息' : '核对发送状态'} disabled={busy} onPress={() => { void retryMessage(message); }}><Text style={{ color: colors.red, fontWeight: '600' }}>{message.certain ? '重发消息' : '核对发送状态'}</Text></Pressable></View>)}
+        {!!copyStatus && <Text accessibilityRole="alert" style={{ color: colors.green, fontSize: 12 }}>{copyStatus}</Text>}
         {state?.active_jobs.length ? <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 9, borderRadius: 12, backgroundColor: colors.blush }}><ActivityIndicator size="small" color={colors.red} /><Text style={{ color: colors.red, fontSize: 12 }}>正在生成，完成后会自动出现在这里</Text></View> : null}
         <Cards cards={visibleCards} state={state} busy={busy} onAction={action => { void send({ action }); }} onPreview={preview} />
         {state?.script && state.stage !== 'script' ? <ScriptHistory versions={state.script_versions} busy={busy} generating={Boolean(state.active_jobs.length)} onAction={action => { void send({ action }); }} /> : null}
@@ -106,5 +115,9 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         </View>
       </View>
     </KeyboardAvoidingView>
+    <Modal visible={!!selectedMessage} transparent animationType="fade" onRequestClose={() => setSelectedMessage(undefined)}><View style={{ flex: 1, backgroundColor: '#00000055', justifyContent: 'flex-end' }}><View style={{ backgroundColor: 'white', padding: 24, paddingBottom: 42, gap: 22, borderTopLeftRadius: 24, borderTopRightRadius: 24 }}><Text style={{ fontWeight: '700', fontSize: 17 }}>消息操作</Text><Pressable accessibilityRole="button" accessibilityLabel="复制消息文本" testID="copy-message" onPress={() => {
+      const value = selectedMessage ? messageText(selectedMessage, state) : '';
+      void Clipboard.setStringAsync(value || '').then(() => { setCopyStatus('消息文本已复制'); setSelectedMessage(undefined); }).catch(() => { setCopyStatus('复制未完成，请长按文本选择复制。'); setSelectedMessage(undefined); });
+    }}><Text style={{ color: colors.red, paddingVertical: 12 }}>复制文本</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="取消消息操作" onPress={() => setSelectedMessage(undefined)}><Text style={{ color: colors.muted, paddingVertical: 12 }}>取消</Text></Pressable></View></View></Modal>
   </Page></ImageInteractions>;
 }

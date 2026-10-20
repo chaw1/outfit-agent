@@ -6,363 +6,567 @@ TAP version 13
 # Subtest: REST centralizes exact paths, bodies, dynamic auth and base URL normalization
 ok 1 - REST centralizes exact paths, bodies, dynamic auth and base URL normalization
   ---
-  duration_ms: 9.626333
+  duration_ms: 13.720083
   type: 'test'
   ...
 # Subtest: asset upload sends multipart without manually setting its boundary
 ok 2 - asset upload sends multipart without manually setting its boundary
   ---
-  duration_ms: 1.169792
+  duration_ms: 0.436792
   type: 'test'
   ...
 # Subtest: REST 401 signs out once; invalid login does not disturb the session callback
 ok 3 - REST 401 signs out once; invalid login does not disturb the session callback
   ---
-  duration_ms: 0.573875
+  duration_ms: 0.436375
   type: 'test'
   ...
 # Subtest: REST reports offline and malformed responses as actionable errors
 ok 4 - REST reports offline and malformed responses as actionable errors
   ---
-  duration_ms: 0.16775
+  duration_ms: 0.167541
   type: 'test'
   ...
 # Subtest: default fetch retains the global receiver required by browser native functions
 ok 5 - default fetch retains the global receiver required by browser native functions
   ---
-  duration_ms: 0.093958
+  duration_ms: 0.221042
   type: 'test'
   ...
 # Subtest: stream sends a single authenticated POST and delivers each incremental event once
 ok 6 - stream sends a single authenticated POST and delivers each incremental event once
   ---
-  duration_ms: 0.479459
+  duration_ms: 0.565
   type: 'test'
   ...
 # Subtest: stream detects unexpected EOF and never retries the action
 ok 7 - stream detects unexpected EOF and never retries the action
   ---
-  duration_ms: 0.113791
+  duration_ms: 0.13525
   type: 'test'
   ...
 # Subtest: provider validation rejection preserves its visible reason and allows an explicit new request
 ok 8 - provider validation rejection preserves its visible reason and allows an explicit new request
   ---
-  duration_ms: 0.18175
+  duration_ms: 0.2065
   type: 'test'
   ...
 # Subtest: local edits preserve precise selections, refs, and failed checks through streaming and restored history
 ok 9 - local edits preserve precise selections, refs, and failed checks through streaming and restored history
   ---
-  duration_ms: 0.709542
+  duration_ms: 0.80825
   type: 'test'
   ...
 # Subtest: stream cancellation aborts the transport; already-aborted requests do not send
 ok 10 - stream cancellation aborts the transport; already-aborted requests do not send
   ---
-  duration_ms: 0.294417
+  duration_ms: 0.348125
   type: 'test'
   ...
 # Subtest: stream 401, server errors, invalid frames and timeout reject without replay
 ok 11 - stream 401, server errors, invalid frames and timeout reject without replay
   ---
-  duration_ms: 0.288209
+  duration_ms: 0.300875
   type: 'test'
   ...
 # Subtest: late REST and streaming 401 responses cannot expire a replacement token
 ok 12 - late REST and streaming 401 responses cannot expire a replacement token
   ---
-  duration_ms: 0.1355
+  duration_ms: 0.1445
   type: 'test'
   ...
 # Subtest: disposed transport throwing on abort cannot leave completion or cancellation pending
 ok 13 - disposed transport throwing on abort cannot leave completion or cancellation pending
   ---
-  duration_ms: 0.169
+  duration_ms: 0.191083
+  type: 'test'
+  ...
+# Subtest: tracker excludes preview jobs across stage changes and strips signed media from persisted progress
+ok 14 - tracker excludes preview jobs across stage changes and strips signed media from persisted progress
+  ---
+  duration_ms: 0.731375
+  type: 'test'
+  ...
+# Subtest: batch waits for dynamic automatic repairs, announces once, and supports later edit/image/video rounds
+ok 15 - batch waits for dynamic automatic repairs, announces once, and supports later edit/image/video rounds
+  ---
+  duration_ms: 0.316875
+  type: 'test'
+  ...
+# Subtest: delivery stays in-app in foreground, silently skips denied permission, and rechecks visibility/ownership after awaits
+ok 16 - delivery stays in-app in foreground, silently skips denied permission, and rechecks visibility/ownership after awaits
+  ---
+  duration_ms: 0.132708
+  type: 'test'
+  ...
+# Subtest: poll discovers an automatic repair queued between state and job responses before announcing the batch
+ok 17 - poll discovers an automatic repair queued between state and job responses before announcing the batch
+  ---
+  duration_ms: 0.15675
+  type: 'test'
+  ...
+# Subtest: injectable runtime restores pending work, persists deduplication before delivering, retries delivery failures, and drops deleted projects
+ok 18 - injectable runtime restores pending work, persists deduplication before delivering, retries delivery failures, and drops deleted projects
+  ---
+  duration_ms: 1.381375
+  type: 'test'
+  ...
+# Subtest: runtime ignores delayed old-account results and never restores another server or account watch list
+ok 19 - runtime ignores delayed old-account results and never restores another server or account watch list
+  ---
+  duration_ms: 0.534667
+  type: 'test'
+  ...
+# Subtest: rephrase requires explicit cost-safe server capability and only the last idle reply
+ok 20 - rephrase requires explicit cost-safe server capability and only the last idle reply
+  ---
+  duration_ms: 0.400209
+  type: 'test'
+  ...
+# Subtest: retry reconciles the new persisted user input and references before resending
+ok 21 - retry reconciles the new persisted user input and references before resending
+  ---
+  duration_ms: 0.20175
+  type: 'test'
+  ...
+# Subtest: retry reconciles accepted actions regardless of object key order, without replaying prior confirmations
+ok 22 - retry reconciles accepted actions regardless of object key order, without replaying prior confirmations
+  ---
+  duration_ms: 5.686583
   type: 'test'
   ...
 # Subtest: contain fit locates horizontal and vertical letterbox margins
-ok 14 - contain fit locates horizontal and vertical letterbox margins
+ok 23 - contain fit locates horizontal and vertical letterbox margins
   ---
-  duration_ms: 0.860875
+  duration_ms: 0.838583
   type: 'test'
   ...
 # Subtest: drawing starts in contain whitespace are rejected instead of leaking into a mask
-ok 15 - drawing starts in contain whitespace are rejected instead of leaking into a mask
+ok 24 - drawing starts in contain whitespace are rejected instead of leaking into a mask
   ---
-  duration_ms: 0.183541
+  duration_ms: 0.1875
   type: 'test'
   ...
 # Subtest: normalization round trips portrait, landscape and square images through letterbox, zoom and pan
-ok 16 - normalization round trips portrait, landscape and square images through letterbox, zoom and pan
+ok 25 - normalization round trips portrait, landscape and square images through letterbox, zoom and pan
   ---
-  duration_ms: 0.31325
+  duration_ms: 0.475334
   type: 'test'
   ...
 # Subtest: coordinates are not divided by viewport width when the image has side margins
-ok 17 - coordinates are not divided by viewport width when the image has side margins
+ok 26 - coordinates are not divided by viewport width when the image has side margins
   ---
-  duration_ms: 0.071
+  duration_ms: 0.096375
   type: 'test'
   ...
 # Subtest: known screen coordinates invert both scale and translation after contain fit
-ok 18 - known screen coordinates invert both scale and translation after contain fit
+ok 27 - known screen coordinates invert both scale and translation after contain fit
   ---
-  duration_ms: 0.712125
+  duration_ms: 9.549459
   type: 'test'
   ...
 # Subtest: rectangle supports reverse drag, clamps to bounds and keeps the x/y/w/h contract
-ok 19 - rectangle supports reverse drag, clamps to bounds and keeps the x/y/w/h contract
+ok 28 - rectangle supports reverse drag, clamps to bounds and keeps the x/y/w/h contract
   ---
-  duration_ms: 0.146416
+  duration_ms: 0.144375
   type: 'test'
   ...
 # Subtest: brush width uses the displayed short edge with zoom removed
-ok 20 - brush width uses the displayed short edge with zoom removed
+ok 29 - brush width uses the displayed short edge with zoom removed
   ---
-  duration_ms: 0.061792
+  duration_ms: 0.475375
   type: 'test'
   ...
 # Subtest: pan limits preserve visible image and reset axes that have not filled the viewport
-ok 21 - pan limits preserve visible image and reset axes that have not filled the viewport
+ok 30 - pan limits preserve visible image and reset axes that have not filled the viewport
   ---
-  duration_ms: 0.287917
+  duration_ms: 0.117917
   type: 'test'
   ...
 # Subtest: pinch anchored at a focal point preserves the original image point
-ok 22 - pinch anchored at a focal point preserves the original image point
+ok 31 - pinch anchored at a focal point preserves the original image point
   ---
-  duration_ms: 1.427
+  duration_ms: 0.279208
   type: 'test'
   ...
 # Subtest: invalid image dimensions and transforms never emit nonfinite API coordinates
-ok 23 - invalid image dimensions and transforms never emit nonfinite API coordinates
+ok 32 - invalid image dimensions and transforms never emit nonfinite API coordinates
   ---
-  duration_ms: 0.361
+  duration_ms: 0.33125
   type: 'test'
   ...
 # Subtest: version strip follows parent links and excludes unrelated images sharing a shot
-ok 24 - version strip follows parent links and excludes unrelated images sharing a shot
+ok 33 - version strip follows parent links and excludes unrelated images sharing a shot
   ---
-  duration_ms: 6.586
+  duration_ms: 6.47625
   type: 'test'
   ...
 # Subtest: malformed cyclic version links terminate and include each member once
-ok 25 - malformed cyclic version links terminate and include each member once
+ok 34 - malformed cyclic version links terminate and include each member once
   ---
-  duration_ms: 0.0925
+  duration_ms: 0.212375
   type: 'test'
   ...
 # Subtest: reopened identical edit instructions recover the mask for that specific result
-ok 26 - reopened identical edit instructions recover the mask for that specific result
+ok 35 - reopened identical edit instructions recover the mask for that specific result
   ---
-  duration_ms: 0.20325
+  duration_ms: 0.212042
   type: 'test'
   ...
 # Subtest: live retries preserve the same account, paid-action markers and project
-ok 27 - live retries preserve the same account, paid-action markers and project
+ok 36 - live retries preserve the same account, paid-action markers and project
   ---
-  duration_ms: 2.073709
+  duration_ms: 1.498709
   type: 'test'
   ...
 # Subtest: live fresh runs are explicit and the fourth project is rejected
-ok 28 - live fresh runs are explicit and the fourth project is rejected
+ok 37 - live fresh runs are explicit and the fourth project is rejected
   ---
-  duration_ms: 0.345458
+  duration_ms: 0.310834
   type: 'test'
   ...
 # Subtest: live endpoint rejects embedded credentials and evidence strips nested secrets
-ok 29 - live endpoint rejects embedded credentials and evidence strips nested secrets
+ok 38 - live endpoint rejects embedded credentials and evidence strips nested secrets
   ---
-  duration_ms: 0.413875
+  duration_ms: 0.413834
   type: 'test'
   ...
 # Subtest: a failed UI preparation clears the unsent marker and resumes in the same project
-ok 30 - a failed UI preparation clears the unsent marker and resumes in the same project
+ok 39 - a failed UI preparation clears the unsent marker and resumes in the same project
   ---
-  duration_ms: 0.184083
+  duration_ms: 0.187208
   type: 'test'
   ...
 # Subtest: a failure after the actual request retains the marker and never repeats the paid send
-ok 31 - a failure after the actual request retains the marker and never repeats the paid send
+ok 40 - a failure after the actual request retains the marker and never repeats the paid send
   ---
-  duration_ms: 0.131375
+  duration_ms: 0.130959
   type: 'test'
   ...
 # Subtest: private run archives preserve credentials and paid-action progress when the latest run advances
-ok 32 - private run archives preserve credentials and paid-action progress when the latest run advances
+ok 41 - private run archives preserve credentials and paid-action progress when the latest run advances
   ---
-  duration_ms: 15.991416
+  duration_ms: 15.076667
   type: 'test'
   ...
 # Subtest: advancing a legacy latest checkpoint archives the previous run before replacing it
-ok 33 - advancing a legacy latest checkpoint archives the previous run before replacing it
+ok 42 - advancing a legacy latest checkpoint archives the previous run before replacing it
   ---
-  duration_ms: 5.916208
+  duration_ms: 4.235667
   type: 'test'
   ...
 # Subtest: same-id cards are replaced completely, preserve order, and never mutate inputs
-ok 34 - same-id cards are replaced completely, preserve order, and never mutate inputs
+ok 43 - same-id cards are replaced completely, preserve order, and never mutate inputs
   ---
-  duration_ms: 0.868958
+  duration_ms: 0.857417
   type: 'test'
   ...
 # Subtest: jobs progress queued → running → terminal, reject stale and contradictory terminal events
-ok 35 - jobs progress queued → running → terminal, reject stale and contradictory terminal events
+ok 44 - jobs progress queued → running → terminal, reject stale and contradictory terminal events
   ---
-  duration_ms: 0.217625
+  duration_ms: 0.201708
   type: 'test'
   ...
 # Subtest: equal-status job updates use timestamps and can add result details
-ok 36 - equal-status job updates use timestamps and can add result details
+ok 45 - equal-status job updates use timestamps and can add result details
   ---
-  duration_ms: 0.854584
+  duration_ms: 0.136209
   type: 'test'
   ...
 # Subtest: image versions are separate records and completed results do not regress
-ok 37 - image versions are separate records and completed results do not regress
+ok 46 - image versions are separate records and completed results do not regress
   ---
-  duration_ms: 0.12
+  duration_ms: 0.107875
   type: 'test'
   ...
 # Subtest: local edit progress retains selection, check failures survive stale frames, and retry adds a distinct successful version
-ok 38 - local edit progress retains selection, check failures survive stale frames, and retry adds a distinct successful version
+ok 47 - local edit progress retains selection, check failures survive stale frames, and retry adds a distinct successful version
   ---
-  duration_ms: 0.417958
+  duration_ms: 0.466458
   type: 'test'
   ...
 # Subtest: state restores cards and polling refreshes an existing stable card id
-ok 39 - state restores cards and polling refreshes an existing stable card id
+ok 48 - state restores cards and polling refreshes an existing stable card id
   ---
-  duration_ms: 0.093875
+  duration_ms: 0.081625
   type: 'test'
   ...
 # Subtest: authoritative state clears old note/video and empty jobs while retaining image completion
-ok 40 - authoritative state clears old note/video and empty jobs while retaining image completion
+ok 49 - authoritative state clears old note/video and empty jobs while retaining image completion
   ---
-  duration_ms: 0.106875
+  duration_ms: 0.135917
   type: 'test'
   ...
 # Subtest: state cards carry previews, fidelity, script provenance, note cost and disclosure without mutating history
-ok 41 - state cards carry previews, fidelity, script provenance, note cost and disclosure without mutating history
+ok 50 - state cards carry previews, fidelity, script provenance, note cost and disclosure without mutating history
   ---
-  duration_ms: 0.1
+  duration_ms: 0.124292
   type: 'test'
   ...
 # Subtest: a later images event extends note/video stages and retains their content and new project fields
-ok 42 - a later images event extends note/video stages and retains their content and new project fields
+ok 51 - a later images event extends note/video stages and retains their content and new project fields
   ---
-  duration_ms: 0.204458
+  duration_ms: 0.266375
   type: 'test'
   ...
 # Subtest: restoring a draft script and then receiving preserved images stays in script until confirmation
-ok 43 - restoring a draft script and then receiving preserved images stays in script until confirmation
+ok 52 - restoring a draft script and then receiving preserved images stays in script until confirmation
   ---
-  duration_ms: 0.2515
+  duration_ms: 0.357458
   type: 'test'
   ...
 # Subtest: restored authoritative history replaces current script metadata while keeping previously generated images
-ok 44 - restored authoritative history replaces current script metadata while keeping previously generated images
+ok 53 - restored authoritative history replaces current script metadata while keeping previously generated images
   ---
-  duration_ms: 0.096
+  duration_ms: 0.151958
+  type: 'test'
+  ...
+# Subtest: profile updates keep photo order, validate ownership atomically, and apply defaults and preferences to new projects
+ok 54 - profile updates keep photo order, validate ownership atomically, and apply defaults and preferences to new projects
+  ---
+  duration_ms: 204.38425
+  type: 'test'
+  ...
+# Subtest: reply regeneration rewrites only the latest safe assistant text, never queues jobs or changes cost/state
+ok 55 - reply regeneration rewrites only the latest safe assistant text, never queues jobs or changes cost/state
+  ---
+  duration_ms: 93.948417
+  type: 'test'
+  ...
+# Subtest: project deletion cascades generated assets and files, messages and jobs while preserving reusable uploads and daily usage
+ok 56 - project deletion cascades generated assets and files, messages and jobs while preserving reusable uploads and daily usage
+  ---
+  duration_ms: 178.570667
+  type: 'test'
+  ...
+# Subtest: legacy missing profile mode preserves existing project and conversation endpoints
+ok 57 - legacy missing profile mode preserves existing project and conversation endpoints
+  ---
+  duration_ms: 64.819541
+  type: 'test'
+  ...
+# Subtest: legacy old-fields profile mode preserves existing project and conversation endpoints
+ok 58 - legacy old-fields profile mode preserves existing project and conversation endpoints
+  ---
+  duration_ms: 65.994666
   type: 'test'
   ...
 # Subtest: mock authentication validates credentials, stores bcrypt, and isolates user assets/projects
-ok 45 - mock authentication validates credentials, stores bcrypt, and isolates user assets/projects
+ok 59 - mock authentication validates credentials, stores bcrypt, and isolates user assets/projects
   ---
-  duration_ms: 303.543167
+  duration_ms: 242.369459
   type: 'test'
   ...
 # Subtest: full mock workflow streams stable cards, advances jobs, keeps versions/order, plays video, and resumes after restart
-ok 46 - full mock workflow streams stable cards, advances jobs, keeps versions/order, plays video, and resumes after restart
+ok 60 - full mock workflow streams stable cards, advances jobs, keeps versions/order, plays video, and resumes after restart
   ---
-  duration_ms: 1194.592041
+  duration_ms: 1206.303458
   type: 'test'
   ...
 # Subtest: mock revisions preserve drafts, missing media fails/retries, refreshed links survive expiry and edits preserve published content
-ok 47 - mock revisions preserve drafts, missing media fails/retries, refreshed links survive expiry and edits preserve published content
+ok 61 - mock revisions preserve drafts, missing media fails/retries, refreshed links survive expiry and edits preserve published content
   ---
-  duration_ms: 240.379166
+  duration_ms: 244.298292
   type: 'test'
   ...
 # Subtest: second-round fixtures preview directions, announce once, auto-fix one version, and restore script without losing images
-ok 48 - second-round fixtures preview directions, announce once, auto-fix one version, and restore script without losing images
+ok 62 - second-round fixtures preview directions, announce once, auto-fix one version, and restore script without losing images
   ---
-  duration_ms: 181.169583
+  duration_ms: 185.535541
   type: 'test'
   ...
 # Subtest: local rectangle/brush edits preserve outside pixels, reject bad selections, persist refs, and retry a failed edit check
-ok 49 - local rectangle/brush edits preserve outside pixels, reject bad selections, persist refs, and retry a failed edit check
+ok 63 - local rectangle/brush edits preserve outside pixels, reject bad selections, persist refs, and retry a failed edit check
   ---
-  duration_ms: 407.511166
+  duration_ms: 414.890958
   type: 'test'
   ...
 # Subtest: long passwords remain distinct beyond bcrypt 72-byte input limit
-ok 50 - long passwords remain distinct beyond bcrypt 72-byte input limit
+ok 64 - long passwords remain distinct beyond bcrypt 72-byte input limit
   ---
-  duration_ms: 158.275833
+  duration_ms: 159.436833
+  type: 'test'
+  ...
+# Subtest: profile capability requires new fields; older me responses remain usable
+ok 65 - profile capability requires new fields; older me responses remain usable
+  ---
+  duration_ms: 0.362709
+  type: 'test'
+  ...
+# Subtest: profile preview cache is isolated by server and account, while canonical API suffixes share a cache
+ok 66 - profile preview cache is isolated by server and account, while canonical API suffixes share a cache
+  ---
+  duration_ms: 0.520875
+  type: 'test'
+  ...
+# Subtest: profile preview follows saved order, hides removed photos, and preserves unknown IDs for other devices
+ok 67 - profile preview follows saved order, hides removed photos, and preserves unknown IDs for other devices
+  ---
+  duration_ms: 0.2285
+  type: 'test'
+  ...
+# Subtest: height accepts empty optional values and rejects unusable measurements before patching
+ok 68 - height accepts empty optional values and rejects unusable measurements before patching
+  ---
+  duration_ms: 0.208417
+  type: 'test'
+  ...
+# Subtest: project search matches title and brand, ignoring case and surrounding whitespace
+ok 69 - project search matches title and brand, ignoring case and surrounding whitespace
+  ---
+  duration_ms: 0.145875
+  type: 'test'
+  ...
+# Subtest: profile patch preserves photo order, nickname and clearing values, and deletion escapes the project ID
+ok 70 - profile patch preserves photo order, nickname and clearing values, and deletion escapes the project ID
+  ---
+  duration_ms: 12.800084
+  type: 'test'
+  ...
+# Subtest: missing profile endpoint exposes a 404 capability error without invalidating authentication
+ok 71 - missing profile endpoint exposes a 404 capability error without invalidating authentication
+  ---
+  duration_ms: 0.334042
+  type: 'test'
+  ...
+# Subtest: one publish operation copies text, saves original images in note order, saves video, then shares
+ok 72 - one publish operation copies text, saves original images in note order, saves video, then shares
+  ---
+  duration_ms: 1.004958
+  type: 'test'
+  ...
+# Subtest: a partial image failure stops later saves and a retry saves only the unfinished suffix
+ok 73 - a partial image failure stops later saves and a retry saves only the unfinished suffix
+  ---
+  duration_ms: 0.380542
+  type: 'test'
+  ...
+# Subtest: a missing earlier URL blocks later images and sharing until refreshed
+ok 74 - a missing earlier URL blocks later images and sharing until refreshed
+  ---
+  duration_ms: 0.23975
+  type: 'test'
+  ...
+# Subtest: retrying video or system share does not download or save completed media again
+ok 75 - retrying video or system share does not download or save completed media again
+  ---
+  duration_ms: 0.99825
+  type: 'test'
+  ...
+# Subtest: running video pauses after images; when ready it continues with video and share
+ok 76 - running video pauses after images; when ready it continues with video and share
+  ---
+  duration_ms: 0.282417
+  type: 'test'
+  ...
+# Subtest: failed optional video still permits the image note, with truthful unsupported or cancelled sharing
+ok 77 - failed optional video still permits the image note, with truthful unsupported or cancelled sharing
+  ---
+  duration_ms: 0.172584
+  type: 'test'
+  ...
+# Subtest: editing note text recopies changed text but reuses already saved images
+ok 78 - editing note text recopies changed text but reuses already saved images
+  ---
+  duration_ms: 0.164791
+  type: 'test'
+  ...
+# Subtest: successful effects are checkpointed before proceeding to the next item
+ok 79 - successful effects are checkpointed before proceeding to the next item
+  ---
+  duration_ms: 0.203541
+  type: 'test'
+  ...
+# Subtest: renewed signed video URLs use stable identity and no empty extra separators enter copied note text
+ok 80 - renewed signed video URLs use stable identity and no empty extra separators enter copied note text
+  ---
+  duration_ms: 0.468792
+  type: 'test'
+  ...
+# Subtest: media signatures preserve full image/video file formats and reject downloaded error pages
+ok 81 - media signatures preserve full image/video file formats and reject downloaded error pages
+  ---
+  duration_ms: 0.535875
+  type: 'test'
+  ...
+# Subtest: empty or duplicate image selections cannot appear ready for publishing
+ok 82 - empty or duplicate image selections cannot appear ready for publishing
+  ---
+  duration_ms: 0.148625
+  type: 'test'
+  ...
+# Subtest: saved image order changes are detectable without downloading completed images twice
+ok 83 - saved image order changes are detectable without downloading completed images twice
+  ---
+  duration_ms: 0.196583
+  type: 'test'
+  ...
+# Subtest: a queued image URL is not treated as a finished image asset
+ok 84 - a queued image URL is not treated as a finished image asset
+  ---
+  duration_ms: 0.117667
   type: 'test'
   ...
 # Subtest: SSE accepts every possible chunk boundary, CRLF, comments and multiline data
-ok 51 - SSE accepts every possible chunk boundary, CRLF, comments and multiline data
+ok 85 - SSE accepts every possible chunk boundary, CRLF, comments and multiline data
   ---
-  duration_ms: 3.42525
+  duration_ms: 1.896291
   type: 'test'
   ...
 # Subtest: SSE handles one-character chunks, bare CR and an event at EOF
-ok 52 - SSE handles one-character chunks, bare CR and an event at EOF
+ok 86 - SSE handles one-character chunks, bare CR and an event at EOF
   ---
-  duration_ms: 0.166375
+  duration_ms: 0.141333
   type: 'test'
   ...
 # Subtest: SSE decodes card, job and error events and ignores extensions
-ok 53 - SSE decodes card, job and error events and ignores extensions
+ok 87 - SSE decodes card, job and error events and ignores extensions
   ---
-  duration_ms: 0.905917
+  duration_ms: 0.109417
   type: 'test'
   ...
 # Subtest: malformed known events fail explicitly instead of silently losing a reply
-ok 54 - malformed known events fail explicitly instead of silently losing a reply
+ok 88 - malformed known events fail explicitly instead of silently losing a reply
   ---
-  duration_ms: 0.264167
+  duration_ms: 0.228
   type: 'test'
   ...
 # Subtest: an event without data is ignored and a colon only removes one leading space
-ok 55 - an event without data is ignored and a colon only removes one leading space
+ok 89 - an event without data is ignored and a colon only removes one leading space
   ---
-  duration_ms: 0.071292
+  duration_ms: 0.509875
   type: 'test'
   ...
 # Subtest: last_message_id changes trigger history fetches, including a proactive message after jobs become empty
-ok 56 - last_message_id changes trigger history fetches, including a proactive message after jobs become empty
+ok 90 - last_message_id changes trigger history fetches, including a proactive message after jobs become empty
   ---
-  duration_ms: 0.347333
+  duration_ms: 0.340959
   type: 'test'
   ...
 # Subtest: a marker discovered during SSE remains pending until streaming ends and history includes it
-ok 57 - a marker discovered during SSE remains pending until streaming ends and history includes it
+ok 91 - a marker discovered during SSE remains pending until streaming ends and history includes it
   ---
-  duration_ms: 0.068583
+  duration_ms: 0.060083
   type: 'test'
   ...
 # Subtest: a newer concurrent marker cannot be acknowledged by an older messages response
-ok 58 - a newer concurrent marker cannot be acknowledged by an older messages response
+ok 92 - a newer concurrent marker cannot be acknowledged by an older messages response
   ---
-  duration_ms: 0.070833
+  duration_ms: 0.070125
   type: 'test'
   ...
 # Subtest: legacy states without a marker still allow forced initial, reconnect and recovery history refresh
-ok 59 - legacy states without a marker still allow forced initial, reconnect and recovery history refresh
+ok 93 - legacy states without a marker still allow forced initial, reconnect and recovery history refresh
   ---
-  duration_ms: 0.03975
+  duration_ms: 0.040375
   type: 'test'
   ...
-1..59
-# tests 59
+1..93
+# tests 93
 # suites 0
-# pass 59
+# pass 93
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 2623.744709
+# duration_ms 3223.9695

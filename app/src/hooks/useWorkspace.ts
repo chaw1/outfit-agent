@@ -7,6 +7,8 @@ import { WorkspaceHistorySync } from '../api/workspaceSync';
 import { ApiError } from '../api/client';
 import { errorText } from '../components/ui';
 import { useSession } from '../context/Session';
+import { observeGeneration } from '../lib/notificationRuntime';
+import { canRephrase, persistedRetry, type FailedMessage } from '../lib/conversation';
 
 const active = (job: Job) => job.status === 'queued' || job.status === 'running';
 
@@ -21,6 +23,8 @@ export function useWorkspace(id: string) {
   const [busy, setBusy] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState('');
+  const [failedMessages, setFailedMessages] = useState<FailedMessage[]>([]);
+  const [missing, setMissing] = useState(false);
   const [focused, setFocused] = useState(false);
   const alive = useRef(true);
   const focusedRef = useRef(false);
@@ -28,6 +32,7 @@ export function useWorkspace(id: string) {
   const loadedOwner = useRef(owner);
   const autoStarted = useRef(false);
   const sending = useRef(false);
+  const retrying = useRef(false);
   const stateRequest = useRef(0);
   const historyRequest = useRef(0);
   const historySync = useRef(new WorkspaceHistorySync());
@@ -35,11 +40,12 @@ export function useWorkspace(id: string) {
   const dataVersion = useRef(0);
   const liveJobs = useRef(new Map<string, Job>());
   const currentMessages = useRef(messages);
+  const currentState = useRef(state);
   const optimistic = useRef<{ assistantId: string; expectedId?: string; baseline: Set<string> } | null>(null);
   const stream = useRef<{ controller: AbortController; streaming: boolean } | null>(null);
   const appStatus = useRef(AppState.currentState);
 
-  useLayoutEffect(() => { latestOwner.current = owner; currentMessages.current = messages; }, [owner, messages]);
+  useLayoutEffect(() => { latestOwner.current = owner; currentMessages.current = messages; currentState.current = state; }, [owner, messages, state]);
 
   const isCurrent = useCallback((requestOwner: typeof owner, epoch: number) => (
     alive.current && focusedRef.current && latestOwner.current === requestOwner && focusEpoch.current === epoch
@@ -54,7 +60,12 @@ export function useWorkspace(id: string) {
     const [fresh, details] = await Promise.all([
       api.state(id),
       withHistory ? api.project(id) : Promise.resolve(undefined),
-    ]);
+    ]).catch(e => {
+      if (isCurrent(owner, epoch) && e instanceof ApiError && e.status === 404) {
+        setMissing(true); setProject(undefined); setState(undefined); setMessages([]); setFailedMessages([]);
+      }
+      throw e;
+    });
     if (!isCurrent(owner, epoch) || conversation !== conversationVersion.current) return;
     if (request === stateRequest.current) historySync.current.observeState(fresh);
     if (request === stateRequest.current && data === dataVersion.current) {
@@ -65,6 +76,10 @@ export function useWorkspace(id: string) {
       setState(previous => isCurrent(owner, epoch) ? mergeProjectState(previous, snapshot) : previous);
     }
     if (details && request === stateRequest.current) setProject(details);
+    if (request === stateRequest.current) {
+      setMissing(false);
+      observeGeneration(id, details?.title || '合作项目', fresh);
+    }
     if (historySync.current.needsHistory(Boolean(stream.current?.streaming), withHistory)) {
       const history = ++historyRequest.current;
       const persistedMessages = await api.messages(id);
@@ -76,6 +91,7 @@ export function useWorkspace(id: string) {
       if (persisted && historySync.current.canApplyHistory(persistedMessages)) {
         historySync.current.appliedHistory(persistedMessages);
         optimistic.current = null; currentMessages.current = persistedMessages; setMessages(persistedMessages);
+        setFailedMessages(previous => previous.filter(failed => !persistedRetry(failed, persistedMessages)));
         setRecovering(persistedMessages.at(-1)?.role === 'user');
       } else {
         // Keep the marker pending until history contains it, even after the last job disappears.
@@ -85,9 +101,14 @@ export function useWorkspace(id: string) {
     return fresh;
   }, [api, id, token, owner, isCurrent]);
 
-  const send = useCallback(async (input: SendMessageInput) => {
+  const send = useCallback(async (input: SendMessageInput, retryId?: string) => {
     const epoch = focusEpoch.current;
     if (sending.current || !id || !token || !isCurrent(owner, epoch)) return false;
+    if (input.action?.type === 'regenerate_reply') {
+      const targetId = input.action.message_id;
+      const target = currentMessages.current.find(message => message.id === targetId);
+      if (!target || !canRephrase(target, currentMessages.current, currentState.current)) return false;
+    }
     sending.current = true;
     conversationVersion.current += 1;
     setBusy(true); setRecovering(false); setError('');
@@ -95,20 +116,22 @@ export function useWorkspace(id: string) {
     stream.current = flight;
     const prefix = `local-${Date.now()}-${conversationVersion.current}`;
     const assistantId = `${prefix}-assistant`;
-    optimistic.current = { assistantId, baseline: new Set(currentMessages.current.map(message => message.id)) };
+    const baseline = new Set(currentMessages.current.map(message => message.id));
+    optimistic.current = { assistantId, baseline };
     const now = new Date().toISOString();
-    const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。' };
+    const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。', regenerate_reply: '换个说法。' };
     const text = input.text || (input.action?.type === 'edit_image' ? input.action.instruction : actionLabels[input.action?.type || ''] || '');
     setMessages(previous => [...previous, { id: `${prefix}-user`, role: 'user', text, cards: [], action: input.action, refs: input.refs, created_at: now }, { id: assistantId, role: 'assistant', text: '', cards: [], created_at: now }]);
     let accepted = false;
     let rejectedByServer = false;
     let mutationObserved = false;
+    let tokenObserved = false;
     try {
       await api.sendMessage(id, input, {
         signal: flight.controller.signal,
         onEvent: event => {
           if (!isCurrent(owner, epoch) || stream.current !== flight) return;
-          if (event.type === 'token') setMessages(previous => previous.map(message => message.id === assistantId ? { ...message, text: message.text + event.data.delta } : message));
+          if (event.type === 'token') { tokenObserved = true; setMessages(previous => previous.map(message => message.id === assistantId ? { ...message, text: message.text + event.data.delta } : message)); }
           if (event.type === 'card') {
             mutationObserved = true;
             dataVersion.current += 1;
@@ -141,6 +164,10 @@ export function useWorkspace(id: string) {
           optimistic.current = null;
           setMessages(previous => previous.filter(message => !message.id.startsWith(prefix)));
         }
+        if (!accepted && (input.text || input.action)) {
+          setFailedMessages(previous => [...previous.filter(message => message.id !== retryId), { id: retryId || `${prefix}-failed`, input, text, createdAt: now, certain: rejected, baseline: [...baseline] }]);
+          setMessages(previous => previous.filter(message => message.id !== `${prefix}-user` && (tokenObserved || message.id !== assistantId)));
+        }
         setError(rejected ? errorText(e) : `${errorText(e)} 这轮可能已被接收，先刷新查看进度。`); setRecovering(!rejected);
         try { await refresh(); } catch { /* 保留流中已经收到的内容，用户可手动刷新。 */ }
       }
@@ -150,6 +177,7 @@ export function useWorkspace(id: string) {
         if (isCurrent(owner, epoch)) setBusy(false);
       }
     }
+    if (accepted && retryId) setFailedMessages(previous => previous.filter(message => message.id !== retryId));
     return accepted;
   }, [api, id, token, owner, isCurrent, refresh]);
 
@@ -166,7 +194,7 @@ export function useWorkspace(id: string) {
       loadedOwner.current = owner;
       autoStarted.current = false; liveJobs.current.clear(); optimistic.current = null;
       historySync.current = new WorkspaceHistorySync();
-      setRecovering(false);
+      setRecovering(false); setFailedMessages([]); setMissing(false);
       currentMessages.current = [];
       setProject(undefined); setState(undefined); setMessages([]);
     }
@@ -177,7 +205,7 @@ export function useWorkspace(id: string) {
           autoStarted.current = true;
           void send({ text: '请分析品牌衣服和合作需求，给我几个适合的穿搭方向。' });
         }
-      }).catch(e => { if (isCurrent(owner, epoch)) setError(errorText(e)); })
+      }).catch(e => { if (isCurrent(owner, epoch)) { setError(errorText(e)); if (e instanceof ApiError && e.status === 404) { setMissing(true); setProject(undefined); setState(undefined); setMessages([]); } } })
         .finally(() => { if (isCurrent(owner, epoch)) setLoading(false); });
     } else setLoading(false);
     return () => {
@@ -226,5 +254,21 @@ export function useWorkspace(id: string) {
     void refresh().catch(e => { if (isCurrent(owner, epoch)) setError(errorText(e)); })
       .finally(() => { if (isCurrent(owner, epoch)) setLoading(false); });
   }, [refresh, owner, isCurrent]);
-  return { project, state, messages, cards: latestCards, loading, busy, error, send, retry };
+  const retryMessage = useCallback(async (failed: FailedMessage) => {
+    const epoch = focusEpoch.current;
+    if (sending.current || retrying.current || !isCurrent(owner, epoch)) return;
+    retrying.current = true;
+    try {
+      const history = await api.messages(id);
+      if (!isCurrent(owner, epoch)) return;
+      if (persistedRetry(failed, history)) {
+        setFailedMessages(previous => previous.filter(message => message.id !== failed.id));
+        await refresh(); return;
+      }
+      if (!failed.certain) { setError('这轮发送状态尚未确认，请刷新核对后再发送，避免重复生成。'); return; }
+      await send(failed.input, failed.id);
+    } catch (e) { if (isCurrent(owner, epoch)) setError(errorText(e)); }
+    finally { retrying.current = false; }
+  }, [api, id, owner, isCurrent, send, refresh]);
+  return { project, state, messages, cards: latestCards, loading, busy, error, send, retry, failedMessages, retryMessage, missing };
 }

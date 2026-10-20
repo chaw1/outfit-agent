@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { Buffer } from 'node:buffer';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -98,7 +98,40 @@ export async function createMockServer(options = {}) {
 
   const passwordInput = (password) => Buffer.byteLength(password) > 72 ? createHash('sha256').update(password).digest('base64') : password;
   const sign = (value) => createHmac('sha256', db.secret).update(value).digest('base64url');
-  const publicUser = ({ id, username, nickname, created_at }) => ({ id, username, nickname, created_at });
+  function publicUser(user) {
+    const { id, username, nickname, created_at } = user;
+    const result = { id, username, nickname, created_at };
+    if (options.legacyProfile) return result;
+    return {
+      ...result, tier: user.tier || 'free', daily_budget_cny: user.daily_budget_cny ?? 20,
+      today_cost_cny: user.todayUsage?.date === now().slice(0, 10) ? user.todayUsage.cost_cny : 0,
+      profile: structuredClone(user.profile || { model_asset_ids: [] }),
+    };
+  }
+  function patchedProfile(user, body) {
+    if (body.nickname !== undefined && (typeof body.nickname !== 'string' || !body.nickname.trim() || body.nickname.trim().length > 64)) throw failure(400, 'INVALID_NICKNAME', '昵称需要 1–64 个字符');
+    if (body.profile === undefined) return user.profile || { model_asset_ids: [] };
+    if (!body.profile || typeof body.profile !== 'object' || Array.isArray(body.profile)) throw failure(400, 'INVALID_PROFILE', '请填写有效的形象档案');
+    const profile = { ...(user.profile || { model_asset_ids: [] }) };
+    const update = body.profile;
+    if (update.model_asset_ids !== undefined) {
+      const ids = update.model_asset_ids;
+      if (!Array.isArray(ids) || ids.length > 20 || new Set(ids).size !== ids.length || ids.some((id) => typeof id !== 'string' || !db.assets.some((asset) => asset.id === id && asset.ownerId === user.id && asset.kind === 'model' && asset.source === 'upload'))) throw failure(400, 'INVALID_MODEL_ASSETS', '形象照片必须是当前账号上传的本人照片，每张只选一次');
+      profile.model_asset_ids = [...ids];
+    }
+    if (update.height_cm !== undefined) {
+      if (update.height_cm === null) delete profile.height_cm;
+      else if (typeof update.height_cm !== 'number' || !Number.isFinite(update.height_cm) || update.height_cm < 80 || update.height_cm > 250) throw failure(400, 'INVALID_HEIGHT', '身高请填写 80–250 厘米');
+      else profile.height_cm = update.height_cm;
+    }
+    for (const key of ['body_notes', 'style_notes']) {
+      if (update[key] === undefined) continue;
+      if (update[key] === null) delete profile[key];
+      else if (typeof update[key] !== 'string' || update[key].length > 1000) throw failure(400, 'INVALID_PROFILE', '体型和风格偏好请各控制在 1000 字以内');
+      else profile[key] = update[key].trim();
+    }
+    return profile;
+  }
   function tokenFor(user) {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
     const payload = Buffer.from(JSON.stringify({ sub: user.id, iat: Math.floor(clock() / 1000), exp: Math.floor(clock() / 1000) + 7 * DAY })).toString('base64url');
@@ -190,8 +223,9 @@ export async function createMockServer(options = {}) {
     } catch { return value; }
   }
   function publicMessages(project, base) {
-    return project.messages.map((message) => ({
-      ...message,
+    return project.messages.map((message, index) => ({
+      ...Object.fromEntries(Object.entries(message).filter(([key]) => !['originalText', 'regenerateCount'].includes(key))),
+      ...(message.role === 'assistant' ? { can_regenerate: index === project.messages.length - 1 && message.can_regenerate === true && !options.legacyProfile } : {}),
       cards: message.cards.map((item) => {
         if (['note', 'script', 'video'].includes(item.type) && !project.state[item.type]) {
           if (item.type === 'video') return { ...item, ...(item.url ? { url: refreshedMediaUrl(item.url, base) } : {}), ...(item.poster_url ? { poster_url: refreshedMediaUrl(item.poster_url, base) } : {}) };
@@ -221,7 +255,7 @@ export async function createMockServer(options = {}) {
     const isVideo = job.kind === 'video';
     const parentImage = image?.parent_id ? project.state.images.find((item) => item.id === image.parent_id) : undefined;
     const asset = {
-      id: newId('asset'), ownerId: project.ownerId, kind: 'reference', source: 'generated',
+      id: newId('asset'), ownerId: project.ownerId, projectId: project.id, kind: 'reference', source: 'generated',
       width: isVideo ? 830 : 675, height: isVideo ? 1108 : 900,
       mime: isVideo ? 'video/mp4' : 'image/jpeg', created_at: now(), fixture: isVideo ? 'v-wan.mp4' : 't-wan-v.jpg',
       ...(parentImage?.assetId ? { parent_id: parentImage.assetId } : {}),
@@ -305,7 +339,14 @@ export async function createMockServer(options = {}) {
               queueJob(project, 'edit', repaired, 0, { groupId: job.groupId });
             }
           }
-          project.state.cost_cny = Math.round(((project.state.cost_cny || 0) + (job.directionId ? 0.5 : job.kind === 'video' ? 1.5 : 1.2)) * 100) / 100;
+          const cost = job.directionId ? 0.5 : job.kind === 'video' ? 1.5 : 1.2;
+          project.state.cost_cny = Math.round(((project.state.cost_cny || 0) + cost) * 100) / 100;
+          const owner = db.users.find((user) => user.id === project.ownerId);
+          if (owner) {
+            const date = now().slice(0, 10);
+            if (owner.todayUsage?.date !== date) owner.todayUsage = { date, cost_cny: 0 };
+            owner.todayUsage.cost_cny = Math.round((owner.todayUsage.cost_cny + cost) * 100) / 100;
+          }
           if (project.state.note) project.state.note.cost_cny = project.state.cost_cny;
           if (job.kind === 'video') {
             project.state.video.status = 'succeeded';
@@ -393,9 +434,10 @@ export async function createMockServer(options = {}) {
       { id: 'direction_work', name: '轻松通勤日', scene: '明亮办公楼外、窗边咖啡桌', mood: '利落、干净、轻盈', palette: '白 / 灰 / 深蓝', why: '用简洁搭配突出衣服质感，上班和下班见朋友都合适。', sample_title: '早八也能轻松出门的质感穿搭' },
       { id: 'direction_nature', name: '出走去公园', scene: '公园长椅、开阔草地和树影', mood: '清新、温柔、随性', palette: '米白 / 草绿 / 浅棕', why: '自然光让衣服颜色和面料更清楚，适合分享舒服的周末状态。', sample_title: '把周末交给阳光和舒服的衣服' },
     ];
-    const request = `${project.brief} ${revision}`;
+    const request = `${project.brief} ${project.styleNotes || ''} ${revision}`;
     const preferred = /通勤|上班|办公室/.test(request) ? 'direction_work' : /公园|户外|露营/.test(request) ? 'direction_nature' : 'direction_city';
     result.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
+    if (project.styleNotes) for (const option of result) option.why += ` 博主风格偏好：${project.styleNotes}。`;
     if (revision) {
       for (const option of result) {
         option.why += ` 已参考你的想法：${revision}`;
@@ -424,6 +466,11 @@ export async function createMockServer(options = {}) {
     } else if (direction.id === 'direction_nature') {
       result.shots[1].scene = '公园长椅';
       result.shots[2].scene = '有树影的草地';
+    }
+    if (project.styleNotes) {
+      result.cover.pose += `；遵循博主偏好：${project.styleNotes}`;
+      for (const shot of result.shots) shot.pose += `；遵循博主偏好：${project.styleNotes}`;
+      result.video.prompt += `；遵循博主偏好：${project.styleNotes}`;
     }
     if (!revision) return result;
     const draft = structuredClone(project.state.script || result);
@@ -458,6 +505,16 @@ export async function createMockServer(options = {}) {
     const state = project.state;
     const refs = body.refs;
     if (refs !== undefined && (!Array.isArray(refs) || refs.length > 20 || new Set(refs).size !== refs.length || refs.some((id) => typeof id !== 'string' || !state.images.some((image) => image.id === id && image.status === 'succeeded')))) throw failure(400, 'INVALID_REFS', '引用的图片需要来自当前项目，并且已经生成完成');
+    if (action?.type === 'regenerate_reply') {
+      if (options.legacyProfile) throw failure(404, 'NOT_FOUND', '当前服务未开通换个说法');
+      const last = project.messages.at(-1);
+      if (!last || last.id !== action.message_id || last.role !== 'assistant' || last.can_regenerate !== true) throw failure(409, 'REGENERATE_NOT_ALLOWED', '只有最后一条未执行付费动作的回复可以换个说法');
+      last.originalText ||= last.text;
+      last.regenerateCount = (last.regenerateCount || 0) + 1;
+      last.text = `${last.regenerateCount % 2 ? '换个表达：' : '我换种方式说：'}${last.originalText}`;
+      touch(project);
+      return { reply: last.text, cards: [], jobs: [], message_id: last.id };
+    }
     const jobs = [];
     let types = [];
     let reply = '';
@@ -589,7 +646,7 @@ export async function createMockServer(options = {}) {
     }
     touch(project);
     const userMessage = { id: newId('message'), role: 'user', text: typeof body.text === 'string' ? body.text.trim() : '', cards: [], ...(action ? { action: normalizedAction(action) } : {}), ...(refs !== undefined ? { refs: [...refs] } : {}), created_at: now() };
-    const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), created_at: now() };
+    const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), can_regenerate: jobs.length === 0, created_at: now() };
     project.messages.push(userMessage, assistant);
     return { reply, cards: types.map((type) => card(project, type, base)), jobs: jobs.map((job) => publicJob(job, base)), message_id: assistant.id };
   }
@@ -664,7 +721,7 @@ export async function createMockServer(options = {}) {
   const server = http.createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Range');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
     try {
@@ -690,7 +747,17 @@ export async function createMockServer(options = {}) {
       }
       const user = authenticate(req);
       if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: 'mock-1.0.0', providers: { text: 'local-mock', vision: 'local-mock', image: 'local-fixture', video: 'local-fixture', mock: true } }); return; }
-      if (url.pathname === '/api/me' && req.method === 'GET') { json(res, 200, publicUser(user)); return; }
+      if (url.pathname === '/api/me' && ['GET', 'PATCH'].includes(req.method)) {
+        if (options.legacyProfile === 'missing' || (options.legacyProfile && req.method === 'PATCH')) throw failure(404, 'NOT_FOUND', '当前服务未开通我的形象');
+        if (req.method === 'PATCH') {
+          const body = await readJson(req);
+          const profile = patchedProfile(user, body);
+          if (body.nickname !== undefined) user.nickname = body.nickname.trim();
+          user.profile = profile;
+          await persist();
+        }
+        json(res, 200, publicUser(user)); return;
+      }
       if (url.pathname === '/api/assets' && req.method === 'POST') {
         const bytes = await readBody(req);
         let form;
@@ -716,10 +783,11 @@ export async function createMockServer(options = {}) {
         const ids = body.garment_asset_ids;
         if (!title || !brand || !brief || !Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) throw failure(400, 'INVALID_PROJECT', '请填写标题、品牌和需求，并上传至少一张衣服图');
         const assets = ids.map((id) => db.assets.find((item) => item.id === id && item.ownerId === user.id && item.kind === 'garment'));
-        const model = body.model_asset_id ? db.assets.find((item) => item.id === body.model_asset_id && item.ownerId === user.id && item.kind === 'model') : undefined;
-        if (assets.some((item) => !item) || (body.model_asset_id && !model)) throw failure(400, 'INVALID_ASSET', '图片不属于当前账号，或图片类型不正确');
+        const modelId = body.model_asset_id || (!options.legacyProfile ? user.profile?.model_asset_ids[0] : undefined);
+        const model = modelId ? db.assets.find((item) => item.id === modelId && item.ownerId === user.id && item.kind === 'model' && item.source === 'upload') : undefined;
+        if (assets.some((item) => !item) || (modelId && !model)) throw failure(400, 'INVALID_ASSET', '图片不属于当前账号，或图片类型不正确');
         const created_at = now();
-        const project = { id: newId('project'), title, brand, brief, stage: 'brief', ownerId: user.id, garmentAssetIds: ids, ...(model ? { modelAssetId: model.id } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
+        const project = { id: newId('project'), title, brand, brief, stage: 'brief', ownerId: user.id, garmentAssetIds: ids, ...(model ? { modelAssetId: model.id } : {}), ...(!options.legacyProfile && user.profile?.style_notes ? { styleNotes: user.profile.style_notes } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
         db.projects.push(project); await persist(); json(res, 200, publicProject(project, base)); return;
       }
       const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)(?:\/(state|messages))?$/);
@@ -727,6 +795,16 @@ export async function createMockServer(options = {}) {
         const project = getProject(decodeId(projectMatch[1]), user);
         if (!projectMatch[2] && req.method === 'GET') { json(res, 200, publicProject(project, base)); return; }
         if (!projectMatch[2] && req.method === 'DELETE') {
+          const generatedIds = new Set([
+            ...db.assets.filter((asset) => asset.source === 'generated' && asset.projectId === project.id).map((asset) => asset.id),
+            ...db.jobs.filter((job) => job.project_id === project.id).map((job) => job.result_asset_id).filter(Boolean),
+            ...project.state.images.map((image) => image.assetId).filter(Boolean),
+            ...project.state.directions.map((direction) => direction.previewAssetId).filter(Boolean),
+            project.state.video?.assetId,
+          ]);
+          const generated = db.assets.filter((asset) => asset.source === 'generated' && asset.ownerId === user.id && generatedIds.has(asset.id));
+          for (const asset of generated) if (asset.filename) await rm(assetPath(asset), { force: true });
+          db.assets = db.assets.filter((asset) => !generated.includes(asset));
           db.projects = db.projects.filter((item) => item.id !== project.id);
           db.jobs = db.jobs.filter((item) => item.project_id !== project.id);
           await persist(); res.writeHead(204); res.end(); return;
@@ -759,7 +837,8 @@ export async function createMockServer(options = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const port = Number(process.env.PORT || 19301);
   const previewDelayMs = Number(process.env.MOCK_PREVIEW_DELAY_MS);
-  const server = await createMockServer({ ...(Number.isFinite(previewDelayMs) && previewDelayMs >= 0 ? { previewDelayMs } : {}) });
+  const legacyProfile = process.env.MOCK_LEGACY_PROFILE;
+  const server = await createMockServer({ ...(Number.isFinite(previewDelayMs) && previewDelayMs >= 0 ? { previewDelayMs } : {}), ...(['missing', 'old-fields'].includes(legacyProfile) ? { legacyProfile } : {}) });
   server.listen(port, '0.0.0.0', () => console.log(`本地假服务已启动：http://localhost:${port}/api/health`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));
 }

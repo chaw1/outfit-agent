@@ -1,96 +1,97 @@
 {
-  "checkedAt": "2026-10-20T15:50:21.855Z",
-  "count": 34,
+  "checkedAt": "2026-10-20T17:22:30.264Z",
+  "count": 55,
+  "newCount": 20,
   "files": [
     {
       "name": "01-register.png",
       "width": 390,
       "height": 844,
-      "sha256": "b55cf41d44ac782ed10ffe1bf8e99b0a24f73c9fc4cb4eb7de2e41f4c3b86d11"
+      "sha256": "3105ed7a62793e3d81a378e16d345b887f108f632b3f95ff70a76cab1431aa3f"
     },
     {
       "name": "02-projects-empty.png",
       "width": 390,
       "height": 844,
-      "sha256": "fb618cdb3b48b4e8e873f144434d3cd567c20eb21282edc8f8682ccfcc8b52d3"
+      "sha256": "028cf0580f8b4f5c0e50838a15668b00c6a4c78b59595831b83e574453955a8d"
     },
     {
       "name": "03-new-project-uploaded.png",
       "width": 390,
       "height": 844,
-      "sha256": "e04fbe076c21a498856256cbdbebff477fff72ca1e9670eb5bec33be4173b569"
+      "sha256": "926296aad5907e15e82d59bd65f5b8d36d9b79339dffe2bfba6485b8ae374ef9"
     },
     {
       "name": "04-garments-and-directions.png",
       "width": 390,
       "height": 844,
-      "sha256": "39892744b5e763fc0d7a4e3c1d69f771ff8326aa441009b7ea6833d025dc1def"
+      "sha256": "1179fcc88a6b4769037160e24308d5896bba22b76cc642cd2a8a1899c878dea3"
     },
     {
       "name": "05-script-confirmation.png",
       "width": 390,
       "height": 844,
-      "sha256": "2319bcfb92572a6bb5e80269342fe78440fa5cf64575d60e3fb6b48a510b590d"
+      "sha256": "3cbab6c385c6eeb1ba3e00be98c8e1f9416c22204668fe4e2d31221429e66bd2"
     },
     {
       "name": "06-images-generating.png",
       "width": 390,
       "height": 844,
-      "sha256": "a11c3ee7919cf3e13d94438f60b01a0a3665e15aa03f838e312bd14a1d10ce68"
+      "sha256": "a94a7fbcbb753687ee2f26bcf0ded0420d23659b760982775a06eed8f11c1ee6"
     },
     {
       "name": "07-images-ready.png",
       "width": 390,
       "height": 844,
-      "sha256": "1d238f0380f1b13f950cabdf47c763f387f99696ab6a421a5f10b8c8c1090e13"
+      "sha256": "d0074bd946dc9d6c44c2792cb45b9af07a9d859083a72d733d1402de44ae632e"
     },
     {
       "name": "08-edit-image.png",
       "width": 390,
       "height": 844,
-      "sha256": "7c62dfface4b3efd578b44f29e71cb6b5f524f9b262712799d98e31aa4bf22de"
+      "sha256": "a3df45ebd9165bfd12d086b622d75a7dab9bb1406dde83ed305941c9b50fa08b"
     },
     {
       "name": "09-image-new-version.png",
       "width": 390,
       "height": 844,
-      "sha256": "8598b531b4869f9d27b98088d5180cb1881efc9d26604acce77fc3963b69a649"
+      "sha256": "7d9e1947b6d8c23944f77f63e33e3a42971533a28258a9bd00ae6a2c6222df4a"
     },
     {
       "name": "10-selected-order.png",
       "width": 390,
       "height": 844,
-      "sha256": "4efe5c54fc7f525447ffccc0797979ddcdf8305c1b9974ea558b979c5476e429"
+      "sha256": "f7e1f869bbb56ea68c97438a8ac7ce6cdc0173da1f5fd8d06041256050afc3f8"
     },
     {
       "name": "11-note-card.png",
       "width": 390,
       "height": 844,
-      "sha256": "14925521c91198b031d6d346c14561621609b89d9b24611444c18183dc66ec5f"
+      "sha256": "64baf0e22477bf219469aafdea6f370d91251c21a601c8f772c2d74f3014a7b0"
     },
     {
       "name": "12-note-preview.png",
       "width": 390,
       "height": 844,
-      "sha256": "98590ee035b30194c0d87631444f311fb873fbb01003ab793fabcc3c15b25f5c"
+      "sha256": "9e891f52f27894373cbfcd65139ddbeb1f4c32fbc6d0b092a3623efb1ad802fc"
     },
     {
       "name": "13-video-ready.png",
       "width": 390,
       "height": 844,
-      "sha256": "f84c69cd64ec5ab27d584d5c1556457a1565ae6789327f3368551f2045137cc9"
+      "sha256": "688dcb18ab015261b10fcf107d6146e99ab16e4b8b99f3d68e5d173b5822b9e5"
     },
     {
       "name": "14-video-playing.png",
       "width": 390,
       "height": 844,
-      "sha256": "7970067a3898a1d893ef374f9b1adbc3b2b098d81b3ae28f3d4ecc7327a9d0e0"
+      "sha256": "1fd3456a6bcc7c7bee6cfb53baa6ad33cf89258ed08cac11a9dbe49adbf548ef"
     },
     {
       "name": "15-project-completed.png",
       "width": 390,
       "height": 844,
-      "sha256": "4ec62d3c770195a13696e6a46dfb78b7821705ac0b598c98b6894a899eedb672"
+      "sha256": "f21fe845de4eb596f5824f26365ea44995c5402cf5a2a56de4766cb589a846dd"
     },
     {
       "name": "16-expired-session.png",
@@ -102,13 +103,13 @@
       "name": "17-network-error.png",
       "width": 390,
       "height": 844,
-      "sha256": "058bf4518ee59264b40034d03d941934858c22e2ecd721d533238e6a0b7a4e5f"
+      "sha256": "044967b51f197a4d558f9a7eddd4a76c0102ea584f5878d761a82ae923bcd573"
     },
     {
       "name": "18-network-recovered.png",
       "width": 390,
       "height": 844,
-      "sha256": "4ec62d3c770195a13696e6a46dfb78b7821705ac0b598c98b6894a899eedb672"
+      "sha256": "f21fe845de4eb596f5824f26365ea44995c5402cf5a2a56de4766cb589a846dd"
     },
     {
       "name": "19-direction-preview-generating.png",
@@ -120,13 +121,13 @@
       "name": "20-script-history.png",
       "width": 390,
       "height": 844,
-      "sha256": "736e24d1d86d49309e28a905bf5dbbc1523626279c9c5ecef829c044f9324395"
+      "sha256": "629e26306478925ef5a0e59cc825aa8d2784c790b0a3601ba98cfa9fedb973e0"
     },
     {
       "name": "21-fidelity-auto-fixed.png",
       "width": 390,
       "height": 844,
-      "sha256": "6cf8b927e722c05aed5fe9928ec9868636a3150b61677ce4cdbd2f68bfdfa278"
+      "sha256": "2a2f0b5786daa2d2c3df785f273265f1f90d2fd385f7afa5885a6b05aaac5442"
     },
     {
       "name": "22-script-restored.png",
@@ -138,7 +139,7 @@
       "name": "23-note-cost-and-ai-label.png",
       "width": 390,
       "height": 844,
-      "sha256": "688088aaa90becf51842e779c0dbf075281bcedf495423c1b3e9f3420dd9bb96"
+      "sha256": "2ee26248467f12f2c6b0ef56010ff7e278f2d6f9175e035e08f8b62fbf90e192"
     },
     {
       "name": "24-direction-preview-failed.png",
@@ -150,61 +151,187 @@
       "name": "25-image-viewer.png",
       "width": 390,
       "height": 844,
-      "sha256": "e5d1982d7b3d708a9500e30d61cc9bec4c1857d273c1c90c367ce4070b1824a6"
+      "sha256": "a1a6572ecb0bb43f531e1669b4708cfec889fe740250383b524eeeb7911a1320"
     },
     {
       "name": "26-viewer-zoom.png",
       "width": 390,
       "height": 844,
-      "sha256": "d8c759ee8dd58c41c9816241fac5ebc9da4968295f0bbe94f512b552dcf4823e"
+      "sha256": "9594adb8fd30c2f793f0d88aa48d14544d2cb024826bf9c4bbc5194d5cae9fd2"
     },
     {
       "name": "27-viewer-version-compare.png",
       "width": 390,
       "height": 844,
-      "sha256": "f924768abc811f119d6c614222c5c056df84f6f3c05f342fd7ef5ff680cd81ff"
+      "sha256": "f65ed2a7c69fc8ae62c1c00c027a36015eaa2de765571cec0f9e64688bcf1547"
     },
     {
       "name": "28-viewer-brush.png",
       "width": 390,
       "height": 844,
-      "sha256": "426d0915a1944efdeabe0fd5a8b3a72b21277574d29538e4fa548afd904e018a"
+      "sha256": "510c861a5ff793e3f03116f7c648d6c5bda71825ffddc2af1ecb7d4c2dd0d36d"
     },
     {
       "name": "29-local-edit-result-compare.png",
       "width": 390,
       "height": 844,
-      "sha256": "1f9a08a7458dd3be24d92e5d1283d077d535b43437296bd7dd248231f2bb012f"
+      "sha256": "4c9af46fe7ee85776cf5fb2b59fda085512f4136cc20d70475b6778253bda6b9"
     },
     {
       "name": "30-reference-sent.png",
       "width": 390,
       "height": 844,
-      "sha256": "28b4afaa8c3effdf23f7888cf9e05865f0b43ffb23b8aa9ff6c416db32797ff8"
+      "sha256": "c59d6466fdf08980fd82575b79e78a35a9ac50cc06f7f4825b44bd5340791bdf"
     },
     {
       "name": "31-image-longpress-menu.png",
       "width": 390,
       "height": 844,
-      "sha256": "ab8e1cbf111cad2187d48eed4ea3810786c13a2894a772c1a5a22da0376dc59c"
+      "sha256": "c2ab44e04b91874f8f3fbbac7da876f2e68aac7ab56404afe85ff70637694233"
     },
     {
       "name": "32-edit-check-failed.png",
       "width": 390,
       "height": 844,
-      "sha256": "1f9a08a7458dd3be24d92e5d1283d077d535b43437296bd7dd248231f2bb012f"
+      "sha256": "4c9af46fe7ee85776cf5fb2b59fda085512f4136cc20d70475b6778253bda6b9"
     },
     {
       "name": "33-rectangle-edit-result.png",
       "width": 390,
       "height": 844,
-      "sha256": "7b2a67bc4d06440862ea6da61b607c3e69d68a8f8e8afc0fb289d3f9ec91cff9"
+      "sha256": "f84c57c20b798748481a5eeb410427e8c2457ef39843bd480044b8a4565888d6"
     },
     {
       "name": "34-preview-reference.png",
       "width": 390,
       "height": 844,
-      "sha256": "cc691b37fa714a592730abdfefd43748334fc44825ea4c5a6edb7bb865128a4f"
+      "sha256": "9bb27e5c29b3efac4d60b71dd6548c1c1bc33f2bfd1fdbfa32e76d092c520254"
+    },
+    {
+      "name": "35-provider-error-visible.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "896e42c55bffa33b31cce8b3690089868454a2fa1a2d3e70de0dccf26193151d"
+    },
+    {
+      "name": "36-onboarding-1.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "bf253e5b0c472a8a958fb617092883b1c3fe8af8c2906d2304df882e7ccc1b83"
+    },
+    {
+      "name": "37-onboarding-2.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "0e84e9cf971bfc97abb475cc7f6e7c07d1c8a730ad9600fca85403d3a1701585"
+    },
+    {
+      "name": "38-onboarding-3.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d0012a39648ab5065e6b38447f5dcada979ba9fc1e70f3bcf144b2910893c114"
+    },
+    {
+      "name": "39-profile-photos-default.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a5996604653686c9570e9de0fbed10685f9c40c1943a92f71d89095fbec02fb7"
+    },
+    {
+      "name": "40-new-project-default-profile.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "4462c1319a16994a1b9674736c378aed1be6ab4fffa08e1d121ea1b5c0c9295a"
+    },
+    {
+      "name": "41-project-search-brand.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "3db7936694dbb4e397a41c2988af6ffa28fae5370b28d4c16f83cefc4564db0e"
+    },
+    {
+      "name": "42-project-delete-completed.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d5bfd60d3f6374a42c6f609228c2b8e74f92f9370822d04f08f8437d47210548"
+    },
+    {
+      "name": "42-project-delete-confirmation.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6b8c32f512ac21ac4881654db5caa21f9f48b7851b5383197c4f2ef0f55ec0b5"
+    },
+    {
+      "name": "43-about-privacy.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "9892a7fd6ce014903661e21dcd1078b202f87a6df1ff8ae4c1a0f54cea4ad369"
+    },
+    {
+      "name": "43-profile-old-fields.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "91465aebed879b40607329bfedd5eafbfa88aa91e42b661adf025b33ed51d672"
+    },
+    {
+      "name": "43-profile-patch-404.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "66309f9f4fa98cc93ca011a782899319e14b4ad105b4d6fbd33ffc9b919ca2e3"
+    },
+    {
+      "name": "44-safe-rephrase.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6d7e1ab2983863f0379f7103c31653299a9e7497663da17dfcac3892fca658af"
+    },
+    {
+      "name": "45-message-copy-menu.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "5442d042753a8b64932cc6e85bebacd287737ce4d5564b190e76d24111d6ff2a"
+    },
+    {
+      "name": "46-failed-message-retry.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "5d8e48c0767d00077f5c560371edfc23f82f4db245e0353855fd2484858d75c0"
+    },
+    {
+      "name": "47-fidelity-diffs-expanded.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2e480b2640bdecbdc52d2ec1d42268e048de0d90b14d8ee1b7c678136c4d9d72"
+    },
+    {
+      "name": "48-publish-partial-retry.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "eeed32315b9feb13c6e1de3727012528e6c42cfd686d0ae60c2de3423e068af2"
+    },
+    {
+      "name": "49-publish-checklist-ready.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "c946116877553e79ad44a215c65ff16fd02e33102f9546585b900c46b62f1b8d"
+    },
+    {
+      "name": "50-publish-video-saved.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d7522c8f2543be2025fe9fcaead8591329c0e41ad4d5a12e32567ac7db081d9d"
+    },
+    {
+      "name": "51-publish-resumed-no-duplicates.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7d1e997fe981bd906281a3decc3027205b29a65d6c4bb749111bcd3df718b951"
+    },
+    {
+      "name": "52-foreground-generation-notice.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2a2f0b5786daa2d2c3df785f273265f1f90d2fd385f7afa5885a6b05aaac5442"
     }
   ]
 }

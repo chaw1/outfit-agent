@@ -3,11 +3,27 @@ export type Stage = 'brief' | 'direction' | 'script' | 'images' | 'note' | 'vide
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 export type AssetKind = 'garment' | 'model' | 'reference';
 
+export interface UserProfile {
+  model_asset_ids: string[];
+  height_cm?: number;
+  body_notes?: string;
+  style_notes?: string;
+}
+
+export interface UpdateMeInput {
+  nickname?: string;
+  profile?: Omit<Partial<UserProfile>, 'height_cm'> & { height_cm?: number | null };
+}
+
 export interface User {
   id: string;
   username: string;
   nickname: string;
   created_at: string;
+  tier?: string;
+  daily_budget_cny?: number;
+  today_cost_cny?: number;
+  profile?: UserProfile;
 }
 
 export interface AuthResponse { token: string; user: User }
@@ -137,7 +153,8 @@ export type Action =
   | { type: 'edit_image'; image_id: string; instruction: string; region?: ImageRegion; mask_strokes?: ImageMaskStrokes }
   | { type: 'approve_images'; image_ids: string[] }
   | { type: 'confirm_video'; image_id: string }
-  | { type: 'restore_script'; checkpoint_id: string };
+  | { type: 'restore_script'; checkpoint_id: string }
+  | { type: 'regenerate_reply'; message_id: string };
 
 export interface Message {
   id: string;
@@ -146,6 +163,7 @@ export interface Message {
   cards: Card[];
   action?: Action;
   refs?: string[];
+  can_regenerate?: boolean;
   created_at: string;
 }
 

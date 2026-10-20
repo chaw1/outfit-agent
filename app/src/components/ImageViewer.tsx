@@ -392,7 +392,6 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
             </Animated.View>}
             {!rect && failedUrl !== current.url ? <ActivityIndicator style={StyleSheet.absoluteFill} color="#FF7086" /> : null}
             {failedUrl === current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={35} color="#A3A0A5" /><Text style={styles.hint}>图片暂时没加载出来，请关闭后重试</Text></View> : null}
-            <View pointerEvents="none" style={styles.aiBadge}><Text style={styles.aiText}>AI生成</Text></View>
             {typeof current.fidelity?.score === 'number' && Number.isFinite(current.fidelity.score) ? <View pointerEvents="none" style={[styles.fidelity, comparing && { top: 43 }]}><Text style={styles.fidelityText}>还原 {Math.round(current.fidelity.score)}</Text></View> : null}
           </View></GestureDetector>
 
@@ -451,8 +450,6 @@ const styles = StyleSheet.create({
   hint: { color: '#B4ADB3', fontSize: 10, lineHeight: 16 },
   canvas: { flex: 1, minHeight: 140, overflow: 'hidden', backgroundColor: '#0E0E10' },
   loadError: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  aiBadge: { position: 'absolute', right: 12, bottom: 12, backgroundColor: '#1B1B23CC', borderWidth: 1, borderColor: '#FFFFFF52', paddingHorizontal: 7, paddingVertical: 4, borderRadius: 4 },
-  aiText: { color: '#FFFFFF', fontSize: 10 },
   fidelity: { position: 'absolute', left: 12, top: 12, borderRadius: 5, backgroundColor: '#F8F5F1ED', paddingHorizontal: 8, paddingVertical: 5 },
   fidelityText: { fontSize: 11, fontWeight: '600', color: '#34735A' },
   comparisonClip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
