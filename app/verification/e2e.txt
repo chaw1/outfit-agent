@@ -2,15 +2,15 @@
 > outfit-notes@1.0.0 test:e2e
 > playwright test
 
-[WebServer] (node:79287) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (node:93328) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 [WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
-[WebServer] (node:79315) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (node:93357) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 [WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
 
 Running 1 test using 1 worker
 
-(node:79455) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:93492) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
-  ✓  1 e2e/workflow.spec.ts:22:5 › 博主从注册、上传到笔记与视频的完整合作流程 (1.1m)
+  ✓  1 e2e/workflow.spec.ts:23:5 › 博主从注册、上传到笔记与视频的完整合作流程 (1.6m)
 
-  1 passed (1.1m)
+  1 passed (1.7m)

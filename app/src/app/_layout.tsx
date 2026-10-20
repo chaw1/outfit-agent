@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SessionProvider, useSession } from '../context/Session';
 import { Loading, colors } from '../components/ui';
 
@@ -24,5 +25,5 @@ function Routes() {
 }
 
 export default function RootLayout() {
-  return <SafeAreaProvider><SessionProvider><Routes /></SessionProvider></SafeAreaProvider>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><SessionProvider><Routes /></SessionProvider></SafeAreaProvider></GestureHandlerRootView>;
 }

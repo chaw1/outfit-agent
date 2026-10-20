@@ -1,15 +1,8 @@
-Node v22.23.1
-Command: npx expo prebuild --platform ios --no-install
-Exit code: 0
+- Clearing ios
+✔ Cleared ios code
 - Creating native directory (./ios)
 ✔ Created native directory
 - Updating package.json
 ✔ Updated package.json | no changes
 - Running prebuild
 ✔ Finished prebuild
-
-Generated iOS configuration checks: passed
-Display name: 衣序
-Bundle identifier: com.chaw1.outfitnotes
-Permissions: camera / photo library read / photo library save present
-Assets: app icon and splash icon exist; SplashScreen storyboard configured

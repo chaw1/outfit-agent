@@ -3,20 +3,18 @@ import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import type { Action, Card, Direction, OutfitImage, ProjectState } from '../api/types';
 import { VideoPlayer } from './VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationInfo';
 import { ScriptHistory } from './ScriptHistory';
+import { useImageInteractions } from './ImageInteractions';
+import { feedback } from '../lib/haptics';
 
 type CardsProps = {
   cards: Card[];
@@ -150,8 +148,7 @@ function ImageGrid({ items, state, busy, onAction }: {
 }) {
   const images = useImageVersions(items, state);
   const [selection, setSelection] = useState<string[] | null>(null);
-  const [editing, setEditing] = useState<OutfitImage | null>(null);
-  const [instruction, setInstruction] = useState('');
+  const interaction = useImageInteractions();
   const latest = new Map<string, OutfitImage>();
   for (const item of images) {
     const previous = latest.get(item.shot_id);
@@ -162,18 +159,20 @@ function ImageGrid({ items, state, busy, onAction }: {
   const defaults = state?.note?.image_ids ?? [...latest.values()].filter((item) => item.status === 'succeeded' && item.url).map((item) => item.id);
   const selected = (selection ?? defaults).filter((id) => validIds.has(id));
   const isGenerating = images.some((item) => item.status === 'queued' || item.status === 'running');
-  const canEdit = !busy && (!state || state.stage === 'images' || state.stage === 'note');
+  const canEdit = !busy && (!state || state.stage === 'images' || state.stage === 'note' || state.stage === 'done');
   const canApprove = !busy && !isGenerating && selected.length > 0 && (!state || state.stage === 'images');
   const shotIds = [...new Set(images.map((item) => item.shot_id))];
   const latestDone = [...latest.values()].filter((item) => item.status === 'succeeded').length;
 
   const toggle = (id: string) => {
+    feedback();
     setSelection(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id]);
   };
   const move = (id: string, offset: number) => {
     const index = selected.indexOf(id);
     const nextIndex = index + offset;
     if (index < 0 || nextIndex < 0 || nextIndex >= selected.length) return;
+    feedback();
     const next = [...selected];
     [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
     setSelection(next);
@@ -182,7 +181,7 @@ function ImageGrid({ items, state, busy, onAction }: {
   return (
     <View style={styles.card}>
       <CardHeading icon="images-outline" title="你的穿搭影像" detail={`${latestDone}/${latest.size} 已完成`} />
-      <Text style={styles.intro}>{isGenerating ? '正在把灵感变成画面，完成的图片会陆续出现。' : '点选喜欢的图，再排一下顺序。第一张就是笔记封面。'}</Text>
+      <Text style={styles.intro}>{isGenerating ? '正在把灵感变成画面，完成的图片会陆续出现。' : '点图放大看细节，长按可修改或引用。点右上角选图，再排发布顺序。'}</Text>
       <View style={styles.imageGrid}>
         {images.map((item) => {
           const selectedIndex = selected.indexOf(item.id);
@@ -190,11 +189,12 @@ function ImageGrid({ items, state, busy, onAction }: {
           return (
             <View key={item.id} style={styles.imageTile}>
               <Pressable
-                onPress={() => toggle(item.id)}
-                disabled={item.status !== 'succeeded' || !item.url || Boolean(busy)}
+                onPress={() => interaction.open(item.id)}
+                onLongPress={() => interaction.menu(item.id)}
+                delayLongPress={400}
+                disabled={item.status !== 'succeeded' || !item.url}
                 accessibilityRole="button"
-                accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`}
-                accessibilityState={{ selected: selectedIndex >= 0 }}
+                accessibilityLabel={`查看镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`}
                 testID={`image-select-${item.id}`}
                 style={[styles.imageFrame, selectedIndex >= 0 && styles.imageFrameSelected]}
               >
@@ -206,14 +206,14 @@ function ImageGrid({ items, state, busy, onAction }: {
                     {item.status === 'running' ? <View style={styles.progressTrack}><View style={styles.progressFill} /></View> : null}
                   </View>
                 )}
-                {item.status === 'succeeded' ? <View style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></View> : null}
+                {item.status === 'succeeded' ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy} onPress={event => { event.stopPropagation(); toggle(item.id); }} hitSlop={8} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
                 <View style={styles.versionBadge}><Text style={styles.versionText}>{isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`}</Text></View>
-                {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
+                {item.status === 'succeeded' ? <><FidelityBadge image={item} /><View pointerEvents="none" style={{ position: 'absolute', bottom: 7, right: 7, backgroundColor: '#25252288', borderRadius: 4, padding: 4 }}><Text style={{ fontSize: 8, color: 'white' }}>AI生成</Text></View></> : null}
               </Pressable>
               <View style={styles.imageCaptionRow}>
                 <Text style={styles.imageCaption}>镜头 {String(shotIds.indexOf(item.shot_id) + 1).padStart(2, '0')}{item.script_version ? ` · 脚本 ${item.script_version}` : ''}</Text>
                 {item.status === 'succeeded' && canEdit ? <Pressable
-                  onPress={() => { setEditing(item); setInstruction(''); }}
+                  onPress={() => interaction.open(item.id, 'whole')}
                   accessibilityRole="button"
                   accessibilityLabel={`修改镜头 ${shotIds.indexOf(item.shot_id) + 1}`}
                   testID={`edit-image-${item.id}`}
@@ -234,7 +234,7 @@ function ImageGrid({ items, state, busy, onAction }: {
           if (!item) return null;
           return <View key={id} style={styles.sortRow}>
             <Text style={[styles.sortNumber, index === 0 && { color: colors.red }]}>{String(index + 1).padStart(2, '0')}</Text>
-            <Image source={{ uri: item.url }} style={styles.sortThumbnail} />
+            <Pressable accessibilityRole="button" accessibilityLabel="查看已选图片" onPress={() => interaction.open(item.id)} onLongPress={() => interaction.menu(item.id)}><Image source={{ uri: item.url }} style={styles.sortThumbnail} /></Pressable>
             <Text style={styles.sortLabel}>{index === 0 ? '封面 · ' : ''}镜头 {shotIds.indexOf(item.shot_id) + 1} <Text style={styles.smallText}>v{item.version}</Text></Text>
             <Pressable onPress={() => move(id, -1)} disabled={index === 0 || Boolean(busy)} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向前移`} testID={`move-up-${id}`} style={[styles.sortArrow, index === 0 && styles.dimmed]}><Icon name="arrow-up" size={15} color={colors.ink} /></Pressable>
             <Pressable onPress={() => move(id, 1)} disabled={index === selected.length - 1 || Boolean(busy)} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向后移`} testID={`move-down-${id}`} style={[styles.sortArrow, index === selected.length - 1 && styles.dimmed]}><Icon name="arrow-down" size={15} color={colors.ink} /></Pressable>
@@ -242,20 +242,6 @@ function ImageGrid({ items, state, busy, onAction }: {
         })}
       </View> : null}
       <Button title={state && state.stage !== 'images' ? '图片已确认' : `选好了，生成笔记${selected.length ? `（${selected.length} 张）` : ''}`} icon="checkmark" onPress={() => onAction({ type: 'approve_images', image_ids: selected })} disabled={!canApprove} testID="approve-images" />
-      <Modal visible={Boolean(editing)} transparent animationType="fade" onRequestClose={() => setEditing(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalShade}>
-          <View style={styles.modal}>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1 }}>
-            <View style={styles.rowBetween}><Text style={styles.modalTitle}>让这张更合心意</Text><Pressable onPress={() => setEditing(null)} accessibilityLabel="关闭修改图片" accessibilityRole="button" hitSlop={10}><Icon name="close" size={22} color={colors.ink} /></Pressable></View>
-            <Text style={styles.intro}>说说想改哪里，原版会为你保留。</Text>
-            {editing?.url ? <Image source={{ uri: editing.url }} style={styles.editPreview} /> : null}
-            <TextInput value={instruction} onChangeText={setInstruction} placeholder="比如：把衬衫塞进裤腰，背景再亮一点" placeholderTextColor="#A39B94" multiline maxLength={1000} style={styles.editInput} accessibilityLabel="图片修改要求" testID="edit-instruction" />
-            <View style={styles.quickEdits}>{['衬衫塞进裤腰', '背景亮一点', '换个角度', '换个姿势'].map((suggestion, index) => <Pressable key={suggestion} accessibilityRole="button" accessibilityLabel={suggestion} testID={`edit-suggestion-${index}`} onPress={() => setInstruction(suggestion)} style={styles.quickEdit}><Text style={styles.quickEditText}>{suggestion}</Text></Pressable>)}</View>
-            <Button title="按这个想法改一版" icon="sparkles-outline" disabled={!instruction.trim() || Boolean(busy)} testID="submit-edit" onPress={() => { if (editing && instruction.trim()) { onAction({ type: 'edit_image', image_id: editing.id, instruction: instruction.trim() }); setEditing(null); } }} />
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
@@ -268,6 +254,7 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
   onPreview: () => void;
 }) {
   const note = state?.note ?? card;
+  const interaction = useImageInteractions();
   const [videoImageId, setVideoImageId] = useState<string | null>(null);
   const selectedImageId = videoImageId && note.image_ids.includes(videoImageId) ? videoImageId : note.image_ids[0];
   const mayMakeVideo = !state?.video && (!state || state.pending_action?.type === 'confirm_video' || (state.pending_action === undefined && state.stage === 'note'));
@@ -284,10 +271,10 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.videoSources}>
         {note.image_ids.map((id, index) => {
           const image = state?.images.find((item) => item.id === id);
-          return <Pressable key={id} onPress={() => setVideoImageId(id)} accessibilityRole="button" accessibilityLabel={`选择第 ${index + 1} 张生成视频`} accessibilityState={{ selected: id === selectedImageId }} testID={`video-source-${id}`} style={[styles.videoSource, id === selectedImageId && styles.videoSourceSelected]}>
-            {image?.url ? <Image source={{ uri: image.url }} style={styles.videoSourceImage} /> : <View style={[styles.videoSourceImage, styles.sourcePlaceholder]}><Icon name="image-outline" size={20} /></View>}
-            {id === selectedImageId ? <View style={styles.sourceCheck}><Icon name="checkmark" size={12} color="#FFFFFF" /></View> : null}
-          </Pressable>;
+          return <View key={id} style={[styles.videoSource, id === selectedImageId && styles.videoSourceSelected]}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`查看第 ${index + 1} 张视频源图`} testID={`video-source-view-${id}`} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)}>{image?.url ? <Image source={{ uri: image.url }} style={styles.videoSourceImage} /> : <View style={[styles.videoSourceImage, styles.sourcePlaceholder]}><Icon name="image-outline" size={20} /></View>}</Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`选择第 ${index + 1} 张生成视频`} accessibilityState={{ selected: id === selectedImageId }} testID={`video-source-${id}`} onPress={() => { feedback(); setVideoImageId(id); }} style={styles.sourceChoice}><Text style={styles.sourceChoiceText}>{id === selectedImageId ? '✓ 已选' : '选这张'}</Text></Pressable>
+          </View>;
         })}
       </ScrollView>
       <Button title="确认生成短视频" secondary icon="videocam-outline" disabled={Boolean(busy) || !selectedImageId} onPress={() => { if (selectedImageId) onAction({ type: 'confirm_video', image_id: selectedImageId }); }} testID="confirm-video" />
@@ -301,6 +288,7 @@ function VideoRetry({ state, busy, onAction }: {
   onAction: (action: Action) => void;
 }) {
   const [chosen, setChosen] = useState<string | null>(null);
+  const interaction = useImageInteractions();
   const images = (state?.note?.image_ids ?? []).flatMap((id) => {
     const image = state?.images.find((item) => item.id === id && item.status === 'succeeded' && item.url);
     return image ? [image] : [];
@@ -312,19 +300,10 @@ function VideoRetry({ state, busy, onAction }: {
     <Text style={styles.sortTitle}>选一张图片，再试一次</Text>
     <Text style={styles.intro}>图文笔记已经保留，确认后只重新制作短片。</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.videoSources}>
-      {images.map((image, index) => <Pressable
-        key={image.id}
-        onPress={() => setChosen(image.id)}
-        disabled={Boolean(busy)}
-        accessibilityRole="button"
-        accessibilityLabel={`选择第 ${index + 1} 张重试视频`}
-        accessibilityState={{ selected: image.id === selected }}
-        testID={`retry-video-source-${image.id}`}
-        style={[styles.videoSource, image.id === selected && styles.videoSourceSelected]}
-      >
-        <Image source={{ uri: image.url }} style={styles.videoSourceImage} />
-        {image.id === selected ? <View style={styles.sourceCheck}><Icon name="checkmark" size={12} color="#FFFFFF" /></View> : null}
-      </Pressable>)}
+      {images.map((image, index) => <View key={image.id} style={[styles.videoSource, image.id === selected && styles.videoSourceSelected]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`查看第 ${index + 1} 张视频源图`} onPress={() => interaction.open(image.id)} onLongPress={() => interaction.menu(image.id)}><Image source={{ uri: image.url }} style={styles.videoSourceImage} /></Pressable>
+        <Pressable onPress={() => { feedback(); setChosen(image.id); }} disabled={busy} accessibilityRole="button" accessibilityLabel={`选择第 ${index + 1} 张重试视频`} accessibilityState={{ selected: image.id === selected }} testID={`retry-video-source-${image.id}`} style={styles.sourceChoice}><Text style={styles.sourceChoiceText}>{image.id === selected ? '✓ 已选' : '选这张'}</Text></Pressable>
+      </View>)}
     </ScrollView>
     <Button title="确认重试短视频" secondary icon="refresh" disabled={Boolean(busy) || !selected} testID="retry-video" onPress={() => { if (selected) onAction({ type: 'confirm_video', image_id: selected }); }} />
   </View>;
@@ -468,14 +447,6 @@ const styles = StyleSheet.create({
   sortLabel: { fontSize: 11, color: '#736B64', flex: 1 },
   sortArrow: { width: 28, height: 30, borderRadius: 7, backgroundColor: '#F8F5F1', alignItems: 'center', justifyContent: 'center' },
   dimmed: { opacity: 0.25 },
-  modalShade: { flex: 1, backgroundColor: '#241C1959', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modal: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, width: '100%', maxWidth: 430, maxHeight: '95%', flexShrink: 1 },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: colors.ink, marginBottom: 12 },
-  editPreview: { width: 74, height: 94, borderRadius: 10, backgroundColor: colors.cream, marginBottom: 13 },
-  editInput: { minHeight: 110, borderRadius: 12, padding: 13, paddingTop: 13, backgroundColor: '#F9F6F3', borderColor: '#EFE9E3', borderWidth: 1, fontSize: 13, color: colors.ink, textAlignVertical: 'top', lineHeight: 22, marginBottom: 16 },
-  quickEdits: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 16 },
-  quickEdit: { borderWidth: 1, borderColor: '#E9DFD5', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: '#FCFAF7' },
-  quickEditText: { color: '#8B7562', fontSize: 11 },
   noteTitle: { fontSize: 19, color: colors.ink, fontWeight: '700', lineHeight: 29, marginBottom: 12 },
   noteBody: { fontSize: 12, color: '#7E756F', lineHeight: 22, marginBottom: 12 },
   noteTag: { color: '#B28F73', fontSize: 11, lineHeight: 19, marginBottom: 10 },
@@ -488,6 +459,8 @@ const styles = StyleSheet.create({
   videoSourceImage: { width: 61, height: 79, borderRadius: 5, backgroundColor: colors.cream },
   sourcePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   sourceCheck: { position: 'absolute', bottom: 6, right: 6, backgroundColor: colors.red, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  sourceChoice: { minHeight: 32, justifyContent: 'center', alignItems: 'center' },
+  sourceChoiceText: { fontSize: 10, color: colors.red },
   videoWaiting: { minHeight: 215, borderRadius: 12, overflow: 'hidden', backgroundColor: colors.cream, justifyContent: 'center', alignItems: 'center' },
   videoPoster: { position: 'absolute', width: '100%', height: '100%', opacity: 0.16 },
   videoWaitingContent: { padding: 22, alignItems: 'center' },
