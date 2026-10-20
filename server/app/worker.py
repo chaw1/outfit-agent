@@ -30,6 +30,7 @@ from app.local_edit import (
 from app.log_errors import log_exception
 from app.media import asset_path, store_generated
 from app.models import Asset, Job, Message, Project, utcnow
+from app.project_cleanup import drain_media_cleanup
 from app.providers import GeneratedMedia, ProviderError, ProviderHub
 from app.runtime_settings import assert_generation_allowed
 from app.views import image_items
@@ -63,7 +64,7 @@ def claim_job(session: Session) -> Job | None:
             terminal,
         )
     ).all()
-    # Use the same batch-before-row lock order as result publication. Recheck
+    # Use the same project-before-batch-before-job order as publication. Recheck
     # the lease after locking: an owner may have finished or renewed meanwhile.
     for candidate in sorted(candidates, key=lambda item: (item.project_id, _batch_key(item))):
         _completion_lock(session, candidate)
@@ -174,20 +175,31 @@ def _batch_key(job: Job) -> str:
     return f"{job.kind}:{job.id}"
 
 
-def _completion_lock(session: Session, job: Job) -> None:
+def _completion_lock(session: Session, job: Job) -> Project | None:
+    # Deletion, expired-lease reporting and publication share this row lock.
+    # Lock the parent first: notification INSERTs also need its FK key-share
+    # lock, so acquiring batch/job first can deadlock with concurrent deletion.
+    project = session.scalar(
+        select(Project)
+        .where(Project.id == job.project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
     # A separate namespace keeps short publication transactions independent of
     # a conversation holding the project's decision lock during model calls.
     if session.get_bind().dialect.name == "postgresql":
         key = f"worker-completion:{job.project_id}:{_batch_key(job)}"
         lock_id = int.from_bytes(hashlib.sha256(key.encode()).digest()[:8], "big", signed=True)
         session.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": lock_id})
+    return project
 
 
 def _lock_publication_job(session: Session, job_id: str) -> Job | None:
     snapshot = session.get(Job, job_id)
     if snapshot is None:
         return None
-    _completion_lock(session, snapshot)
+    if _completion_lock(session, snapshot) is None:
+        return None
     # The batch lock can wait while another owner changes this row. Force a
     # fresh identity-map value after FOR UPDATE before checking the fencing token.
     return session.scalar(
@@ -537,8 +549,7 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
         started = time.monotonic()
         project = session.get(Project, job.project_id)
         if not project or project.deleted_at:
-            job.status, job.locked_at, job.error = "failed", None, "项目已删除。"
-            session.commit()
+            session.rollback()
             return
         payload = dict(job.payload)
         hub = ProviderHub(session, job.project_id)
@@ -672,6 +683,7 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
 
 def run_once(session_factory=SessionLocal) -> bool:
     with session_factory() as session:
+        drain_media_cleanup(session)
         job = claim_job(session)
         if job is None:
             return False

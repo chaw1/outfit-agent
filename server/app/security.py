@@ -17,7 +17,10 @@ bearer = HTTPBearer(auto_error=False)
 
 
 def get_session():
+    from app.observability import bind_session
+
     with SessionLocal() as session:
+        bind_session(session)
         yield session
 
 
@@ -56,6 +59,9 @@ def current_user(
         raise AppError("UNAUTHORIZED", "登录已失效，请重新登录", 401) from exc
     if user is None:
         raise AppError("UNAUTHORIZED", "登录已失效，请重新登录", 401)
+    from app.observability import bind_user
+
+    bind_user(request, user.id, session)
     if user.disabled and request.method not in {"GET", "HEAD", "OPTIONS"}:
         raise AppError("USER_DISABLED", "账号已被禁用，请联系管理员", 403)
     return user

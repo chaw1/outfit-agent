@@ -2,18 +2,38 @@ import hashlib
 import json
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.media import signed_url
 from app.models import Asset, Job, Message, Project, UsageLedger, User
+from app.runtime_settings import day_bounds, default_runtime_settings, get_runtime_settings
+from app.schemas import Profile
 
 
-def user_dict(user: User) -> dict:
+def user_dict(user: User, session: Session | None = None) -> dict:
+    session = session if session is not None else object_session(user)
+    config = get_runtime_settings(session) if session is not None else default_runtime_settings()
+    tier = user.tier or "free"
+    budget = config["tiers"].get(tier, config["tiers"]["free"])["daily_budget_cny"]
+    today_cost = 0
+    if session is not None:
+        start, end = day_bounds()
+        today_cost = session.scalar(
+            select(func.coalesce(func.sum(UsageLedger.estimated_cny), 0)).where(
+                UsageLedger.user_id == user.id,
+                UsageLedger.created_at >= start,
+                UsageLedger.created_at < end,
+            )
+        )
     return {
         "id": user.id,
         "username": user.username,
         "nickname": user.nickname,
         "created_at": user.created_at.isoformat(),
+        "tier": tier,
+        "daily_budget_cny": float(budget),
+        "today_cost_cny": round(float(today_cost), 6),
+        "profile": Profile.model_validate(user.profile or {}).model_dump(exclude_none=True),
     }
 
 

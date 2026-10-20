@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app import rate_limits
 from app.config import settings
 from app.main import app
 from app.models import Asset, Base, Job, Message, Project, UsageLedger, User
@@ -23,7 +24,9 @@ def admin_api(monkeypatch):
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
     Base.metadata.create_all(engine)
+    rate_limits.metadata.create_all(engine)
     factory = sessionmaker(engine, expire_on_commit=False)
+    monkeypatch.setattr(rate_limits, "SessionLocal", factory)
     monkeypatch.setattr(settings, "admin_token", "temporary-admin-test-token")
     monkeypatch.setattr(settings, "mock_providers", True)
 

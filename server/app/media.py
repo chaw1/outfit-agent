@@ -5,13 +5,16 @@ from uuid import uuid4
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from PIL.PngImagePlugin import PngInfo
+from pillow_heif import register_heif_opener
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.errors import AppError
 from app.models import Asset
+from app.project_cleanup import track_generated_file
 from app.security import media_signature
 
+register_heif_opener(thumbnails=False)
 
 def signed_url(asset_id: str, exp: int | None = None) -> str:
     # Round the expiry upward: a URL is stable throughout a six-hour window and
@@ -51,18 +54,30 @@ def asset_path(asset: Asset) -> Path:
     return path
 
 
-def inspect_image(data: bytes) -> tuple[int, int, str]:
+def inspect_image(data: bytes, *, upload: bool = False) -> tuple[int, int, str]:
     try:
         with Image.open(io.BytesIO(data)) as image:
-            image.verify()
-        with Image.open(io.BytesIO(data)) as image:
-            if image.format not in {"JPEG", "PNG", "WEBP"}:
-                raise AppError("INVALID_IMAGE", "仅支持 JPEG、PNG、WebP 图片", 422)
+            allowed = {"JPEG", "PNG", "WEBP", "HEIF"} if upload else {"JPEG", "PNG", "WEBP"}
+            if image.format not in allowed:
+                raise AppError(
+                    "INVALID_IMAGE", "仅支持 JPEG、PNG、WebP、HEIC 图片", 415 if upload else 422
+                )
+            if upload and max(image.size) > settings.max_upload_edge:
+                raise AppError("IMAGE_TOO_LARGE", "图片最长边不能超过 6000 像素", 413)
             if image.width * image.height > 40_000_000:
-                raise AppError("INVALID_IMAGE", "图片分辨率过大", 422)
-            return image.width, image.height, Image.MIME[image.format]
-    except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
-        raise AppError("INVALID_IMAGE", "无法读取图片内容", 422) from exc
+                raise AppError("INVALID_IMAGE", "图片分辨率过大", 413 if upload else 422)
+            width, height, mime = image.width, image.height, Image.MIME[image.format]
+            image.verify()
+        if upload:
+            with Image.open(io.BytesIO(data)) as image:
+                image.load()
+        return width, height, mime
+    except Image.DecompressionBombError as exc:
+        raise AppError("IMAGE_TOO_LARGE", "图片分辨率过大", 413 if upload else 422) from exc
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError) as exc:
+        raise AppError(
+            "INVALID_IMAGE", "无法读取图片内容，请上传有效图片", 415 if upload else 422
+        ) from exc
 
 
 def persist_bytes(data: bytes, mime: str) -> str:
@@ -84,7 +99,14 @@ def persist_bytes(data: bytes, mime: str) -> str:
 
 
 def store_upload(session: Session, *, user_id: str, kind: str, data: bytes) -> Asset:
-    width, height, mime = inspect_image(data)
+    if len(data) > settings.max_upload_bytes:
+        raise AppError("FILE_TOO_LARGE", "图片不能超过 15MB", 413)
+    width, height, mime = inspect_image(data, upload=True)
+    if mime in {"image/heif", "image/heic"}:
+        with Image.open(io.BytesIO(data)) as image:
+            output = io.BytesIO()
+            image.convert("RGB").save(output, "JPEG", quality=95)
+        data, mime = output.getvalue(), "image/jpeg"
     asset = Asset(
         user_id=user_id,
         kind=kind,
@@ -117,11 +139,13 @@ def store_generated(
         data, mime = label_generated_image(
             media.data, media.model, draw_label=not preserve_visible_label
         ), "image/png"
+    relative = persist_bytes(data, mime)
+    track_generated_file(session, relative)
     asset = Asset(
         user_id=user_id,
         project_id=project_id,
         kind=kind,
-        path=persist_bytes(data, mime),
+        path=relative,
         width=width,
         height=height,
         mime=mime,

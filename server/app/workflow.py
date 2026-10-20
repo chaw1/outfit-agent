@@ -97,6 +97,11 @@ class Workflow:
             max_outfit_assets_per_shot=2 if self.project.model_asset_id else 3,
             script_versions=self.script_versions,
         )
+        # Query the scalar value each turn so saved preferences apply to existing
+        # project threads too, even when their checkpoint predates the profile.
+        profile = self.session.scalar(select(User.profile).where(User.id == self.project.user_id))
+        context["profile"] = profile or {"model_asset_ids": []}
+        context["style_notes"] = (profile or {}).get("style_notes") or ""
         context["selected_image_ids"] = state.get(
             "selected_image_ids", (state.get("note") or {}).get("image_ids", [])
         )

@@ -170,6 +170,48 @@ uv run python scripts/verify_seams.py --raw artifacts/local-edit-fix3-cuff-basel
 
 真实实验强制共用 `artifacts/local-edit-fix3.json` 和同名 SQLite 费用账本，缺失任一会停止；费用包含失败与弃选方案。每次生成/核对先写断点，保留输入哈希、参考图哈希、指令、裁剪参数及 raw 输出；配置变化拒绝混用。`--phase generate` 可只保留 raw，`--phase check` 按已保存提示核对；`--variant context` 只测选中策略。接缝指标减去原图天然梯度，同时报告 2–8px/16px 内环带残差，不能仅靠边缘权重为零来宣称没有接缝。
 
+## 博主档案与项目清理
+
+`GET /api/me` 和登录/注册返回的 `user` 增加 `tier`、`daily_budget_cny`、`today_cost_cny`、`profile`。预算与管理端共用实时层级设置，花费按北京时间自然日汇总账本，包含未结算或失败的保守预留。
+
+`PATCH /api/me` 支持昵称和档案部分更新，例如：
+
+```json
+{"nickname":"小夏","profile":{"model_asset_ids":["本人照片资产编号"],"height_cm":168,"style_notes":"喜欢松弛感，不穿高跟鞋"}}
+```
+
+未传字段保留；档案内 `height_cm/body_notes/style_notes` 传 `null` 清除，`model_asset_ids: []` 清空照片。昵称与档案本体不接受 `null`。照片最多 20 张且不可重复，只能选本人上传的 `kind=model`；身高范围为大于 0、不超过 300cm，体型和风格文字各最多 2000 字。新项目省略或传 `null` 的 `model_asset_id` 时选档案中第一张有效照片，显式照片可覆盖；没有档案照片仍使用原默认模特流程。每轮读取当前档案，旧项目也会收到最新偏好；Mock 与真实模型的方向和脚本均使用它。
+
+删除项目会在同一数据库事务中删除消息、任务、所有 LangGraph checkpoint namespace 和生成资产，保留项目删除标记与费用账本。上传素材保留，可继续在其他项目使用。Worker 提交结果与删除共用项目行锁：尚在生成的任务返回后不会写回；已经提交的生成文件也会被清理。文件删除在提交后执行，失败意图保存在 `app_settings` 的清理队列，由 Worker 轮询重试。已提交给上游的请求无法撤回，仍可能产生费用；删除不返还已发生或未知的预留费用。
+
+## 请求防护与日志
+
+注册和登录分别按客户端 IP 限流，上传和对话分别按用户限流。使用数据库原子计数，API 多进程共享固定时间窗口；默认窗口 60 秒，注册/登录各 120 次、上传 60 次、对话 120 次。超过上限返回中文 `429` 和 `Retry-After`，无效登录也计数；上传在读取请求体前完成鉴权及限流。可通过 `RATE_LIMIT_REGISTER/LOGIN/UPLOAD/MESSAGES` 和 `RATE_LIMIT_WINDOW_SECONDS` 调小阈值，Compose 已透传这些变量。固定窗口边界可能短时允许两倍窗口额度。应用按 ASGI 客户端地址识别 IP，公开部署需让可信反向代理覆盖转发头，并正确设置 Uvicorn 的可信代理范围。
+
+上传按实际文件内容解码，仅接受 JPEG、PNG、WebP、HEIC；单文件最多 15 MiB、最长边最多 6000px。体积或尺寸超限返回中文 `413`，不支持或损坏的内容返回中文 `415`。HEIC 经 [Pillow HEIF 插件](https://pillow-heif.readthedocs.io/en/latest/pillow-plugin.html) 解码后转为 JPEG，便于 App 和模型读取；其他三类保留上传字节。`MAX_UPLOAD_BYTES/MAX_UPLOAD_EDGE` 可调低，不可超过契约上限。multipart 总请求另留 64 KiB 包装额度，流式上传也有界，临时文件操作在线程池进行。
+
+每个响应回传 `X-Request-Id`，沿用客户端 1–128 个可打印 ASCII 字符的 ID，非法或缺失时生成；CORS 暴露此响应头。请求 JSON 日志记录请求 ID、用户、项目、路由模板、完整响应耗时及状态；模型 JSON 日志记录模型、耗时、估算费用及结算状态。日志不记录请求正文、认证头或 URL 查询参数，异常链进行凭证脱敏。Worker 模型调用也带用户/项目，独立任务没有 HTTP 请求 ID。
+
+管理端总览增加最近 24 小时请求量和错误数，来源为持久化 `request_events`，重启及多进程共享。错误包含 HTTP 状态 ≥400 或 SSE `error`，每个请求只计一次。统计含健康检查、媒体和管理请求，以响应结束/断连时刻计入；断连后继续执行的对话错误由模型/任务日志记录，不追改已结束的 HTTP 记录。观测表和限流身份行目前没有自动保留期清理，小规模演示可直接使用，长期运行需配置数据库保留策略。
+
+## 持续集成与本轮复验
+
+[`../.github/workflows/ci.yml`](../.github/workflows/ci.yml) 使用 [PostgreSQL service](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers)，执行服务端冻结依赖安装、ruff、迁移、Mock API/Worker 与强制集成 pytest；App 使用 Node 22，执行 `npm ci`、typecheck、lint、单测。不依赖模型凭证。
+
+```bash
+uv sync --frozen --dev
+uv run ruff check .
+REQUIRE_INTEGRATION=1 uv run pytest -q
+uv run python scripts/wait_health.py
+uv run python scripts/e2e.py --mode mock --output artifacts/ops/mock-e2e.json
+uv run python scripts/experiments.py --output artifacts/ops/experiments.json
+uv run python scripts/ops_acceptance.py
+# 仓库根目录：actionlint .github/workflows/ci.yml
+# app/ 目录，Node 22：npm ci && npm run typecheck && npm run lint && npm test
+```
+
+本轮交付见 [`OPS.md`](OPS.md)，断点保存在本地 `PROGRESS.md`。`scripts/verify_profile.py --run` 只发送两次真实 DeepSeek 文本调用，固定独立 SQLite 账本先记录 `started`，未知结果拒绝重发，成功结果复用；总保守预留不超过 0.10 元。密钥仅通过钥匙串注入子进程环境，常驻 Mock 服务不切真实模式。估价按 [DeepSeek 官方峰值价格](https://api-docs.deepseek.com/quick_start/pricing/) 和保守汇率计算，实际扣费以供应商账单为准。
+
 ## 配置与真实费用
 
 配置只从进程环境读取，应用不自动加载 `.env`。Compose 可用 `.env.example` 查看无密钥示例；实际模型密钥、数据库密码和 JWT secret 只注入启动进程，不写文件或提交。模型密钥按任务约定从个人钥匙串注入，不打印到终端、日志或证据。

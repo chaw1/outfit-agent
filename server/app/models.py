@@ -30,6 +30,7 @@ class User(Base):
     nickname: Mapped[str] = mapped_column(String(80))
     tier: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
     disabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    profile: Mapped[dict] = mapped_column(json_type, default=dict, server_default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

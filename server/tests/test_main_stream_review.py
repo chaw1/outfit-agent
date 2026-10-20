@@ -188,6 +188,7 @@ def test_http_response_sends_garments_card_before_provider_finishes(monkeypatch)
     monkeypatch.setitem(
         main.app.dependency_overrides, main.current_user, lambda: SimpleNamespace(id="user")
     )
+    monkeypatch.setitem(main.app.dependency_overrides, main.limit_messages, lambda: None)
     monkeypatch.setitem(
         main.app.dependency_overrides,
         main.get_session,
