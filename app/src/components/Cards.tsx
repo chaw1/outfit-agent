@@ -15,12 +15,15 @@ import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationIn
 import { ScriptHistory } from './ScriptHistory';
 import { useImageInteractions } from './ImageInteractions';
 import { feedback } from '../lib/haptics';
+import { confirmationCost, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
+import { CostEstimate } from './CostEstimate';
 
 type CardsProps = {
   cards: Card[];
   state?: ProjectState;
   busy?: boolean;
   onAction: (action: Action) => void;
+  onText: (text: string) => void;
   onPreview: () => void;
 };
 
@@ -250,7 +253,8 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
           </View>;
         })}
       </ScrollView>
-      <Button title="确认生成短视频" secondary icon="videocam-outline" disabled={Boolean(busy) || !selectedImageId} onPress={() => { if (selectedImageId) onAction({ type: 'confirm_video', image_id: selectedImageId }); }} testID="confirm-video" />
+      <CostEstimate state={state} action="confirm_video" />
+      <Button title="确认生成短视频" secondary icon="videocam-outline" disabled={Boolean(busy) || !selectedImageId || confirmationCost(state, 'confirm_video')?.insufficient} onPress={() => { if (selectedImageId) onAction({ type: 'confirm_video', image_id: selectedImageId }); }} testID="confirm-video" />
     </View> : null}
   </View>;
 }
@@ -278,11 +282,12 @@ function VideoRetry({ state, busy, onAction }: {
         <Pressable onPress={() => { feedback(); setChosen(image.id); }} disabled={busy} accessibilityRole="button" accessibilityLabel={`选择第 ${index + 1} 张重试视频`} accessibilityState={{ selected: image.id === selected }} testID={`retry-video-source-${image.id}`} style={styles.sourceChoice}><Text style={styles.sourceChoiceText}>{image.id === selected ? '✓ 已选' : '选这张'}</Text></Pressable>
       </View>)}
     </ScrollView>
-    <Button title="确认重试短视频" secondary icon="refresh" disabled={Boolean(busy) || !selected} testID="retry-video" onPress={() => { if (selected) onAction({ type: 'confirm_video', image_id: selected }); }} />
+    <CostEstimate state={state} action="confirm_video" />
+    <Button title="确认重试短视频" secondary icon="refresh" disabled={Boolean(busy) || !selected || confirmationCost(state, 'confirm_video')?.insufficient} testID="retry-video" onPress={() => { if (selected) onAction({ type: 'confirm_video', image_id: selected }); }} />
   </View>;
 }
 
-export function Cards({ cards, state, busy, onAction, onPreview }: CardsProps) {
+export function Cards({ cards, state, busy, onAction, onText, onPreview }: CardsProps) {
   return <View style={styles.cards}>{cards.map((card) => {
     if (card.type === 'images') return <ImageGrid key={card.id} items={card.items} state={state} busy={busy} onAction={onAction} />;
     if (card.type === 'note') return <NoteCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onPreview={onPreview} />;
@@ -299,11 +304,12 @@ export function Cards({ cards, state, busy, onAction, onPreview }: CardsProps) {
         <CardHeading icon="compass-outline" title="找一个心动的方向" detail={`${card.options.length} 个提案`} />
         <Text style={styles.intro}>选一个最像你的，也可以在对话里聊聊想法。</Text>
         {card.options.map((option) => <DirectionOption key={option.id} direction={option} selected={state?.chosen_direction_id === option.id} enabled={enabled} onPress={() => onAction({ type: 'choose_direction', direction_id: option.id })} />)}
+        <Button title="换一组" secondary icon="refresh-outline" disabled={!enabled} testID="regenerate-directions" onPress={() => onText(REGENERATE_DIRECTIONS_TEXT)} />
       </View>;
     }
     if (card.type === 'script') {
       const confirmed = state?.script?.status === 'confirmed' || card.status === 'confirmed';
-      const canConfirm = !busy && !confirmed && (!state || state.pending_action?.type === 'confirm_script' || (state.pending_action === undefined && state.stage === 'script'));
+      const canConfirm = !busy && !confirmed && !confirmationCost(state, 'confirm_script')?.insufficient && (!state || state.pending_action?.type === 'confirm_script' || (state.pending_action === undefined && state.stage === 'script'));
       return <View key={card.id} style={styles.card}>
         <CardHeading icon="reader-outline" title="这次，我们这样拍" detail={confirmed ? '已确认' : '脚本草稿'} />
         <ScriptHistory versions={state?.script_versions} busy={busy} generating={Boolean(state?.active_jobs.length)} onAction={onAction} />
@@ -314,6 +320,7 @@ export function Cards({ cards, state, busy, onAction, onPreview }: CardsProps) {
         {card.shots.map((shot, index) => <View key={shot.id} style={styles.shotRow}><View style={styles.shotNumber}><Text style={styles.shotNumberText}>{String(index + 1).padStart(2, '0')}</Text></View><View style={styles.shotContent}><Text style={styles.shotScene}>{shot.scene}</Text><Text style={styles.shotDetail}>{shot.pose} · {shot.camera}</Text><Text style={styles.shotCaption}>{shot.caption}</Text></View></View>)}
         {card.video?.prompt ? <View style={styles.scriptVideo}><Icon name="videocam-outline" size={14} color={colors.muted} /><View style={styles.shotContent}><Text style={styles.coverHeading}>{card.video.duration} 秒短片灵感</Text><Text style={styles.shotDetail}>{card.video.prompt}</Text></View></View> : null}
         <View style={styles.scriptFooter}><Icon name="information-circle-outline" size={14} /><Text style={styles.smallText}>{confirmed ? '脚本已确认，画面正在按计划制作。' : '确认后开始生成图片，想调整也可以继续聊。'}</Text></View>
+        {!confirmed ? <CostEstimate state={state} action="confirm_script" /> : null}
         <Button title={confirmed ? '脚本已确认' : '确认脚本，开始出图'} icon="checkmark" onPress={() => onAction({ type: 'confirm_script' })} disabled={!canConfirm} testID="confirm-script" />
       </View>;
     }
@@ -331,7 +338,7 @@ export function Cards({ cards, state, busy, onAction, onPreview }: CardsProps) {
       </View>;
     }
     return null;
-  }).map((content, index) => content ? <AnimatedEntry key={cards[index].id} delay={index * 50}>{content}</AnimatedEntry> : null)}</View>;
+  }).map((content, index) => content ? <AnimatedEntry key={cards[index].id} delay={index * 50}><View testID={`card-${cards[index].id}`}>{content}</View></AnimatedEntry> : null)}</View>;
 }
 
 const styles = StyleSheet.create({

@@ -79,11 +79,21 @@ function record(value: unknown): value is Record<string, unknown> {
 
 /** Unknown event names are ignored, so server heartbeats/extensions remain harmless. */
 export function parseStreamEvent(raw: RawSSEEvent): StreamEvent | null {
-  if (!['token', 'card', 'job', 'done', 'error'].includes(raw.event)) return null;
+  if (!['token', 'card', 'job', 'trace', 'done', 'error'].includes(raw.event)) return null;
   let data: unknown;
   try { data = JSON.parse(raw.data) as unknown; } catch { throw new SSEProtocolError(); }
   if (!record(data)) throw new SSEProtocolError();
   switch (raw.event) {
+    case 'trace':
+      if (typeof data.tool !== 'string' || typeof data.model !== 'string' ||
+          typeof data.duration_ms !== 'number' || !Number.isFinite(data.duration_ms) || data.duration_ms < 0 ||
+          typeof data.cost_cny !== 'number' || !Number.isFinite(data.cost_cny) || data.cost_cny < 0 ||
+          !Array.isArray(data.refs) || !data.refs.every(ref => typeof ref === 'string') ||
+          !Array.isArray(data.steps) || !data.steps.every(step => record(step) && typeof step.label === 'string' &&
+            typeof step.duration_ms === 'number' && Number.isFinite(step.duration_ms) && step.duration_ms >= 0)) {
+        throw new SSEProtocolError();
+      }
+      return { type: 'trace', data: data as unknown as Extract<StreamEvent, { type: 'trace' }>['data'] };
     case 'token':
       if (typeof data.delta !== 'string') throw new SSEProtocolError();
       return { type: 'token', data: { delta: data.delta } };

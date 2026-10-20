@@ -104,10 +104,12 @@ export function useWorkspace(id: string) {
   const send = useCallback(async (input: SendMessageInput, retryId?: string) => {
     const epoch = focusEpoch.current;
     if (sending.current || !id || !token || !isCurrent(owner, epoch)) return false;
+    let rewrittenMessage: Message | undefined;
     if (input.action?.type === 'regenerate_reply') {
       const targetId = input.action.message_id;
       const target = currentMessages.current.find(message => message.id === targetId);
       if (!target || !canRephrase(target, currentMessages.current, currentState.current)) return false;
+      rewrittenMessage = target;
     }
     sending.current = true;
     conversationVersion.current += 1;
@@ -115,13 +117,15 @@ export function useWorkspace(id: string) {
     const flight = { controller: new AbortController(), streaming: true };
     stream.current = flight;
     const prefix = `local-${Date.now()}-${conversationVersion.current}`;
-    const assistantId = `${prefix}-assistant`;
+    const assistantId = rewrittenMessage?.id ?? `${prefix}-assistant`;
     const baseline = new Set(currentMessages.current.map(message => message.id));
     optimistic.current = { assistantId, baseline };
     const now = new Date().toISOString();
     const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。', regenerate_reply: '换个说法。' };
     const text = input.text || (input.action?.type === 'edit_image' ? input.action.instruction : actionLabels[input.action?.type || ''] || '');
-    setMessages(previous => [...previous, { id: `${prefix}-user`, role: 'user', text, cards: [], action: input.action, refs: input.refs, created_at: now }, { id: assistantId, role: 'assistant', text: '', cards: [], created_at: now }]);
+    setMessages(previous => rewrittenMessage
+      ? previous.map(message => message.id === assistantId ? { ...message, text: '', trace: undefined, can_regenerate: false } : message)
+      : [...previous, { id: `${prefix}-user`, role: 'user', text, cards: [], action: input.action, refs: input.refs, created_at: now }, { id: assistantId, role: 'assistant', text: '', cards: [], created_at: now }]);
     let accepted = false;
     let rejectedByServer = false;
     let mutationObserved = false;
@@ -132,6 +136,7 @@ export function useWorkspace(id: string) {
         onEvent: event => {
           if (!isCurrent(owner, epoch) || stream.current !== flight) return;
           if (event.type === 'token') { tokenObserved = true; setMessages(previous => previous.map(message => message.id === assistantId ? { ...message, text: message.text + event.data.delta } : message)); }
+          if (event.type === 'trace') setMessages(previous => previous.map(message => message.id === assistantId ? { ...message, trace: event.data } : message));
           if (event.type === 'card') {
             mutationObserved = true;
             dataVersion.current += 1;
@@ -162,11 +167,14 @@ export function useWorkspace(id: string) {
         const rejected = !accepted && !mutationObserved && (rejectedByServer || (e instanceof ApiError && Boolean(e.status && e.status >= 400 && e.status < 500)));
         if (rejected) {
           optimistic.current = null;
-          setMessages(previous => previous.filter(message => !message.id.startsWith(prefix)));
+          setMessages(previous => rewrittenMessage
+            ? previous.map(message => message.id === assistantId ? rewrittenMessage! : message)
+            : previous.filter(message => !message.id.startsWith(prefix)));
         }
         if (!accepted && (input.text || input.action)) {
           setFailedMessages(previous => [...previous.filter(message => message.id !== retryId), { id: retryId || `${prefix}-failed`, input, text, createdAt: now, certain: rejected, baseline: [...baseline] }]);
-          setMessages(previous => previous.filter(message => message.id !== `${prefix}-user` && (tokenObserved || message.id !== assistantId)));
+          if (!rewrittenMessage) setMessages(previous => previous.filter(message => message.id !== `${prefix}-user` && (tokenObserved || message.id !== assistantId)));
+          else if (!tokenObserved && !rejected) setMessages(previous => previous.map(message => message.id === assistantId ? rewrittenMessage! : message));
         }
         setError(rejected ? errorText(e) : `${errorText(e)} 这轮可能已被接收，先刷新查看进度。`); setRecovering(!rejected);
         try { await refresh(); } catch { /* 保留流中已经收到的内容，用户可手动刷新。 */ }
