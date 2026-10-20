@@ -4,5 +4,5 @@
     "strict": true,
     "types": ["react", "react-native", "node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "e2e/**/*.ts", "playwright.config.ts", "expo-env.d.ts", ".expo/types/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "e2e/**/*.ts", "playwright*.config.ts", "expo-env.d.ts", ".expo/types/**/*.ts"]
 }

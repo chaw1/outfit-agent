@@ -1,6 +1,6 @@
 # 衣序 · 穿搭笔记工作台
 
-Expo SDK 58、expo-router、strict TypeScript 的 iOS / Android / web 演示应用。唯一接口约定是 [`../docs/设计.md`](../docs/设计.md)（新增交互见第 8 节），当前任务见 [`../docs/codex/APP_FIX2_PROMPT.md`](../docs/codex/APP_FIX2_PROMPT.md)。假服务可以完整演示品牌合作项目、衣服分析、方向预览、脚本历史与恢复、图片还原分、改图版本、成本、笔记和短视频，不调用真实模型。
+Expo SDK 58、expo-router、strict TypeScript 的 iOS / Android / web 演示应用。唯一接口约定是 [`../docs/设计.md`](../docs/设计.md)（图片交互见第 8 节），真实联调任务见 [`../docs/codex/APP_LIVE_PROMPT.md`](../docs/codex/APP_LIVE_PROMPT.md)，实际结论见本地 `LIVE.md`。假服务可以完整演示品牌合作项目、衣服分析、方向预览、脚本历史与恢复、图片还原分、改图版本、成本、笔记和短视频，不调用真实模型。
 
 ## 本地启动
 
@@ -131,6 +131,22 @@ npm run test:e2e
 配置优先使用本机 `/Applications/Google Chrome.app`，始终以无头模式启动独立临时会话；也可以用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定浏览器路径。其他机器使用上面下载的 Chromium。自动化用 `expo start --web --no-dev --minify` 提供页面，不打开可见窗口。截图保存在 `screenshots/`，按步骤编号；`screenshots/evidence.json` 记录排序、状态请求和播放结果，实际验证结论见 `FINAL.md`。
 
 主服务端口为 `19300` / `19301`，集成测试只在 `19410–19499` 中选择空闲端口，不停止占用端口的进程；测试临时数据也留在本 worktree 的 `mock-server/.data/tests/` 并在测试后清理。
+
+## 真实线上联调与断点
+
+`npm run test:live` 使用独立的 `playwright.live.config.ts` 和 19310 web 端口。只有设置 `LIVE_API_BASE` 才运行；始终无头、390×844、校验 TLS，不启动假服务，不自动重试付费动作。真实模型会计费，只连接个人或明确授权的环境。
+
+```sh
+LIVE_API_BASE=https://47.97.153.127:8443 npm run test:live
+```
+
+首次通过 App 注册 `live-` 测试账号、上传 `docs/spike/inputs.jpg` 拆出的衣服和模特图并建立项目。每个步骤的截图、耗时及脱敏响应保存在 `screenshots-live/run-N/`。登录资料、已发送动作和完成步骤原子保存到被 Git 忽略的 `screenshots-live/checkpoint.json`，各轮另存 `private/run-N.json`，文件权限为 `0600`；不要提交或分享这些文件。再次执行相同命令会在同一项目上续跑；遇到已发出但结果未知的动作先读取状态，避免重复计费。
+
+需要最终从注册开始完整复跑时，显式加 `LIVE_NEW_RUN=1`，最多允许 3 个完整项目。不要删除计数断点来绕过上限。最终实际结论、耗时、App 修复和服务端待办见 `LIVE.md`；旧 `FINAL.md` 仅证明假服务流程。真实用例不修改 `server/`，服务端问题只保留请求、响应和复现证据。
+
+默认点击方向卡片；`LIVE_DIRECTION_MODE=text` 改为在聊天框选择第一个方向。`LIVE_INSPECT_CUFF=1` 会先保存 `08-cuff-inspect.png`，等人工查看后在本地忽略文件 `screenshots-live/cuff-selection.json` 写入当前袖口中心的原图归一化坐标 `{"x":0.3,"y":0.4}`，再由查看器真实涂抹提交；每次要求新写入的坐标文件。未启用时用 `LIVE_CUFF_X/Y` 或默认坐标，需据截图核对实际选区。
+
+服务端明确拒绝后仍保留已发动作标记。修复服务端后，先刷新原项目核对阶段、确认项和任务，再由接续者检查 `sse-evidence.json` 与 `failure-NN.json`；仅确认未生效的动作可移走对应 `checkpoint.sent` 项并记录重试原因。不要清除整个断点或自动重放结果未知的生成请求。
 
 ## 以后打包与 TestFlight
 

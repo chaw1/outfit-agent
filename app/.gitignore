@@ -8,6 +8,10 @@ playwright-report/
 .env*
 !.env.example
 .tools/
+screenshots-live/checkpoint.json*
+screenshots-live/private/
+screenshots-live/cuff-selection.json
+screenshots-live/fixtures/
 ios/
 android/
 

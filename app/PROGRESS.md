@@ -1,3 +1,21 @@
+# 真实线上联调续接（已完成）
+
+- 任务：完整执行 `docs/codex/APP_LIVE_PROMPT.md`；唯一约定 `docs/设计.md`；交付 `app/LIVE.md`（≤40 行，结论优先）。
+- 开始：2026-10-21 00:19:46（Asia/Shanghai）；墙钟截止 01:49:46。只改当前 worktree 的 App，只在 `feat/app` 提交，不 push、不改 server、不 SSH、不读钥匙串。
+- 用户明确授权的个人线上服务：`https://47.97.153.127:8443`。正常 TLS、浏览器 CORS 均通过；health mock=false。未访问前公司环境、服务器或钥匙串。
+- 已新增 `npm run test:live`、独立19310 config、LIVE_API_BASE门控（未设置时1 skipped）、13阶段截图/耗时、最多3个完整项目、防付费动作自动重放、即时SSE脱敏证据。
+- Run1 项目 `23329be6-51b0-4a29-b253-a9ec9312c4d7`：分析及预览通过，选方向两次SSE PROVIDER_ERROR（圈选轨迹不能为空）且状态不变；自由文本尝试结果未明，已保留发送标记。测试的SSE正文/finished无界等待已修正，未重发未决请求。
+- Run2 项目 `04a5aea6-f5e3-4940-98f4-56bb5c1a59e6`：完整真实链路1 passed（8.9min），包括自由改脚本、3镜头及58→92自动修复、主动播报、实际袖口涂抹、refs、笔记成本/声明、视频播放；pageErrors=[]。
+- 服务端质量风险：run2局部改edit_check=false（袖口未放平），自动修复版也有标签残留检查失败；App如实展示。离线1773×2364像素比对：28,949像素变化，报告框外0变化；仅证明框外，不等于精确笔刷蒙版保证。见run-2/local-edit-pixels.json。
+- 确认并修复App问题：错误Notice在长卡片上方、自动滚动后视口外（y=-433）；现固定输入区上方。API拒绝/显式重试单测和手机视口回归已补，本地完整mock E2E通过1.6min，证据screenshots/35-provider-error-visible.png。
+- `npm run verify`五项通过，59 tests；包含私密归档0600、旧断点升级、三遍上限、同项目续跑、请求发送前后失败保护、凭证脱敏。初始四份verification旧WIP已用本轮真实验证结果刷新。
+- Run3 最终复跑完成（修复后新Metro），项目 `22aca728-fdf5-4f32-842e-d4b0e4f1b15e`：13/13步骤通过、无SSE错误/pageErrors，7.5min；视频830×1108、5.007s，实际静音播放到1.927s。局部改仍被模型判未放平，见LIVE的S2，不等于效果达标。完整项目计数3/3，禁止再设置LIVE_NEW_RUN=1；只可原项目续跑。
+- 登录/动作断点：screenshots-live/checkpoint.json与private/run-N.json（0600，目录0700，Git忽略）；HTTP/SSE/状态/失败/截图在run-N。报告与截图按全局规则留本地，代码及已跟踪文档提交。
+- 提交：`9b20848` 修复工作台错误提示被长卡片遮挡；联调框架与最终证据索引随本文件提交，见git log。不push、不合并。
+- 所有任务已结束：三项目均active_jobs=[]，累计state成本估算¥13.814804。原自启Metro19310已停，最终Playwright管理的新Metro已随测试停止；本地mock也由测试自动起停。
+- 证据审计：final-audit.json确认run2/3全部13步骤、每个脚本镜头有成功图片、还原分、主动消息回读、归一化mask、refs与图序、成本声明和静音实播；manifest.json含58张390×844 UI截图与3张离线质检原图的尺寸/SHA256。最终关键截图已目视复核。
+- 收尾：LIVE.md≤40行、结论优先；敏感文件忽略且0600。报告/截图保留本地，代码与已跟踪正式文档提交；整个任务约40分钟，低于90分钟。未执行真机签名、安装或读取钥匙串。
+
 # 第三轮续接（已完成）
 
 - 任务：完整执行 `docs/codex/APP_FIX2_PROMPT.md`；唯一契约 `docs/设计.md`，重点第 8 节。
