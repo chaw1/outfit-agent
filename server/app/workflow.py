@@ -89,6 +89,61 @@ class Workflow:
             raise AppError("image_not_ready", "请等图片生成成功后再操作。")
         return job
 
+    def _validate_image_selection(self, ids: list[str], accepted: list[str]) -> list[str]:
+        if (
+            not isinstance(ids, list)
+            or not ids
+            or len(ids) > 20
+            or any(not isinstance(value, str) for value in ids)
+            or len(ids) != len(set(ids))
+        ):
+            raise AppError("images_required", "请按笔记顺序选择至少一张图片，不要重复。")
+        if (
+            not isinstance(accepted, list)
+            or any(not isinstance(value, str) for value in accepted)
+            or len(accepted) != len(set(accepted))
+            or not set(accepted).issubset(ids)
+        ):
+            raise AppError(
+                "invalid_accept_unverified", "手动采用的图片必须在本次选图中且不重复。", 422
+            )
+        unverified, missing = [], []
+        for image_id in ids:
+            job = self._image_job(image_id)
+            check = job.result.get("edit_check") or {}
+            if check.get("passed") is False:
+                unverified.append(image_id)
+                if image_id not in accepted:
+                    shot = job.payload.get("shot_id", "未知")
+                    shot_number = shot.removeprefix("shot-")
+                    reason = check.get("reason") or "修改尚未核对通过"
+                    missing.append(f"镜头{shot_number}：{reason}")
+        if missing:
+            raise AppError(
+                "unverified_image", "以下图片未改到位，请确认仍然采用后重试：" + "；".join(missing)
+            )
+        return unverified
+
+    def _confirmed_visual_facts(self, job: Job | None, accepted: set[str]) -> list[str]:
+        lineage, visited = [], set()
+        while job and job.id not in visited:
+            if job.project_id != self.project.id or job.user_id != self.project.user_id:
+                break
+            visited.add(job.id)
+            lineage.append(job)
+            parent_id = job.payload.get("parent_id")
+            job = self.session.get(Job, parent_id) if parent_id else None
+        if not lineage:
+            return []
+        original_shot = lineage[-1].payload.get("shot") or {}
+        facts = [original_shot[key] for key in ("scene", "caption") if original_shot.get(key)]
+        for version in reversed(lineage):
+            change = version.payload.get("instruction")
+            check = version.result.get("edit_check") or {}
+            if change and (check.get("passed") is True or version.id in accepted):
+                facts.append(change)
+        return list(dict.fromkeys(facts))
+
     def _context(self, state: dict) -> dict:
         keys = (
             "brief",
@@ -130,6 +185,9 @@ class Workflow:
         # Image order, shot descriptions and edit instructions let the model resolve
         # references such as "the cafe one" without a second hard-coded router.
         shots = {shot["id"]: shot for shot in (state.get("script") or {}).get("shots", [])}
+        accepted = set(state.get(
+            "_accepted_unverified_ids", (state.get("note") or {}).get("accepted_unverified_ids", [])
+        ))
         context["images"] = []
         for index, item in enumerate(state.get("images", []), 1):
             job = self.session.get(Job, item["id"])
@@ -148,6 +206,8 @@ class Workflow:
                     "caption": shot.get("caption", ""),
                     "prompt": payload.get("prompt", ""),
                     "garment_asset_ids": payload.get("garment_asset_ids", []),
+                    "requested_change": payload.get("instruction", ""),
+                    "confirmed_visual_facts": self._confirmed_visual_facts(job, accepted),
                 }
             )
         context["refs"] = list((state.get("incoming") or {}).get("refs", []))
@@ -271,22 +331,20 @@ class Workflow:
                         action.get("mask_strokes"),
                     )
         elif kind == "approve_images":
-            ids = action.get("image_ids")
-            if (
-                not isinstance(ids, list)
-                or not ids
-                or any(not isinstance(value, str) for value in ids)
-                or len(ids) != len(set(ids))
-            ):
-                raise AppError("images_required", "请按笔记顺序选择至少一张图片，不要重复。")
-            for image_id in ids:
-                self._image_job(image_id)
+            self._validate_image_selection(
+                action.get("image_ids"), action.get("accept_unverified", [])
+            )
         elif kind == "confirm_video":
             self._image_job(action.get("image_id", ""))
             if not state.get("note"):
                 raise AppError("note_not_ready", "先选好笔记图片，再确认视频。")
             if action["image_id"] not in state["note"].get("image_ids", []):
                 raise AppError("image_not_selected", "请从已选入笔记的图片里选择视频首帧。")
+            self._validate_image_selection(
+                [action["image_id"]],
+                [image_id for image_id in state["note"].get("accepted_unverified_ids", [])
+                 if image_id == action["image_id"]],
+            )
             if repeated_video:
                 video_job = self.session.get(Job, (state.get("video") or {}).get("job_id"))
                 if not video_job or video_job.payload.get("image_id") != action["image_id"]:
@@ -510,13 +568,13 @@ class Workflow:
             return self._edit_image(state, action, result=args)
         if name == "write_note":
             selected = args.get("image_ids")
+            accepted = []
             if stage in {"note", "video", "done"}:
                 selected = state["note"]["image_ids"]
-                for image_id in selected:
-                    self._image_job(image_id)
-            else:
-                self.validate(state, {"action": {"type": "approve_images", "image_ids": selected}})
-            return self._write_note(state, {"image_ids": selected}, text, result=args)
+                accepted = state["note"].get("accepted_unverified_ids", [])
+            return self._write_note(
+                state, {"image_ids": selected, "accept_unverified": accepted}, text, result=args
+            )
         # Free text may express intent, but spending requires the explicit UI action.
         if name in {"generate_images", "generate_video"}:
             kind = "confirm_script" if name == "generate_images" else "confirm_video"
@@ -797,7 +855,8 @@ class Workflow:
     ) -> dict:
         self._allow(state["stage"], "write_note")
         original_stage, selected = state["stage"], action["image_ids"]
-        context = {**state, "selected_image_ids": selected}
+        accepted = self._validate_image_selection(selected, action.get("accept_unverified", []))
+        context = {**state, "selected_image_ids": selected, "_accepted_unverified_ids": accepted}
         context["images"] = [
             next(x for x in state["images"] if x["id"] == image_id) for image_id in selected
         ]
@@ -812,6 +871,7 @@ class Workflow:
         note.update(
             title=str(note.get("title", "今天这套刚刚好"))[:20],
             image_ids=selected,
+            accepted_unverified_ids=accepted,
             ai_label="本篇图片与视频含 AI 生成内容，发布时请勾选平台的 AI 内容声明。",
         )
         if original_stage in {"video", "done"}:

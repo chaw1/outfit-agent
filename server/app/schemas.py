@@ -201,6 +201,7 @@ class EditImage(StrictInput):
 class ApproveImages(StrictInput):
     type: Literal["approve_images"]
     image_ids: list[str] = Field(min_length=1, max_length=20)
+    accept_unverified: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ConfirmVideo(StrictInput):
