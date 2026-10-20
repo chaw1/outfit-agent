@@ -1,7 +1,7 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-Android Bundled 3662ms node_modules/expo-router/entry.js (1990 modules)
+Android Bundled 3805ms node_modules/expo-router/entry.js (1996 modules)
 
 › Assets (46):
 assets/editorial.jpg (141KB)
@@ -40,7 +40,7 @@ node_modules/expo-router/assets/sitemap.png (465B)
 node_modules/expo-router/assets/unmatched.png (4.8KB)
 
 › android bundles (1):
-_expo/static/js/android/entry-b9140a0d1f47fb6108b3f8da7243b285.hbc (5MB)
+_expo/static/js/android/entry-c63c370c2eaa328f6fa206c7643952c8.hbc (5MB)
 
 › Files (1):
 metadata.json (3KB)

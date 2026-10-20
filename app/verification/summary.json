@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-20T17:23:47.894Z",
+  "startedAt": "2026-10-20T18:52:04.770Z",
   "node": "v22.23.1",
   "sdk": "58",
   "checks": [
@@ -7,40 +7,40 @@
       "name": "typecheck",
       "command": "npx tsc --noEmit",
       "exitCode": 0,
-      "durationMs": 1796,
+      "durationMs": 2064,
       "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "name": "lint",
       "command": "npm run lint",
       "exitCode": 0,
-      "durationMs": 3884,
+      "durationMs": 4352,
       "outputSha256": "a48048b7d2541c2690ee3c9fe77f1a946b4131a38ae2ac4044897363eea84aee"
     },
     {
       "name": "tests",
       "command": "npm test",
       "exitCode": 0,
-      "durationMs": 3390,
-      "outputSha256": "8124fbba427d4fe86669f3b338641614f3ec46f231878406f0115bfda1519347",
-      "testsPassed": 93
+      "durationMs": 4337,
+      "outputSha256": "d419daaa8b29063b69b2a64c5ffd46ae93ddc13ee2f62f93f91f27a962ad1fcc",
+      "testsPassed": 110
     },
     {
       "name": "ios",
       "command": "npx expo export --platform ios --output-dir dist/ios",
       "exitCode": 0,
-      "durationMs": 4694,
-      "outputSha256": "642dfbc90185df9cca4a463e732e59619d7f824d43a006b1d05b8e2f73d68fb7",
-      "bundleSha256": "c666918c3a112798b3c3f91820671ef02351e179fc8cf311a32b00cfa521f3cb"
+      "durationMs": 6610,
+      "outputSha256": "dbc7bef9339ed97fad023ca99df3003120588022149f711b4cd80f547e8c4aca",
+      "bundleSha256": "0be1e62bd0b2dc0a9a7d53fffa5ecc0201c05655294895ae24755df44653fb63"
     },
     {
       "name": "android",
       "command": "npx expo export --platform android --output-dir dist/android",
       "exitCode": 0,
-      "durationMs": 4380,
-      "outputSha256": "6db3fe90a819b125abb1acb0e02fbf56b8716ae535e515e15f568c3422dec223",
-      "bundleSha256": "341d7f67f6c50e03df62e77a8bcd0af536266d9b192c9e760dc28efef4958118"
+      "durationMs": 4478,
+      "outputSha256": "7c4fa399255b8e50ec9ecdb761445555aecabb49620e09f4011a19cf6fd0ad44",
+      "bundleSha256": "cc7504fce81304f7e966e3f6e38fdee35de7fa0029eb49bb38e9a6a021fdac24"
     }
   ],
-  "updatedAt": "2026-10-20T17:24:06.040Z"
+  "updatedAt": "2026-10-20T18:52:26.614Z"
 }
