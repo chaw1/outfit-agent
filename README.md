@@ -14,6 +14,9 @@
 | [docs/开发记录.md](docs/开发记录.md) | 从接到作业开始的完整过程与卡点 |
 | [docs/review/](docs/review/) | 外部技术评审意见 |
 | [docs/spike/](docs/spike/) | 模型实测素材（全部自生成） |
+| [docs/演示脚本.md](docs/演示脚本.md) | 5–8 分钟演示流程与追问答法 |
+| [app/LIVE.md](app/LIVE.md) | App × 线上真实模型的联调报告，13 步耗时与截图（`app/screenshots-live/run-3/`） |
+| [server/FINAL.md](server/FINAL.md) · [server/ADMIN.md](server/ADMIN.md) | 服务端各轮验收报告：局部改像素证据、接缝指标、管理端验收 |
 
 ## 架构一览
 
@@ -34,10 +37,14 @@ App（Expo）──HTTPS：REST + SSE──▶ FastAPI ──▶ LangGraph 智�
 
 | 目录 | 说明 | 运行 |
 |---|---|---|
-| [server/](server/) | FastAPI + LangGraph + SQLAlchemy/Alembic + Worker，100 个测试 | `cd server && docker compose up -d --build`，见 [server/README.md](server/README.md) |
-| [app/](app/) | Expo SDK 58 App + 本地假服务（不花钱也能走完整条链路），35 个测试 | `cd app && npm ci && npm run mock & npm run start`，见 [app/README.md](app/README.md) |
+| [server/](server/) | FastAPI + LangGraph + SQLAlchemy/Alembic + Worker + 管理端，220 个测试 | `cd server && docker compose up -d --build`，见 [server/README.md](server/README.md) |
+| [app/](app/) | Expo SDK 58 App + 本地假服务（不花钱也能走完整条链路），59 个测试 + 假服务 / 线上两套 Playwright 流程 | `cd app && npm ci && npm run mock & npm run start`，见 [app/README.md](app/README.md) |
 
 关键实验（`server/scripts/experiments.py`）：E1 重启后续聊、E2 重复确认不重复花钱、E3 越阶段被拒、E4 脚本时间旅行，全部通过。
+
+## 管理端
+
+和 API 同一容器：`/admin`（独立口令，`ADMIN_TOKEN` 为空时整体关闭）。总览、用量统计（按模型 / 用户 / 天，导出 CSV）、模型分层与每日配额（存库即时生效）、任务队列（重试 / 取消）、用户管理（禁用 / 层级）。花钱的动作在服务端按层级预算门禁，对话不受限。约定见 `docs/设计.md` 第 9 节。
 
 ## 部署
 
