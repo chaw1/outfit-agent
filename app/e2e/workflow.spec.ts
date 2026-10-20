@@ -176,7 +176,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByText('画面生成中').first()).toBeVisible();
   await expect(page.getByTestId('rephrase-message')).toHaveCount(0);
   await shot(page, '06-images-generating.png', page.getByText('画面生成中').first());
-  await expect(page.getByTestId('approve-images')).toBeEnabled();
+  await expect(page.getByTestId('approve-images')).toBeEnabled({ timeout: 60_000 });
   await expect(page.getByText('3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。')).toBeVisible();
   expect(historyRequests.length).toBeGreaterThan(historyBeforeGeneration);
   await expect(page.getByTestId(/^fidelity-/).filter({ hasText: '还原 92' }).first()).toBeVisible();
@@ -212,7 +212,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   expect(latestState!.script_versions?.find(version => version.current)?.checkpoint_id).toBe(restoredCheckpoint);
   await shot(page, '22-script-restored.png', page.getByTestId('confirm-script'));
   await page.getByTestId('confirm-script').click();
-  await expect(page.getByTestId('approve-images')).toBeEnabled();
+  await expect(page.getByTestId('approve-images')).toBeEnabled({ timeout: 60_000 });
   await expect.poll(() => latestState!.images.length).toBeGreaterThan(retainedIds.length);
   expect(retainedIds.every(id => latestState!.images.some(image => image.id === id))).toBe(true);
   const interactions = await imageInteractions(page, () => latestState, shot);

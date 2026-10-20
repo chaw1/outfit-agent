@@ -1,3 +1,18 @@
+## 第七轮断点（APP_FIX6，已完成本地验收）
+
+- 任务：完整执行docs/codex/APP_FIX6_PROMPT.md，唯一约定docs/设计.md第12节；2026-10-21 02:04开始，02:16收尾，低于1小时墙钟上限。
+- 范围：仅feat/app、本worktree、本地假服务/无头浏览器；未访问线上/前公司/钥匙串，不push/合并，不改server/或设计，无新增依赖，ios/忽略。
+- W1：0–3参考图与删除补选、kind=reference、创建IDs、参考卡和标签全阶段保留；空参考省略字段/无卡；SSE与历史恢复兼容。
+- W2：共用人像角标，0分显示/缺字段隐藏；查看器锚点随当前图变化；主动一致性摘要原样；320px下角标与选择控件不重叠。
+- 假服务：参考归属/类型/上限校验、固定风格贯穿需求/方向/脚本/生成prompt、本人或参考触发封面依赖调度、封面失败回退、编辑/自动修复继承、重启恢复；无两者旧并行无新增分数。
+- 最终验证：Node v22.23.1，verify五项绿110/110；完整E2E10/10（251.9秒，0失败/跳过/不稳定），定向4/4（40.6秒），所有新增用例pageErrors=[]；iOS prebuild含Pods成功。
+- 测试修正：新用例统一localhost；Chromium省略multipart body，查API实际解析返回kind；旧全链图片等待按两段生成设60秒，未删原断言。
+- 证据：verification/fix6/日志/JSON/总览/final-audit；截图65–76共12张（11张390×844、1张320×844）均目视及尺寸/SHA核验，FINAL已覆盖≤25行。
+- 初始WIP保留：原148份截图/证据、6份verification日志按字节恢复，baseline在.tools/fix6-baseline/；screenshots-live/run-1/run-2、原round6-evidence.json及verification/fix5未动；新增JSON/日志留本地。
+- 源码提交：621ae4a（本地契约）、0cabd38（界面）；测试/截图/已跟踪正式交付文档在最终提交。均chaw1 <97000945@qq.com>、中文一行、无署名附记，不push。
+- 已退出Playwright/Metro/假服务，19300/19301无监听。续接先读FINAL，Node22路径见下文；npm run verify、npm run test:e2e、CI=1 BROWSER=none npx expo prebuild --platform ios，勿并开第二套端口，禁止test:live。
+- 已知限制：固定假素材/风格/92及94分仅演示；未验真实服务或个人真机相册/权限/键盘/通知/手势。下一步按FINAL交验，无实现待办。
+
 ## 第六轮断点（APP_FIX5，已完成本地验收）
 
 - 任务：完整执行 `docs/codex/APP_FIX5_PROMPT.md`，唯一约定 `docs/设计.md` 第 11 节；2026-10-21 01:50 开始，2026-10-21 02:01 收尾，低于 1.5 小时墙钟上限。
