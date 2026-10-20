@@ -1,0 +1,119 @@
+{
+  "createdAt": "2026-10-20T16:57:30.288Z",
+  "audits": [
+    {
+      "run": 1,
+      "projectId": "23329be6-51b0-4a29-b253-a9ec9312c4d7",
+      "completedSteps": 3,
+      "timingsMs": {
+        "01-register": 2567,
+        "02-upload-project": 6172,
+        "03-analysis-previews": 160422,
+        "04-select-direction-script": 309658
+      },
+      "sseErrors": 1,
+      "verdict": "incomplete_not_a_pass"
+    },
+    {
+      "run": 2,
+      "projectId": "04a5aea6-f5e3-4940-98f4-56bb5c1a59e6",
+      "completedSteps": 13,
+      "completedAt": "2026-10-20T16:46:39.836Z",
+      "timingsMs": {
+        "01-register": 2562,
+        "02-upload-project": 5166,
+        "03-analysis-previews": 146365,
+        "04-select-direction-script": 6275,
+        "05-free-text-revise-script": 6180,
+        "06-confirm-script": 3140,
+        "07-images-fidelity-proactive": 169437,
+        "08-brush-cuff-edit": 113961,
+        "09-reference-chat-only": 4191,
+        "10-select-images-note": 5076,
+        "11-note-preview-cost-ai": 1496,
+        "12-confirm-video": 4159,
+        "13-video-ready-playing": 62104
+      },
+      "sseErrors": 0,
+      "verdict": "all_13_steps_verified",
+      "videoPlayback": {
+        "time": 1.669526,
+        "duration": 5.007007,
+        "muted": true,
+        "width": 830,
+        "height": 1108
+      },
+      "noteCostCny": 6.182741,
+      "projectCostCny": 6.182741,
+      "qualityWarnings": [
+        {
+          "id": "25f7ab93-02bf-5d36-88a9-6ec5ac54c2a3",
+          "check": {
+            "passed": false,
+            "reason": "衬衫胸前口袋上方仍可见浅色矩形残留痕迹（疑似标签胶痕或未完全去除的纸片边缘）；牛仔裤右后袋开口处仍有白色织标贴纸残留（位于袋口上缘，呈细长条状），右前袋开口处亦有微小白色贴纸痕迹未清除。三处标签残留均未彻底去除，不符合‘彻底清除’要求。"
+          }
+        },
+        {
+          "id": "b8230817-5003-51b8-9bf9-5801d5ff03df",
+          "check": {
+            "passed": false,
+            "reason": "左袖口（region内）仍为卷起状态，未放平；袖口边缘可见明显翻折结构，衣料未自然垂落覆盖前臂，与指令要求的‘放平’不符。"
+          }
+        }
+      ]
+    },
+    {
+      "run": 3,
+      "projectId": "22aca728-fdf5-4f32-842e-d4b0e4f1b15e",
+      "completedSteps": 13,
+      "completedAt": "2026-10-20T16:57:10.407Z",
+      "timingsMs": {
+        "01-register": 2597,
+        "02-upload-project": 4184,
+        "03-analysis-previews": 67003,
+        "04-select-direction-script": 5373,
+        "05-free-text-revise-script": 5181,
+        "06-confirm-script": 2139,
+        "07-images-fidelity-proactive": 87308,
+        "08-brush-cuff-edit": 124916,
+        "09-reference-chat-only": 3200,
+        "10-select-images-note": 4077,
+        "11-note-preview-cost-ai": 993,
+        "12-confirm-video": 3069,
+        "13-video-ready-playing": 134318
+      },
+      "sseErrors": 0,
+      "verdict": "all_13_steps_verified",
+      "videoPlayback": {
+        "time": 1.926735,
+        "duration": 5.007007,
+        "muted": true,
+        "width": 830,
+        "height": 1108
+      },
+      "noteCostCny": 5.669732,
+      "projectCostCny": 5.669732,
+      "qualityWarnings": [
+        {
+          "id": "af1f4e3b-c85f-5f39-ace5-e4618e7033d2",
+          "check": {
+            "passed": false,
+            "reason": "圈出区域（左袖口）仍为卷起状态，未放平；袖口边缘仍有明显向上翻折的褶皱和阴影，未呈现自然下垂的平整形态。"
+          }
+        }
+      ]
+    }
+  ],
+  "checks": [
+    "all script shots succeeded",
+    "all fidelity scores finite",
+    "proactive persisted history",
+    "normalized brush request",
+    "referenced image persisted",
+    "note order and cost and AI label",
+    "5 second video decoded and played muted",
+    "no page errors",
+    "390x844 UI screenshots"
+  ],
+  "finalRunHasNoSseErrors": true
+}

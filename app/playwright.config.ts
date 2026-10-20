@@ -7,6 +7,7 @@ const localChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrom
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: 'live.spec.ts',
   timeout: 120_000,
   expect: { timeout: 20_000 },
   workers: 1,
