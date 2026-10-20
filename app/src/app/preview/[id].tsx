@@ -3,8 +3,6 @@ import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
   Pressable,
   Platform,
   ScrollView,
@@ -18,7 +16,8 @@ import type { Action, ProjectState } from '../../api/types';
 import { ImageInteractions, useImageInteractions } from '../../components/ImageInteractions';
 import { VideoPlayer } from '../../components/VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from '../../components/GenerationInfo';
-import { Button, Header, Loading, Notice, Page, colors, errorText } from '../../components/ui';
+import { AnimatedEntry, Badge, Button, FadeImage, Header, LoadingSkeleton, Notice, Page, ProgressStrip, StatePanel, Toast, errorText } from '../../components/ui';
+import { colors, radius, space, type } from '../../theme';
 import { useSession } from '../../context/Session';
 import { saveImages, saveVideo, shareNote } from '../../lib/media';
 import { noteText, preparePublish, savedImagesAreInOrder, videoKey, type PublishProgress } from '../../lib/publish';
@@ -28,13 +27,13 @@ import { observeGeneration } from '../../lib/notificationRuntime';
 function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url?: string; index: number; onRefresh: () => void; disabled?: boolean }) {
   const [failedUrl, setFailedUrl] = useState<string>();
   const interaction = useImageInteractions();
-  if (!url) return <View style={styles.imagePlaceholder}><Ionicons name="image-outline" size={34} color="#C0B3A6" /><Text style={styles.placeholderText}>图片还在路上</Text></View>;
+  if (!url) return <View style={styles.imagePlaceholder}><Ionicons name="image-outline" size={34} color={colors.muted} /><Text style={styles.placeholderText}>图片还在路上</Text><Button title="刷新图片" variant="secondary" onPress={onRefresh} /></View>;
   if (failedUrl === url) return <View style={styles.imagePlaceholder}>
-    <Ionicons name="image-outline" size={34} color="#C0B3A6" />
+    <Ionicons name="image-outline" size={34} color={colors.muted} />
     <Text style={styles.placeholderText}>图片暂时没能加载</Text>
-    <Pressable accessibilityRole="button" accessibilityLabel={`重新加载第 ${index + 1} 张图片`} testID={`retry-preview-${id}`} onPress={() => { setFailedUrl(undefined); onRefresh(); }}><Text style={{ color: colors.red, fontSize: 12, padding: 12 }}>重新加载</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel={`重新加载第 ${index + 1} 张图片`} testID={`retry-preview-${id}`} onPress={() => { setFailedUrl(undefined); onRefresh(); }}><Text style={{ ...type.caption, color: colors.redText, padding: space.md, minHeight: 44 }}>重新加载</Text></Pressable>
   </View>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} disabled={disabled} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={{ flex: 1 }}><Image source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} disabled={disabled} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.82 : 1 }]}><FadeImage source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /></Pressable>;
 }
 
 export default function NotePreview() {
@@ -222,13 +221,14 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note', 'done'].includes(state?.stage ?? '')} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
     <Header title="笔记预览" subtitle="把灵感，穿进日常" onBack={backToStudio} />
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      {!!error && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}
-      {loading && !state ? <Loading text="正在整理这份穿搭笔记…" /> : !note ? <View style={styles.empty}>
-        <View style={styles.emptyIcon}><Ionicons name="document-text-outline" size={30} color={colors.red} /></View>
-        <Text style={styles.emptyTitle}>{notFound ? '项目已删除或不存在' : '笔记还在酝酿中'}</Text>
-        <Text style={styles.emptyBody}>{notFound ? '这个项目已无法访问，返回列表查看其他合作。' : '先回工作台选好图片，我们就把这份穿搭灵感写成一篇笔记。'}</Text>
-        <Button title={notFound ? '返回项目列表' : '返回工作台'} variant="secondary" onPress={backToStudio} />
-      </View> : <>
+      {!!error && !!state && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}
+      {loading && !state ? <LoadingSkeleton kind="note" /> : !note ? <StatePanel
+        icon={notFound ? 'document-text-outline' : error ? 'cloud-offline-outline' : 'document-text-outline'}
+        title={notFound ? '项目已删除或不存在' : error ? '连接暂时中断' : '笔记还在酝酿中'}
+        description={notFound ? '这个项目已无法访问，返回列表查看其他合作。' : error || '先回工作台选好图片，我们就把这份穿搭灵感写成一篇笔记。'}
+        actionLabel={notFound ? '返回项目列表' : error ? '重试' : '返回工作台'}
+        onAction={error && !notFound ? () => setRetry(value => value + 1) : backToStudio}
+      /> : <>
         <View onLayout={(event) => setCarouselWidth(event.nativeEvent.layout.width)} style={styles.carouselFrame}>
           <ScrollView
             horizontal
@@ -241,26 +241,26 @@ function PreviewPage({ projectId }: { projectId?: string }) {
           >
             {images.map((image, index) => <View key={image.id} style={{ width: carouselWidth, aspectRatio: 3 / 4 }}>
               <PreviewImage id={image.id} url={image.url} index={index} disabled={preparing || saving} onRefresh={() => setRetry(value => value + 1)} />
-              {image.source ? <View pointerEvents="none" style={{ position: 'absolute', top: 37, left: 8, right: 8, bottom: 0 }}><FidelityBadge image={image.source} /></View> : null}
+              {image.source ? <View pointerEvents="none" style={{ position: 'absolute', top: space.xl + space.lg, left: space.sm, right: space.sm, bottom: 0 }}><FidelityBadge image={image.source} /></View> : null}
             </View>)}
           </ScrollView>
-          {images.length > 0 ? <View style={styles.pageBadge}><Text style={styles.pageBadgeText}>{Math.min(page + 1, images.length)} / {images.length}</Text></View> : null}
-          {page === 0 && images.length > 0 ? <View style={styles.coverBadge}><Text style={styles.coverBadgeText}>封面</Text></View> : null}
+          {images.length > 0 ? <View style={styles.pageBadge}><Badge label={`${Math.min(page + 1, images.length)} / ${images.length}`} tone="inverse" /></View> : null}
+          {page === 0 && images.length > 0 ? <View style={styles.coverBadge}><Badge label="封面" /></View> : null}
         </View>
         {images.length > 1 ? <View style={styles.dots}>{images.map((image, index) => <View key={image.id} style={[styles.dot, page === index && styles.dotActive]} />)}</View> : null}
-        <View style={styles.noteContent}>
+        <AnimatedEntry style={styles.noteContent}>
           {images[page]?.source ? <ImageRevisionInfo image={images[page].source} /> : null}
           <View style={styles.authorRow}>
             <View style={styles.avatar}><Text style={styles.avatarText}>{nickname.slice(0, 1).toUpperCase()}</Text></View>
             <View style={styles.authorInfo}><Text style={styles.authorName}>{nickname}</Text><Text style={styles.authorCaption}>我的穿搭日记</Text></View>
-            <View style={styles.readyBadge}><Ionicons name="checkmark-circle" size={12} color={colors.green} /><Text style={styles.readyBadgeText}>准备发布</Text></View>
+            <Badge label="准备发布" tone="success" />
           </View>
           <Text selectable testID="note-title" style={styles.noteTitle}>{note.title}</Text>
-          <Text selectable testID="note-body" style={styles.noteBody}>{note.body}</Text>
-          <View style={styles.tags}>{note.tags.map((tag) => <Text selectable key={tag} style={styles.tag}>#{tag.replace(/^#/, '')}</Text>)}</View>
+          <View testID="note-body" style={styles.paragraphs}>{note.body.split(/\n+/).filter(paragraph => paragraph.trim()).map((paragraph, index) => <Text selectable key={index} style={styles.noteBody}>{paragraph}</Text>)}</View>
+          <View style={styles.tags}>{note.tags.map((tag) => <View key={tag} style={styles.tag}><Text selectable style={styles.tagText}>#{tag.replace(/^#/, '')}</Text></View>)}</View>
           <NoteDisclosure note={note} projectCost={state?.cost_cny} />
           <View style={styles.noteEnd}><View style={styles.endLine} /><Text style={styles.endLabel}>记录穿搭，也记录自己</Text><View style={styles.endLine} /></View>
-          {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <View style={styles.videoPending}><ActivityIndicator color={colors.red} size="small" /><Text style={styles.videoPendingText}>短片正在制作，好了会出现在这里。</Text></View> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
+          {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <ProgressStrip title="短片正在制作" detail="好了会出现在这里，你可以继续查看笔记。" /> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
           <View style={styles.checklist} testID="publish-checklist">
             <View style={styles.videoHeading}><Ionicons name="checkbox-outline" size={18} color={colors.red} /><Text style={styles.videoTitle}>发布清单</Text></View>
             <Text style={styles.checklistHint}>{images.length} 张图片，按以下顺序保存{Platform.OS === 'web' ? '到下载目录' : '到相册'}。图片已有 AI 角标。</Text>
@@ -278,13 +278,12 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Text testID="publish-share" style={styles.checklistHint}>{publishProgress.share === 'unavailable' ? '当前浏览器不支持系统分享，可手动打开发布平台。' : publishProgress.share === 'dismissed' ? '分享已取消，可重新打开。' : publishProgress.share === 'shared' ? '系统分享面板已打开；是否发布由你在目标平台确认。' : '素材准备完成后会打开系统分享面板。'}</Text>
           </View>
           <Button title="返回工作台继续创作" variant="ghost" icon="arrow-back" onPress={backToStudio} />
-        </View>
+        </AnimatedEntry>
       </>}
     </ScrollView>
     {note ? <View style={styles.bottomBar}>
-      {copied && !actionError ? <Text accessibilityRole="status" style={styles.successText}>文案已复制，可以去发布啦。</Text> : null}
-      {!!saveFeedback && <Text accessibilityRole="status" style={styles.successText}>{saveFeedback}</Text>}
-      {!!actionError && <Text accessibilityRole="alert" style={styles.actionError}>{actionError}</Text>}
+      {!!actionError ? <Toast text={actionError} tone="danger" onDismiss={() => setActionError('')} /> : saveFeedback ? <Toast text={saveFeedback} tone="success" onDismiss={() => setSaveFeedback('')} /> : copied ? <Toast text="文案已复制，可以去发布啦。" tone="success" onDismiss={() => setCopied(false)} /> : null}
+      {preparing && <ProgressStrip title={publishStep || '正在准备发布'} detail="文案与媒体会按发布清单依次准备" />}
       <Button title={preparing ? publishStep || '正在准备发布' : publishFailed ? '继续准备发布' : publishProgress.share ? '重新打开分享' : '准备发布'} icon="share-outline" loading={preparing} disabled={!aiConfirmed || saving || !images.length} onPress={() => void prepareForPublish()} testID="prepare-publish" />
       {!aiConfirmed ? <Text style={styles.checklistHint}>先在发布清单确认 AI 内容声明，即可准备发布。</Text> : null}
       <View style={styles.bottomButtons}>
@@ -296,52 +295,43 @@ function PreviewPage({ projectId }: { projectId?: string }) {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: { paddingBottom: 15 },
-  notice: { margin: 16 },
-  carouselFrame: { width: '100%', backgroundColor: '#F6F2EC', minHeight: 40 },
+  scrollContent: { paddingBottom: space.lg },
+  notice: { margin: space.lg },
+  carouselFrame: { alignSelf: 'center', width: '100%', backgroundColor: colors.imagePlaceholder, minHeight: 44, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg, overflow: 'hidden' },
   carouselImage: { width: '100%', height: '100%' },
-  imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  placeholderText: { color: '#A4988C', fontSize: 12 },
-  pageBadge: { position: 'absolute', right: 16, top: 16, backgroundColor: '#26211C66', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
-  pageBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '600' },
-  coverBadge: { position: 'absolute', left: 16, top: 16, backgroundColor: '#FFFFFFE8', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 5 },
-  coverBadgeText: { color: '#877563', fontSize: 10 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 5, marginTop: 13 },
-  dot: { height: 4, width: 4, borderRadius: 2, backgroundColor: '#E4DFD8' },
-  dotActive: { width: 12, backgroundColor: colors.red },
-  noteContent: { paddingHorizontal: 23, paddingTop: 21, gap: 18 },
-  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.blush, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: colors.red, fontSize: 18, fontWeight: '700' },
-  authorInfo: { flex: 1, gap: 3 },
-  authorName: { color: colors.ink, fontSize: 13, fontWeight: '600' },
-  authorCaption: { color: '#ABA196', fontSize: 9 },
-  readyBadge: { flexDirection: 'row', gap: 4, alignItems: 'center', backgroundColor: '#F1F6F1', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 12 },
-  readyBadgeText: { color: colors.green, fontSize: 9 },
-  noteTitle: { color: colors.ink, fontSize: 20, lineHeight: 30, fontWeight: '700', letterSpacing: -0.3 },
-  noteBody: { color: '#514B45', fontSize: 14, lineHeight: 26 },
-  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  tag: { color: '#B08B6B', fontSize: 13, lineHeight: 23 },
-  noteEnd: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2, marginBottom: 2 },
-  endLine: { height: 1, backgroundColor: '#F0EAE3', flex: 1 },
-  endLabel: { color: '#B8AA9B', fontSize: 9, letterSpacing: 1 },
-  checklist: { padding: 15, backgroundColor: colors.paper, borderRadius: 16, gap: 11, borderWidth: 1, borderColor: colors.border },
-  checklistHint: { color: colors.muted, fontSize: 11, lineHeight: 18 },
-  checklistItem: { color: colors.ink, fontSize: 12, lineHeight: 20 },
-  aiCheckbox: { flexDirection: 'row', gap: 9, alignItems: 'center', paddingVertical: 7 },
-  aiCheckboxText: { color: colors.ink, fontSize: 12, lineHeight: 20, flex: 1 },
-  videoSection: { gap: 12 },
-  videoHeading: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  videoTitle: { color: colors.ink, fontSize: 13, fontWeight: '600' },
-  videoPending: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 14, backgroundColor: colors.paper, borderRadius: 12 },
-  videoPendingText: { fontSize: 11, color: colors.muted, flex: 1, lineHeight: 18 },
-  bottomBar: { paddingHorizontal: 20, paddingVertical: 14, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: '#FFFFFF', gap: 9 },
-  bottomButtons: { flexDirection: 'row', gap: 10 },
+  imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md },
+  placeholderText: { ...type.caption, color: colors.muted },
+  pageBadge: { position: 'absolute', right: space.lg, top: space.lg },
+  coverBadge: { position: 'absolute', left: space.lg, top: space.lg },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: space.sm, marginTop: space.lg },
+  dot: { height: space.xs, width: space.xs, borderRadius: radius.sm, backgroundColor: colors.border },
+  dotActive: { width: space.lg, backgroundColor: colors.red },
+  noteContent: { paddingHorizontal: space.xl, paddingTop: space.xl, gap: space.xl },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  avatar: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.blush, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { ...type.subtitle, color: colors.redText, fontWeight: '700' },
+  authorInfo: { flex: 1, gap: space.xs },
+  authorName: { ...type.caption, color: colors.ink, fontWeight: '600' },
+  authorCaption: { ...type.badge, color: colors.muted },
+  noteTitle: { ...type.heading, color: colors.ink, letterSpacing: -0.3 },
+  paragraphs: { gap: space.lg },
+  noteBody: { ...type.reading, color: colors.ink },
+  tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  tag: { backgroundColor: colors.blush, borderRadius: radius.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
+  tagText: { ...type.caption, color: colors.redText, fontWeight: '500' },
+  noteEnd: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  endLine: { height: 1, backgroundColor: colors.border, flex: 1 },
+  endLabel: { ...type.badge, color: colors.muted, letterSpacing: 1 },
+  checklist: { padding: space.lg, backgroundColor: colors.paper, borderRadius: radius.md, gap: space.md, borderWidth: 1, borderColor: colors.border },
+  checklistHint: { ...type.caption, color: colors.muted },
+  checklistItem: { ...type.caption, color: colors.ink },
+  aiCheckbox: { flexDirection: 'row', gap: space.md, alignItems: 'center', paddingVertical: space.sm, minHeight: 44 },
+  aiCheckboxText: { ...type.caption, color: colors.ink, flex: 1 },
+  videoSection: { gap: space.md },
+  videoHeading: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  videoTitle: { ...type.body, color: colors.ink, fontWeight: '600' },
+  bottomBar: { paddingHorizontal: space.lg, paddingVertical: space.md, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.surface, gap: space.sm },
+  bottomButtons: { flexDirection: 'row', gap: space.md },
   bottomButton: { flex: 1 },
-  successText: { color: colors.green, fontSize: 11, lineHeight: 17 },
-  actionError: { color: '#B23B4A', fontSize: 11, lineHeight: 17 },
-  empty: { padding: 35, paddingTop: 80, alignItems: 'center', gap: 18 },
-  emptyIcon: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.blush, justifyContent: 'center', alignItems: 'center' },
-  emptyTitle: { fontSize: 19, color: colors.ink, fontWeight: '700' },
-  emptyBody: { fontSize: 13, lineHeight: 22, color: colors.muted, textAlign: 'center', marginBottom: 5 },
+  actionError: { ...type.caption, color: colors.danger },
 });

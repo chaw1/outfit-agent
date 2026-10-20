@@ -1,11 +1,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Action, OutfitImage } from '../api/types';
 import { feedback } from '../lib/haptics';
 import { saveImages } from '../lib/media';
 import { ImageViewer } from './ImageViewer';
-import { colors, errorText } from './ui';
+import { colors, layout, motion, radius, space, type as typography } from '../theme';
+import { Badge, FadeImage, Toast, errorText } from './ui';
 
 type Mode = 'view' | 'local' | 'whole' | 'compare';
 type Interaction = { open: (id: string, mode?: Mode) => void; menu: (id: string) => void };
@@ -48,42 +51,51 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, o
   }
   return <ImageContext.Provider value={{ open, menu: id => { feedback(); setNotice(''); setMenuId(id); } }}>
     {children}
-    {notice ? <Pressable testID="image-feedback" accessibilityRole="button" accessibilityLabel="关闭图片提示" onPress={() => setNotice('')} style={styles.toast}><Text style={styles.toastText}>{notice}</Text></Pressable> : null}
+    {notice ? <Pressable testID="image-feedback" accessibilityRole="button" accessibilityLabel="关闭图片提示" onPress={() => setNotice('')} style={styles.toast}><Toast text={notice} tone={notice === '图片已保存' ? 'success' : 'danger'} onDismiss={() => setNotice('')} /></Pressable> : null}
     {viewer ? <ImageViewer images={images} editActions={editActions} initialImageId={viewer.id} initialMode={viewer.mode} busy={busy} canEdit={canEdit} onClose={() => setViewer(undefined)} onAction={onAction} onReference={reference} /> : null}
     <Modal transparent visible={Boolean(menuImage)} animationType="fade" onRequestClose={() => setMenuId(undefined)}>
       <View style={styles.shade}>
-        <Pressable accessibilityLabel="关闭图片菜单" style={StyleSheet.absoluteFill} onPress={() => { if (!saving) setMenuId(undefined); }} />
-        <SafeAreaView edges={['bottom']} style={styles.sheet} testID="image-menu">
-          <View style={styles.titleRow}>{menuImage?.url ? <Image source={{ uri: menuImage.url }} style={styles.thumbnail} /> : null}<View><Text style={styles.title}>这张图，接着怎么改？</Text><Text style={styles.detail}>v{menuImage?.version} · 原版和新版本都会保留</Text></View></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="关闭图片菜单" style={StyleSheet.absoluteFill} onPress={() => { if (!saving) setMenuId(undefined); }} />
+        <Animated.View entering={FadeInDown.duration(motion.normal).reduceMotion(ReduceMotion.System)} exiting={FadeOutDown.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.sheet}>
+        <SafeAreaView edges={['bottom']} testID="image-menu">
+          <View style={styles.handle} />
+          <View style={styles.titleRow}>{menuImage?.url ? <FadeImage source={{ uri: menuImage.url }} style={styles.thumbnail} /> : null}<View style={styles.heading}><Text style={styles.title}>这张图，接着怎么改？</Text><View style={styles.metadata}><Badge label={`v${menuImage?.version ?? 1}`} /><Text style={styles.detail}>原版和新版本都会保留</Text></View></View></View>
           {(['local', 'whole', 'reference', 'compare', 'save'] as const).map(key => {
             const labels = { local: '局部改', whole: '整张改', reference: '引用到对话', compare: '对比版本', save: saving ? '正在保存…' : '保存到相册' };
+            const icons = { local: 'brush-outline', whole: 'color-wand-outline', reference: 'chatbubble-ellipses-outline', compare: 'git-compare-outline', save: 'download-outline' } as const;
             const disabled = saving || ((key === 'local' || key === 'whole') && (!canEdit || Boolean(busy))) || (key === 'compare' && !menuImage?.parent_id);
-            return <Pressable key={key} testID={`image-menu-${key}`} accessibilityRole="button" accessibilityState={{ disabled }} disabled={disabled} onPress={() => {
+            return <Pressable key={key} testID={`image-menu-${key}`} accessibilityRole="button" accessibilityLabel={labels[key]} accessibilityState={{ disabled }} disabled={disabled} onPress={() => {
               if (!menuImage) return;
               if (key === 'reference') reference(menuImage);
               else if (key === 'save') void save();
               else open(menuImage.id, key);
-            }} style={[styles.option, disabled && { opacity: 0.35 }]}><Text style={styles.optionText}>{labels[key]}</Text></Pressable>;
+            }} style={({ pressed }) => [styles.option, disabled && styles.disabled, pressed && styles.optionPressed]}>{key === 'save' && saving ? <ActivityIndicator size="small" color={colors.red} /> : <View style={styles.optionIcon}><Ionicons name={icons[key]} size={20} color={colors.ink} /></View>}<Text style={styles.optionText}>{labels[key]}</Text><Ionicons name="chevron-forward" size={16} color={colors.muted} /></Pressable>;
           })}
-          {notice ? <Text style={styles.error}>{notice}</Text> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="取消图片菜单" disabled={saving} onPress={() => setMenuId(undefined)} style={styles.option}><Text style={styles.cancel}>取消</Text></Pressable>
+          {notice ? <Toast text={notice} tone="danger" onDismiss={() => setNotice('')} /> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel="取消图片菜单" disabled={saving} onPress={() => setMenuId(undefined)} style={({ pressed }) => [styles.cancelButton, pressed && styles.optionPressed]}><Text style={styles.cancel}>取消</Text></Pressable>
         </SafeAreaView>
+        </Animated.View>
       </View>
     </Modal>
   </ImageContext.Provider>;
 }
 
 const styles = StyleSheet.create({
-  shade: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#17141170' },
-  sheet: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 22, paddingTop: 20, width: '100%', maxWidth: 520, alignSelf: 'center' },
-  titleRow: { flexDirection: 'row', gap: 12, alignItems: 'center', paddingBottom: 14 },
-  thumbnail: { width: 42, height: 52, borderRadius: 7 },
-  title: { fontSize: 15, fontWeight: '700', color: colors.ink },
-  detail: { fontSize: 11, color: colors.muted, marginTop: 6 },
-  option: { minHeight: 49, justifyContent: 'center', borderTopWidth: 1, borderTopColor: colors.border },
-  optionText: { fontSize: 15, color: colors.ink },
-  cancel: { textAlign: 'center', color: colors.muted, fontSize: 14 },
-  error: { color: '#AE2940', fontSize: 12, lineHeight: 20 },
-  toast: { position: 'absolute', bottom: 100, alignSelf: 'center', maxWidth: '90%', borderRadius: 12, padding: 14, backgroundColor: '#252522', zIndex: 50 },
-  toastText: { color: 'white', fontSize: 12, lineHeight: 19 },
+  shade: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay },
+  sheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: space.lg, width: '100%', maxWidth: layout.maxWidth, alignSelf: 'center' },
+  handle: { width: 36, height: space.xs, borderRadius: radius.sm, backgroundColor: colors.border, alignSelf: 'center', marginTop: space.md, marginBottom: space.lg },
+  titleRow: { flexDirection: 'row', gap: space.md, alignItems: 'center', paddingBottom: space.lg },
+  thumbnail: { width: 48, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: colors.imagePlaceholder },
+  heading: { flex: 1, gap: space.sm },
+  title: { ...typography.subtitle, fontWeight: '700', color: colors.ink },
+  metadata: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, alignItems: 'center' },
+  detail: { ...typography.caption, color: colors.muted },
+  option: { minHeight: 56, flexDirection: 'row', gap: space.md, alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, paddingVertical: space.sm, paddingHorizontal: space.xs, borderRadius: radius.sm },
+  optionIcon: { width: 32, height: 32, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  optionText: { ...typography.body, color: colors.ink, flex: 1 },
+  optionPressed: { backgroundColor: colors.paper, transform: [{ scale: .99 }] },
+  disabled: { opacity: .35 },
+  cancelButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', marginVertical: space.sm, backgroundColor: colors.paper, borderRadius: radius.sm },
+  cancel: { ...typography.label, textAlign: 'center', color: colors.muted },
+  toast: { position: 'absolute', bottom: 100, left: space.lg, right: space.lg, zIndex: 50, minHeight: layout.touch },
 });

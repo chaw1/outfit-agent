@@ -3,12 +3,14 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, ClipPath, Defs, G, Polyline, Rect } from 'react-native-svg';
 import type { Action, ImageRegion, OutfitImage } from '../api/types';
 import { feedback } from '../lib/haptics';
 import { clamp, constrainTransform, containRect, editActionForResult, IDENTITY_TRANSFORM, imageVersionFamily, regionFromPoints, screenToImage, zoomAtPoint, type ImageTransform, type Point, type Size } from '../lib/imageGeometry';
+import { colors, layout, motion, radius, space, type as typography } from '../theme';
+import { Badge, FadeImage, ProgressStrip } from './ui';
 
 export type ViewerMode = 'view' | 'local' | 'whole' | 'compare';
 type DrawingTool = 'brush' | 'rectangle' | 'pan';
@@ -30,7 +32,7 @@ const EMPTY_SIZE = { width: 0, height: 0 };
 
 function ToolButton({ title, icon, testID, onPress, selected, disabled }: { title: string; icon?: React.ComponentProps<typeof Ionicons>['name']; testID: string; onPress: () => void; selected?: boolean; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ selected, disabled: Boolean(disabled) }} testID={testID} onPress={onPress} disabled={disabled} style={({ pressed }) => [styles.toolButton, selected && styles.toolSelected, disabled && styles.disabled, pressed && styles.pressed]}>
-    {icon ? <Ionicons name={icon} size={18} color={selected ? '#FF7086' : '#F8F5F1'} /> : null}<Text style={[styles.toolText, selected && styles.selectedText]}>{title}</Text>
+    {icon ? <Ionicons name={icon} size={18} color={selected ? colors.white : colors.viewerMuted} /> : null}<Text style={[styles.toolText, selected && styles.selectedText]}>{title}</Text>
   </Pressable>;
 }
 
@@ -353,7 +355,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
   }
 
   if (!current) return null;
-  const currentImage = <Image source={{ uri: current.url }} style={StyleSheet.absoluteFill} resizeMode="contain" accessibilityLabel={`镜头 ${shotNumber} 第 ${current.version} 版`} onLoad={event => {
+  const currentImage = <FadeImage key={current.url} source={{ uri: current.url }} style={StyleSheet.absoluteFill} resizeMode="contain" accessibilityLabel={`镜头 ${shotNumber} 第 ${current.version} 版`} onLoad={event => {
     const source = event.nativeEvent.source;
     if (source?.width > 0 && source?.height > 0) setImageSize(previous => previous.width === source.width && previous.height === source.height ? previous : { width: source.width, height: source.height });
   }} onError={() => setFailedUrl(current.url)} />;
@@ -365,42 +367,42 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
       <StatusBar style="light" />
       <SafeAreaView style={styles.root} testID="image-viewer" edges={['top', 'bottom']}>
         <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.header}>
-            <Pressable testID="viewer-close" accessibilityRole="button" accessibilityLabel="关闭图片查看器" onPress={() => { feedback(); onClose(); }} style={styles.roundButton}><Ionicons name="close" size={25} color="white" /></Pressable>
+          <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.header}>
+            <Pressable testID="viewer-close" accessibilityRole="button" accessibilityLabel="关闭图片查看器" onPress={() => { feedback(); onClose(); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="close" size={24} color={colors.white} /></Pressable>
             <View style={styles.headerTitle}><Text testID="viewer-current-image" style={styles.title}>镜头 {shotNumber} · v{current.version}</Text><Text style={styles.hint}>{comparing ? '拖动滑块，看修改前后' : localEditing ? tool === 'pan' ? '拖动看细节，再切回涂抹' : '涂抹或框选 · 双指可缩放' : '左右切图 · 双指缩放 · 双击看细节'}</Text></View>
-            <Pressable testID="viewer-reference" accessibilityRole="button" accessibilityLabel="引用到对话" onPress={() => { feedback(); onReference(current); }} style={styles.roundButton}><Ionicons name="chatbubble-ellipses-outline" size={23} color="white" /></Pressable>
-          </View>
+            <Pressable testID="viewer-reference" accessibilityRole="button" accessibilityLabel="引用到对话" onPress={() => { feedback(); onReference(current); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.white} /></Pressable>
+          </Animated.View>
 
           <GestureDetector gesture={gestures}><View testID="viewer-canvas" style={[styles.canvas, compactKeyboard && { minHeight: 80 }]} onLayout={event => {
             const { width, height } = event.nativeEvent.layout;
             setViewport(previous => previous.width === width && previous.height === height ? previous : { width, height });
           }}>
             {comparing && parent?.url ? <>
-              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, imageStyle]}><Image source={{ uri: parent.url }} style={StyleSheet.absoluteFill} resizeMode="contain" /></Animated.View>
+              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, imageStyle]}><FadeImage source={{ uri: parent.url }} style={StyleSheet.absoluteFill} resizeMode="contain" /></Animated.View>
               <View pointerEvents="none" style={[styles.comparisonClip, { width: viewport.width * compare }]}><Animated.View style={[{ width: viewport.width, height: viewport.height }, imageStyle]}>{currentImage}</Animated.View></View>
-              <View pointerEvents="none" style={[styles.compareLine, { left: viewport.width * compare }]}><View style={styles.compareHandle}><Ionicons name="code-outline" size={20} color="#191A1D" /></View></View>
-              <Text pointerEvents="none" style={[styles.compareLabel, { left: 12 }]}>修改后 v{current.version}</Text><Text pointerEvents="none" style={[styles.compareLabel, { right: 12 }]}>修改前 v{parent.version}</Text>
+              <View pointerEvents="none" style={[styles.compareLine, { left: viewport.width * compare }]}><View style={styles.compareHandle}><Ionicons name="code-outline" size={20} color={colors.ink} /></View></View>
+              <Text pointerEvents="none" style={[styles.compareLabel, { left: space.md }]}>修改后 v{current.version}</Text><Text pointerEvents="none" style={[styles.compareLabel, { right: space.md }]}>修改前 v{parent.version}</Text>
             </> : <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, imageStyle]}>
               {currentImage}
               {rect && localEditing ? <Svg width={viewport.width} height={viewport.height} style={StyleSheet.absoluteFill}>
                 <Defs><ClipPath id="viewer-mask-bounds"><Rect x={rect.x} y={rect.y} width={rect.width} height={rect.height} /></ClipPath></Defs>
                 <G clipPath="url(#viewer-mask-bounds)">
-                {selectionTool === 'brush' ? strokes.map((stroke, index) => stroke.length === 1 ? <Circle key={index} cx={rect.x + stroke[0].x * rect.width} cy={rect.y + stroke[0].y * rect.height} r={brush * Math.min(rect.width, rect.height) / 2} fill="#FF567E" fillOpacity={.46} /> : <Polyline key={index} points={stroke.map(point => `${rect.x + point.x * rect.width},${rect.y + point.y * rect.height}`).join(' ')} fill="none" stroke="#FF567E" strokeOpacity={.46} strokeWidth={brush * Math.min(rect.width, rect.height)} strokeLinecap="round" strokeLinejoin="round" />) : null}
-                {region && selectionTool === 'rectangle' ? <Rect x={rect.x + region.x * rect.width} y={rect.y + region.y * rect.height} width={region.w * rect.width} height={region.h * rect.height} fill="#FF567E" fillOpacity={.25} stroke="#FF86A0" strokeWidth={2 / transform.scale} /> : null}
+                {selectionTool === 'brush' ? strokes.map((stroke, index) => stroke.length === 1 ? <Circle key={index} cx={rect.x + stroke[0].x * rect.width} cy={rect.y + stroke[0].y * rect.height} r={brush * Math.min(rect.width, rect.height) / 2} fill={colors.red} fillOpacity={.46} /> : <Polyline key={index} points={stroke.map(point => `${rect.x + point.x * rect.width},${rect.y + point.y * rect.height}`).join(' ')} fill="none" stroke={colors.red} strokeOpacity={.46} strokeWidth={brush * Math.min(rect.width, rect.height)} strokeLinecap="round" strokeLinejoin="round" />) : null}
+                {region && selectionTool === 'rectangle' ? <Rect x={rect.x + region.x * rect.width} y={rect.y + region.y * rect.height} width={region.w * rect.width} height={region.h * rect.height} fill={colors.red} fillOpacity={.25} stroke={colors.red} strokeWidth={2 / transform.scale} /> : null}
                 </G>
               </Svg> : null}
             </Animated.View>}
-            {!rect && failedUrl !== current.url ? <ActivityIndicator style={StyleSheet.absoluteFill} color="#FF7086" /> : null}
-            {failedUrl === current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={35} color="#A3A0A5" /><Text style={styles.hint}>图片暂时没加载出来，请关闭后重试</Text></View> : null}
-            {typeof current.fidelity?.score === 'number' && Number.isFinite(current.fidelity.score) ? <View pointerEvents="none" style={[styles.fidelity, comparing && { top: 43 }]}><Text style={styles.fidelityText}>还原 {Math.round(current.fidelity.score)}</Text></View> : null}
+            {!rect && failedUrl !== current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={36} color={colors.viewerMuted} /><ActivityIndicator color={colors.red} /></View> : null}
+            {failedUrl === current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={36} color={colors.viewerMuted} /><Text style={styles.hint}>图片暂时没加载出来，请关闭后重试</Text><ToolButton title="关闭查看器" testID="viewer-error-close" onPress={onClose} /></View> : null}
+            {typeof current.fidelity?.score === 'number' && Number.isFinite(current.fidelity.score) ? <View pointerEvents="none" style={[styles.fidelity, comparing && { top: 48 }]}><Badge label={`还原 ${Math.round(current.fidelity.score)}`} tone={current.fidelity.score >= 60 ? 'success' : 'danger'} /></View> : null}
           </View></GestureDetector>
 
           {comparing ? <View style={styles.compareControl}><Text style={styles.hint}>修改后</Text><TrackSlider value={compare} min={.02} max={.98} label="前后对比位置" testID="viewer-compare-slider" onChange={setCompare} /><Text style={styles.hint}>修改前</Text></View> : null}
           {!compactKeyboard ? <View style={styles.zoomRow}>
             <ToolButton title="上一张" icon="chevron-back" testID="viewer-previous" disabled={currentIndex <= 0} onPress={() => selectAdjacent(-1)} />
-            <Pressable testID="viewer-zoom-out" accessibilityRole="button" accessibilityLabel="缩小图片" onPress={() => zoomBy(1 / 1.5)} style={styles.zoomButton}><Ionicons name="remove" color="white" size={19} /></Pressable>
-            <Pressable testID="viewer-zoom-reset" accessibilityRole="button" accessibilityLabel="重置缩放" onPress={() => setTransform(IDENTITY_TRANSFORM)}><Text testID="viewer-zoom-state" style={styles.zoomText}>{Math.round(transform.scale * 100)}%</Text></Pressable>
-            <Pressable testID="viewer-zoom-in" accessibilityRole="button" accessibilityLabel="放大图片" onPress={() => zoomBy(1.5)} style={styles.zoomButton}><Ionicons name="add" color="white" size={19} /></Pressable>
+            <Pressable testID="viewer-zoom-out" accessibilityRole="button" accessibilityLabel="缩小图片" onPress={() => zoomBy(1 / 1.5)} style={({ pressed }) => [styles.zoomButton, pressed && styles.pressed]}><Ionicons name="remove" color={colors.white} size={20} /></Pressable>
+            <Pressable testID="viewer-zoom-reset" accessibilityRole="button" accessibilityLabel="重置缩放" onPress={() => setTransform(IDENTITY_TRANSFORM)} style={({ pressed }) => [styles.zoomButton, pressed && styles.pressed]}><Text testID="viewer-zoom-state" style={styles.zoomText}>{Math.round(transform.scale * 100)}%</Text></Pressable>
+            <Pressable testID="viewer-zoom-in" accessibilityRole="button" accessibilityLabel="放大图片" onPress={() => zoomBy(1.5)} style={({ pressed }) => [styles.zoomButton, pressed && styles.pressed]}><Ionicons name="add" color={colors.white} size={20} /></Pressable>
             <ToolButton title="下一张" icon="chevron-forward" testID="viewer-next" disabled={currentIndex < 0 || currentIndex >= available.length - 1} onPress={() => selectAdjacent(1)} />
           </View> : null}
 
@@ -409,17 +411,17 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
               const { x, width } = event.nativeEvent.layout;
               versionLayouts.current.set(image.id, { x, width });
               if (image.id === current.id) versionsScroll.current?.scrollTo({ x: Math.max(0, x + width / 2 - viewport.width / 2), animated: true });
-            }} onPress={() => selectImage(image.id)} style={[styles.version, image.id === current.id && styles.versionSelected]}>
-              {image.url ? <Image source={{ uri: image.url }} style={styles.versionImage} /> : <View style={styles.versionPlaceholder}>{image.status === 'failed' ? <Ionicons name="alert-circle-outline" color="#FF7086" size={20} /> : <ActivityIndicator size="small" color="#FF7086" />}</View>}
-              <Text style={[styles.versionText, image.id === current.id && styles.selectedText]}>v{image.version}{image.status === 'succeeded' ? '' : image.status === 'failed' ? ' · 失败' : ' · 生成中'}</Text>
+            }} onPress={() => selectImage(image.id)} style={({ pressed }) => [styles.version, image.id === current.id && styles.versionSelected, pressed && styles.pressed]}>
+              {image.url ? <FadeImage source={{ uri: image.url }} style={styles.versionImage} /> : <View style={styles.versionPlaceholder}>{image.status === 'failed' ? <Ionicons name="alert-circle-outline" color={colors.red} size={20} /> : <ActivityIndicator size="small" color={colors.red} />}</View>}
+              <Badge tone={image.id === current.id ? 'brand' : 'inverse'} label={`v${image.version}${image.status === 'succeeded' ? '' : image.status === 'failed' ? ' · 失败' : ' · 生成中'}`} />
             </Pressable>)}
-            {pending && !pendingImage ? <View testID="viewer-pending-version" style={styles.version}><View style={styles.versionPlaceholder}><ActivityIndicator size="small" color="#FF7086" /></View><Text style={styles.versionText}>新版本 · 排队中</Text></View> : null}
+            {pending && !pendingImage ? <View testID="viewer-pending-version" style={styles.version}><View style={styles.versionPlaceholder}><ActivityIndicator size="small" color={colors.red} /></View><Badge tone="inverse" label="新版本 · 排队中" /></View> : null}
           </ScrollView> : null}
 
-          {!compactKeyboard ? (check ? <View testID={`viewer-edit-check-${current.id}`} style={[styles.check, !check.passed && styles.checkFailed]}><Text style={[styles.checkText, !check.passed && styles.checkFailedText]}>{check.passed ? '✓ 已按要求改好' : '可能没改到位'}：{check.reason}</Text>{!check.passed ? <View style={styles.checkActions}><Pressable accessibilityRole="button" testID="viewer-retry-edit" accessibilityLabel="再试一次" disabled={generationBusy || !canEdit || !current.parent_id || !current.instruction} onPress={() => { void sendEdit(retryAction()); }} style={generationBusy || !canEdit ? styles.disabled : undefined}><Text style={styles.retryText}>再试一次</Text></Pressable><Pressable accessibilityRole="button" testID="viewer-rephrase-edit" accessibilityLabel="换个说法" disabled={generationBusy || !canEdit} onPress={rephrase} style={generationBusy || !canEdit ? styles.disabled : undefined}><Text style={styles.retryText}>换个说法</Text></Pressable></View> : null}</View> : current.instruction ? <Text numberOfLines={2} style={styles.instructionCaption}>{current.instruction}</Text> : null) : null}
+          {!compactKeyboard ? (check ? <View testID={`viewer-edit-check-${current.id}`} style={[styles.check, !check.passed && styles.checkFailed]}><Text style={[styles.checkText, !check.passed && styles.checkFailedText]}>{check.passed ? '✓ 已按要求改好' : '可能没改到位'}：{check.reason}</Text>{!check.passed ? <View style={styles.checkActions}><Pressable accessibilityRole="button" testID="viewer-retry-edit" accessibilityLabel="再试一次" disabled={generationBusy || !canEdit || !current.parent_id || !current.instruction} onPress={() => { void sendEdit(retryAction()); }} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>再试一次</Text></Pressable><Pressable accessibilityRole="button" testID="viewer-rephrase-edit" accessibilityLabel="换个说法" disabled={generationBusy || !canEdit} onPress={rephrase} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>换个说法</Text></Pressable></View> : null}</View> : current.instruction ? <Text numberOfLines={2} style={styles.instructionCaption}>{current.instruction}</Text> : null) : null}
           {error ? <Text testID="viewer-error" accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
 
-          <View style={styles.bottom}>
+          <Animated.View key={editing ? 'editing' : 'viewing'} entering={FadeInDown.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.bottom}>
             {editing ? <>
               <View style={styles.editHeading}><Text style={styles.title}>{localEditing ? '圈出想改的地方' : '整张图片怎么改'}</Text><ToolButton title="取消" testID="viewer-cancel-edit" onPress={() => changeMode('view')} /></View>
               {localEditing ? <>
@@ -429,12 +431,12 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
               </> : null}
               <Text style={styles.suggestionContext}>{suggestionContext}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.suggestions} style={styles.suggestionsScroll}>
-                {QUICK_EDITS.map((text, index) => ({ text, index })).sort((a, b) => Number(recommendedEdits.includes(b.index)) - Number(recommendedEdits.includes(a.index)) || a.index - b.index).map(({ text, index }) => <Pressable key={text} testID={`edit-suggestion-${index}`} accessibilityRole="button" accessibilityLabel={text} onPress={() => { if (index < QUICK_EDITS.length - 1) setInstruction(text); input.current?.focus(); feedback(); }} style={[styles.suggestion, recommendedEdits.includes(index) && styles.suggestionRecommended]}><Text style={styles.suggestionText}>{text}</Text></Pressable>)}
+                {QUICK_EDITS.map((text, index) => ({ text, index })).sort((a, b) => Number(recommendedEdits.includes(b.index)) - Number(recommendedEdits.includes(a.index)) || a.index - b.index).map(({ text, index }) => <Pressable key={text} testID={`edit-suggestion-${index}`} accessibilityRole="button" accessibilityLabel={text} onPress={() => { if (index < QUICK_EDITS.length - 1) setInstruction(text); input.current?.focus(); feedback(); }} style={({ pressed }) => [styles.suggestion, recommendedEdits.includes(index) && styles.suggestionRecommended, pressed && styles.pressed]}><Text style={styles.suggestionText}>{text}</Text></Pressable>)}
               </ScrollView>
-              <View style={styles.inputRow}><TextInput ref={input} testID="edit-instruction" accessibilityLabel="改图要求" placeholder="说说这里想怎么改…" placeholderTextColor="#98939A" value={instruction} onChangeText={setInstruction} style={styles.input} multiline maxLength={2000} editable={!generationBusy} /><Pressable testID="submit-edit" accessibilityRole="button" accessibilityLabel="提交改图" accessibilityState={{ disabled: generationBusy || !instruction.trim() || invalidSelection }} disabled={generationBusy || !instruction.trim() || invalidSelection} onPress={() => { void sendEdit(); }} style={[styles.submit, (generationBusy || !instruction.trim() || invalidSelection) && styles.disabled]}>{generationBusy ? <ActivityIndicator color="white" /> : <Ionicons name="arrow-up" size={23} color="white" />}</Pressable></View>
+              <View style={styles.inputRow}><TextInput ref={input} testID="edit-instruction" accessibilityLabel="改图要求" placeholder="说说这里想怎么改…" placeholderTextColor={colors.viewerMuted} value={instruction} onChangeText={setInstruction} style={styles.input} multiline maxLength={2000} editable={!generationBusy} /><Pressable testID="submit-edit" accessibilityRole="button" accessibilityLabel="提交改图" accessibilityState={{ disabled: generationBusy || !instruction.trim() || invalidSelection }} disabled={generationBusy || !instruction.trim() || invalidSelection} onPress={() => { void sendEdit(); }} style={({ pressed }) => [styles.submit, (generationBusy || !instruction.trim() || invalidSelection) && styles.disabled, pressed && styles.pressed]}>{generationBusy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={23} color={colors.white} />}</Pressable></View>
             </> : <View style={styles.mainActions}><ToolButton title="局部改" icon="brush-outline" testID="viewer-mode-local" disabled={!canEdit || generationBusy || !rect || failedUrl === current.url} onPress={() => changeMode('local')} /><ToolButton title="整张改" icon="color-wand-outline" testID="viewer-mode-whole" disabled={!canEdit || generationBusy || !current.url} onPress={() => changeMode('whole')} /><ToolButton title={comparing ? '结束对比' : '对比版本'} icon="git-compare-outline" testID="viewer-compare-toggle" disabled={!parent?.url} selected={comparing} onPress={() => changeMode(comparing ? 'view' : 'compare')} /></View>}
-            {pending && !editing ? <Text testID="viewer-generation-status" style={styles.generationStatus}>新版本生成中，完成后自动对比</Text> : null}
-          </View>
+            {pending && !editing ? <View testID="viewer-generation-status" style={styles.generationStatus}><ProgressStrip title="新版本生成中，完成后自动对比" /></View> : null}
+          </Animated.View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </GestureHandlerRootView>
@@ -442,63 +444,62 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#171719' },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  roundButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
-  headerTitle: { flex: 1, gap: 5 },
-  title: { color: '#F8F5F1', fontWeight: '700', fontSize: 14 },
-  hint: { color: '#B4ADB3', fontSize: 10, lineHeight: 16 },
-  canvas: { flex: 1, minHeight: 140, overflow: 'hidden', backgroundColor: '#0E0E10' },
-  loadError: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  fidelity: { position: 'absolute', left: 12, top: 12, borderRadius: 5, backgroundColor: '#F8F5F1ED', paddingHorizontal: 8, paddingVertical: 5 },
-  fidelityText: { fontSize: 11, fontWeight: '600', color: '#34735A' },
+  root: { flex: 1, backgroundColor: colors.viewerBg },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, paddingVertical: space.sm, gap: space.sm },
+  roundButton: { width: layout.touch, height: layout.touch, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md, backgroundColor: colors.viewerSurface },
+  headerTitle: { flex: 1, gap: space.xs },
+  title: { ...typography.body, color: colors.white, fontWeight: '700' },
+  hint: { ...typography.caption, color: colors.viewerMuted },
+  canvas: { flex: 1, minHeight: 140, overflow: 'hidden', backgroundColor: colors.viewerCanvas },
+  loadError: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.lg },
+  fidelity: { position: 'absolute', left: space.md, top: space.md },
   comparisonClip: { position: 'absolute', left: 0, top: 0, bottom: 0, overflow: 'hidden' },
-  compareLine: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
-  compareHandle: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' },
-  compareLabel: { position: 'absolute', top: 12, color: 'white', backgroundColor: '#171719B8', fontSize: 10, paddingHorizontal: 7, paddingVertical: 5, borderRadius: 4 },
-  compareControl: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 20 },
-  zoomRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: 46 },
-  zoomButton: { width: 38, height: 40, alignItems: 'center', justifyContent: 'center' },
-  zoomText: { color: '#D7D1D5', fontSize: 11, minWidth: 40, textAlign: 'center', paddingVertical: 10 },
-  toolButton: { minHeight: 40, paddingHorizontal: 10, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 9 },
-  toolText: { fontSize: 11, fontWeight: '500', color: '#E7E0E5' },
-  toolSelected: { backgroundColor: '#FF244221' },
-  selectedText: { color: '#FF8AA0' },
+  compareLine: { position: 'absolute', top: 0, bottom: 0, width: 2, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  compareHandle: { width: 36, height: 36, borderRadius: radius.lg, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  compareLabel: { ...typography.caption, position: 'absolute', top: space.md, color: colors.white, backgroundColor: colors.viewerSurface, paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.sm },
+  compareControl: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg },
+  zoomRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: space.xs, paddingHorizontal: space.sm, minHeight: 52 },
+  zoomButton: { minWidth: layout.touch, minHeight: layout.touch, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+  zoomText: { ...typography.caption, color: colors.viewerMuted, textAlign: 'center' },
+  toolButton: { minHeight: layout.touch, minWidth: layout.touch, paddingHorizontal: space.sm, paddingVertical: space.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, borderRadius: radius.sm },
+  toolText: { ...typography.caption, fontWeight: '600', color: colors.white },
+  toolSelected: { backgroundColor: colors.viewerSelected },
+  selectedText: { color: colors.white },
   disabled: { opacity: .35 },
-  pressed: { opacity: .7 },
-  versionScroll: { flexGrow: 0, maxHeight: 86, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#FFFFFF1A' },
-  versionStrip: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, gap: 10 },
-  version: { padding: 3, borderRadius: 7, borderWidth: 1.5, borderColor: '#FFFFFF00', minWidth: 52, alignItems: 'center', gap: 5 },
-  versionSelected: { borderColor: '#FF617F', backgroundColor: '#FF244218' },
-  versionImage: { width: 41, height: 42, borderRadius: 3, backgroundColor: '#343239' },
-  versionPlaceholder: { width: 41, height: 42, borderRadius: 3, backgroundColor: '#343239', alignItems: 'center', justifyContent: 'center' },
-  versionText: { color: '#B9AFB6', fontSize: 9 },
-  check: { marginHorizontal: 16, marginTop: 6, marginBottom: 5, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 8, backgroundColor: '#2A3D32' },
-  checkFailed: { backgroundColor: '#493331' },
-  checkText: { color: '#B6E4C7', fontSize: 11, lineHeight: 17 },
-  checkFailedText: { color: '#FFD1B7' },
-  checkActions: { flexDirection: 'row', gap: 24, marginTop: 5 },
-  retryText: { color: '#FFBBC5', fontSize: 12, fontWeight: '600', paddingVertical: 5 },
-  instructionCaption: { color: '#B4ADB3', fontSize: 10, lineHeight: 15, marginHorizontal: 18, marginVertical: 6 },
-  error: { color: '#FFAEBA', fontSize: 11, lineHeight: 17, marginHorizontal: 18, marginVertical: 5 },
-  bottom: { paddingHorizontal: 14, paddingBottom: 12, paddingTop: 5, borderTopColor: '#FFFFFF14', borderTopWidth: StyleSheet.hairlineWidth },
+  pressed: { opacity: .75, transform: [{ scale: .97 }] },
+  versionScroll: { flexGrow: 0, maxHeight: 112, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.viewerLine },
+  versionStrip: { paddingHorizontal: space.lg, paddingVertical: space.sm, gap: space.sm },
+  version: { padding: space.xs, borderRadius: radius.md, borderWidth: 1, borderColor: 'transparent', minWidth: 64, minHeight: 88, alignItems: 'center', gap: space.xs },
+  versionSelected: { borderColor: colors.red, backgroundColor: colors.viewerSelected },
+  versionImage: { width: 36, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: colors.viewerSurface },
+  versionPlaceholder: { width: 36, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: colors.viewerSurface, alignItems: 'center', justifyContent: 'center' },
+  check: { marginHorizontal: space.lg, marginVertical: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.sm, backgroundColor: colors.successSoft },
+  checkFailed: { backgroundColor: colors.blush },
+  checkText: { ...typography.caption, color: colors.green },
+  checkFailedText: { color: colors.danger },
+  checkActions: { flexDirection: 'row', gap: space.lg, marginTop: space.xs },
+  retryButton: { minHeight: layout.touch, justifyContent: 'center', paddingHorizontal: space.sm, borderRadius: radius.sm },
+  retryText: { ...typography.label, color: colors.redText },
+  instructionCaption: { ...typography.caption, color: colors.viewerMuted, marginHorizontal: space.lg, marginVertical: space.sm },
+  error: { ...typography.caption, color: colors.white, backgroundColor: colors.viewerSelected, borderRadius: radius.sm, marginHorizontal: space.lg, marginVertical: space.sm, padding: space.md },
+  bottom: { paddingHorizontal: space.lg, paddingBottom: space.md, paddingTop: space.sm, borderTopColor: colors.viewerLine, borderTopWidth: StyleSheet.hairlineWidth },
   mainActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
-  generationStatus: { fontSize: 11, color: '#FFB4C2', textAlign: 'center', paddingTop: 7 },
+  generationStatus: { paddingTop: space.sm },
   editHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   drawingTools: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 0 },
-  brushRow: { flexDirection: 'row', alignItems: 'center', gap: 20, paddingHorizontal: 7 },
-  slider: { flex: 1, height: 32, justifyContent: 'center', minWidth: 60 },
-  sliderTrack: { height: 3, borderRadius: 3, backgroundColor: '#555059' },
-  sliderFill: { height: 3, borderRadius: 3, backgroundColor: '#FF7086' },
-  sliderKnob: { position: 'absolute', width: 18, height: 18, marginLeft: -9, borderRadius: 10, backgroundColor: '#F8F5F1', borderWidth: 2, borderColor: '#FF7086' },
-  selectionStatus: { fontSize: 10, color: '#C7B5BF', marginLeft: 7, marginTop: 1 },
-  suggestionsScroll: { flexGrow: 0, marginTop: 6, marginBottom: 8 },
-  suggestionContext: { fontSize: 10, color: '#B4ADB3', marginLeft: 7, marginTop: 5 },
-  suggestions: { gap: 7, paddingVertical: 3 },
-  suggestion: { paddingHorizontal: 11, paddingVertical: 9, borderRadius: 15, backgroundColor: '#2D292E', borderWidth: 1, borderColor: '#51414A' },
-  suggestionRecommended: { borderColor: '#835060', backgroundColor: '#3F2D35' },
-  suggestionText: { color: '#E8C2CD', fontSize: 11 },
-  inputRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  input: { flex: 1, minHeight: 47, maxHeight: 83, paddingHorizontal: 12, paddingVertical: 12, borderRadius: 12, backgroundColor: '#2B282D', color: '#F8F5F1', fontSize: 13, lineHeight: 20 },
-  submit: { width: 45, height: 45, borderRadius: 23, backgroundColor: '#FF2442', alignItems: 'center', justifyContent: 'center' },
+  brushRow: { flexDirection: 'row', alignItems: 'center', gap: space.lg, paddingHorizontal: space.xs },
+  slider: { flex: 1, height: layout.touch, justifyContent: 'center', minWidth: 60 },
+  sliderTrack: { height: space.xs, borderRadius: radius.sm, backgroundColor: colors.viewerLine },
+  sliderFill: { height: space.xs, borderRadius: radius.sm, backgroundColor: colors.red },
+  sliderKnob: { position: 'absolute', width: 20, height: 20, marginLeft: -10, borderRadius: radius.sm, backgroundColor: colors.white, borderWidth: 2, borderColor: colors.red },
+  selectionStatus: { ...typography.caption, color: colors.viewerMuted, marginLeft: space.xs },
+  suggestionsScroll: { flexGrow: 0, marginTop: space.sm, marginBottom: space.sm },
+  suggestionContext: { ...typography.caption, color: colors.viewerMuted, marginLeft: space.xs, marginTop: space.sm },
+  suggestions: { gap: space.sm, paddingVertical: space.xs },
+  suggestion: { minHeight: layout.touch, justifyContent: 'center', paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.md, backgroundColor: colors.viewerSurface, borderWidth: 1, borderColor: colors.viewerLine },
+  suggestionRecommended: { borderColor: colors.red, backgroundColor: colors.viewerSelected },
+  suggestionText: { ...typography.caption, color: colors.white },
+  inputRow: { flexDirection: 'row', gap: space.sm, alignItems: 'center' },
+  input: { ...typography.body, flex: 1, minHeight: 48, maxHeight: 88, paddingHorizontal: space.md, paddingVertical: space.md, borderRadius: radius.sm, backgroundColor: colors.viewerSurface, color: colors.white },
+  submit: { width: 48, height: 48, borderRadius: radius.md, backgroundColor: colors.red, alignItems: 'center', justifyContent: 'center' },
 });
