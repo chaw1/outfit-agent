@@ -185,7 +185,7 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
     checkpoint.data.health = health;
     network.push({ at: new Date().toISOString(), kind: 'response', method: 'GET', url: `${base}/api/health`, status: healthResponse.status(), body: health });
     await page.addInitScript(({ apiBase, session }) => {
-      localStorage.setItem('outfit.server', apiBase); if (session) sessionStorage.setItem('outfit.session', session);
+      localStorage.setItem('outfit.server', apiBase); if (session) { sessionStorage.setItem('outfit.session', session); localStorage.setItem('outfit.onboarding.v1', 'done'); }
       // Observe exactly the string App reads, before its ordinary done/error handler aborts XHR.
       // Calling the native getter first preserves native return values and exception semantics.
       const descriptor = Object.getOwnPropertyDescriptor(XMLHttpRequest.prototype, 'responseText');
