@@ -16,7 +16,7 @@ from uuid import NAMESPACE_URL, uuid5
 import httpx
 from PIL import Image
 from sqlalchemy import and_, or_, select, text, update
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.config import settings
 from app.db import SessionLocal
@@ -45,6 +45,72 @@ def max_attempts() -> int:
 
 def lease_seconds() -> int:
     return int(settings.worker_lease_seconds)
+
+
+def _anchor_ready():
+    """A SQL predicate keeps waiting shots unclaimable across worker processes."""
+    cover, repair = aliased(Job), aliased(Job)
+    repairing = (
+        select(repair.id)
+        .where(
+            repair.id == cover.result["auto_fix_job_id"].as_string(),
+            repair.project_id == cover.project_id,
+            repair.user_id == cover.user_id,
+            repair.status.in_(["queued", "running"]),
+        )
+        .correlate(cover)
+        .exists()
+    )
+    pending = (
+        select(cover.id)
+        .where(
+            cover.id == Job.payload["anchor_job_id"].as_string(),
+            cover.project_id == Job.project_id,
+            cover.user_id == Job.user_id,
+            or_(cover.status.in_(["queued", "running"]), repairing),
+        )
+        .correlate(Job)
+        .exists()
+    )
+    return ~pending
+
+
+def _attach_anchor(session: Session, job: Job) -> None:
+    """Resolve the durable dependency once, retaining it unchanged on retries."""
+    dependency = job.payload.get("anchor_job_id")
+    if not dependency or job.payload.get("anchor_asset_id"):
+        return
+    cover = session.scalar(
+        select(Job).where(Job.id == dependency).execution_options(populate_existing=True)
+    )
+    if (
+        cover is None or cover.project_id != job.project_id or cover.user_id != job.user_id
+        or cover.status != "succeeded" or not cover.result_asset_id
+    ):
+        # Only a terminal failure/missing cover reaches this branch. Transient
+        # failures remain queued and are excluded by the claim predicate.
+        return
+    repair_id = cover.result.get("auto_fix_job_id")
+    repaired = session.scalar(
+        select(Job).where(Job.id == repair_id).execution_options(populate_existing=True)
+    ) if repair_id else None
+    if (
+        repaired is not None and repaired.project_id == job.project_id
+        and repaired.user_id == job.user_id and repaired.status == "succeeded"
+        and repaired.result_asset_id
+    ):
+        cover = repaired
+    job.payload = {
+        **job.payload,
+        "anchor_id": cover.payload.get("image_id", cover.id),
+        "anchor_asset_id": cover.result_asset_id,
+        "reference_asset_ids": list(dict.fromkeys([
+            *job.payload.get("reference_asset_ids", []), cover.result_asset_id,
+        ])),
+        "prompt": str(job.payload.get("prompt", ""))
+        + "以最后一张封面参考图为锚点，保持同一人、同一妆发与同一光线氛围；"
+        + "服装仍严格遵循原衣服参考图。",
+    }
 
 
 def claim_job(session: Session) -> Job | None:
@@ -98,6 +164,7 @@ def claim_job(session: Session) -> Job | None:
         .where(
             Project.deleted_at.is_(None),
             Job.attempts < max_attempts(),
+            _anchor_ready(),
             or_(
                 and_(Job.status == "queued", Job.available_at <= now),
                 and_(Job.status == "running", Job.locked_at < stale),
@@ -113,6 +180,7 @@ def claim_job(session: Session) -> Job | None:
     if job is None:
         session.commit()
         return None
+    _attach_anchor(session, job)
     job.status = "running"
     job.attempts += 1
     job.locked_at = now
@@ -264,12 +332,22 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
         "source_asset_id": asset.id,
         "instruction": instruction,
         "prompt": (
-            "参考图1为待修图，其余参考图为原衣服。保留人物身份和场景。"
+            (
+                "参考图1为待修图，中间参考图为原衣服。保留人物身份和场景。"
+                if job.payload.get("anchor_asset_id")
+                else "参考图1为待修图，其余参考图为原衣服。保留人物身份和场景。"
+            )
             + "；".join(descriptions)
             + "。"
             + instruction
+            + ("最后一张是封面锚点，保留其人物身份、妆发与光线氛围。"
+               if job.payload.get("anchor_asset_id") else "")
+            + job.payload.get("reference_style_prompt", "")
         ),
-        "reference_asset_ids": [asset.id, *garment_ids[:2]],
+        "reference_asset_ids": list(dict.fromkeys([
+            asset.id, *(garment_ids if job.payload.get("anchor_asset_id") else garment_ids[:2]),
+            *([job.payload["anchor_asset_id"]] if job.payload.get("anchor_asset_id") else []),
+        ])),
         "garment_asset_ids": garment_ids,
         "auto_fix": True,
         "auto_fix_for": job.id,
@@ -303,9 +381,22 @@ def _score_summary(jobs: list[Job]) -> str:
         for item in jobs
         if item.id not in replaced and item.result.get("fidelity")
     ]
-    if not scores:
-        return "还原分暂未取得。"
-    return f"还原分 {min(scores)}–{max(scores)}，平均 {sum(scores) / len(scores):.0f} 分。"
+    summary = (
+        f"还原分 {min(scores)}–{max(scores)}，平均 {sum(scores) / len(scores):.0f} 分。"
+        if scores else "还原分暂未取得。"
+    )
+    for field, label in (("person_score", "人像一致性"), ("anchor_score", "封面一致性")):
+        values = [
+            item.result["fidelity"][field] for item in jobs
+            if item.id not in replaced and item.status == "succeeded"
+            and field in (item.result.get("fidelity") or {})
+        ]
+        if values:
+            score = (
+                str(min(values)) if min(values) == max(values) else f"{min(values)}–{max(values)}"
+            )
+            summary += f"{label} {score} 分。"
+    return summary
 
 
 def _edit_summary(jobs: list[Job]) -> str:
@@ -525,10 +616,17 @@ def _generate_image(
     prompt = str(payload.get("prompt", payload.get("instruction", "")))
     references = _assets(session, job, payload.get("reference_asset_ids", []))
     originals = []
+    identity = {}
     if payload.get("purpose") != "preview":
         originals = _assets(
             session, job, payload.get("garment_asset_ids", project.garment_asset_ids)
         )
+        for field, asset_id in (
+            ("model_asset", payload.get("model_asset_id", project.model_asset_id)),
+            ("anchor_asset", payload.get("anchor_asset_id")),
+        ):
+            if asset_id:
+                identity[field] = _assets(session, job, [asset_id])[0]
     before, selection = None, None
     if job.kind == "edit":
         source_id = payload.get("source_asset_id") or payload.get("parent_asset_id")
@@ -547,8 +645,12 @@ def _generate_image(
                 temporary_image_asset(crop_reference(before, selection), before)
             )
             # Wan takes its default output aspect from the last reference.
-            references = [*originals[:2], cropped]
-            prompt = local_edit_prompt(str(payload.get("instruction", "")), selection)
+            anchor = identity.get("anchor_asset")
+            references = [*originals, anchor, cropped] if anchor else [*originals[:2], cropped]
+            prompt = local_edit_prompt(
+                str(payload.get("instruction", "")), selection, anchor_reference=bool(anchor)
+            )
+            prompt += payload.get("reference_style_prompt", "")
 
         def render(current_prompt: str) -> GeneratedMedia:
             if job.kind == "edit":
@@ -572,7 +674,7 @@ def _generate_image(
             if payload.get("purpose") != "preview":
                 try:
                     outcome.fidelity = {
-                        **hub.fidelity(originals, media),
+                        **hub.fidelity(originals, media, **identity),
                         "auto_fixed": bool(payload.get("auto_fix")) or repaired,
                     }
                 except Exception as exc:

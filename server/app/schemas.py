@@ -85,6 +85,14 @@ class ProjectInput(StrictInput):
     brief: str = Field(min_length=1, max_length=10000)
     garment_asset_ids: list[str] = Field(min_length=1, max_length=10)
     model_asset_id: str | None = None
+    reference_asset_ids: list[str] = Field(default_factory=list, max_length=3)
+
+    @field_validator("reference_asset_ids")
+    @classmethod
+    def unique_reference_assets(cls, value):
+        if any(not item.strip() for item in value) or len(value) != len(set(value)):
+            raise ValueError("参考图编号不能为空或重复。")
+        return value
 
 
 Stage = Literal["brief", "direction", "script", "images", "note", "video", "done"]
@@ -96,6 +104,7 @@ class ProjectOutput(BaseModel):
     brand: str
     brief: str
     stage: Stage
+    reference_asset_ids: list[str] = Field(default_factory=list)
     cover_url: str | None = None
     created_at: datetime
     updated_at: datetime

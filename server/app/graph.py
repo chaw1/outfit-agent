@@ -26,6 +26,7 @@ class AgentState(TypedDict, total=False):
     stage: str
     brief: dict
     garments: list[dict]
+    references: list[dict]
     model_asset_id: str | None
     directions: list[dict]
     chosen_direction_id: str | None

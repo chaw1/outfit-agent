@@ -26,7 +26,14 @@ def test_alembic_builds_an_empty_isolated_database(isolated_database_url):
             "users", "projects", "assets", "messages", "jobs", "usage_ledger",
             "request_events", "rate_limit_counters",
         } <= tables
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0008",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0009",)
+        references = connection.execute(
+            "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name='projects' "
+            "AND column_name='reference_asset_ids'",
+        ).fetchone()
+        assert references[0:2] == ("jsonb", "NO")
+        assert "[]" in references[2]
         refs = connection.execute(
             "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
             "WHERE table_schema='public' AND table_name='messages' AND column_name='refs'",

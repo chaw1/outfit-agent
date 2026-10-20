@@ -324,6 +324,13 @@ def create_project(
         asset = session.get(Asset, asset_id)
         if not asset or asset.user_id != user.id or asset.kind != "garment":
             raise AppError("INVALID_ASSET", "衣服资产不存在或无权使用", 404)
+    for asset_id in body.reference_asset_ids:
+        asset = session.get(Asset, asset_id)
+        if (
+            not asset or asset.user_id != user.id or asset.kind != "reference"
+            or asset.source != "upload"
+        ):
+            raise AppError("INVALID_ASSET", "参考图必须是本人上传的参考图资产", 422)
     model_id = body.model_asset_id
     if model_id is None:
         model_id = default_model_asset_id(session, user)

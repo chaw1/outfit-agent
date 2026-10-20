@@ -52,9 +52,11 @@ def test_admin_upgrade_preserves_existing_rows_and_backfills_user(isolated_datab
         assert dict(connection.execute("SELECT id,user_id FROM usage_ledger")) == {
             "legacy-ledger": "legacy-user", "unattributed": None
         }
-        assert connection.execute("SELECT title FROM projects").fetchone() == ("旧项目",)
+        assert connection.execute("SELECT title,reference_asset_ids FROM projects").fetchone() == (
+            "旧项目", [],
+        )
         assert connection.execute("SELECT value FROM app_settings").fetchall() == []
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0008",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0009",)
         assert connection.execute(
             "SELECT text,cards,refs,trace,can_regenerate FROM messages WHERE id='legacy-message'"
         ).fetchone() == (
