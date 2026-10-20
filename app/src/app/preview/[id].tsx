@@ -265,7 +265,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     finally { setEditing(false); }
   }
 
-  return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note', 'done'].includes(state?.stage ?? '')} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
+  return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note'].includes(state?.stage ?? '')} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
     <Header title="编辑笔记" subtitle="把灵感，穿进日常" onBack={backToStudio} />
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       {!!error && !!state && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}

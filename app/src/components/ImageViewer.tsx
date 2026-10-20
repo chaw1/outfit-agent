@@ -436,6 +436,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
               </ScrollView>
               <View style={styles.inputRow}><TextInput ref={input} testID="edit-instruction" accessibilityLabel="改图要求" placeholder="说说这里想怎么改…" placeholderTextColor={colors.viewerMuted} value={instruction} onChangeText={setInstruction} style={styles.input} multiline maxLength={2000} editable={!generationBusy} /><Pressable testID="submit-edit" accessibilityRole="button" accessibilityLabel="提交改图" accessibilityState={{ disabled: generationBusy || !instruction.trim() || invalidSelection }} disabled={generationBusy || !instruction.trim() || invalidSelection} onPress={() => { void sendEdit(); }} style={({ pressed }) => [styles.submit, (generationBusy || !instruction.trim() || invalidSelection) && styles.disabled, pressed && styles.pressed]}>{generationBusy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={23} color={colors.white} />}</Pressable></View>
             </> : <View style={styles.mainActions}><ToolButton title="局部改" icon="brush-outline" testID="viewer-mode-local" disabled={!canEdit || generationBusy || !rect || failedUrl === current.url} onPress={() => changeMode('local')} /><ToolButton title="整张改" icon="color-wand-outline" testID="viewer-mode-whole" disabled={!canEdit || generationBusy || !current.url} onPress={() => changeMode('whole')} /><ToolButton title={comparing ? '结束对比' : '对比版本'} icon="git-compare-outline" testID="viewer-compare-toggle" disabled={!parent?.url} selected={comparing} onPress={() => changeMode(comparing ? 'view' : 'compare')} /></View>}
+            {!canEdit && !comparing && !localEditing ? <Text testID="viewer-locked-hint" style={[styles.hint, styles.lockedHint]}>视频已生成，这组图片已定稿；想继续改图，可以新建一次合作。</Text> : null}
             {pending && !editing ? <View testID="viewer-generation-status" style={styles.generationStatus}><ProgressStrip title="新版本生成中，完成后自动对比" /></View> : null}
           </Animated.View>
         </KeyboardAvoidingView>
@@ -451,6 +452,7 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, gap: space.xs },
   title: { ...typography.body, color: colors.white, fontWeight: '700' },
   hint: { ...typography.caption, color: colors.viewerMuted },
+  lockedHint: { textAlign: 'center', paddingHorizontal: 20, paddingBottom: 8 },
   canvas: { flex: 1, minHeight: 140, overflow: 'hidden', backgroundColor: colors.viewerCanvas },
   loadError: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.lg },
   fidelity: { position: 'absolute', left: space.md, top: space.md },
