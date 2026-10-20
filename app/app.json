@@ -12,7 +12,9 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "连接你的电脑上的穿搭笔记服务。",
-        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true },
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -22,16 +24,58 @@
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#FF2442"
       },
-      "permissions": ["android.permission.READ_MEDIA_IMAGES"]
+      "permissions": [
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
-    "web": { "bundler": "metro", "output": "single", "favicon": "./assets/favicon.png" },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "imageWidth": 160, "backgroundColor": "#FCFAF7" }],
-      ["expo-image-picker", { "photosPermission": "选择品牌衣服图片，或用你的照片作为穿搭模特。", "cameraPermission": "拍摄品牌衣服或你的穿搭照片，用于创建合作项目。", "microphonePermission": false }],
-      ["expo-media-library", { "photosPermission": "读取你选中的穿搭照片。", "savePhotosPermission": "将选好的穿搭图保存到相册。", "granularPermissions": ["photo"] }]
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#FCFAF7"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "选择品牌衣服图片，或用你的照片作为穿搭模特。",
+          "cameraPermission": "拍摄品牌衣服或你的穿搭照片，用于创建合作项目。",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "读取你选中的穿搭照片与视频。",
+          "savePhotosPermission": "将选好的穿搭图片和短视频保存到相册，用于发布。",
+          "granularPermissions": [
+            "photo",
+            "video"
+          ]
+        }
+      ],
+      "expo-background-task",
+      [
+        "expo-notifications",
+        {
+          "color": "#FF2442",
+          "defaultChannel": "generation-results"
+        }
+      ]
     ],
-    "experiments": { "typedRoutes": true }
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

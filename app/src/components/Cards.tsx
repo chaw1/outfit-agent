@@ -119,7 +119,7 @@ function DirectionPreview({ direction }: { direction: Direction }) {
     {ready && url ? <>
       <Image source={{ uri: url }} style={styles.previewImage} resizeMode="cover" accessibilityLabel={`${direction.name}灵感预览`} testID={`preview-image-${direction.id}`} onLoad={() => setLoadedUrl(url)} onError={() => setFailedUrl(url)} />
       {loadedUrl !== url ? <ActivityIndicator color={colors.red} style={StyleSheet.absoluteFill} /> : null}
-      <View style={styles.previewLabel}><Text style={styles.previewLabelText}>灵感预览 · AI生成</Text></View>
+      <View style={styles.previewLabel}><Text style={styles.previewLabelText}>灵感预览</Text></View>
     </> : <View style={styles.previewPlaceholder} testID={`preview-placeholder-${direction.id}`}>
       {failed ? <Icon name="image-outline" color="#A8907D" size={24} /> : direction.preview_status ? <ActivityIndicator color="#B6967B" size="small" /> : <Icon name="color-palette-outline" color="#B6967B" size={24} />}
       <Text style={styles.previewStatus}>{failed ? '灵感图暂时没成功，可先按文字选方向' : running ? '正在描绘这份灵感…' : direction.preview_status === 'queued' ? '灵感图已排队，马上开始' : '灵感预览暂未提供'}</Text>
@@ -208,7 +208,7 @@ function ImageGrid({ items, state, busy, onAction }: {
                 )}
                 {item.status === 'succeeded' ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy} onPress={event => { event.stopPropagation(); toggle(item.id); }} hitSlop={8} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
                 <View style={styles.versionBadge}><Text style={styles.versionText}>{isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`}</Text></View>
-                {item.status === 'succeeded' ? <><FidelityBadge image={item} /><View pointerEvents="none" style={{ position: 'absolute', bottom: 7, right: 7, backgroundColor: '#25252288', borderRadius: 4, padding: 4 }}><Text style={{ fontSize: 8, color: 'white' }}>AI生成</Text></View></> : null}
+                {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
               </Pressable>
               <View style={styles.imageCaptionRow}>
                 <Text style={styles.imageCaption}>镜头 {String(shotIds.indexOf(item.shot_id) + 1).padStart(2, '0')}{item.script_version ? ` · 脚本 ${item.script_version}` : ''}</Text>

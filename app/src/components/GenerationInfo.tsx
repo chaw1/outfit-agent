@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { NoteData, OutfitImage } from '../api/types';
 import { colors } from './ui';
 
@@ -9,10 +10,11 @@ export function FidelityBadge({ image }: { image: OutfitImage }) {
 }
 
 export function ImageRevisionInfo({ image }: { image: OutfitImage }) {
+  const [expanded, setExpanded] = useState(false);
   return <View style={styles.revision}>
     {image.fidelity?.auto_fixed ? <Text testID={`auto-fixed-${image.id}`} style={styles.fixed}>已自动修一版</Text> : null}
     {image.instruction ? <Text style={styles.detail}>{image.instruction}</Text> : null}
-    {image.fidelity?.diffs.length ? <Text style={styles.detail}>差异点：{image.fidelity.diffs.join('；')}</Text> : null}
+    {image.fidelity?.diffs.length ? <Pressable accessibilityRole="button" accessibilityLabel={expanded ? '收起差异点' : '展开差异点'} accessibilityState={{ expanded }} aria-expanded={expanded} onPress={() => setExpanded(value => !value)}><Text testID={`fidelity-diffs-${image.id}`} numberOfLines={expanded ? undefined : 2} style={styles.detail}>差异点：{image.fidelity.diffs.join('；')}</Text><Text style={[styles.detail, { color: colors.red }]}>{expanded ? '收起' : '展开差异点'}</Text></Pressable> : null}
     {image.edit_check ? <Text testID={`edit-check-${image.id}`} style={[styles.detail, { color: image.edit_check.passed ? colors.green : '#AE2940' }]}>{image.edit_check.passed ? '已按要求改好' : '可能没改到位'}：{image.edit_check.reason}</Text> : null}
   </View>;
 }
