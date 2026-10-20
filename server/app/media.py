@@ -136,42 +136,31 @@ def store_generated(
 
 
 def label_generated_image(data: bytes, model: str, *, draw_label: bool = True) -> bytes:
-    """Embed a visible disclosure and portable PNG provenance metadata.
-
-    The two Chinese glyphs use simple strokes so production images do not
-    depend on a system font being installed in the slim worker container.
-    """
+    """Embed an antialiased disclosure using the bundled OFL font subset."""
     with Image.open(io.BytesIO(data)) as source:
         image = source.convert("RGB") if draw_label else source.copy()
     if not draw_label:
         return _generated_png(image, model)
-    # Draw at a fixed large size then resize with the canvas for tiny test assets.
-    label = Image.new("RGBA", (116, 34), (20, 20, 20, 210))
-    draw = ImageDraw.Draw(label)
-    font = ImageFont.load_default(size=21)
-    draw.text((9, 4), "AI", font=font, fill="white")
-    glyphs = [
-        [
-            [(7, 1), (4, 6)],
-            [(5, 5), (14, 5)],
-            [(8, 1), (8, 15)],
-            [(2, 10), (13, 10)],
-            [(1, 15), (15, 15)],
-        ],
-        [
-            [(2, 5), (15, 5)],
-            [(3, 5), (3, 10), (1, 15)],
-            [(3, 8), (7, 8), (7, 13), (6, 14), (4, 13)],
-            [(9, 1), (9, 6), (10, 11), (12, 15), (14, 13)],
-            [(12, 1), (14, 3)],
-            [(14, 7), (12, 11), (8, 15)],
-        ],
-    ]
-    for offset, strokes in zip((44, 76), glyphs, strict=True):
-        for stroke in strokes:
-            draw.line([(offset + x * 1.5, 5 + y * 1.5) for x, y in stroke], fill="white", width=2)
     left, top, right, bottom = label_bounds(image.size)
     target_width, target_height = right - left, bottom - top
+    # Render at the actual target size with supersampling: a fixed bitmap would
+    # become visibly jagged when a large image uses a larger disclosure box.
+    supersample = 4
+    label = Image.new(
+        "RGBA", (target_width * supersample, target_height * supersample), (20, 20, 20, 210)
+    )
+    draw = ImageDraw.Draw(label)
+    font = ImageFont.truetype(
+        str(Path(__file__).with_name("fonts") / "OutfitDisclosure-Medium.otf"),
+        size=max(1, round(target_height * 0.76 * supersample)),
+    )
+    text = "AI生成"
+    text_left, text_top, text_right, text_bottom = draw.textbbox((0, 0), text, font=font)
+    position = (
+        (label.width - (text_right - text_left)) / 2 - text_left,
+        (label.height - (text_bottom - text_top)) / 2 - text_top,
+    )
+    draw.text(position, text, font=font, fill="white")
     label = label.resize((target_width, target_height), Image.Resampling.LANCZOS)
     image.paste(label, (left, top), label)
     return _generated_png(image, model)

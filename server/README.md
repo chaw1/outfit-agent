@@ -141,6 +141,25 @@ uv run python scripts/report_usage.py --output artifacts/usage-real-edits.json
 
 pytest 的 HTTP 集成用例要求本机 Mock 栈；默认没有栈会跳过，`REQUIRE_INTEGRATION=1` 强制可用。测试只允许 `localhost/127.0.0.1:18080`。迁移测试只在本机 `18432` 新建随机 `outfit_test_*` 空库、执行 Alembic 和核对业务表，最后删除自己创建的测试库；业务数据库不清理。自定义数据库口令时，测试进程应注入相同 `TEST_DATABASE_URL/JWT_SECRET`。
 
+### 第四轮局部改对照与断点
+
+正式局部改保留最多两张衣服参考，最后一张始终是裁剪画布；扩边由选区长边的 20% 增至 60%，不扩大用户蒙版。提示补充可见目标状态，并保留用户原话及未要求改变的属性；纯调色请求只改颜色或亮度。带完整原图参考的实验产生了人物拼贴，未采用。[万相 2.7 官方接口](https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference)说明 2K 编辑输出比例跟随最后一张参考图，因此不能把整图放在裁剪图后面。[多图编辑指南](https://help.aliyun.com/zh/model-studio/wan-image-edit)也要求图号与输入顺序一致。目标状态提示是实验策略，不构成成功保证。
+
+合成先以同位置的低频 RGB 差校正边缘色偏（单通道偏移限于 ±48/255，校正向内衰减），再以蒙版内 smoothstep 羽化；中心编辑不受校色影响。选择这种方法是为了限制过渡范围并严格保证蒙版外像素不变，避免全图融合改动其他区域。无足够内部空间的细分支回退受限羽化以保留编辑能力，平滑程度不等同于宽选区。生成图片使用随目标尺寸 4× 超采样的中文字体，来源、许可与重建方式见 [app/fonts/README.md](app/fonts/README.md)；元数据与继承角标保护保持不变。
+
+`scripts/compare_local_edits.py` 复用上一轮保留的两张本地样本，分别测袖口、塞腰和胸牌；三个方案各只请求一次，不触发自动纠正。`baseline` 是旧上下文和旧提示，`candidate` 加完整原图参考，`context` 是最终采用的较大上下文与目标状态提示。A/B 固定原图、指令和蒙版，组合策略的差异不能归因于单一因素；三样例不能推导总体成功率。输入样本在 `artifacts/`，新检出仓库需先准备对应样本，测试本身不依赖这些历史文件。
+
+仅在已通过钥匙串注入个人模型凭证的进程内运行，常驻 API/Worker 保持 Mock：
+
+```bash
+MOCK_PROVIDERS=0 MODEL_BUDGET_CNY=5 uv run python scripts/compare_local_edits.py --mode real --phase check
+# 完成的检查可重复运行，新增模型调用为零。结果未知的 started 状态会停止，不能盲目重提。
+# 下面的接缝重放完全离线，使用本轮保留的同一个原始模型响应比较新旧合成。
+uv run python scripts/verify_seams.py --raw artifacts/local-edit-fix3-cuff-baseline-raw.png --region .295 .31 .145 .13 --context-ratio .2 --output artifacts/seams-fix3-cuff-baseline.json
+```
+
+真实实验强制共用 `artifacts/local-edit-fix3.json` 和同名 SQLite 费用账本，缺失任一会停止；费用包含失败与弃选方案。每次生成/核对先写断点，保留输入哈希、参考图哈希、指令、裁剪参数及 raw 输出；配置变化拒绝混用。`--phase generate` 可只保留 raw，`--phase check` 按已保存提示核对；`--variant context` 只测选中策略。接缝指标减去原图天然梯度，同时报告 2–8px/16px 内环带残差，不能仅靠边缘权重为零来宣称没有接缝。
+
 ## 配置与真实费用
 
 配置只从进程环境读取，应用不自动加载 `.env`。Compose 可用 `.env.example` 查看无密钥示例；实际模型密钥、数据库密码和 JWT secret 只注入启动进程，不写文件或提交。模型密钥按任务约定从个人钥匙串注入，不打印到终端、日志或证据。

@@ -67,6 +67,8 @@ def prepare_selection(
     size: tuple[int, int],
     region: dict | None = None,
     mask_strokes: dict | None = None,
+    *,
+    context_ratio: float = 0.6,
 ) -> EditSelection:
     """Validate normalized geometry and rasterize it without writing any files."""
     if (region is None) == (mask_strokes is None):
@@ -123,7 +125,7 @@ def prepare_selection(
     if min(right - left, bottom - top) < 2 or sum(mask.histogram()[1:]) < 16:
         raise _invalid("圈选区域太小，请至少圈出 16 个像素并适当加粗笔刷")
     feather = min(8, max(1, round(min(right - left, bottom - top) * 0.06)))
-    padding = max(16, math.ceil(max(right - left, bottom - top) * 0.2), 3 * feather)
+    padding = max(16, math.ceil(max(right - left, bottom - top) * context_ratio), 3 * feather)
     crop_box = (
         max(0, left - padding),
         max(0, top - padding),
@@ -160,6 +162,82 @@ def crop_reference(source: Asset, selection: EditSelection) -> GeneratedMedia:
     return GeneratedMedia(output.getvalue(), "image/png", "local-crop", *canvas.size)
 
 
+def _thin_selection(mask: Image.Image) -> Image.Image:
+    """Find narrow spurs that have no interior even beside a wider stroke."""
+    opened = mask.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(3))
+    return ImageChops.subtract(mask, opened)
+
+
+def _inward_feather(mask: Image.Image, radius: int) -> Image.Image:
+    """Ramp from zero at the selection edge to one strictly inside it.
+
+    A clipped Gaussian alone starts at roughly 50% on a straight edge. That
+    leaves a visible jump when the model has shifted the crop's exposure. Small
+    erosions measure inward distance without ever granting outside pixels any
+    opacity; smoothstep also has a flat slope at both ends of the transition.
+    """
+    rings, eroded = [], mask
+    for _ in range(max(1, 2 * radius)):
+        eroded = eroded.filter(ImageFilter.MinFilter(3))
+        if eroded.getbbox() is None:
+            break
+        rings.append(eroded)
+    if not rings:
+        # A one-pixel stroke has no interior. Keep it editable rather than
+        # silently discarding the user's whole selection.
+        return ImageChops.multiply(mask, mask.filter(ImageFilter.GaussianBlur(radius)))
+    alpha, previous = Image.new("L", mask.size, 0), 0
+    for index, ring in enumerate(rings, 1):
+        t = index / len(rings)
+        level = round(255 * t * t * (3 - 2 * t))
+        increment = level - previous
+        alpha = ImageChops.add(
+            alpha, ring.point(lambda value, increment=increment: value * increment // 255)
+        )
+        previous = level
+    # A wider stroke elsewhere must not prevent a thin branch from using the
+    # fallback. Morphological opening separates that local support; applying
+    # the old alpha to the whole mask would restore the thick region's seam.
+    thin_alpha = ImageChops.multiply(
+        _thin_selection(mask), mask.filter(ImageFilter.GaussianBlur(radius))
+    )
+    return ImageChops.multiply(mask, ImageChops.lighter(alpha, thin_alpha))
+
+
+def _match_boundary_colors(
+    original: Image.Image, edited: Image.Image, alpha: Image.Image, radius: int,
+    *, mask: Image.Image | None = None,
+) -> Image.Image:
+    """Match local low-frequency RGB/exposure drift, fading the correction inward.
+
+    Paired positions avoid confusing the original sleeve/background edge with a
+    new color seam. Blur rejects fabric texture; per-channel offsets handle both
+    brightness and color casts. Corrections stop at 48/255 per channel to avoid
+    replacing a genuinely different object, and leave the fully opaque interior
+    intact. A global histogram match would recolor the requested edit itself.
+    """
+    if alpha.getextrema()[1] < 255:
+        # The one-pixel fallback has no interior to protect. Color matching its
+        # entire selection could cancel the requested change altogether.
+        return edited
+    before = original.convert("RGB").filter(ImageFilter.GaussianBlur(max(2, radius)))
+    after = edited.convert("RGB").filter(ImageFilter.GaussianBlur(max(2, radius)))
+    before_values, after_values = before.tobytes(), after.tobytes()
+    values = bytearray(edited.tobytes())
+    stride = len(edited.getbands())
+    thin = _thin_selection(mask).tobytes() if mask is not None else None
+    for pixel, opacity in enumerate(alpha.tobytes()):
+        if opacity == 255 or (thin is not None and thin[pixel]):
+            continue
+        weight = (255 - opacity) / 255
+        for channel in range(3):
+            sample = pixel * 3 + channel
+            offset = max(-48, min(48, before_values[sample] - after_values[sample]))
+            target = pixel * stride + channel
+            values[target] = max(0, min(255, round(values[target] + weight * offset)))
+    return Image.frombytes(edited.mode, edited.size, bytes(values))
+
+
 def compose_local_edit(
     source: Asset, generated: GeneratedMedia, selection: EditSelection
 ) -> GeneratedMedia:
@@ -174,10 +252,9 @@ def compose_local_edit(
     edited = edited.crop(selection.canvas_box)
     original_crop = source_image.crop(selection.crop_box)
     mask = selection.mask.crop(selection.crop_box)
-    # Multiplication clips the Gaussian to the original selection. Even its
-    # finite tail cannot change a single pixel outside the user's painted mask.
-    alpha = ImageChops.multiply(
-        mask, mask.filter(ImageFilter.GaussianBlur(selection.feather_radius))
+    alpha = _inward_feather(mask, selection.feather_radius)
+    edited = _match_boundary_colors(
+        original_crop, edited, alpha, selection.feather_radius, mask=mask
     )
     source_image.paste(Image.composite(edited, original_crop, alpha), selection.crop_box[:2])
     if source.source == "generated":

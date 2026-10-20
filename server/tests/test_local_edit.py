@@ -156,10 +156,13 @@ def test_every_edit_compares_full_before_after_and_retries_once(
         if local:
             assert references[-1].id not in ids
             assert references[0].id == ids[2]
+            assert ids[3] not in [item.id for item in references]
+            assert len(references) <= 3
             with Image.open(asset_path(references[-1])) as crop:
                 assert min(crop.size) >= 240
                 assert crop.size != (512, 768)
             assert "唯一待编辑的局部裁剪画布" in prompt
+            assert "保持原短袖或长袖版型" in prompt
         return GeneratedMedia(png(Image.new("RGB", (240, 240), "red")), "image/png", "mock-edit")
 
     def check(self, before, after, instruction, region=None):

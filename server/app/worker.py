@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal
+from app.edit_guidance import local_edit_prompt
 from app.errors import AppError
 from app.local_edit import (
     compose_local_edit,
@@ -431,13 +432,7 @@ def _generate_image(
             )
             # Wan takes its default output aspect from the last reference.
             references = [*originals[:2], cropped]
-            prompt = (
-                "最后一张参考图是唯一待编辑的局部裁剪画布；前面的图片仅供原衣服细节参考。"
-                "严格保持最后一张图的画幅、镜头、人物位置和局部构图，输出同一裁剪块。"
-                "不要输出全身照，不要扩展到裁剪块之外，不要把原衣服产品图当成编辑画布。"
-                "仅做用户要求的局部修改，保留其余内容："
-                + str(payload.get("instruction", ""))
-            )
+            prompt = local_edit_prompt(str(payload.get("instruction", "")), selection)
 
         def render(current_prompt: str) -> GeneratedMedia:
             if job.kind == "edit":
