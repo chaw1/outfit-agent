@@ -1,0 +1,7 @@
+已完成，交接见 [app/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/FINAL.md)。
+
+- TypeScript、ESLint、26 项测试通过。
+- iOS/Android 导出、完整流程通过，保留 18 张手机尺寸截图。
+- `feat/app` 已分 4 条提交，工作区干净，未 push。
+
+用时约 28 分钟。真机与真实后端尚未联调，相关限制已写入文档。

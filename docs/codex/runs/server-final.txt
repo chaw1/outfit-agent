@@ -1,0 +1,8 @@
+已完成服务端实现与本机验收，交接见 [server/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-server/server/FINAL.md)。
+
+- 64 项测试、Ruff 全通过。
+- Mock、真实闭环、重启续聊均通过。
+- 真实调用保守估算 7.104 元，已恢复 Mock。
+- 已在 `feat/server` 提交，未 push，工作区干净。
+
+公网尚未部署：缺少已授权的新服务器和域名。
