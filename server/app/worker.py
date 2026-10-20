@@ -6,19 +6,29 @@ import hashlib
 import logging
 import signal
 import threading
+from contextlib import ExitStack
+from dataclasses import dataclass
 from datetime import timedelta
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
+from PIL import Image
 from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal
+from app.errors import AppError
+from app.local_edit import (
+    compose_local_edit,
+    crop_reference,
+    prepare_selection,
+    temporary_image_asset,
+)
 from app.log_errors import log_exception
-from app.media import store_generated
+from app.media import asset_path, store_generated
 from app.models import Asset, Job, Message, Project, utcnow
-from app.providers import ProviderError, ProviderHub
+from app.providers import GeneratedMedia, ProviderError, ProviderHub
 from app.views import image_items
 
 logger = logging.getLogger("outfit.worker")
@@ -187,7 +197,12 @@ def _lock_publication_job(session: Session, job_id: str) -> Job | None:
 
 def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
     fidelity = job.result.get("fidelity")
-    if not fidelity or fidelity["score"] >= 60 or job.payload.get("auto_fix"):
+    if (
+        not fidelity
+        or fidelity["score"] >= 60
+        or job.payload.get("auto_fix")
+        or job.kind == "edit"
+    ):
         return
     key = f"{job.project_id}:auto-fix:{job.id}"
     fix_id = str(uuid5(NAMESPACE_URL, key))
@@ -272,6 +287,20 @@ def _score_summary(jobs: list[Job]) -> str:
     return f"还原分 {min(scores)}–{max(scores)}，平均 {sum(scores) / len(scores):.0f} 分。"
 
 
+def _edit_summary(jobs: list[Job]) -> str:
+    unchecked = [
+        item.result["edit_check"]
+        for item in jobs
+        if item.status == "succeeded"
+        and item.result.get("edit_check")
+        and not item.result["edit_check"]["passed"]
+    ]
+    if not unchecked:
+        return ""
+    reasons = "；".join(dict.fromkeys(item["reason"] for item in unchecked))
+    return f"其中 {len(unchecked)} 张改图尚未确认按要求完成：{reasons}。原版仍保留着。"
+
+
 def _publish(session: Session, job: Job, event: str, content: str, cards: list[dict]) -> None:
     message_id = str(uuid5(NAMESPACE_URL, f"{job.project_id}:worker:{event}"))
     if not session.get(Message, message_id):
@@ -340,7 +369,8 @@ def _notify_completion(session: Session, job: Job) -> None:
             session,
             job,
             f"auto-fix:{job.id}",
-            "1 张图的自动还原修复做好了，原图和新版都保留着。" + _score_summary([job]),
+            "1 张图的自动还原修复做好了，原图和新版都保留着。"
+            + _score_summary([job]) + _edit_summary([job]),
             cards,
         )
     if not batch or any(item.status in {"queued", "running"} for item in batch):
@@ -356,8 +386,140 @@ def _notify_completion(session: Session, job: Job) -> None:
         text_content += f"，另外自动补了 {repaired} 个修复版本"
     if failed:
         text_content += f"，有 {failed} 个任务失败，可在工作台查看原因"
-    text_content += "。" + _score_summary(batch)
+    text_content += "。" + _score_summary(batch) + _edit_summary(batch)
     _publish(session, job, f"batch:{_batch_key(job)}", text_content, cards)
+
+
+@dataclass
+class ImageOutcome:
+    media: GeneratedMedia
+    fidelity: dict | None = None
+    fidelity_error: str | None = None
+    edit_check: dict | None = None
+    region: dict | None = None
+    retry_error: str | None = None
+
+
+def _generate_image(
+    session: Session, job: Job, project: Project, payload: dict, hub: ProviderHub
+) -> ImageOutcome:
+    """One edit has one shared retry budget for instruction and fidelity checks."""
+    owner_attempt = job.attempts
+    prompt = str(payload.get("prompt", payload.get("instruction", "")))
+    references = _assets(session, job, payload.get("reference_asset_ids", []))
+    originals = []
+    if payload.get("purpose") != "preview":
+        originals = _assets(
+            session, job, payload.get("garment_asset_ids", project.garment_asset_ids)
+        )
+    before, selection = None, None
+    if job.kind == "edit":
+        source_id = payload.get("source_asset_id") or payload.get("parent_asset_id")
+        if not source_id:
+            raise ProviderError("改图任务没有来源图片。")
+        before = _assets(session, job, [source_id])[0]
+        if payload.get("region") is not None or payload.get("mask_strokes") is not None:
+            with Image.open(asset_path(before)) as source:
+                selection = prepare_selection(
+                    source.size, payload.get("region"), payload.get("mask_strokes")
+                )
+
+    with ExitStack() as stack:
+        if selection is not None:
+            cropped = stack.enter_context(
+                temporary_image_asset(crop_reference(before, selection), before)
+            )
+            # Wan takes its default output aspect from the last reference.
+            references = [*originals[:2], cropped]
+            prompt = (
+                "最后一张参考图是唯一待编辑的局部裁剪画布；前面的图片仅供原衣服细节参考。"
+                "严格保持最后一张图的画幅、镜头、人物位置和局部构图，输出同一裁剪块。"
+                "不要输出全身照，不要扩展到裁剪块之外，不要把原衣服产品图当成编辑画布。"
+                "仅做用户要求的局部修改，保留其余内容："
+                + str(payload.get("instruction", ""))
+            )
+
+        def render(current_prompt: str) -> GeneratedMedia:
+            if job.kind == "edit":
+                # Queue retries and quality corrections share the same two
+                # submissions. Reserve under the row lock before any paid POST.
+                session.refresh(job, with_for_update=True)
+                if job.status != "running" or job.attempts != owner_attempt:
+                    session.rollback()
+                    raise ProviderError("任务租约已失效。")
+                request_count = job.result.get("edit_image_request_count", 0)
+                if request_count >= 2:
+                    session.rollback()
+                    raise ProviderError("改图已达到两次请求上限，为避免重复计费已停止。")
+                job.result = {**job.result, "edit_image_request_count": request_count + 1}
+                session.commit()
+            media = hub.image(current_prompt, references)
+            return compose_local_edit(before, media, selection) if selection else media
+
+        def inspect(media: GeneratedMedia, *, repaired: bool = False) -> ImageOutcome:
+            outcome = ImageOutcome(media=media, region=selection.region if selection else None)
+            if payload.get("purpose") != "preview":
+                try:
+                    outcome.fidelity = {
+                        **hub.fidelity(originals, media),
+                        "auto_fixed": bool(payload.get("auto_fix")) or repaired,
+                    }
+                except Exception as exc:
+                    outcome.fidelity_error = "还原分暂时无法取得，请稍后查看。"
+                    log_exception(logger, f"任务 {job.id} 还原检查失败", exc)
+            if before is not None:
+                try:
+                    with temporary_image_asset(media, before) as after:
+                        outcome.edit_check = hub.check_edit(
+                            before, after, str(payload.get("instruction", "")), outcome.region
+                        )
+                except Exception as exc:
+                    outcome.edit_check = {
+                        "passed": False,
+                        "reason": "指令核对暂时无法完成，暂不能确认是否按要求改好。",
+                    }
+                    log_exception(logger, f"任务 {job.id} 指令核对失败", exc)
+            return outcome
+
+        outcome = inspect(render(prompt))
+        check_failed = bool(outcome.edit_check and not outcome.edit_check["passed"])
+        # An unavailable checker is not evidence that another paid edit helps.
+        check_unavailable = bool(
+            outcome.edit_check and "指令核对暂时无法完成" in outcome.edit_check["reason"]
+        )
+        low_fidelity = bool(outcome.fidelity and outcome.fidelity["score"] < 60)
+        retry_allowed = (
+            before is not None
+            and not payload.get("auto_fix")
+            and not job.result.get("edit_retry_count")
+            and job.result.get("edit_image_request_count", 0) < 2
+        )
+        if retry_allowed and ((check_failed and not check_unavailable) or low_fidelity):
+            details = []
+            if check_failed and not check_unavailable:
+                details.append("上次未落实修改：" + outcome.edit_check["reason"])
+            if low_fidelity:
+                details.append("恢复原衣服细节：" + "；".join(outcome.fidelity.get("diffs", [])))
+            retry_prompt = (
+                prompt + "。这是唯一一次纠正重试，必须实际改变用户指定的可见细节。"
+                + "；".join(details)
+                + "。用户原始指令必须落实：" + str(payload.get("instruction", ""))
+            )
+            # Persist the budget before submitting the second paid request. A
+            # resumed worker can never silently acquire another correction.
+            job.result = {**job.result, "edit_retry_count": 1}
+            session.commit()
+            try:
+                outcome = inspect(render(retry_prompt), repaired=low_fidelity)
+            except Exception as exc:
+                outcome.retry_error = "自动重试未完成，已保留首次改图结果。"
+                if outcome.edit_check:
+                    outcome.edit_check = {
+                        **outcome.edit_check,
+                        "reason": outcome.edit_check["reason"] + "；" + outcome.retry_error,
+                    }
+                log_exception(logger, f"任务 {job.id} 改图重试失败，保留首次结果", exc)
+        return outcome
 
 
 def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None:
@@ -394,30 +556,10 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                     job.result = {**job.result, "external_request_started": True}
                     session.commit()
                 prompt = str(payload.get("prompt", payload.get("instruction", "")))
-                fidelity, fidelity_error = None, None
+                outcome = None
                 if job.kind in {"image", "edit"}:
-                    references = _assets(session, job, payload.get("reference_asset_ids", []))
-                    media = hub.image(prompt, references)
-                    if payload.get("purpose") != "preview":
-                        originals = _assets(
-                            session,
-                            job,
-                            payload.get(
-                                "garment_asset_ids",
-                                project.garment_asset_ids,
-                            ),
-                        )
-                        try:
-                            fidelity = {
-                                **hub.fidelity(originals, media),
-                                "auto_fixed": bool(payload.get("auto_fix")),
-                            }
-                        except Exception as exc:
-                            # Generation has already incurred its cost. Preserve
-                            # that result rather than retrying a paid image POST
-                            # merely because the separate quality check failed.
-                            fidelity_error = "还原分暂时无法取得，请稍后查看。"
-                            log_exception(logger, f"任务 {job_id} 还原检查失败", exc)
+                    outcome = _generate_image(session, job, project, payload, hub)
+                    media = outcome.media
                 elif job.kind == "video":
                     source_id = payload.get("image_asset_id") or payload.get("source_asset_id")
                     if not source_id:
@@ -451,13 +593,17 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                     media=media,
                     parent_id=parent_id,
                     prompt=prompt,
+                    preserve_visible_label=bool(outcome and outcome.region is not None),
                 )
                 job.result_asset_id = asset.id
                 job.result = {**job.result, "asset_id": asset.id}
-                if fidelity is not None:
-                    job.result = {**job.result, "fidelity": fidelity}
-                if fidelity_error:
-                    job.result = {**job.result, "fidelity_error": fidelity_error}
+                if outcome:
+                    for key in (
+                        "fidelity", "fidelity_error", "edit_check", "region", "retry_error"
+                    ):
+                        value = getattr(outcome, key)
+                        if value is not None:
+                            job.result = {**job.result, key: value}
                 job.status, job.locked_at, job.error = "succeeded", None, None
                 if job.kind in {"image", "edit"} and payload.get("purpose") != "preview":
                     _auto_fix(session, job, asset)
@@ -474,12 +620,16 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
             if not job or job.status != "running" or job.attempts != attempt:
                 return
             retryable = isinstance(exc, ProviderError) and exc.retryable
+            if job.kind == "edit" and job.result.get("edit_image_request_count", 0) >= 2:
+                retryable = False
             # Transport failures after an image POST can be ambiguous; do not
             # blindly repeat paid synchronous generation. Video with a saved
             # task id is safe to resume even after poll transport failure.
             if isinstance(exc, httpx.HTTPError):
                 retryable = job.kind == "video" and bool(job.payload.get("provider_task_id"))
-            message = str(exc) if isinstance(exc, ProviderError) else "生成服务暂时不可用。"
+            message = (
+                str(exc) if isinstance(exc, (ProviderError, AppError)) else "生成服务暂时不可用。"
+            )
             project = session.get(Project, job.project_id)
             if project is None or project.deleted_at:
                 retryable, message = False, "项目已删除。"

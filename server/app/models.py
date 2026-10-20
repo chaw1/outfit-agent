@@ -74,6 +74,7 @@ class Message(Base):
     text: Mapped[str] = mapped_column(Text, default="")
     cards: Mapped[list] = mapped_column(json_type, default=list)
     action: Mapped[dict | None] = mapped_column(json_type, nullable=True)
+    refs: Mapped[list] = mapped_column(json_type, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

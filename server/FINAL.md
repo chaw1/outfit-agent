@@ -1,48 +1,34 @@
-# 服务端第二轮验收交接
+# 服务端第三轮验收交接
 
-结论：R1–R11 已落地；100 项测试全绿，真实问句 30/30，真实闭环从同项目续跑完成。1 张方向预览供应商断连失败，其余媒体成功；本轮保守估算 ¥6.391026。仅本地交付，未连接或部署服务器。
+结论：T1–T5 已实现并完成验证；170 项测试通过，真实塞腰成功、吊牌去除成功。袖口展开重试后仍未到位，已如实标注并主动播报。本轮 21 次真实调用估算 ¥3.078382；未连接服务器、未部署、未 push。
 
-- R1：阶段内一次模型调用选完整允许工具并解析参数，真实路径无关键词路由；30 句覆盖七阶段、模糊指代、反问、跑题、历史恢复，工具与目标准确率 100%；5 个越阶段请求全部由代码拒绝并返回中文解释。
-- R2：所有文本工具带 reply；同阶段两个不同合作项目真实回复不同。关键词仅在 Mock，静态回复仅用于兜底、确认提示或 Worker 播报。
-- R3：note 改图保留阶段和视频确认；images/note 改脚本回 script、旧图保留；看图缓存跨回滚；异常全堆栈脱敏。持有对话锁时 /state=25.7ms、/messages=8.3ms；签名 URL 六小时内稳定。
-- R4：prompt 含品类/颜色/面料及版型、颜色、纽扣、口袋、logo约束；改图父图+原衣参考≤3，全量衣服参与质检。真实6张正式图评分93–96；Mock走样42→91与42→55均只修一次，无递归付费。
-- R5：三个方向均入队预览，真实2成功/1失败，状态和URL可轮询；失败预览保留终态及¥0.5预留，未重新提交结果未知的请求。
-- R6：真实批量图、单张改图、视频完成共3条主动消息，含数量与还原分；last_message_id与最新消息一致。自动修复播报、双Worker去重、租约失效终止播报均有测试。
-- R7：script_versions来自get_state_history；任意已列历史版可恢复，回script重新确认，保留图片/任务/消息。E4通勤改稿v2→恢复v1→确认通过；新改稿编号单调且确认不增版本。
-- R8：LangGraph custom/updates流+异步SSE队列；HTTP测试证明方向模型仍阻塞时garments首卡已发送，断连清理等待读取但保留后台决策。
-- R9：项目及笔记成本均由账本汇总，真实项目¥6.142369（其余为问句/回复评测）；PNG可见“AI生成”及AIGC/Source/Model元数据已目视/读取验证，视频请求watermark=true，note.ai_label有值。
-- R10：实验表如下；生产overlay固定PUBLIC_BASE_URL=https://47.97.153.127:8443、API仅127.0.0.1:18080、Worker两副本，全部服务日志轮转20m×3；仅静态验证。
-- R11：原64项测试保留并适配新增预览，原测试断言数无减少；最终100 passed/20.21s、ruff干净、空库迁移与OpenAPI比对通过，最终Mock e2e=5.778s。真实5原图+v2改图+笔记+5秒视频成功；视频实测5.007s、830×1108、H.264/AAC。
+- T1：支持 region / mask_strokes，二选一；蒙版→扩边裁剪→裁剪块+原衣服参考→蒙版内羽化贴回。越界、空轨迹、NaN/布尔值、极小选区均中文拒绝，选区参与去重。
+- T1 像素证据：真实袖口区域内改变 66,089 像素；蒙版外 4,125,252 像素中改变 **0**。框选、笔刷、多段轨迹、贴边、落盘均有逐像素测试；原角标区域受保护。
+- T1 实图：`artifacts/real-fix2-original.png` → `artifacts/real-fix2-cuff.png`；全图对比 `artifacts/real-fix2-cuff-comparison.png`，细节对比 `artifacts/real-fix2-cuff-detail.png`。
+- T2：整图、局部图都以 Qwen 对比前后图检查原指令，返回 image.edit_check；不通过加强指令纠正一次。队列重试与质量纠正共享最多 2 次图片请求，调用前加锁持久化计数，无递归修复。
+- T2 真实塞腰：53.396s、2 次图片请求，最终 passed=true、还原分 92；目检裤腰线可见且下摆全部塞入。对比 `artifacts/real-fix2-tuck-comparison.png`。
+- T2 真实袖口：59.359s、2 次图片请求，最终 passed=false；原因是卷边仍未展开。主动消息明确说明未完成，原图/新版均保留；核对不可用或重试失败也保留已付费图并诚实说明。
+- T3：生成/编辑提示与还原质检明确排除吊牌、纸片、织标贴纸、价签、衣架和包装，不能转成徽章/布贴或要求补齐标签文字。
+- T3 实测：首张暴露标签被当 logo 的问题，保留 `artifacts/real-fix2-initial-original.png`；加强规则后重新生成，目检胸前/裤腰无吊牌，还原分 98，质检明确“标签正确去除”。旧失败图复检 57 分，正确要求去除标签（`artifacts/tag-regression-fix2.json`）。
+- T4：POST /messages.refs 校验当前项目成功正式图片；引用具体镜头、版本、还原分进入模型上下文；“这张袖口卷起来了，放下来”解析到引用图，精确引用旧版不会跳到最新版；GET /messages.refs 可读回，checkpoint 恢复保留。
+- T5：最终全量 **170 passed / 26.92s**；ruff、diff 检查及 OpenAPI 比对通过。旧测试各文件断言数无减少，既有文件总断言 380→439；Alembic 空库与 refs 默认值迁移通过。
+- T5 Mock e2e：**6.966s**，增加涂抹局部改和引用改图两步，4 原图+3 改图+笔记+视频成功；按真实指令/返回任务 ID 匹配，避免把自动还原版本当用户改图。
+- T5 E1–E4：重启续聊 2.980s、重复确认去重 3.220s、越阶段拒绝 0.022s、脚本恢复 0.134s，全部 PASS；补充 HTTP 续跑 8 passed / 17.41s。
 
-| Mock实验 | 结果 | 秒 |
-|---|---|---:|
-| E1 API重启后续聊、历史/脚本/确认点保留 | PASS | 2.853 |
-| E2 重复确认与重复改图不重复入队 | PASS | 2.204 |
-| E3 越阶段视频请求由代码拒绝 | PASS | 0.019 |
-| E4 通勤改稿后恢复历史脚本并确认 | PASS | 0.114 |
+选型：采用设计 8.3 的本地裁剪与受限羽化，可直接证明外部像素一致；裁剪短边不足 240px 时上采样，原衣服在前、裁剪画布在最后，极端长宽比补上下文。
+[万相官方文档](https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference)提供原生框选，未提供任意轨迹/外部像素一致承诺；本轮没有付费比较原生框选。
+契约出入：无字段改名或删除；新增 Alembic 0003 的 messages.refs（历史默认 []）。羽化完全限于蒙版内，比“羽化带外一致”更严格；声明角标框内不允许改写。核对服务不可用时不盲目重生成，以 false+中文原因说明未确认。
+已知问题：真实袖口展开仍未到位；看图评分有随机性，塞腰终图仍出现一条疑似标签痕迹的矛盾描述，目检未见可拆标签。结果检查不构成逐细节保证；失败会如实展示。
 
-真实闭环分两段：首段81.640s因失败预览结束；同项目续跑368.973s完成，未重做已付费预览。各步耗时：
-
-| 步骤 | 秒 |
-|---|---:|
-| 健康/注册/登录/上传/建项目 | 0.005 / 0.192 / 0.187 / 0.040 / 0.007 |
-| 看图+方向 / 三预览队列处理（DB时间戳测量） | 15.205 / 65.920 |
-| 续跑登录 / 复用预览 / 选方向写脚本 | 0.213 / 0.008 / 5.722 |
-| 自由文本通勤改稿 / 确认脚本 | 5.462 / 2.328 |
-| 五原图及评分 / 改图v2及评分 | 175.074 / 83.000 |
-| 写笔记 / 确认视频至下载 / 历史读取 | 4.981 / 92.155 / 0.017 |
-
-| 本轮模型 | 调用 | 累计秒 | 估算元 |
+| 本轮真实模型 | 调用 | 累计秒 | 估算元 |
 |---|---:|---:|---:|
-| deepseek-flash | 39 | 90.637 | 0.352127 |
-| qwen3-vl-plus（看图1+质检6） | 7 | 174.477 | 0.038899 |
-| wan2.7-image-pro（含1次未知结果失败预留） | 9 | 319.725 | 4.500000 |
-| wan2.6-i2v-flash | 1 | 88.352 | 1.500000 |
-合计56次、¥6.391026；历史基线¥7.104079未计入本轮，低于¥12停止线/¥15上限；最终扣费以供应商账单为准。
+| wan2.7-image-pro | 6 | 81.536 | 3.000000 |
+| qwen3-vl-plus | 13 | 114.748 | 0.062667 |
+| deepseek-flash | 2 | 2.886 | 0.015715 |
+| 合计 | 21 | 199.170 | **3.078382** |
+费用包含最初失败图、重生成、两项编辑各自的一次纠正和旧图复检；无视频调用。专属本机数据库 `outfit_fix2_20261020` 从零计费，累计预算闸 ¥8，低于本轮 ¥8 停止线/¥10 上限；最终扣费以供应商账单为准。
 
-选型理由：保留PostgresSaver原生interrupt与checkpoint历史，用Runtime注入每轮事务、单编译图、custom早发卡；DB任务事实与对话决策分开，Worker不争抢resume。手写七阶段也可实现，但需自建暂停/历史/中间事件；具体映射和取舍见README。
-契约出入：无字段/动作改名；增加script.version辅助图像分组。签名链接为六小时向上取整、实际24–30h有效，以保留设计的24h要求，未用评审中仅6–12h的示例公式。恢复仅恢复脚本域内容，不倒退已经发生的付费副作用。
-已知问题：供应商同步图请求可能断连，未知结果终止以避免重复付费；真实预览因此2/3成功。质检分为模型估计，不保证所有细节或视频逐帧身份一致；质检服务失败时保存已付费图并播报未取得分数。文本仍在完整工具JSON校验后分片，尚非上游逐token透传。
-证据（本地不提交）：artifacts/intents-fix1.json、replies-fix1.json、mock-fix1-final.json、experiments-fix1-final.json、real-fix1.json（含首段）、usage-fix1-final.json、verification-fix1.json、polling-fix1.json及媒体样本；evidence/fix1-final-tests.log、fix1-real-provider.log。
-复验：docker compose up -d --build → REQUIRE_INTEGRATION=1 uv run pytest -q → uv run python scripts/e2e.py --mode mock → uv run python scripts/experiments.py；实验会重启本项目API，勿与HTTP测试并行。
-当前：API和两个Worker均已验证Mock且模型凭证为空；断点记录server/PROGRESS.md保留本地。本轮只在feat/server中文单行提交，不push、不合并；服务器部署交部署负责人。
+续接：真实证据 `artifacts/real-fix2-final.json`、`usage-fix2-final.json`；失败基线 `real-fix2-initial.json`。真实程序 `scripts/verify_edits.py` 只运行专属本机库，逐步存任务 ID，未知请求停止重提；三步续跑已验证新增模型调用为 0（`resume-real-fix2.json`），凭证仅钥匙串取出注入子进程环境。
+复验：`docker compose up -d --build` → `REQUIRE_INTEGRATION=1 uv run pytest -q` → `uv run python scripts/e2e.py --mode mock` → `uv run python scripts/experiments.py`；按顺序运行，重启实验不能与 HTTP 测试并行。
+证据日志：`evidence/fix2-tests-final.log`、`fix2-e2e-resume-tests-final.log`；Mock `artifacts/mock-fix2-final.json`、`experiments-fix2-final.json`、`assertions-fix2.json`；断点 `PROGRESS.md`（本地不提交）。一次补测误与重启实验重叠而断连，实验结束后顺序重跑 8 项全绿，未改断言掩盖。
+当前 API/Worker 均验证 Mock 且模型凭证为空；媒体、证据与专属数据库保留供本机验收，仅 feat/server 本地中文单行提交，无 push/合并/部署。

@@ -5,13 +5,16 @@ import json
 from copy import deepcopy
 from uuid import NAMESPACE_URL, uuid5
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
+from app.local_edit import prepare_selection
 from app.media import asset_dict
 from app.models import Asset, Job, Project, utcnow
 from app.providers import ProviderHub
+from app.schemas import EditImage
 from app.views import image_items, job_dict
 
 ALLOWED_TOOLS = {
@@ -127,12 +130,19 @@ class Workflow:
                     "garment_asset_ids": payload.get("garment_asset_ids", []),
                 }
             )
+        context["refs"] = list((state.get("incoming") or {}).get("refs", []))
+        images_by_id = {item["id"]: item for item in context["images"]}
+        context["referenced_images"] = [
+            images_by_id[image_id] for image_id in context["refs"] if image_id in images_by_id
+        ]
         recent_messages = []
         for message in state.get("messages", [])[-12:]:
             if isinstance(message, dict):
                 role, content = message.get("role"), message.get("content", "")
+                metadata = message.get("additional_kwargs", {})
             else:
                 role, content = getattr(message, "type", ""), getattr(message, "content", "")
+                metadata = getattr(message, "additional_kwargs", {})
             role = {"human": "user", "ai": "assistant"}.get(role, role)
             if role not in {"user", "assistant"}:
                 continue
@@ -145,7 +155,10 @@ class Workflow:
                     and block.get("type") == "text"
                 )
             if isinstance(content, str):
-                recent_messages.append({"role": role, "text": content[:1000]})
+                recent = {"role": role, "text": content[:1000]}
+                if metadata.get("display", {}).get("refs"):
+                    recent["refs"] = metadata["display"]["refs"]
+                recent_messages.append(recent)
         context["recent_messages"] = recent_messages
         return context
 
@@ -167,6 +180,16 @@ class Workflow:
 
     def validate(self, state: dict, event: dict) -> None:
         """Validate outside interrupt, so a rejected action leaves its pause intact."""
+        refs = event.get("refs", [])
+        if (
+            not isinstance(refs, list)
+            or len(refs) > 20
+            or any(not isinstance(value, str) or not value.strip() for value in refs)
+            or len(refs) != len(set(refs))
+        ):
+            raise AppError("invalid_refs", "引用图片编号无效或重复，请重新选择。", 422)
+        for image_id in refs:
+            self._image_job(image_id)
         action = event.get("action")
         if not action:
             return
@@ -203,9 +226,30 @@ class Workflow:
             if action.get("checkpoint_id") not in self.restore_scripts:
                 raise AppError("script_version_not_found", "这版脚本不属于当前项目的历史。", 404)
         elif kind == "edit_image":
-            self._image_job(action.get("image_id", ""))
+            parent = self._image_job(action.get("image_id", ""))
             if not isinstance(action.get("instruction"), str) or not action["instruction"].strip():
                 raise AppError("instruction_required", "请告诉我这张图想改哪里。")
+            try:
+                normalized = EditImage.model_validate(action).model_dump(exclude_none=True)
+            except ValidationError as exc:
+                detail = (exc.errors()[0].get("ctx") or {}).get("error")
+                raise AppError(
+                    "invalid_edit_region",
+                    str(detail)
+                    if isinstance(detail, ValueError)
+                    else "局部编辑字段无效，请重新圈选。",
+                    422,
+                ) from exc
+            action.clear()
+            action.update(normalized)
+            if "region" in action or "mask_strokes" in action:
+                asset = self._asset(parent.result_asset_id)
+                if asset.width and asset.height:
+                    prepare_selection(
+                        (asset.width, asset.height),
+                        action.get("region"),
+                        action.get("mask_strokes"),
+                    )
         elif kind == "approve_images":
             ids = action.get("image_ids")
             if (
@@ -337,6 +381,7 @@ class Workflow:
 
     def handle(self, old_state: dict, event: dict) -> dict:
         state = dict(old_state)
+        state["incoming"] = event
         state["images"] = image_items(self.session, self.project.id)
         if state.get("stage") == "video" and state.get("video"):
             job = self.session.get(Job, state["video"]["job_id"])
@@ -408,6 +453,9 @@ class Workflow:
                 "image_id": args.get("image_id"),
                 "instruction": args.get("instruction"),
             }
+            for field in ("region", "mask_strokes"):
+                if args.get(field) is not None:
+                    action[field] = args[field]
             self.validate(state, {"action": action})
             return self._edit_image(state, action, result=args)
         if name == "write_note":
@@ -495,6 +543,7 @@ class Workflow:
         return (
             "；".join(parts)
             + "。严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变。"
+            + "吊牌、价签、织标贴纸、衣架、包装袋不属于衣服，必须忽略并从成品画面去除。"
         )
 
     def _preview_directions(self, state: dict) -> list[Job]:
@@ -577,7 +626,11 @@ class Workflow:
             if result
             else self._action_reply("edit_image", state, action, "这张会单独改一版，原图保留。")
         )
-        key = f"{self.project.id}:edit:{fingerprint([parent.id, instruction])}"
+        selection = {
+            key: deepcopy(action[key]) for key in ("region", "mask_strokes") if key in action
+        }
+        identity = [parent.id, instruction, selection] if selection else [parent.id, instruction]
+        key = f"{self.project.id}:edit:{fingerprint(identity)}"
         existing = self.session.scalar(select(Job).where(Job.dedupe_key == key))
         if existing:
             return self._finish(
@@ -617,6 +670,7 @@ class Workflow:
             "script_version": parent.payload.get("script_version"),
             "script_hash": parent.payload.get("script_hash"),
             "shot": deepcopy(parent.payload.get("shot", {})),
+            **selection,
         }
         job = self._enqueue(state, "edit", payload, key)
         # Editing an image must preserve the note and its video-confirmation pause.

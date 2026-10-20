@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.main import restore_messages
 from app.models import Base, Message, Project, User
+from app.views import message_dict
 
 
 def test_display_history_recovers_from_checkpoint_after_business_rollback():
@@ -23,6 +24,7 @@ def test_display_history_recovers_from_checkpoint_after_business_rollback():
                         "text": "",
                         "cards": [],
                         "action": {"type": "choose_direction"},
+                        "refs": ["referenced-image"],
                         "created_at": timestamp.isoformat(),
                     }
                 },
@@ -60,6 +62,9 @@ def test_display_history_recovers_from_checkpoint_after_business_rollback():
         assert len(messages) == 2
         assert messages[0].role == "user" and messages[0].text == ""
         assert messages[0].action == {"type": "choose_direction"}
+        assert messages[0].refs == ["referenced-image"]
+        assert message_dict(messages[0], session)["refs"] == ["referenced-image"]
         assert messages[1].id == first_id and messages[1].cards == [card]
         assert messages[1].text == "脚本写好了"
+        assert message_dict(messages[1], session)["refs"] == []
     engine.dispose()

@@ -24,3 +24,9 @@ def test_alembic_builds_an_empty_isolated_database(isolated_database_url):
         )}
         assert {"users", "projects", "assets", "messages", "jobs", "usage_ledger"} <= tables
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone()
+        refs = connection.execute(
+            "SELECT data_type, is_nullable, column_default FROM information_schema.columns "
+            "WHERE table_schema='public' AND table_name='messages' AND column_name='refs'",
+        ).fetchone()
+        assert refs[0:2] == ("jsonb", "NO")
+        assert "[]" in refs[2]

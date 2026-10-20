@@ -101,7 +101,9 @@ def test_resume_images_reuses_confirmed_script_and_original_jobs(api, tmp_path, 
     completed = complete(api, evidence, project_id, resumed, 90, resuming=True)
     assert completed["script"] == confirmed_script
     assert {i["id"] for i in completed["images"] if i["version"] == 1} == original_ids
-    assert len(completed["images"]) == 5
+    assert len(completed["images"]) == 7
+    assert len([i for i in completed["images"] if i.get("region")]) == 1
+    assert len([i for i in completed["images"] if i.get("edit_check")]) == 3
 
 
 @pytest.mark.integration

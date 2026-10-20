@@ -1,6 +1,6 @@
 # 穿搭笔记智能体服务端
 
-接口只遵循 [`docs/设计.md`](../docs/设计.md)，第二轮增量见其第 7 节。API、智能体、Worker 共用 PostgreSQL，媒体写入命名卷，支持同一项目断点续聊。默认 Mock，不需要模型凭证。实际测试、问句准确率和本轮费用见 [`FINAL.md`](FINAL.md)；本文的部署配置与命令不代表已经部署。
+接口只遵循 [`docs/设计.md`](../docs/设计.md)，第二、三轮增量见其第 7、8 节。API、智能体、Worker 共用 PostgreSQL，媒体写入命名卷，支持同一项目断点续聊。默认 Mock，不需要模型凭证。实际测试和本轮费用见 [`FINAL.md`](FINAL.md)；本文的部署配置与命令不代表已经部署。
 
 ## 选择与边界
 
@@ -93,16 +93,26 @@ uv run ruff check .
 
 OpenAPI 静态导出位于 [`openapi.json`](openapi.json)，运行中还可查看 `http://localhost:18080/docs` 和 `/openapi.json`。SSE 事件为 `token/card/job/done/error`。看图完成的 garments 卡片提前发送，完成后仍会发送完整卡片并持久化展示消息；同 ID 卡片覆盖即可。文本是在完整工具参数通过校验后分片发送，尚未逐 token 透传上游工具参数；等待期间发送 keepalive。客户端重连可读 `/messages` 与 `/state` 恢复工作台。
 
+### 局部编辑、指令核对与图片引用
+
+`edit_image` 动作可额外带 `region: {x,y,w,h}` 或 `mask_strokes: {brush,strokes}`，两者互斥；都省略时整张编辑。坐标为相对原图的 0–1 值，笔刷相对短边，支持单点、多段轨迹和贴边涂抹。API 在入队前检查越界、空轨迹、非法数值以及不足 16 像素的极小区域，并返回中文错误；不同选区参与任务去重。
+
+局部流程采用 Pillow：轨迹蒙版 → 外接框扩边（至少 16px、选区长边 20%）→ 原衣服参考加裁剪图 → 只生成裁剪块 → 蒙版内羽化贴回。蒙版外 alpha 严格为零，PNG 保存时不重复绘制角标，原有声明角标区域受保护，因此选区外逐像素不变。裁剪参考短边不足 240px 时上采样，极端长宽比用上下文填充；模型输出按裁剪画布映射回原尺寸。[万相官方接口](https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference)有框选参数，但未承诺任意轨迹和外部像素一致；本轮采用契约第 8.3 节的可验证方案，没有额外付费对照原生框选。
+
+每次整图或局部编辑都用 Qwen 对比前后两张图，检查原始指令，返回 `image.edit_check = {passed,reason}`；局部版还返回归一化 `image.region`。未达到要求时加强指令纠正一次，仍未做到则保留图并主动播报具体原因。指令纠正、低还原分纠正及供应商可重试错误共享每个编辑任务最多两次图片请求的额度，计数在发送前持久化。核对服务不可用时诚实返回未确认，不因质检异常重复付费；纠正失败时保留已取得的首次图片。所有生成、编辑和还原评分都明确区分衣服与可拆纸牌/贴纸，不能把标签转为 logo 或要求补齐标签文字。
+
+`POST /messages` 可带 `refs: [image_id]`，只接受当前项目已成功的正式图片；引用的具体版本、镜头、还原分和改图检查进入模型上下文。模型解析“这张袖口卷起来了，放下来”，代码继续校验结果归属和阶段。`GET /messages` 读回相同 `message.refs`，数据库迁移 `0003` 为历史消息补空列表，checkpoint 恢复也保留引用。
+
 ### 验证脚本与断点
 
-`scripts/e2e.py` 通过 HTTP 运行完整链路：注册、登录、上传两件衣服和模特、方向及预览、脚本、自由文本“换成通勤风”、确认生成至少四张正式图片、改图 v2、选图写笔记、单独确认五秒视频、下载媒体。Mock/real 使用同一脚本，只切换服务器配置与 `--mode`；模式和 `/health` 不一致时拒绝执行。
+`scripts/e2e.py` 通过 HTTP 运行完整链路：注册、登录、上传两件衣服和模特、方向及预览、脚本、自由文本“换成通勤风”、确认生成至少四张正式图片、整张改图、涂抹局部改、引用图片后自由文本改图、选图写笔记、单独确认五秒视频、下载媒体。Mock/real 使用同一脚本，只切换服务器配置与 `--mode`；模式和 `/health` 不一致时拒绝执行。
 
 素材来自 [`fixtures/README.md`](fixtures/README.md) 所述仓库自生成参考图裁片，无外部图片依赖。Mock provider 只产生本地媒体及结构化文本，不调用模型网络。每步耗时、项目 ID、任务和卡片摘要写到 `artifacts/*.json`，不保存 bearer token、密码或媒体签名。失败证据保留已完成步骤；默认重新运行创建独立账号和项目。
 
 ```bash
 uv run python scripts/e2e.py --mode mock --output artifacts/mock-review.json
 uv run python scripts/restart_e2e.py --mode mock --output artifacts/restart-review.json
-uv run python scripts/experiments.py --output artifacts/experiments-fix1.json
+uv run python scripts/experiments.py --output artifacts/experiments-review.json
 ```
 
 `experiments.py` 限制为本项目本机 Mock 栈，输出 E1 重启续聊、E2 重复确认/改图不重复入队、E3 越阶段被拒、E4 通勤版改写后恢复历史版并确认的结果表和证据。E1 会重启本项目 API，其他实验复用同一新建的测试项目。
@@ -116,6 +126,18 @@ uv run python scripts/e2e.py --mode real --resume PROJECT_ID --output artifacts/
 ```
 
 续跑按当前阶段复用脚本、出图/改图任务、笔记和视频，不重复确认已有付费任务；活跃任务等待，已成功 v2 和视频复用。同一路径已有证据保存在 `previous_runs`。终态失败任务会停止，不绕过重试上限自动重复付费。未知结果的已发出图片请求也不自动重提。
+
+第三轮真实图片验证另有 `scripts/verify_edits.py`：只允许本机 18432 上 `outfit_fix2_*` 专属数据库，图片保存到本 worktree 的媒体目录，不切换常驻 Mock 服务。预先创建该专属数据库并执行迁移，在当前进程注入模型凭证、`MOCK_PROVIDERS=0`、`MODEL_BUDGET_CNY=8`、对应 `DATABASE_URL` 和 `MEDIA_DIR` 后运行：
+
+```bash
+uv run python scripts/verify_edits.py --name original --output artifacts/real-edits.json
+# 先目检原图，再按实际袖口位置填写归一化选区。
+uv run python scripts/verify_edits.py --name cuff --region 0.30 0.31 0.13 0.12 --output artifacts/real-edits.json
+uv run python scripts/verify_edits.py --name tuck --output artifacts/real-edits.json
+uv run python scripts/report_usage.py --output artifacts/usage-real-edits.json
+```
+
+该脚本直接使用正式 Workflow/Worker/Provider，在自己的运行中任务行上验证真实模型；HTTP/鉴权/消息持久化由 Mock e2e 覆盖。每步先保存项目和任务 ID，完成后保存图片、检查结果及前后对比；局部步骤额外断言蒙版外改变像素数为零。续跑相同输出复用成功任务，发现已发出但结果未知的请求会停止。首次标签失败样本及最终样本分别留存，所有真实实验调用都计入本轮费用。
 
 pytest 的 HTTP 集成用例要求本机 Mock 栈；默认没有栈会跳过，`REQUIRE_INTEGRATION=1` 强制可用。测试只允许 `localhost/127.0.0.1:18080`。迁移测试只在本机 `18432` 新建随机 `outfit_test_*` 空库、执行 Alembic 和核对业务表，最后删除自己创建的测试库；业务数据库不清理。自定义数据库口令时，测试进程应注入相同 `TEST_DATABASE_URL/JWT_SECRET`。
 
