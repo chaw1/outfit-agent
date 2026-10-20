@@ -87,13 +87,13 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
             return image ? <ReferenceThumbnail key={imageId} image={image} testID={`message-ref-${message.id}-${imageId}`} /> : <Text key={imageId} style={{ color: colors.muted, fontSize: 11 }}>引用图片暂不可用</Text>;
           })}</View> : null}
         </View>)}
-        {!!error && <Notice text={error} onRetry={retry} />}
         {state?.active_jobs.length ? <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12, gap: 9, borderRadius: 12, backgroundColor: colors.blush }}><ActivityIndicator size="small" color={colors.red} /><Text style={{ color: colors.red, fontSize: 12 }}>正在生成，完成后会自动出现在这里</Text></View> : null}
         <Cards cards={visibleCards} state={state} busy={busy} onAction={action => { void send({ action }); }} onPreview={preview} />
         {state?.script && state.stage !== 'script' ? <ScriptHistory versions={state.script_versions} busy={busy} generating={Boolean(state.active_jobs.length)} onAction={action => { void send({ action }); }} /> : null}
         {!loading && !messages.length && !busy && <Text style={{ color: colors.muted, textAlign: 'center', fontSize: 12 }}>说说这次合作的想法，我们一起开始。</Text>}
       </ScrollView>
       <View style={{ borderTopWidth: 1, borderTopColor: colors.border, padding: 12, paddingHorizontal: 16, gap: 8, backgroundColor: 'white' }}>
+        {!!error && <Notice text={error} onRetry={retry} />}
         {refs.length ? <ScrollView horizontal contentContainerStyle={{ gap: 12, paddingTop: 4 }} keyboardShouldPersistTaps="handled">{refs.map(imageId => {
           const image = state?.images.find(item => item.id === imageId);
           if (!image) return null;

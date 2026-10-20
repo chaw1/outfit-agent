@@ -135,6 +135,29 @@ test('stream detects unexpected EOF and never retries the action', async () => {
   assert.equal(xhr.sends, 1);
 });
 
+test('provider validation rejection preserves its visible reason and allows an explicit new request', async () => {
+  const failed = new FakeXHR();
+  const retried = new FakeXHR();
+  const transports = [failed, retried];
+  const events: StreamEvent[] = [];
+  let unauthorized = 0;
+  const reason = '对话模型返回列表长度有误，圈选轨迹不能为空。';
+  const client = new ApiClient({ baseUrl: 'http://localhost:19080', token: 'same-session',
+    xhrFactory: () => transports.shift()!, onUnauthorized: () => { unauthorized += 1; } });
+  const input = { action: { type: 'choose_direction' as const, direction_id: 'direction-1' } };
+  const first = client.sendMessage('same-project', input, { onEvent: event => events.push(event) });
+  failed.chunk(`event: error\ndata: ${JSON.stringify({ code: 'PROVIDER_ERROR', message: reason })}\n\n`);
+  await assert.rejects(first, (error: unknown) => error instanceof ApiError && error.code === 'PROVIDER_ERROR' && error.message === reason);
+  assert.deepEqual(events, [{ type: 'error', data: { code: 'PROVIDER_ERROR', message: reason } }]);
+  assert.equal(failed.sends, 1);
+  assert.equal(retried.sends, 0, 'a rejected direction must never be replayed automatically');
+  const second = client.sendMessage('same-project', input, { onEvent: () => undefined });
+  retried.chunk('event: done\ndata: {"message_id":"recovered"}\n\n');
+  assert.deepEqual(await second, { message_id: 'recovered' });
+  assert.equal(retried.sends, 1);
+  assert.equal(unauthorized, 0);
+});
+
 test('local edits preserve precise selections, refs, and failed checks through streaming and restored history', async () => {
   const region = { x: 0, y: 0.123456789, w: 1, h: 0.25 };
   const mask = { brush: 0.0375, strokes: [[{ x: 0, y: 0 }, { x: 0.333333333, y: 0.625 }], [{ x: 1, y: 1 }]] };

@@ -81,8 +81,29 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByTestId('chat-input').fill('希望整体再松弛一点。');
   await page.getByTestId('send-message').click();
   await expect(direction).toBeEnabled();
+  // 长卡片后的自动滚动不能把服务端拒绝藏到屏幕上方。
+  const providerError = '对话模型返回列表长度有误，圈选轨迹不能为空。';
+  await page.route('**/api/projects/*/messages', async route => {
+    if (route.request().method() !== 'POST' || route.request().postDataJSON()?.action?.type !== 'choose_direction') return route.continue();
+    await route.fulfill({ status: 200, contentType: 'text/event-stream', body: `event: error\ndata: ${JSON.stringify({ code: 'INVALID_PROVIDER_RESPONSE', message: providerError })}\n\n` });
+  });
+  await direction.click();
+  const providerAlert = page.getByRole('alert');
+  await expect(providerAlert).toContainText(providerError);
+  await expect(page.getByText('就选这个方向。', { exact: true })).toHaveCount(0);
+  const alertBox = (await providerAlert.boundingBox())!;
+  const inputBox = (await page.getByTestId('chat-input').boundingBox())!;
+  const viewport = page.viewportSize()!;
+  expect(alertBox.x).toBeGreaterThanOrEqual(0);
+  expect(alertBox.y).toBeGreaterThanOrEqual(0);
+  expect(alertBox.x + alertBox.width).toBeLessThanOrEqual(viewport.width);
+  expect(alertBox.y + alertBox.height).toBeLessThanOrEqual(viewport.height);
+  expect(alertBox.y + alertBox.height).toBeLessThanOrEqual(inputBox.y);
+  await shot(page, '35-provider-error-visible.png');
+  await page.unroute('**/api/projects/*/messages');
   await direction.click();
   await expect(page.getByTestId('confirm-script')).toBeEnabled();
+  await expect(providerAlert).toHaveCount(0);
   await page.getByTestId('chat-input').fill('把第二张场景换成办公室，做一版通勤脚本。');
   await page.getByTestId('send-message').click();
   await expect(page.getByTestId('confirm-script')).toBeEnabled();
