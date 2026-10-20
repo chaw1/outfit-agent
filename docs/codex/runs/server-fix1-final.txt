@@ -1,0 +1,5 @@
+已完成，交接已覆盖为 [server/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-server/server/FINAL.md)，共 48 行。
+
+100 项测试通过，真实问句 30/30，真实闭环续跑成功；本轮估算 ¥6.391。1 张预览因供应商断连失败，已如实披露。
+
+已在 `feat/server` 本地提交 `7c63b29`、`7e36d2a`，未 push、未部署。服务已恢复 Mock，模型凭证已清空。

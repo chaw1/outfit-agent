@@ -1,0 +1,5 @@
+B1–B4 本地验收完成，用时约 12 分钟。已覆盖重写 [app/FINAL.md](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/FINAL.md)，可交 Claude 复测。
+
+- 35 项测试、类型检查、ESLint、双平台导出、iOS prebuild 和无头全流程均通过，24 张截图已更新。
+- `feat/app` 已提交 4 次，最新 `19d95ef`；工作区干净，未 push。
+- 真机安装、签名和真实后端联调尚未执行，安装步骤及限制已写明。
