@@ -1,3 +1,17 @@
+## 第六轮断点（APP_FIX5，已完成本地验收）
+
+- 任务：完整执行 `docs/codex/APP_FIX5_PROMPT.md`，唯一约定 `docs/设计.md` 第 11 节；2026-10-21 01:50 开始，2026-10-21 02:01 收尾，低于 1.5 小时墙钟上限。
+- 范围：仅当前 worktree `feat/app`，只用本地假服务与无头浏览器；未访问线上/前公司/钥匙串，无新增依赖，未改 server/、设计或原生配置，不 push/合并。
+- Q1/Q2：trace SSE/历史/worker 展开分步；确认出图/视频估价与余额、不足禁用、缺字段隐藏；假服务账本/预留/日切预算一致。
+- Q3/Q4：固定文本换方向，同 ID 卡片与新预览；20 字标题、正文/话题、AI 声明、图序、显式本地草稿保存恢复，编辑值用于复制与发布。
+- 复核修正：回复重写全程原 ID 覆盖；GET 503 时仍从 SSE 更新；done 前断流也接受同 ID 历史，恢复按钮且不新增失败用户消息。无付费请求自动重放。
+- 最终验证：Node22 verify 五项绿，105/105 测试；完整 E2E 6/6（3.3 分钟），最终第六轮复跑 3/3（44.9 秒），pageErrors=[]；iOS prebuild 含 CocoaPods 成功。
+- 证据：`verification/fix5/` 的 summary、完整/定向 E2E、prebuild、round6-evidence、final-audit；新增截图 `screenshots/53–64` 共12张390×844，SHA与总览在同目录，全部已目视。报告/JSON/日志留本地。
+- 原有四份 verification WIP 已从 `.tools/fix5-baseline/` 按字节恢复；全部旧截图同样比对一致。原有 screenshots-live/run-1、run-2 保留，ios/ 已忽略。
+- 代码提交：`d9f8373` 本地契约，`8371b5b` 过程/费用/方向/同 ID 流，`dc01c3f` 表单草稿，`f332cb8` 断流恢复；验收文档/回归/截图在最终提交。均 chaw1 <97000945@qq.com>、中文一行。
+- 已覆盖 `FINAL.md` ≤30行。Playwright/Metro/假服务均退出；续接用 Node22，`npm run verify`、`npm run test:e2e`、`CI=1 BROWSER=none npx expo prebuild --platform ios`，避免同时开第二套19300/19301。
+- 已知限制：本地覆盖不回写/不同步设备；未验证真实计费与个人真机键盘/相册/分享/通知/手势。下一步按 FINAL 交验，无其他实现待办。
+
 ## 第五轮视觉打磨（2026-10-21）
 
 - 当前任务：完整执行 `docs/codex/APP_POLISH_PROMPT.md`；唯一约定 `docs/设计.md`。01:29 开始，02:59 墙钟收尾。

@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import type { ProjectState } from '../src/api/types';
 import { imageInteractions } from './image-interactions';
 
-const shots = path.resolve('screenshots/polish');
+const shots = path.resolve(process.env.E2E_SCREENSHOTS_DIR || 'screenshots/polish');
 async function shot(page: Page, name: string, focus?: Locator) {
   if (focus) await expect(async () => {
     await focus.scrollIntoViewIfNeeded({ timeout: 2000 });
@@ -248,6 +248,9 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByTestId('note-title')).toBeVisible();
   await page.getByTestId('copy-note').click();
   await expect(page.getByText('文案已复制，可以去发布啦。')).toBeVisible();
+  await expect(page.getByTestId('publish-ai-confirm')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('prepare-publish')).toBeEnabled();
+  await page.getByTestId('publish-ai-confirm').click();
   await expect(page.getByTestId('prepare-publish')).toBeDisabled();
   await page.getByTestId('publish-ai-confirm').click();
   await expect(page.getByTestId('publish-ai-confirm')).toHaveAttribute('aria-checked', 'true');
@@ -287,7 +290,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await shot(page, '14-video-playing.png', video);
   await page.getByTestId('preview-note').click();
   await expect(page.getByTestId('publish-video')).toContainText('待保存');
-  await page.getByTestId('publish-ai-confirm').click();
+  await expect(page.getByTestId('publish-ai-confirm')).toHaveAttribute('aria-checked', 'true');
   const beforeVideoDownloads = downloads.length;
   await page.getByTestId('prepare-publish').click();
   await expect(page.getByTestId('publish-video')).toContainText('已保存');
@@ -295,7 +298,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await shot(page, '50-publish-video-saved.png', page.getByTestId('publish-checklist'));
   await page.reload();
   await expect(page.getByTestId('publish-video')).toContainText('已保存');
-  await page.getByTestId('publish-ai-confirm').click();
+  await expect(page.getByTestId('publish-ai-confirm')).toHaveAttribute('aria-checked', 'true');
   const beforeResumeDownloads = downloads.length;
   await page.getByTestId('prepare-publish').click();
   await expect(page.getByTestId('publish-share')).toContainText('系统分享面板已打开');

@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Asset, Project, User } from '../src/api/types';
 
-const shots = path.resolve('screenshots/polish');
+const shots = path.resolve(process.env.E2E_SCREENSHOTS_DIR || 'screenshots/polish');
 const apiBase = 'http://localhost:19301/api';
 
 test('首次引导、形象档案和项目管理，以及旧服务的兼容', async ({ page, request }) => {
