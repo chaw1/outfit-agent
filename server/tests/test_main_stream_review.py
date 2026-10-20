@@ -109,6 +109,19 @@ def test_logging_redacts_encoded_database_password_and_escaped_provider_key(monk
     assert "Traceback" in caplog.text and "[REDACTED]" in caplog.text
 
 
+def test_logging_redacts_admin_password(monkeypatch, caplog):
+    secret = "temporary-admin/fixture?value"
+    monkeypatch.setattr(settings, "admin_token", secret)
+    try:
+        raise RuntimeError(f"admin input: {quote(secret, safe='')}")
+    except RuntimeError as exc:
+        with caplog.at_level(logging.ERROR):
+            log_exception(logging.getLogger("review.admin"), "failed", exc)
+    assert secret not in caplog.text
+    assert quote(secret, safe="") not in caplog.text
+    assert "[REDACTED]" in caplog.text
+
+
 def test_stream_emits_early_and_disconnect_cleans_reader_without_cancelling_work(monkeypatch):
     release = threading.Event()
     completed = threading.Event()
