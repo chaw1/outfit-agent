@@ -1,0 +1,53 @@
+{
+  "flow": {
+    "projectId": "project_5c28e3c5-293b-4113-abc5-68b80d1260b8",
+    "directionCardId": "project_5c28e3c5-293b-4113-abc5-68b80d1260b8_directions",
+    "fixedSwapText": true,
+    "sameCardIdSingleInstance": true,
+    "previewsReady": true,
+    "sameIdRewriteFromStream": true,
+    "rewriteHistoryBlocked": 2,
+    "rewriteNoExtraMessages": true,
+    "rewriteCostUnchanged": true,
+    "sameIdRewriteDisconnectRecovered": true,
+    "rewriteDisconnectNoFailedUser": true,
+    "assistantTraceCount": 9,
+    "traceTools": [
+      "propose_directions",
+      "chat",
+      "generate_images",
+      "write_note",
+      "generate_video"
+    ],
+    "scriptEstimate": 4.32,
+    "scriptRemaining": 18.5,
+    "videoEstimate": 1.5,
+    "videoRemaining": 13.7,
+    "pageErrors": []
+  },
+  "compatibility": {
+    "traceMissingHidden": true,
+    "estimatedCostAndBudgetMissingHidden": true,
+    "legacyConfirmEnabled": true,
+    "imageBudgetInsufficientDisabled": true,
+    "videoBudgetInsufficientDisabled": true,
+    "pageErrors": []
+  },
+  "form": {
+    "titleLimit": 20,
+    "titleCounter": true,
+    "bodyEditable": true,
+    "tagsAddRemove": true,
+    "aiDefaultChecked": true,
+    "aiCheckboxRestored": true,
+    "localDraftRestored": true,
+    "editedNoteSharedAndCopied": true,
+    "orderedDownloads": [
+      "outfit-round6-form-image-2.jpg",
+      "outfit-round6-form-image-1.jpg"
+    ],
+    "shares": 1,
+    "localOverride": true,
+    "pageErrors": []
+  }
+}

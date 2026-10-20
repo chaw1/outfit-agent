@@ -1,0 +1,77 @@
+{
+  "references0": {
+    "projectId": "project_bfc22b85-c668-45b2-9c08-464ee8155a41",
+    "count": 0,
+    "uploadKinds": [
+      "garment"
+    ],
+    "createdReferenceIds": [],
+    "cardPresent": false,
+    "pageErrors": []
+  },
+  "references1": {
+    "projectId": "project_0d16d907-b7ac-4809-bb76-81fdbd7d6e38",
+    "count": 1,
+    "uploadKinds": [
+      "garment",
+      "reference"
+    ],
+    "createdReferenceIds": [
+      "asset_e7036784-435f-4073-903a-86b5749b22b9"
+    ],
+    "cardPresent": true,
+    "pageErrors": []
+  },
+  "references2": {
+    "projectId": "project_ce7efea5-0caa-4f3d-a791-3b7bff1b11f3",
+    "count": 2,
+    "uploadKinds": [
+      "garment",
+      "reference",
+      "reference"
+    ],
+    "createdReferenceIds": [
+      "asset_1d17f2ab-ebb1-4110-808e-1509f79b6d06",
+      "asset_d279f1c8-58b1-41c2-afeb-218770a46d24"
+    ],
+    "cardPresent": true,
+    "pageErrors": []
+  },
+  "flow": {
+    "projectId": "project_7281c202-3448-43ae-b4db-1d7b09ecea27",
+    "referencesLimit": 3,
+    "overflowIgnored": true,
+    "removeAndReplace": true,
+    "selectedReferenceIds": [
+      "asset_7c1a85f4-304f-49ed-af87-3df8c3e498ba",
+      "asset_5de712c5-59b5-4411-ab7a-4679991fe62f",
+      "asset_3832cd39-b9df-436a-857e-4d651fdd24eb"
+    ],
+    "referenceCardId": "project_7281c202-3448-43ae-b4db-1d7b09ecea27_references",
+    "modelId": "asset_66dd3392-a805-458c-909a-56250c08cf7d",
+    "uploadKinds": [
+      "garment",
+      "reference",
+      "reference",
+      "reference",
+      "reference",
+      "model"
+    ],
+    "imageId": "image_4af75c13-3b5c-477f-b40e-edb9b9b3fb07",
+    "anchorId": "image_3d73746d-17a5-45a3-8e0e-80387c47b02f",
+    "personScore": 92,
+    "anchorScore": 94,
+    "zeroPersonScoreVisible": true,
+    "metadataTracksViewerImage": true,
+    "narrowScreen": {
+      "width": 320,
+      "badgesAndSelectionDoNotOverlap": true
+    },
+    "announcement": "3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。 人像一致性 92，封面一致性 94。",
+    "announcementUnchanged": true,
+    "refreshRestoresMetadata": true,
+    "legacyOptionalFieldsHidden": true,
+    "legacyFidelityPreserved": true,
+    "pageErrors": []
+  }
+}
