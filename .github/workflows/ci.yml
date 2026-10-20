@@ -1,0 +1,76 @@
+name: 检查
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: server
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: outfit
+          POSTGRES_PASSWORD: outfit
+          POSTGRES_DB: outfit
+        ports:
+          - 18432:5432
+        options: >-
+          --health-cmd "pg_isready -U outfit -d outfit"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://outfit:outfit@localhost:18432/outfit
+      TEST_DATABASE_URL: postgresql+psycopg://outfit:outfit@localhost:18432/outfit
+      MOCK_PROVIDERS: '1'
+      REQUIRE_INTEGRATION: '1'
+      MEDIA_DIR: data/media
+      ADMIN_TOKEN: ''
+      DASHSCOPE_API_KEY: ''
+      DEEPSEEK_API_KEY: ''
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: '0.9.5'
+      - name: 安装依赖
+        run: uv sync --frozen --dev
+      - name: 静态检查
+        run: uv run ruff check .
+      - name: 迁移与启动本地服务
+        run: |
+          uv run alembic upgrade head
+          mkdir -p artifacts
+          uv run uvicorn app.main:app --host 127.0.0.1 --port 18080 --no-access-log > artifacts/ci-api.log 2>&1 &
+          uv run python -m app.worker > artifacts/ci-worker.log 2>&1 &
+          uv run python scripts/wait_health.py
+      - name: 测试
+        run: uv run pytest -q
+
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
