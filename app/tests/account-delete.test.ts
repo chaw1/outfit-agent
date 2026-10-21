@@ -124,7 +124,7 @@ test('account deletion clears all owned data and files, rejects old credentials,
     assert.equal(after.assets.some((item) => item.ownerId === owner.user.id), false);
     for (const asset of ownerFiles) await assert.rejects(stat(path.join(dataDir, 'uploads', asset.filename!)), { code: 'ENOENT' });
     for (const url of ownedUrls) assert.equal((await fetch(url)).status, 404);
-    assert.deepEqual(after.assets, before.assets.filter((asset) => asset.ownerId === other.user.id));
+    assert.deepEqual(after.assets, before.assets.filter((asset) => asset.ownerId === other.user.id || asset.ownerId === null));
     assert.deepEqual(after.projects, before.projects.filter((item) => item.ownerId === other.user.id));
     assert.deepEqual(after.jobs, before.jobs.filter((item) => item.ownerId === other.user.id));
     assert.equal((await fetch(otherGarment.url)).status, 200);

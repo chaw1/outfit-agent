@@ -1,5 +1,6 @@
 import { INSUFFICIENT_POINTS_TEXT } from '../lib/transparency';
 import type { AssetPage, LibraryKind, SavedModel } from '../lib/assets';
+import type { IdentityInput, IdentityQuote, ModelCard, ModelPage } from '../lib/models';
 import { nativeUpload } from '../lib/upload';
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
@@ -160,6 +161,18 @@ export class ApiClient {
   me(): Promise<User> { return this.request('/me'); }
   myAssets(kind: LibraryKind, limit = 30, offset = 0): Promise<AssetPage> {
     return this.request(`/me/assets?kind=${kind}&limit=${limit}&offset=${offset}`);
+  }
+  myModels(): Promise<ModelPage> {
+    return this.request('/me/models');
+  }
+  quoteIdentity(input: IdentityInput): Promise<IdentityQuote> {
+    return this.request('/me/models/quote', { method: 'POST', body: JSON.stringify(input) });
+  }
+  createIdentity(input: IdentityInput & { confirmation_token: string }): Promise<ModelCard> {
+    return this.request('/me/models', { method: 'POST', body: JSON.stringify(input) });
+  }
+  deleteModel(id: string): Promise<void> {
+    return this.request(`/me/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
   saveModelFromImage(image_id: string, name?: string): Promise<SavedModel> {
     return this.request('/me/models/from-image', { method: 'POST', body: JSON.stringify({ image_id, ...(name ? { name } : {}) }) });

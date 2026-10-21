@@ -9,6 +9,7 @@ import { loadLibraryModels, useLibraryModels } from '../lib/assets';
 import { parseHeight, profilePhotos, setDefaultPhoto } from '../lib/profile';
 import { colors, radius, space, type } from '../theme';
 import { previewUrl } from '../lib/previewUrl';
+import { IdentityBuilder } from './IdentityBuilder';
 import { Badge, Button, FadeImage, Field, Notice, ProgressStrip, Toast, errorText, styles } from './ui';
 
 export function ProfileEditor({ user }: { user: User & { profile: UserProfile } }) {
@@ -86,6 +87,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
       <Button title="添加本人照片" variant="secondary" icon="images-outline" disabled={busy} onPress={() => void upload()} />
       {uploadProgress && <ProgressStrip title="正在上传本人照片…" detail={`第 ${uploadProgress.current}/${uploadProgress.total} 张`} />}
     </View>
+    <IdentityBuilder assetIds={ids} name={nickname} />
     <View style={localStyles.preferences}>
       <Text style={styles.section}>你的穿搭偏好</Text>
       <Field label="身高（厘米）" placeholder="选填，例如 168" keyboardType="decimal-pad" value={height} maxLength={5} disabled={busy} onChangeText={value => { setHeight(value); changed(); }} />

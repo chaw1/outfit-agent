@@ -35,3 +35,10 @@ test('approve_images only carries selected, unverified IDs explicitly accepted b
   assert.deepEqual(approveImages(['old', 'unverified'], [first, failedCheck], []), { type: 'approve_images', image_ids: ['old', 'unverified'] });
   assert.deepEqual(approveImages(['unverified'], [first, failedCheck], ['old', 'unverified', 'missing']), { type: 'approve_images', image_ids: ['unverified'], accept_unverified: ['unverified'] });
 });
+
+test('default draft skips low person scores and prefers a consistent repaired version', () => {
+  const low = { id: 'low-face', shot_id: 'person-shot', status: 'succeeded' as const, version: 1, url: 'http://localhost/low', fidelity: { score: 95, person_score: 55, diffs: [], auto_fixed: false } };
+  const high = { ...low, id: 'fixed-face', version: 2, fidelity: { ...low.fidelity, person_score: 92, auto_fixed: true } };
+  assert.deepEqual(defaultImageIds([low]), []);
+  assert.deepEqual(defaultImageIds([low, high]), ['fixed-face']);
+});

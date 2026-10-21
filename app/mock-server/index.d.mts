@@ -8,6 +8,8 @@ export interface MockServerOptions {
   previewDelayMs?: number;
   previewStaggerMs?: number;
   imageDelayMs?: number;
+  identityDelayMs?: number;
+  lowPersonScoreOnce?: boolean;
   imageStaggerMs?: number;
   editDelayMs?: number;
   videoDelayMs?: number;

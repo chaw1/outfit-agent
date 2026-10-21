@@ -11,8 +11,10 @@ import { studio, radius, space, type } from '../../theme';
 import { formatPoints } from '../../lib/transparency';
 import { STYLE_TAGS, styleBatch, toggleStyleTag } from '../../lib/styleTags';
 import { useSession } from '../../context/Session';
-import { GarmentPicker, ModelSourceLabel } from '../../components/AssetLibrary';
+import { GarmentPicker } from '../../components/AssetLibrary';
 import { useLibraryModels } from '../../lib/assets';
+import { defaultModelId } from '../../lib/models';
+import { ModelSelector } from '../../components/ModelSelector';
 import { previewUrl } from '../../lib/previewUrl';
 
 const MAX_GARMENTS = 10;
@@ -41,10 +43,11 @@ export default function NewProject() {
   const [references, setReferences] = useState<Asset[]>([]);
   const [model, setModel] = useState<Asset | null>(null);
   const [modelChoice, setModelChoice] = useState<string | null | undefined>(undefined);
+  const [identityChoice, setIdentityChoice] = useState<string | null | undefined>(undefined);
   const library = useLibraryModels();
   const savedPhotos = profilePhotos(user?.profile?.model_asset_ids || [], [...photos, ...(library.models || [])]);
   const selectedModelId = modelChoice === undefined ? savedPhotos[0]?.id : modelChoice;
-  const selectedModel = model?.id === selectedModelId ? model : savedPhotos.find(photo => photo.id === selectedModelId);
+  const selectedIdentityId = identityChoice === undefined ? defaultModelId(library.identities || [], user?.profile?.model_asset_ids[0]) : identityChoice;
   const [uploading, setUploading] = useState<AssetKind | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const picking = useRef(false);
@@ -70,7 +73,7 @@ export default function NewProject() {
         const nativeFile = { uri: item.uri, name: item.fileName || `outfit-${Date.now()}.jpg`, type: item.mimeType || 'image/jpeg' };
         const file = Platform.OS === 'web' ? item.file || new File([await (await fetch(item.uri)).blob()], nativeFile.name, { type: nativeFile.type }) : nativeFile;
         const asset = await api.uploadAsset(file, kind);
-        if (kind === 'model') { setModel(asset); setModelChoice(asset.id); }
+        if (kind === 'model') { setModel(asset); setModelChoice(asset.id); setIdentityChoice(null); }
         else if (kind === 'reference') setReferences(previous => [...previous, asset].slice(0, 3));
         else setGarments(previous => [...previous, asset].slice(0, MAX_GARMENTS));
       }
@@ -91,7 +94,7 @@ export default function NewProject() {
     if (!garments.length) return setError('先上传至少一张衣服图吧。');
     setBusy(true); setError(''); setCreationRecovery(null);
     try {
-      const result = await createProjectWithRecovery(api, { title: title.trim() || `${brand.trim() || '自由创作'} · ${tags[0] || STYLE_TAGS[0]}`, brand: brand.trim() || '自由创作', brief: brief.trim(), mode, style_tags: tags, garment_asset_ids: garments.map(item => item.id), ...(selectedModelId ? { model_asset_id: selectedModelId } : {}), ...(references.length ? { reference_asset_ids: references.map(item => item.id) } : {}) });
+      const result = await createProjectWithRecovery(api, { title: title.trim() || `${brand.trim() || '自由创作'} · ${tags[0] || STYLE_TAGS[0]}`, brand: brand.trim() || '自由创作', brief: brief.trim(), mode, style_tags: tags, garment_asset_ids: garments.map(item => item.id), ...(selectedIdentityId ? { model_id: selectedIdentityId } : selectedModelId ? { model_asset_id: selectedModelId } : {}), ...(references.length ? { reference_asset_ids: references.map(item => item.id) } : {}) });
       if (result.kind === 'created') router.replace({ pathname: '/projects/[id]', params: { id: result.project.id } });
       else setCreationRecovery(result.recovery);
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
@@ -125,14 +128,12 @@ export default function NewProject() {
         </View>
         <View style={localStyles.section}>
           <View style={styles.row}><Text style={localStyles.sectionTitle}>出镜的人</Text><Badge label="选填" /></View>
-          <Text style={localStyles.subtitle}>{savedPhotos.length ? '已默认带上档案里的本人照片，也可以选择另一张。' : '上传你的照片作为模特；留空就用默认模特。'}</Text>
-          {!!savedPhotos.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.md }}>{savedPhotos.map((photo, index) => <Pressable key={photo.id} accessibilityRole="button" accessibilityLabel={`选择档案照片 ${index + 1}`} accessibilityState={{ selected: selectedModelId === photo.id }} aria-selected={selectedModelId === photo.id} onPress={() => setModelChoice(photo.id)} style={({ pressed }) => [localStyles.profilePhoto, selectedModelId === photo.id && localStyles.profileSelected, pressed && localStyles.pressed]}>
-            {photo.url ? <FadeImage source={{ uri: previewUrl(photo.url, 360) }} style={localStyles.profileImage} /> : <View style={[localStyles.profileImage, localStyles.profilePlaceholder]}><Ionicons name="person-outline" size={24} color={studio.muted} /></View>}
-            <Text style={[localStyles.caption, { textAlign: 'center', color: selectedModelId === photo.id ? studio.accent : studio.muted }]}>{index === 0 ? '档案默认' : `照片 ${index + 1}`}{selectedModelId === photo.id ? ' ✓' : ''}</Text>
-            <ModelSourceLabel id={photo.id} />
-          </Pressable>)}</ScrollView>}
-          {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={[styles.row, { flexWrap: 'wrap' }]}>{selectedModel.url && <FadeImage source={{ uri: previewUrl(selectedModel.url, 360) }} style={localStyles.profileImage} />}<Text style={localStyles.subtitle}>这组片的本人照片</Text><ModelSourceLabel source={model?.source} /><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
-          <Button title={uploading === 'model' ? '正在上传…' : selectedModelId ? '更换我的照片' : '上传我的照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} />
+          <Text style={localStyles.subtitle}>选一位衣序模特就能开拍，也可以选择自己的身份卡。</Text>
+          {!!library.error && <Notice text={library.error} />}
+          <ModelSelector models={library.identities || []} uploaded={model} selectedId={selectedIdentityId || selectedModelId} disabled={!!uploading || busy} onSelect={(id, source) => { if (source === 'model') setIdentityChoice(id); else { setIdentityChoice(null); setModelChoice(id); } }} />
+          <Button title={uploading === 'model' ? '正在上传…' : '上传本次的本人照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} />
+          {model && <Button title="移除本次照片" variant="ghost" disabled={!!uploading || busy} onPress={() => { setModel(null); setModelChoice(undefined); setIdentityChoice(undefined); }} />}
+
         </View>
         <View style={localStyles.section}>
           <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}><Text style={localStyles.sectionTitle}>参考图（选填）</Text><Text testID="reference-count" style={localStyles.caption}>{references.length}/3</Text></View>

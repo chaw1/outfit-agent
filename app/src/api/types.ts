@@ -79,6 +79,8 @@ export interface Asset {
 
 export interface Project {
   id: string;
+  model_id?: string | null;
+  model_asset_id?: string | null;
   title: string;
   brand: string;
   brief: string;
@@ -98,6 +100,7 @@ export interface CreateProjectInput {
   brief: string;
   garment_asset_ids: string[];
   model_asset_id?: string;
+  model_id?: string;
   reference_asset_ids?: string[];
   mode?: ProjectMode;
   style_tags?: string[];
@@ -237,8 +240,8 @@ export interface Message {
 
 export interface Job {
   id: string;
-  project_id: string;
-  kind: 'image' | 'edit' | 'video';
+  project_id: string | null;
+  kind: 'image' | 'edit' | 'video' | 'identity';
   status: JobStatus;
   result_asset_id?: string;
   url?: string;

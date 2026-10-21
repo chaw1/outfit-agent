@@ -1,6 +1,7 @@
 import type { Action, NoteData, OutfitImage } from '../api/types';
 
 export const isUnverified = (image: OutfitImage) => image.edit_check?.passed === false;
+export const hasConsistentPerson = (image: OutfitImage) => image.fidelity?.person_score === undefined || image.fidelity.person_score >= 70;
 export const isUsable = (image: OutfitImage) => image.status === 'succeeded' && Boolean(image.url);
 
 /** Keep shot order stable while choosing the newest usable, verified version. */
@@ -11,7 +12,7 @@ export function defaultImageIds(images: readonly OutfitImage[], note?: NoteData)
     if (!latest.has(image.shot_id)) latest.set(image.shot_id, image);
   }
   for (const shot of latest.keys()) {
-    const candidates = images.filter(image => image.shot_id === shot && isUsable(image) && !isUnverified(image));
+    const candidates = images.filter(image => image.shot_id === shot && isUsable(image) && !isUnverified(image) && hasConsistentPerson(image));
     const selected = candidates.reduce<OutfitImage | undefined>((best, image) => !best || image.version > best.version ? image : best, undefined);
     if (selected) latest.set(shot, selected);
     else latest.delete(shot);
