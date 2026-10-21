@@ -19,7 +19,7 @@ from app.photography import expand_photo_prompt
 from app.providers import ProviderHub
 from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
-from app.tracing import dialogue_trace
+from app.tracing import dialogue_trace, job_reference_images
 from app.views import image_items, job_dict
 
 ALLOWED_TOOLS = {
@@ -1056,10 +1056,14 @@ class Workflow:
                  **({"reused": reused} if reused is not None else {})}
                 for job in jobs or []
             ],
-            turn_trace=dialogue_trace(
-                self.providers, self.tool, round((time.monotonic() - self.started) * 1000),
-                list((state.get("incoming") or {}).get("refs", [])),
-            ),
+            turn_trace={
+                **dialogue_trace(
+                    self.providers, self.tool, round((time.monotonic() - self.started) * 1000),
+                    list((state.get("incoming") or {}).get("refs", [])),
+                ),
+                "reference_images": job_reference_images(self.session, jobs or [])
+                if self.tool in {"generate_images", "edit_image"} else [],
+            },
             turn_can_regenerate=not self.created_paid_jobs,
         )
         return state

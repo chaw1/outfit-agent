@@ -89,6 +89,7 @@ export function parseStreamEvent(raw: RawSSEEvent): StreamEvent | null {
           typeof data.duration_ms !== 'number' || !Number.isFinite(data.duration_ms) || data.duration_ms < 0 ||
           typeof data.cost_cny !== 'number' || !Number.isFinite(data.cost_cny) || data.cost_cny < 0 ||
           !Array.isArray(data.refs) || !data.refs.every(ref => typeof ref === 'string') ||
+          (data.reference_images !== undefined && (!Array.isArray(data.reference_images) || !data.reference_images.every(image => record(image) && typeof image.id === 'string' && typeof image.url === 'string' && ['模特', '衣服', '参考图', '封面锚点'].includes(String(image.role))))) ||
           !Array.isArray(data.steps) || !data.steps.every(step => record(step) && typeof step.label === 'string' &&
             typeof step.duration_ms === 'number' && Number.isFinite(step.duration_ms) && step.duration_ms >= 0)) {
         throw new SSEProtocolError();

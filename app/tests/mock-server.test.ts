@@ -1329,3 +1329,39 @@ test('project metadata patches validate ownership and lengths, preserve recency 
     assert.equal((await patch({ title: '已删除' })).response.status, 404);
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });
+
+test('generation and edit traces carry role-labelled inputs, resolved anchors and refreshed history links', async () => {
+  const dataDir = await temporaryData('outfit-trace-references-');
+  let time = Date.now();
+  const { server, base } = await startServer(dataDir, { clock: () => time });
+  try {
+    const account = await register(base, 'reference-trace');
+    const garment = await upload(base, account.token);
+    const model = await upload(base, account.token, 'model');
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '参考图透明', brand: '本地品牌', brief: '自然光', garment_asset_ids: [garment.id], model_asset_id: model.id } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    const messages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
+    await send(base, project.id, account.token, { text: '开始拍摄' });
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: 'direction_city' } });
+    const submitted = await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    const trace = submitted.find(event => event.type === 'trace')!.data as unknown as MessageTrace;
+    assert.deepEqual(trace.reference_images!.map(item => item.role), ['模特', '衣服']);
+    let state = await getState();
+    for (let tick = 0; tick < 8 && state.active_jobs.length; tick += 1) { time += 1000; state = await getState(); }
+    const completed = (await messages()).findLast(message => message.trace?.tool === 'generate_images')!;
+    const inputs = completed.trace!.reference_images!;
+    assert.ok(inputs.some(item => item.role === '封面锚点'));
+    assert.equal(new Set(inputs.map(item => item.id)).size, inputs.length);
+    for (const item of inputs) assert.equal((await fetch(item.url)).status, 200);
+    const original = state.images.find(item => item.anchor_id && item.status === 'succeeded')!;
+    const edited = await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: original.id, instruction: '背景亮一点' } });
+    const editTrace = edited.find(event => event.type === 'trace')!.data as unknown as MessageTrace;
+    assert.ok(editTrace.reference_images!.some(item => item.role === '参考图' && new URL(item.url).pathname === new URL(original.url!).pathname));
+    assert.ok(editTrace.reference_images!.some(item => item.role === '封面锚点'));
+    time += 86_401_000;
+    const refreshed = (await messages()).find(message => message.id === completed.id)!.trace!.reference_images!;
+    assert.notEqual(refreshed[0].url, inputs[0].url);
+    assert.equal((await fetch(inputs[0].url)).status, 403);
+    assert.equal((await fetch(refreshed[0].url)).status, 200);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});

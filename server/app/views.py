@@ -12,6 +12,7 @@ from app.models import Asset, Job, Message, Project, UsageLedger, User
 from app.progress import project_progress
 from app.runtime_settings import user_budget
 from app.schemas import Profile
+from app.tracing import refresh_trace
 
 
 def user_dict(user: User, session: Session | None = None) -> dict:
@@ -203,7 +204,7 @@ def message_dict(message: Message, session: Session) -> dict:
         "cards": refresh_cards(message.cards, session, message.project_id),
         "action": message.action,
         "refs": message.refs or [],
-        "trace": with_points(message.trace),
+        "trace": with_points(refresh_trace(message.trace, session, message.project_id)),
         "can_regenerate": message.can_regenerate,
         "created_at": message.created_at.isoformat(),
     }

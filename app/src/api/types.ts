@@ -221,6 +221,7 @@ export interface MessageTrace {
   cost_cny: number;
   cost_points?: number;
   refs: string[];
+  reference_images?: { id: string; url: string; role: '模特' | '衣服' | '参考图' | '封面锚点' }[];
   steps: { label: string; duration_ms: number }[];
 }
 

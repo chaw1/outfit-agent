@@ -288,6 +288,12 @@ class TraceStep(BaseModel):
     duration_ms: int = Field(ge=0)
 
 
+class TraceReferenceImage(BaseModel):
+    id: str
+    url: str
+    role: Literal["模特", "衣服", "参考图", "封面锚点"]
+
+
 class MessageTrace(BaseModel):
     tool: str
     model: str
@@ -295,6 +301,7 @@ class MessageTrace(BaseModel):
     cost_cny: float = Field(ge=0)
     cost_points: float = Field(default=0, ge=0)
     refs: list[str] = Field(default_factory=list)
+    reference_images: list[TraceReferenceImage] = Field(default_factory=list)
     steps: list[TraceStep] = Field(default_factory=list)
 
 

@@ -156,7 +156,30 @@ export async function createMockServer(options = {}) {
   function makeTrace(tool, refs = [], detail = {}) {
     const labels = { chat: '整理回复', propose_directions: '给出方向', write_script: '写脚本', revise_script: '修改脚本', edit_image: '提交改图', write_note: '写笔记', generate_images: '提交出图', generate_video: '提交视频', restore_script: '恢复脚本' };
     const duration_ms = detail.duration_ms ?? (['write_script', 'revise_script'].includes(tool) ? 4800 : tool === 'propose_directions' ? 3100 : 1200);
-    return withPoints({ tool, model: detail.model || 'local-mock', duration_ms, cost_cny: detail.cost_cny ?? 0, refs: [...refs], steps: detail.steps || [{ label: labels[tool], duration_ms }] });
+    return withPoints({ tool, model: detail.model || 'local-mock', duration_ms, cost_cny: detail.cost_cny ?? 0, refs: [...refs], reference_images: detail.reference_images || [], steps: detail.steps || [{ label: labels[tool], duration_ms }] });
+  }
+  function jobTraceReferences(project, job, image) {
+    if (job.kind === 'video') return [];
+    const refs = [
+      ...(project.modelAssetId ? [{ id: project.modelAssetId, role: '模特' }] : []),
+      ...project.garmentAssetIds.map((id) => ({ id, role: '衣服' })),
+    ];
+    const source = project.state.images.find((item) => item.id === image?.parent_id);
+    if (source?.assetId) refs.push({ id: source.assetId, role: '参考图' });
+    const anchor = project.state.images.find((item) => item.id === image?.anchor_id);
+    if (anchor?.assetId) refs.push({ id: anchor.assetId, role: '封面锚点' });
+    return refs;
+  }
+  function traceReferenceImages(project, jobs, base) {
+    const refs = new Map();
+    for (const job of jobs) {
+      const image = project.state.images.find((item) => item.id === job.imageId);
+      for (const ref of job.traceReferences || jobTraceReferences(project, job, image)) {
+        const asset = db.assets.find((item) => item.id === ref.id && item.ownerId === project.ownerId);
+        if (asset && (!refs.has(ref.id) || ref.role === '封面锚点')) refs.set(ref.id, { ...ref, url: mediaUrl(ref.id, base) });
+      }
+    }
+    return [...refs.values()];
   }
   function patchedProfile(user, body) {
     if (body.nickname !== undefined && (typeof body.nickname !== 'string' || !body.nickname.trim() || body.nickname.trim().length > 64)) throw failure(400, 'INVALID_NICKNAME', '昵称需要 1–64 个字符');
@@ -308,6 +331,7 @@ export async function createMockServer(options = {}) {
   function publicMessages(project, base) {
     return withPoints(project.messages.map((message, index) => ({
       ...Object.fromEntries(Object.entries(message).filter(([key]) => !['originalText', 'regenerateCount', ...(options.legacyProfile ? ['trace'] : [])].includes(key))),
+      ...(!options.legacyProfile && message.trace ? { trace: { ...message.trace, ...(message.trace.reference_images ? { reference_images: message.trace.reference_images.filter((ref) => db.assets.some((asset) => asset.id === ref.id && asset.ownerId === project.ownerId)).map((ref) => ({ ...ref, url: mediaUrl(ref.id, base) })) } : {}) } } : {}),
       ...(message.role === 'assistant' ? { can_regenerate: index === project.messages.length - 1 && message.can_regenerate === true && !options.legacyProfile } : {}),
       cards: message.cards.map((item) => {
         if (['note', 'script', 'video'].includes(item.type) && !project.state[item.type]) {
@@ -514,7 +538,10 @@ export async function createMockServer(options = {}) {
       if (job.waitingForImageId) {
         const anchor = project.state.images.find((item) => item.id === job.waitingForImageId);
         if (anchor && activeStatuses.has(anchor.status)) continue;
-        if (anchor?.status === 'succeeded' && image) image.anchor_id = anchor.id;
+        if (anchor?.status === 'succeeded' && image) {
+          image.anchor_id = anchor.id;
+          job.traceReferences = [...(job.traceReferences || jobTraceReferences(project, job, image)), { id: anchor.assetId, role: '封面锚点' }];
+        }
         delete job.waitingForImageId;
         job.runningAt = clock() + runningDelay;
         job.dueAt = clock() + timings.image + (job.delayOffset || 0);
@@ -631,7 +658,7 @@ export async function createMockServer(options = {}) {
         const steps = first.kind === 'video'
           ? [{ label: `生成视频 ${successful.length} 条`, duration_ms }]
           : [{ label: `${first.directionId ? '方向预览' : first.kind === 'edit' ? '改图' : '出图'} ${successful.filter((job) => job.kind !== 'edit').length || successful.length} 张`, duration_ms: primaryDuration }, ...(autoFixed ? [{ label: '自动修复 1 张', duration_ms: jobs.filter((job) => job.kind === 'edit').reduce((sum, job) => sum + Date.parse(job.updated_at) - Date.parse(job.created_at), 0) }] : [])];
-        announce(project, text, [type], base, makeTrace(tool, jobs.map((job) => job.imageId || job.result_asset_id).filter(Boolean), { duration_ms, cost_cny: money(successful.reduce((sum, job) => sum + jobCost(job), 0)), model: 'local-fixture', steps }));
+        announce(project, text, [type], base, makeTrace(tool, jobs.map((job) => job.imageId || job.result_asset_id).filter(Boolean), { duration_ms, cost_cny: money(successful.reduce((sum, job) => sum + jobCost(job), 0)), model: 'local-fixture', steps, reference_images: ['generate_images', 'edit_image'].includes(tool) ? traceReferenceImages(project, jobs, base) : [] }));
       }
     }
     return advanceAutomaticProjects(base) || changed;
@@ -643,6 +670,7 @@ export async function createMockServer(options = {}) {
       runningAt: clock() + runningDelay, dueAt: clock() + timings[details.directionId ? 'preview' : kind] + delayOffset,
       groupId: details.groupId || newId('group'), ...details, ...(image ? { imageId: image.id } : {}),
     };
+    job.traceReferences = jobTraceReferences(project, job, image);
     db.jobs.push(job);
     return job;
   }
@@ -961,7 +989,7 @@ export async function createMockServer(options = {}) {
       }
     }
     touch(project);
-    const trace = makeTrace(tool, refs || (tool === 'propose_directions' ? project.garmentAssetIds : []), tool === 'propose_directions' ? { steps: [{ label: `看图 ${project.garmentAssetIds.length} 件`, duration_ms: 1800 }, { label: '给出 3 个方向', duration_ms: 1300 }] } : {});
+    const trace = makeTrace(tool, refs || (tool === 'propose_directions' ? project.garmentAssetIds : []), { ...(tool === 'propose_directions' ? { steps: [{ label: `看图 ${project.garmentAssetIds.length} 件`, duration_ms: 1800 }, { label: '给出 3 个方向', duration_ms: 1300 }] } : {}), reference_images: ['generate_images', 'edit_image'].includes(tool) ? traceReferenceImages(project, jobs, base) : [] });
     const userMessage = { id: newId('message'), role: 'user', text: typeof body.text === 'string' ? body.text.trim() : '', cards: [], ...(action ? { action: normalizedAction(action) } : {}), ...(refs !== undefined ? { refs: [...refs] } : {}), created_at: now() };
     const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: jobs.length === 0, created_at: now() };
     project.messages.push(...(automatic ? [] : [userMessage]), assistant);

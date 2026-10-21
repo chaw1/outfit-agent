@@ -94,3 +94,24 @@ test('edit reuse metadata is retained on both task and done responses without ch
   const job = { id: 'old-task', status: 'succeeded', reused: true };
   assert.deepEqual(parseStreamEvent({ event: 'job', data: JSON.stringify(job) }), { type: 'job', data: job });
 });
+
+test('reference thumbnails survive every SSE chunk boundary and optional legacy traces still decode', () => {
+  const trace = { tool: 'edit_image', model: 'mock', duration_ms: 12, cost_cny: 0, refs: [], steps: [], reference_images: [
+    { id: 'model', url: 'http://localhost:19321/media/model?sig=signed', role: '模特' },
+    { id: 'garment', url: 'http://localhost:19321/media/garment?sig=signed', role: '衣服' },
+    { id: 'original', url: 'http://localhost:19321/media/original?sig=signed', role: '参考图' },
+    { id: 'anchor', url: 'http://localhost:19321/media/anchor?sig=signed', role: '封面锚点' },
+  ] };
+  const wire = `event: trace\ndata: ${JSON.stringify(trace)}\n\n`;
+  for (let split = 0; split <= wire.length; split += 1) {
+    const events: RawSSEEvent[] = [];
+    const parser = new SSEParser(event => events.push(event));
+    parser.push(wire.slice(0, split)); parser.push(wire.slice(split)); parser.finish();
+    assert.deepEqual(parseStreamEvent(events[0]), { type: 'trace', data: trace });
+  }
+  const { reference_images: _references, ...legacy } = trace;
+  assert.ok(parseStreamEvent({ event: 'trace', data: JSON.stringify(legacy) }));
+  for (const reference_images of [null, {}, [null], [{ id: 'x', role: '衣服' }], [{ id: 'x', url: 'local', role: 'unknown' }]]) {
+    assert.throws(() => parseStreamEvent({ event: 'trace', data: JSON.stringify({ ...trace, reference_images }) }), SSEProtocolError);
+  }
+});
