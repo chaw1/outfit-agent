@@ -211,9 +211,10 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
       });
     }, { apiBase: base, session: checkpoint.session });
     await page.goto(checkpoint.projectId ? `/projects/${checkpoint.projectId}` : '/');
+    // 隐私提示在每个新浏览器上下文都会出现，续跑时也要先过掉。
+    const privacy = page.getByRole('button', { name: '同意并继续', exact: true });
+    if (await privacy.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false)) await privacy.click();
     await phase('01-register', async () => {
-      const privacy = page.getByRole('button', { name: '同意并继续', exact: true });
-      if (await privacy.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false)) await privacy.click();
       if (checkpoint.registered && checkpoint.session) return;
       const onboarding = await page.getByTestId('onboarding-1').waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
       if (onboarding) {
@@ -387,8 +388,9 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
     });
     await phase('13-video-ready-playing', async () => {
       await waitState(value => value.video?.status === 'succeeded' && Boolean(value.video.url), 300_000);
-      const video = page.locator('video').last(); await expect(video).toBeVisible(); await video.scrollIntoViewIfNeeded(); await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).readyState), { timeout: 60_000 }).toBeGreaterThanOrEqual(2); await shot('13-video-ready', video);
-      if (await page.getByTestId('play-video').isVisible()) await page.getByTestId('play-video').click(); else { const box = (await video.boundingBox())!; await video.click({ position: { x: 24, y: box.height - 24 } }); }
+      // 对话里的短片是紧凑卡，点开才挂载播放器。
+      const play = page.getByTestId('play-video'); await expect(play).toBeVisible(); await play.scrollIntoViewIfNeeded(); await shot('13-video-ready', play); await play.click();
+      const video = page.locator('video').last(); await expect(video).toBeVisible(); await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).readyState), { timeout: 60_000 }).toBeGreaterThanOrEqual(2);
       await expect.poll(() => video.evaluate(element => (element as HTMLVideoElement).currentTime), { timeout: 30_000 }).toBeGreaterThanOrEqual(1);
       checkpoint.data.videoPlayback = await video.evaluate(element => ({ time: (element as HTMLVideoElement).currentTime, duration: (element as HTMLVideoElement).duration, muted: (element as HTMLVideoElement).muted, width: (element as HTMLVideoElement).videoWidth, height: (element as HTMLVideoElement).videoHeight })); expect(pageErrors).toEqual([]);
     });

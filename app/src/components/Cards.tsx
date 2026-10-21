@@ -430,10 +430,11 @@ function ScriptCard({ card, state, busy, onAction, onText, onDraft }: {
 }
 
 export function Cards({ cards, state, busy, onAction, onText, onPreview, onDraft }: CardsProps) {
+  // 每类只展示最近一张卡，按类型做 key：历史加载后卡片编号会从临时值换成正式值，不能因此重建卡片（否则点开的播放器会被关掉）。
   return <View style={styles.cards}>{cards.map((card) => {
-    if (card.type === 'images') return <ImageGrid key={card.id} items={card.items} state={state} busy={busy} onAction={onAction} />;
-    if (card.type === 'note') return <NoteCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onPreview={onPreview} />;
-    if (card.type === 'references') return card.items.length ? <View key={card.id} testID={`references-card-${card.id}`} style={styles.card}>
+    if (card.type === 'images') return <ImageGrid key={card.type} items={card.items} state={state} busy={busy} onAction={onAction} />;
+    if (card.type === 'note') return <NoteCard key={card.type} card={card} state={state} busy={busy} onAction={onAction} onPreview={onPreview} />;
+    if (card.type === 'references') return card.items.length ? <View key={card.type} testID={`references-card-${card.id}`} style={styles.card}>
       <CardHeading icon="images-outline" title="这次的风格参考" detail={`${card.items.length} 张参考图`} />
       <Text style={styles.intro}>从场景、光线和构图里，找到这组画面的氛围。</Text>
       {card.items.map((item, index) => <View key={item.asset_id} testID={`reference-item-${item.asset_id}`} style={styles.garmentRow}>
@@ -441,18 +442,18 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview, onDraft
         <View style={styles.garmentInfo}><Text style={styles.garmentTitle}>参考图 {String(index + 1).padStart(2, '0')}</Text><View style={styles.tags}>{item.style_tags.map((tag, tagIndex) => <View key={`${tagIndex}-${tag}`} style={styles.garmentTag}><Text style={styles.garmentTagText}>{tag}</Text></View>)}</View></View>
       </View>)}
     </View> : null;
-    if (card.type === 'garments') return <View key={card.id} style={styles.card}>
+    if (card.type === 'garments') return <View key={card.type} style={styles.card}>
       <CardHeading icon="shirt-outline" title="先认识一下这件衣服" detail={`${card.items.length} 件单品`} />
       {card.items.map((item) => <View key={item.asset_id} style={styles.garmentRow}>
         <FadeImage source={{ uri: previewUrl(item.url, 360) }} style={styles.garmentImage} resizeMode="cover" accessibilityLabel={`${item.color}${item.category}`} />
         <View style={styles.garmentInfo}><Text style={styles.garmentTitle}>{item.color} · {item.category}</Text><Text style={styles.garmentMaterial}>{item.material}</Text><View style={styles.tags}>{item.style_tags.map((tag) => <View key={tag} style={styles.garmentTag}><Text style={styles.garmentTagText}>{tag}</Text></View>)}</View></View>
       </View>)}
     </View>;
-    if (card.type === 'directions') return <DirectionsCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onText={onText} />;
-    if (card.type === 'script') return <ScriptCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onText={onText} onDraft={onDraft} />;
-    if (card.type === 'video') return <VideoCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} />;
+    if (card.type === 'directions') return <DirectionsCard key={card.type} card={card} state={state} busy={busy} onAction={onAction} onText={onText} />;
+    if (card.type === 'script') return <ScriptCard key={card.type} card={card} state={state} busy={busy} onAction={onAction} onText={onText} onDraft={onDraft} />;
+    if (card.type === 'video') return <VideoCard key={card.type} card={card} state={state} busy={busy} onAction={onAction} />;
     return null;
-  }).map((content, index) => content ? <AnimatedEntry key={cards[index].id} delay={index * 50}><View testID={`card-${cards[index].id}`}>{content}</View></AnimatedEntry> : null)}</View>;
+  }).map((content, index) => content ? <AnimatedEntry key={cards[index].type} delay={index * 50}><View testID={`card-${cards[index].id}`}>{content}</View></AnimatedEntry> : null)}</View>;
 }
 
 const styles = StyleSheet.create({
