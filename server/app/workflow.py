@@ -349,7 +349,13 @@ class Workflow:
                 video_job = self.session.get(Job, (state.get("video") or {}).get("job_id"))
                 if not video_job or video_job.payload.get("image_id") != action["image_id"]:
                     raise AppError("video_already_confirmed", "这个项目已经确认了视频生成。")
-        if kind in {"confirm_script", "edit_image", "confirm_video"}:
+        replayed_edit = (
+            kind == "edit_image"
+            and action.get("attempt") is not None
+            and self.session.scalar(select(Job.id).where(Job.dedupe_key == self._edit_key(action)))
+            is not None
+        )
+        if kind in {"confirm_script", "edit_image", "confirm_video"} and not replayed_edit:
             assert_generation_allowed(
                 self.session, self.project.user_id,
                 kinds=("video",) if kind == "confirm_video" else ("image",),
@@ -774,9 +780,28 @@ class Workflow:
             jobs,
         )
 
+    def _edit_key(self, action: dict) -> str:
+        selection = {key: action[key] for key in ("region", "mask_strokes") if key in action}
+        identity = [action["image_id"], action["instruction"].strip()]
+        if selection:
+            identity.append(selection)
+        if action.get("attempt") is not None:
+            identity.append(action["attempt"])
+        return f"{self.project.id}:edit:{fingerprint(identity)}"
+
     def _edit_image(self, state: dict, action: dict, result: dict | None = None) -> dict:
         self._allow(state["stage"], "edit_image")
         parent, instruction = self._image_job(action["image_id"]), action["instruction"].strip()
+        key = self._edit_key(action)
+        existing = self.session.scalar(select(Job).where(Job.dedupe_key == key))
+        if existing:
+            return self._finish(
+                state,
+                "这次和上次一样，没有重新生成。",
+                [self._card("images", {"items": image_items(self.session, self.project.id)})],
+                [existing],
+                reused=True,
+            )
         reply = (
             self._reply(result, "这张会单独改一版，原图保留。")
             if result
@@ -785,16 +810,6 @@ class Workflow:
         selection = {
             key: deepcopy(action[key]) for key in ("region", "mask_strokes") if key in action
         }
-        identity = [parent.id, instruction, selection] if selection else [parent.id, instruction]
-        key = f"{self.project.id}:edit:{fingerprint(identity)}"
-        existing = self.session.scalar(select(Job).where(Job.dedupe_key == key))
-        if existing:
-            return self._finish(
-                state,
-                reply,
-                [self._card("images", {"items": image_items(self.session, self.project.id)})],
-                [existing],
-            )
         shot_id = parent.payload["shot_id"]
         versions = [
             item["version"]
@@ -841,6 +856,8 @@ class Workflow:
             payload["model_asset_id"] = self.project.model_asset_id
         if state.get("references"):
             payload["reference_style_prompt"] = self._reference_prompt(state)
+        if action.get("attempt") is not None:
+            payload["attempt"] = action["attempt"]
         job = self._enqueue(state, "edit", payload, key)
         # Editing an image must preserve the note and its video-confirmation pause.
         return self._finish(
@@ -848,6 +865,7 @@ class Workflow:
             reply,
             [self._card("images", {"items": image_items(self.session, self.project.id)})],
             [job],
+            reused=False,
         )
 
     def _write_note(
@@ -923,14 +941,21 @@ class Workflow:
         )
         return self._finish(state, reply, [self._card("video", state["video"])], [job])
 
-    def _finish(self, state: dict, text: str, cards: list, jobs: list | None = None) -> dict:
+    def _finish(
+        self, state: dict, text: str, cards: list, jobs: list | None = None,
+        *, reused: bool | None = None,
+    ) -> dict:
         self.project.stage = state["stage"]
         self.project.updated_at = utcnow()
         state["images"] = image_items(self.session, self.project.id)
         state.update(
             turn_text=text,
             turn_cards=cards,
-            turn_jobs=[job_dict(job, self.session) for job in jobs or []],
+            turn_jobs=[
+                {**job_dict(job, self.session),
+                 **({"reused": reused} if reused is not None else {})}
+                for job in jobs or []
+            ],
             turn_trace=dialogue_trace(
                 self.providers, self.tool, round((time.monotonic() - self.started) * 1000),
                 list((state.get("incoming") or {}).get("refs", [])),

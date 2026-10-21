@@ -190,6 +190,14 @@ class EditImage(StrictInput):
     instruction: str = Field(min_length=1, max_length=3000)
     region: ImageRegion | None = None
     mask_strokes: MaskStrokes | None = None
+    attempt: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @field_validator("attempt")
+    @classmethod
+    def nonblank_attempt(cls, value):
+        if value is not None and not value.strip():
+            raise ValueError("尝试编号不能为空。")
+        return value
 
     @model_validator(mode="after")
     def one_selection(self):
@@ -281,6 +289,7 @@ class JobOutput(BaseModel):
     error: str | None = None
     created_at: datetime
     updated_at: datetime
+    reused: bool | None = None
 
 
 class PendingAction(BaseModel):
