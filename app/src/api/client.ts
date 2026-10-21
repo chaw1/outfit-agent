@@ -147,6 +147,9 @@ export class ApiClient {
   changePassword(input: ChangePasswordInput): Promise<AuthResponse> {
     return this.request('/me/password', { method: 'POST', body: JSON.stringify(input) });
   }
+  deleteAccount(password: string): Promise<void> {
+    return this.request('/me', { method: 'DELETE', body: JSON.stringify({ password }) });
+  }
   regenerateRecoveryCode(password: string): Promise<{ recovery_code: string }> {
     return this.request('/me/recovery-code', { method: 'POST', body: JSON.stringify({ password }) });
   }

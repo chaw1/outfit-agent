@@ -190,7 +190,7 @@ export async function createMockServer(options = {}) {
       const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
       const decodedHeader = JSON.parse(Buffer.from(header, 'base64url').toString());
       const user = db.users.find((item) => item.id === claims.sub);
-      if (decodedHeader.alg !== 'HS256' || !user || !Number.isFinite(claims.exp) || claims.exp <= clock() / 1000) throw new Error();
+      if (decodedHeader.alg !== 'HS256' || !user || user.deleted_at || !Number.isFinite(claims.exp) || claims.exp <= clock() / 1000) throw new Error();
       if ((claims.token_version ?? 0) !== (user.token_version || 0) || (user.password_updated_at && (!Number.isFinite(claims.iat) || claims.iat < Math.floor(Date.parse(user.password_updated_at) / 1000)))) throw new Error();
       return user;
     } catch { throw failure(401, 'UNAUTHORIZED', '登录已失效，请重新登录'); }
@@ -292,6 +292,27 @@ export async function createMockServer(options = {}) {
     project.messages.push({ id: newId('message'), role: 'assistant', text, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: false, created_at: now() });
   }
   const assetPath = (asset) => asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
+  function removeProjectRecords(projects, ownerId) {
+    const projectIds = new Set(projects.filter((project) => project.ownerId === ownerId).map((project) => project.id));
+    const generatedIds = new Set([
+      ...db.assets.filter((asset) => asset.source === 'generated' && projectIds.has(asset.projectId)).map((asset) => asset.id),
+      ...db.jobs.filter((job) => projectIds.has(job.project_id)).map((job) => job.result_asset_id).filter(Boolean),
+      ...projects.flatMap((project) => [
+        ...project.state.images.map((image) => image.assetId),
+        ...project.state.directions.map((direction) => direction.previewAssetId),
+        project.state.video?.assetId,
+      ]).filter(Boolean),
+    ]);
+    const generated = db.assets.filter((asset) => asset.ownerId === ownerId && asset.source === 'generated' && generatedIds.has(asset.id));
+    db.projects = db.projects.filter((project) => project.ownerId !== ownerId || !projectIds.has(project.id));
+    db.jobs = db.jobs.filter((job) => job.ownerId !== ownerId || !projectIds.has(job.project_id));
+    return generated;
+  }
+  async function removeAssets(assets) {
+    const removed = new Set(assets);
+    db.assets = db.assets.filter((asset) => !removed.has(asset));
+    for (const asset of assets) if (asset.filename && !asset.fixture) await rm(assetPath(asset), { force: true });
+  }
   function generationPrompt(project, job, image) {
     let prompt = image?.instruction || project.analyzedBrief || project.brief;
     if (project.referenceStyleSummary) {
@@ -895,7 +916,7 @@ export async function createMockServer(options = {}) {
         rate.attempts += 1;
         db.rate_limits[rateKey] = rate;
         const code = normalizeRecoveryCode(body.recovery_code);
-        const user = db.users.find((item) => item.username.toLowerCase() === username);
+        const user = db.users.find((item) => !item.deleted_at && item.username.toLowerCase() === username);
         if (!user || !/^[A-Z0-9]{12}$/.test(code) || !equal(recoveryHash(code), user.recovery_code_hash) || typeof body.new_password !== 'string' || body.new_password.length < 8) {
           await persist();
           throw failed();
@@ -911,7 +932,7 @@ export async function createMockServer(options = {}) {
         const username = typeof body.username === 'string' ? body.username.trim() : '';
         const password = typeof body.password === 'string' ? body.password : '';
         if (username.length < 3 || username.length > 32 || password.length < 8) throw failure(400, 'INVALID_CREDENTIALS', '用户名需要 3–32 位，密码需要至少 8 位');
-        let user = db.users.find((item) => item.username.toLowerCase() === username.toLowerCase());
+        let user = db.users.find((item) => !item.deleted_at && item.username.toLowerCase() === username.toLowerCase());
         let recovery_code;
         if (url.pathname.endsWith('register')) {
           if (user) throw failure(409, 'USERNAME_EXISTS', '这个用户名已经有人用了，换一个试试');
@@ -926,6 +947,21 @@ export async function createMockServer(options = {}) {
         json(res, 200, { token: tokenFor(user), user: publicUser(user), ...(recovery_code ? { recovery_code } : {}) }); return;
       }
       const user = authenticate(req);
+      if (url.pathname === '/api/me' && req.method === 'DELETE') {
+        const body = await readJson(req);
+        if (typeof body.password !== 'string' || !bcrypt.compareSync(passwordInput(body.password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '密码不正确，请重新输入');
+        delete db.rate_limits[`recover:${recoveryHash(user.username.toLowerCase())}`];
+        user.deleted_at = now();
+        user.username = `deleted-${user.id.slice(0, 8)}`;
+        user.token_version = (user.token_version || 0) + 1;
+        user.recovery_code_hash = null;
+        user.profile = { model_asset_ids: [] };
+        removeProjectRecords(db.projects.filter((project) => project.ownerId === user.id), user.id);
+        db.jobs = db.jobs.filter((job) => job.ownerId !== user.id);
+        await removeAssets(db.assets.filter((asset) => asset.ownerId === user.id));
+        await persist();
+        res.writeHead(204); res.end(); return;
+      }
       if (url.pathname === '/api/me/password' && req.method === 'POST') {
         const body = await readJson(req);
         if (typeof body.current_password !== 'string' || !bcrypt.compareSync(passwordInput(body.current_password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '当前密码不正确，请重新输入');
@@ -994,18 +1030,7 @@ export async function createMockServer(options = {}) {
         const project = getProject(decodeId(projectMatch[1]), user);
         if (!projectMatch[2] && req.method === 'GET') { json(res, 200, publicProject(project, base)); return; }
         if (!projectMatch[2] && req.method === 'DELETE') {
-          const generatedIds = new Set([
-            ...db.assets.filter((asset) => asset.source === 'generated' && asset.projectId === project.id).map((asset) => asset.id),
-            ...db.jobs.filter((job) => job.project_id === project.id).map((job) => job.result_asset_id).filter(Boolean),
-            ...project.state.images.map((image) => image.assetId).filter(Boolean),
-            ...project.state.directions.map((direction) => direction.previewAssetId).filter(Boolean),
-            project.state.video?.assetId,
-          ]);
-          const generated = db.assets.filter((asset) => asset.source === 'generated' && asset.ownerId === user.id && generatedIds.has(asset.id));
-          for (const asset of generated) if (asset.filename) await rm(assetPath(asset), { force: true });
-          db.assets = db.assets.filter((asset) => !generated.includes(asset));
-          db.projects = db.projects.filter((item) => item.id !== project.id);
-          db.jobs = db.jobs.filter((item) => item.project_id !== project.id);
+          await removeAssets(removeProjectRecords([project], user.id));
           await persist(); res.writeHead(204); res.end(); return;
         }
         if (projectMatch[2] === 'state' && req.method === 'GET') { json(res, 200, publicState(project, base)); return; }

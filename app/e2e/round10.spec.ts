@@ -8,10 +8,18 @@ const apiBase = process.env.E2E_API_BASE || 'http://localhost:19301/api';
 
 async function screenshot(page: Page, file: string) {
   await mkdir(screenshots, { recursive: true });
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await Promise.all(Array.from(document.images).filter(image => {
+      const bounds = image.getBoundingClientRect();
+      return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.top < innerHeight;
+    }).map(image => image.decode().catch(() => undefined)));
+  });
+  await page.waitForTimeout(350);
   await page.screenshot({ path: path.join(screenshots, file), animations: 'disabled' });
 }
 
-test('第十轮：隐私、注册、修改密码与恢复码完整闭环', async ({ page, request }) => {
+test('第十轮：隐私、注册、账号安全与注销完整闭环', async ({ page, request }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto('/');
@@ -80,7 +88,7 @@ test('第十轮：隐私、注册、修改密码与恢复码完整闭环', async
   expect((await registrationRequest).postDataJSON()).toMatchObject({ agreed_legal_version: LEGAL_VERSION });
   const registered = await registrationResponse;
   expect(registered.ok()).toBe(true);
-  const registration = await registered.json() as { token: string; recovery_code: string };
+  const registration = await registered.json() as { token: string; recovery_code: string; user: { id: string } };
   expect(registration.recovery_code).toMatch(/^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/i);
   expect(registration.recovery_code.replaceAll('-', '')).toHaveLength(12);
   const recoveryCode = page.getByTestId('recovery-code');
@@ -210,5 +218,46 @@ test('第十轮：隐私、注册、修改密码与恢复码完整闭环', async
   const outdatedRecoveryCode = await request.post(`${apiBase}/auth/recover`, { data: { username, recovery_code: recovery.recovery_code, new_password: 'Do-not-apply-2026' } });
   expect(outdatedRecoveryCode.ok()).toBe(false);
   expect((await outdatedRecoveryCode.json()).error.code).toBe('RECOVERY_FAILED');
+
+  await page.getByRole('button', { name: '注销账号', exact: true }).click();
+  await expect(page).toHaveURL(/\/account\/delete$/);
+  await expect(page.getByText('注销账号', { exact: true }).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/全部项目/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/上传照片/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/生成图片和视频/).filter({ visible: true })).toBeVisible();
+  await expect(page.getByText(/无法恢复/).filter({ visible: true })).toBeVisible();
+  await screenshot(page, '124-delete-account-confirmation.png');
+  await page.getByRole('button', { name: '取消注销', exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await page.getByRole('button', { name: '注销账号', exact: true }).click();
+  await page.getByLabel('确认账号密码', { exact: true }).fill('Wrong-password-2026');
+  const rejectedDeletionResponse = page.waitForResponse(value => value.request().method() === 'DELETE' && value.url() === `${apiBase}/me`);
+  await page.getByRole('button', { name: '确认注销', exact: true }).click();
+  const rejectedDeletion = await rejectedDeletionResponse;
+  expect(rejectedDeletion.ok()).toBe(false);
+  const rejectedDeletionError = await rejectedDeletion.json() as { error: { message: string } };
+  await expect(page.getByText(rejectedDeletionError.error.message, { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/account\/delete$/);
+  const deletedToken = await page.evaluate(() => sessionStorage.getItem('outfit.session'));
+  expect(deletedToken).toBeTruthy();
+  await page.getByLabel('确认账号密码', { exact: true }).fill(recoveredPassword);
+  const deletedResponse = page.waitForResponse(value => value.request().method() === 'DELETE' && value.url() === `${apiBase}/me`);
+  await page.getByRole('button', { name: '确认注销', exact: true }).click();
+  expect((await deletedResponse).ok()).toBe(true);
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  await expect(page.getByText('账号已注销', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('outfit.session'))).toBeNull();
+  await screenshot(page, '125-account-deleted-login.png');
+
+  const deletedSession = await request.get(`${apiBase}/me`, { headers: { Authorization: `Bearer ${deletedToken}` } });
+  expect(deletedSession.status()).toBe(401);
+  const deletedLogin = await request.post(`${apiBase}/auth/login`, { data: { username, password: recoveredPassword } });
+  expect(deletedLogin.status()).toBe(401);
+  const deletedRecovery = await request.post(`${apiBase}/auth/recover`, { data: { username, recovery_code: latestRecoveryCode, new_password: 'Do-not-apply-2026' } });
+  expect(deletedRecovery.ok()).toBe(false);
+  expect((await deletedRecovery.json()).error.code).toBe('RECOVERY_FAILED');
+  const recreated = await request.post(`${apiBase}/auth/register`, { data: { username, password: 'Local-recreated-2026', agreed_legal_version: LEGAL_VERSION } });
+  expect(recreated.ok()).toBe(true);
+  expect((await recreated.json()).user.id).not.toBe(registration.user.id);
   expect(pageErrors).toEqual([]);
 });

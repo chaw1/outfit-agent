@@ -1,0 +1,104 @@
+[
+  {
+    "file": "110-privacy-before-onboarding.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "dbab51c2abbbbfd243d5929b64714c155553ddcdada14efb403c8920bca87530"
+  },
+  {
+    "file": "111-privacy-declined.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "2dec876400469053502c648d2dc29b8deb414b7a81309f0655de949328bcd5f6"
+  },
+  {
+    "file": "112-privacy-readable.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "226453f05cd0d380f446b54edcddcdc5dc4ab9796797f7e8a78df45190a019d1"
+  },
+  {
+    "file": "113-onboarding-after-consent.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "83c56ee1e2a47925bd19ea00a1dbef784dbf754ba1c39a01a1905892e452ad41"
+  },
+  {
+    "file": "114-registration-requires-consent.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "2efa566e2a54c3aea4535df3fbee2eaeebe05772c3b3f2a81161fe389bdcfcac"
+  },
+  {
+    "file": "115-registration-consented.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "c54ff027c1abba62354085aa854cc5ebd342221851fd1118c945346002096a44"
+  },
+  {
+    "file": "116-registration-recovery-code.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "8da7cbe48239f2f57e76aaee749358c8113b8145dde50cab5e9d2008232bbe84"
+  },
+  {
+    "file": "117-forgot-password.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "062f620d5fb5d6cb2b2667064f11716273e7bd0d3e7e621f6b1f9ce2c88311e1"
+  },
+  {
+    "file": "118-password-reset-new-recovery-code.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "10b049255c93a6834008b633d1e45c9f41f29104162e5b4f04f2e9a4ec669dc9"
+  },
+  {
+    "file": "119-recovered-account.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "b19c32f3075964bfa85bfa1148f2c080523ec4bf7e4ae22d048e4f03c52cf997"
+  },
+  {
+    "file": "120-account-security.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "7ebb45693e83852c18fda26f182f5e561730cb793bbf75a3aced17458dbfc150"
+  },
+  {
+    "file": "121-password-changed.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "bc6671f0eebdd6a7af4dedfe528e0018da238e76e6d0e494ff5fb0d761d7f846"
+  },
+  {
+    "file": "121-password-login-verified.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "b19c32f3075964bfa85bfa1148f2c080523ec4bf7e4ae22d048e4f03c52cf997"
+  },
+  {
+    "file": "122-recovery-code-password-check.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "c0b2d89143b8d7c4517f9dd09f8371031d750deac026ce736da039bc55823365"
+  },
+  {
+    "file": "123-regenerated-recovery-code.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "32927f0c7ad9a4cd4fc9669f44e6acad10e155e8607a36fcbc1dcfb839485aca"
+  },
+  {
+    "file": "124-delete-account-confirmation.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "4e1e20360450a49428667e001f8f840bf8224076b793440e01954ff4f42ab79f"
+  },
+  {
+    "file": "125-account-deleted-login.png",
+    "width": 390,
+    "height": 844,
+    "sha256": "5c16f85399b72fa4df2a947d198a60a72e05212aacb394d53be5e738271f6957"
+  }
+]

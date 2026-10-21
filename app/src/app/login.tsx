@@ -15,7 +15,7 @@ import { layout, radius, space, type } from '../theme';
 export default function Login() {
   const { api, signIn } = useSession();
   const router = useRouter();
-  const { expired } = useLocalSearchParams<{ expired?: string }>();
+  const { expired, deleted } = useLocalSearchParams<{ expired?: string; deleted?: string }>();
   const usernameInput = useRef<React.ComponentRef<typeof TextInput>>(null);
   const [register, setRegister] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -25,7 +25,7 @@ export default function Login() {
   const [nickname, setNickname] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  usePreventRemove(register && busy, () => setError('正在创建账号，请等待结果并保存恢复码。'));
+  usePreventRemove(busy, () => setError('正在处理登录或注册，请等待结果后再返回。'));
   async function submit() {
     if (busy) return;
     if (register && !agreed) return setError('请先阅读并同意用户协议与隐私政策。');
@@ -53,8 +53,9 @@ export default function Login() {
       </View>
       </AnimatedEntry>}
       {expired === '1' && <StatePanel icon="lock-closed-outline" title="登录已过期" description="重新登录，继续你的合作创作。" actionLabel="重新登录" onAction={() => usernameInput.current?.focus()} />}
+      {deleted === '1' && <Text accessibilityRole="status" style={styles.subtitle}>账号已注销</Text>}
       <View style={{ flexDirection: 'row', backgroundColor: colors.paper, borderRadius: radius.md, padding: space.xs }}>
-        {['登录', '注册'].map((label, index) => <Pressable key={label} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: register === (index === 1) }} onPress={() => { setRegister(index === 1); setError(''); }} style={{ flex: 1, minHeight: layout.touch, justifyContent: 'center', borderRadius: radius.sm, padding: space.md, backgroundColor: register === (index === 1) ? colors.surface : 'transparent' }}><Text style={{ textAlign: 'center', fontWeight: '600', color: register === (index === 1) ? colors.ink : colors.muted }}>{label}</Text></Pressable>)}
+        {['登录', '注册'].map((label, index) => <Pressable key={label} disabled={busy} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: register === (index === 1), disabled: busy }} onPress={() => { setRegister(index === 1); setError(''); }} style={{ flex: 1, minHeight: layout.touch, justifyContent: 'center', borderRadius: radius.sm, padding: space.md, backgroundColor: register === (index === 1) ? colors.surface : 'transparent' }}><Text style={{ textAlign: 'center', fontWeight: '600', color: register === (index === 1) ? colors.ink : colors.muted }}>{label}</Text></Pressable>)}
       </View>
       <View style={{ gap: space.lg }}>
         {register && <Field label="怎么称呼你" placeholder="你的博主昵称（选填）" value={nickname} onChangeText={setNickname} autoComplete="nickname" />}

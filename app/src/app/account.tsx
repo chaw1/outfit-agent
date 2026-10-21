@@ -11,7 +11,7 @@ import { space } from '../theme';
 type AccountView = 'summary' | 'password' | 'recovery';
 
 export default function Account() {
-  const { api, user, token, signIn } = useSession();
+  const { api, user, token, baseUrl, signIn, isCurrentSession } = useSession();
   const router = useRouter();
   const [view, setView] = useState<AccountView>('summary');
   const [password, setPassword] = useState('');
@@ -31,6 +31,7 @@ export default function Account() {
     setBusy(true); setError('');
     try {
       const result = await api.changePassword({ current_password: password, new_password: newPassword });
+      if (!isCurrentSession(token, baseUrl)) return;
       await signIn(result);
       open('summary'); setMessage('密码已修改，其他设备需要重新登录。');
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
@@ -40,6 +41,7 @@ export default function Account() {
     setBusy(true); setError('');
     try {
       const result = await api.regenerateRecoveryCode(password);
+      if (!isCurrentSession(token, baseUrl)) return;
       if (!isRecoveryCode(result.recovery_code)) throw new Error('服务未返回有效恢复码，请重试。');
       setCode(result.recovery_code); setPassword('');
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
@@ -60,6 +62,7 @@ export default function Account() {
         <Button title="修改密码" variant="secondary" onPress={() => open('password')} />
         <View style={{ gap: space.md }}><Text style={styles.section}>恢复码</Text><Text style={styles.subtitle}>恢复码是忘记密码时唯一的找回方式。如怀疑泄露或没有保存，请验证密码并生成新码。</Text><Button title="重新生成恢复码" variant="secondary" onPress={() => open('recovery')} /></View>
         <Text style={styles.section}>协议与隐私</Text><LegalLinks />
+        <Button title="注销账号" variant="ghost" onPress={() => router.push('/account/delete')} />
       </> : view === 'password' ? <>
         <Text style={styles.subtitle}>修改后，其他设备的登录会立即失效。当前设备继续使用新登录凭证，已保存的恢复码仍可使用。</Text>
         <Field label="当前密码" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" editable={!busy} />
