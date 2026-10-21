@@ -54,6 +54,95 @@ def test_edits_videos_and_failures(stage, jobs, status, label):
     assert (progress["status"], progress["label"]) == (status, label)
 
 
+def test_note_is_ready_after_user_approves_successful_subset():
+    jobs = [job(1, "succeeded", script_hash="current"),
+            job(2, "failed", script_hash="current")]
+    progress = project_progress(project("note"), jobs)
+    assert (progress["status"], progress["label"]) == ("ready", "笔记已就绪，等你看")
+
+
+def test_successful_new_edit_supersedes_failed_attempt_for_same_shot():
+    jobs = [job(1, "succeeded", script_hash="current", shot_id="shot-1"),
+            job(2, "failed", "edit", script_hash="current", shot_id="shot-1", parent_id="1"),
+            job(3, "succeeded", "edit", script_hash="current", shot_id="shot-1", parent_id="1")]
+    progress = project_progress(project("images"), jobs)
+    assert (progress["status"], progress["total"]) == ("waiting_you", 3)
+
+
+def test_newest_failed_edit_is_reported_and_legacy_lineage_can_recover():
+    jobs = [job(1, "succeeded", script_hash="current"),
+            job(2, "failed", "edit", script_hash="current", parent_id="1")]
+    assert project_progress(project("images"), jobs)["status"] == "failed"
+    jobs.append(job(3, "succeeded", "edit", script_hash="current", parent_id="2"))
+    assert project_progress(project("images"), jobs)["status"] == "waiting_you"
+
+
+def test_later_edit_of_old_script_does_not_choose_current_image_batch():
+    jobs = [job(1, "failed", script_hash="old", shot_id="shot-1"),
+            job(2, "succeeded", script_hash="new", shot_id="shot-1"),
+            job(3, "failed", "edit", script_hash="old", shot_id="shot-1", parent_id="1")]
+    progress = project_progress(project("images"), jobs)
+    assert (progress["status"], progress["total"]) == ("waiting_you", 1)
+
+
+def test_partial_preview_failure_checks_entire_latest_group():
+    jobs = [job(1, "failed", purpose="preview", preview_group="current"),
+            job(2, "succeeded", purpose="preview", preview_group="current"),
+            job(3, "succeeded", purpose="preview", preview_group="current")]
+    progress = project_progress(project("direction"), jobs)
+    assert (progress["status"], progress["label"], progress["total"]) == (
+        "failed", "预览失败，点开看看", 3,
+    )
+
+
+def test_preview_group_ignores_old_failures_and_unrelated_later_job():
+    jobs = [job(1, "failed", purpose="preview", preview_group="old"),
+            job(2, "succeeded", purpose="preview", preview_group="current"),
+            job(3, "succeeded", purpose="preview", preview_group="current"),
+            job(4, "failed", "edit", script_hash="old")]
+    progress = project_progress(project("direction"), jobs)
+    assert (progress["status"], progress["running"], progress["total"]) == ("waiting_you", 0, 2)
+
+
+def test_preview_counts_include_finished_jobs_and_ignore_old_active_group():
+    jobs = [job(1, "queued", purpose="preview", preview_group="old"),
+            job(2, "succeeded", purpose="preview", preview_group="current"),
+            job(3, "running", purpose="preview", preview_group="current")]
+    progress = project_progress(project("direction"), jobs)
+    assert (progress["status"], progress["running"], progress["total"]) == ("generating", 1, 2)
+    jobs[-1].status = "succeeded"
+    assert project_progress(project("direction"), jobs)["status"] == "waiting_you"
+
+
+def test_legacy_preview_fallback_is_bounded_to_latest_three():
+    jobs = [job(1, "failed", purpose="preview"),
+            *(job(index, "succeeded", purpose="preview") for index in range(2, 5))]
+    progress = project_progress(project("direction"), jobs)
+    assert (progress["status"], progress["total"]) == ("waiting_you", 3)
+
+
+def test_edit_counts_include_terminal_jobs_in_related_batch():
+    jobs = [job(1, "succeeded", "edit", script_hash="current"),
+            job(2, "failed", "edit", script_hash="old"),
+            job(3, "running", "edit", script_hash="current")]
+    progress = project_progress(project("note"), jobs)
+    assert (progress["label"], progress["running"], progress["total"]) == ("改图中", 1, 2)
+
+
+def test_auto_fix_counts_include_whole_repair_group():
+    jobs = [job(1, "succeeded", "edit", completion_batch_key="current"),
+            job(2, "queued", "edit", completion_batch_key="current"),
+            job(3, "failed", "edit", completion_batch_key="old")]
+    progress = project_progress(project("images"), jobs)
+    assert (progress["label"], progress["running"], progress["total"]) == ("改图中", 1, 2)
+
+
+def test_video_counts_refer_only_to_current_video():
+    jobs = [job(1, "failed", "video"), job(2, "running", "video")]
+    progress = project_progress(project("video"), jobs)
+    assert (progress["label"], progress["running"], progress["total"]) == ("视频生成中", 1, 1)
+
+
 def test_public_list_includes_progress(api, project_assets):
     created, _, _ = project_assets
     listed = next(p for p in api.request("GET", "/api/projects") if p["id"] == created["id"])
