@@ -1,5 +1,5 @@
-import { expect, type Locator, type Page, type Request } from '@playwright/test';
 import path from 'node:path';
+import { expect, type Locator, type Page, type Request } from '@playwright/test';
 import type { OutfitImage, ProjectState } from '../src/api/types';
 
 type Point = { x: number; y: number };

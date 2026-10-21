@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { formatPoints, pointsValue } from '../src/lib/transparency';
 import type { Asset, AuthResponse, Message, Project, ProjectState } from '../src/api/types';
 

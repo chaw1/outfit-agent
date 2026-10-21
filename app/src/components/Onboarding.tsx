@@ -2,8 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AnimatedEntry, Button, Page } from './ui';
 import { radius, space, studio, type } from '../theme';
+import { AnimatedEntry, Button, Page } from './ui';
 
 const KEY = 'outfit.onboarding.v1';
 const slides = [

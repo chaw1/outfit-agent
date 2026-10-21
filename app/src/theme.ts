@@ -47,6 +47,9 @@ export const studio = {
   successSoft: '#1D3428',
   warning: '#F2CB7C',
   warningSoft: '#3A2F1B',
+  generating: '#FF899A',
+  modalOverlay: 'rgba(0,0,0,0.72)',
+  helpOverlay: 'rgba(0,0,0,0.7)',
 } as const;
 
 export const space = {
@@ -56,6 +59,9 @@ export const space = {
   lg: 16,
   xl: 24,
   xxl: 32,
+  none: 0,
+  inset20: 20,
+  offset10: 10,
 } as const;
 
 export const radius = {

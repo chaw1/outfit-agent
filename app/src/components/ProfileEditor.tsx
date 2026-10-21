@@ -6,8 +6,8 @@ import { ApiError } from '../api/client';
 import type { User, UserProfile } from '../api/types';
 import { useSession } from '../context/Session';
 import { parseHeight, profilePhotos, setDefaultPhoto } from '../lib/profile';
-import { Badge, Button, FadeImage, Field, Notice, ProgressStrip, Toast, errorText, styles } from './ui';
 import { colors, radius, space, type } from '../theme';
+import { Badge, Button, FadeImage, Field, Notice, ProgressStrip, Toast, errorText, styles } from './ui';
 
 export function ProfileEditor({ user }: { user: User & { profile: UserProfile } }) {
   const { api, photos, updateMe, cacheProfilePhoto } = useSession();

@@ -8,16 +8,16 @@ import {
   View,
 } from 'react-native';
 import { colors, space, radius, layout, type as typography } from '../theme';
-import { AnimatedEntry, Badge, Button as ActionButton, FadeImage, ProgressStrip, Skeleton } from './ui';
 import type { Action, Card, Direction, OutfitImage, ProjectState } from '../api/types';
+import { feedback } from '../lib/haptics';
+import { confirmationCost, formatPoints, pointsValue, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
+import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
+import { AnimatedEntry, Badge, Button as ActionButton, FadeImage, ProgressStrip, Skeleton } from './ui';
 import { VideoPlayer } from './VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationInfo';
 import { ScriptHistory } from './ScriptHistory';
 import { useImageInteractions } from './ImageInteractions';
-import { feedback } from '../lib/haptics';
-import { confirmationCost, formatPoints, pointsValue, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
 import { CostEstimate } from './CostEstimate';
-import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
 
 type CardsProps = {
   cards: Card[];
@@ -185,7 +185,7 @@ function ImageGrid({ items, state, busy }: {
                     {item.status === 'failed' ? <><Icon name="alert-circle-outline" color={colors.danger} size={26} /><Text style={styles.generatingTitle}>这张暂时没成功</Text><Text style={styles.generatingDetail}>{item.error ?? '在对话里告诉我，我们再试一次'}</Text></> : <ProgressStrip title={item.status === 'running' ? '画面生成中' : '等待生成'} detail={item.status === 'running' ? '好看的细节，值得等一等' : '马上就轮到这一张'} />}
                   </View>
                 )}
-                {item.status === 'succeeded' && !automatic ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={event => { event.stopPropagation(); void toggle(item.id); }} hitSlop={8} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
+                {item.status === 'succeeded' && !automatic ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={event => { event.stopPropagation(); void toggle(item.id); }} hitSlop={space.sm} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
                 <View style={styles.versionBadge}><Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} />{isUnverified(item) ? <Badge label="未改到位" tone="danger" /> : null}</View>
                 {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
               </Pressable>
@@ -196,7 +196,7 @@ function ImageGrid({ items, state, busy }: {
                   accessibilityRole="button"
                   accessibilityLabel={`修改镜头 ${shotIds.indexOf(item.shot_id) + 1}`}
                   testID={`edit-image-${item.id}`}
-                  hitSlop={8}
+                  hitSlop={space.sm}
                   style={styles.editButton}
                 ><Icon name="create-outline" size={13} color={colors.red} /><Text style={styles.editText}>改一改</Text></Pressable> : null}
               </View>

@@ -9,8 +9,8 @@ import { approveImages, defaultImageIds, isUnverified, isUsable, replaceShotVers
 import { rejectedResult } from '../lib/editAttempt';
 import { feedback } from '../lib/haptics';
 import { saveImages } from '../lib/media';
-import { ImageViewer } from './ImageViewer';
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
+import { ImageViewer } from './ImageViewer';
 import { Badge, Button, FadeImage, Toast, errorText } from './ui';
 
 type Mode = 'view' | 'local' | 'whole' | 'compare';

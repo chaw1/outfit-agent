@@ -1,6 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
 import { LEGAL_VERSION, PRIVACY_CONSENT_KEY } from '../src/lib/legalConsent';
 
 const screenshots = path.resolve('screenshots');

@@ -1,6 +1,6 @@
-import { expect, test, type Page, type Locator } from '@playwright/test';
 import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
+import { expect, test, type Page, type Locator } from '@playwright/test';
 import type { ProjectState } from '../src/api/types';
 import { imageInteractions } from './image-interactions';
 

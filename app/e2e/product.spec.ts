@@ -1,6 +1,6 @@
-import { expect, test } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { expect, test } from '@playwright/test';
 import type { Asset, Project, User } from '../src/api/types';
 
 const shots = path.resolve(process.env.E2E_SCREENSHOTS_DIR || 'screenshots/polish');

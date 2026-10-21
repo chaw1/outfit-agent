@@ -1,6 +1,6 @@
-import { defineConfig } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { defineConfig } from '@playwright/test';
 
 const liveBase = process.env.LIVE_API_BASE;
 const localChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';

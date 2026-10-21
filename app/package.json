@@ -8,7 +8,7 @@
     "web": "expo start --web --port 19300",
     "mock": "node mock-server/index.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "test": "tsx --test tests/*.test.ts tests/*.test.cjs",
     "test:e2e": "playwright test",
     "test:live": "playwright test --config playwright.live.config.ts",
