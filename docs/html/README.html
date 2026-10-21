@@ -227,6 +227,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </table>
 <p>关键实验（<code>server/scripts/experiments.py</code>）：E1 重启后续聊、E2 重复确认不重复花钱、E3 越阶段被拒、E4 脚本时间旅行，全部通过。</p>
 <h2 id="管理端">管理端<a class="headerlink" href="#管理端" title="Permanent link">¶</a></h2>
+<p>页面截图（桌面 1280 与手机 390）：<a href="../admin-shots">docs/admin-shots/</a>，总览含最近 7 天趋势、模型费用占比与任务成功率。</p>
 <p>和 API 同一容器：<code>/admin</code>（独立口令，<code>ADMIN_TOKEN</code> 为空时整体关闭）。总览、用量统计（按模型 / 用户 / 天，导出 CSV）、模型分层与每日配额（存库即时生效）、任务队列（重试 / 取消）、用户管理（禁用 / 层级）。花钱的动作在服务端按层级预算门禁，对话不受限。约定见 <code>docs/设计.md</code> 第 9 节。</p>
 <h2 id="部署">部署<a class="headerlink" href="#部署" title="Permanent link">¶</a></h2>
 <p>单台阿里云 ECS，docker compose（api、worker × 2、postgres）+ 宿主机 nginx 终止 TLS。域名未在阿里云备案接入，域名 HTTPS 会被按 SNI 拦截，所以使用 Let's Encrypt 的 IP 证书（每天自动续期）。部署脚本：<a href="../../server/deploy/deploy-ecs.sh">server/deploy/deploy-ecs.sh</a>。</p></main></div></body></html>

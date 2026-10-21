@@ -95,6 +95,14 @@ class QueueCounts(BaseModel):
     queued: int
     running: int
     failed: int
+    succeeded: int = 0
+    cancelled: int = 0
+
+
+class TrendPoint(BaseModel):
+    day: date
+    calls: int
+    cost_cny: float
 
 
 class Overview(BaseModel):
@@ -106,6 +114,9 @@ class Overview(BaseModel):
     jobs: QueueCounts
     requests_24h: int
     errors_24h: int
+    trend: list[TrendPoint] = []
+    by_model: list["UsageRow"] = []
+    success_rate: float | None = None
 
 
 class UsageRow(BaseModel):
@@ -226,8 +237,24 @@ def overview(session: Session = Depends(get_session)):
         .group_by(Project.stage).order_by(Project.stage)
     ).all()
     jobs = dict(session.execute(select(Job.status, func.count()).group_by(Job.status)).all())
+    finished = jobs.get("succeeded", 0) + jobs.get("failed", 0)
+    today = datetime.now(LOCAL_TIMEZONE).date()
+    week = _usage_report(session, "day", today - timedelta(days=6), today, None)["rows"]
+    by_day = {row["key"]: row for row in week}
+    trend = []
+    for offset in range(6, -1, -1):
+        day = today - timedelta(days=offset)
+        row = by_day.get(str(day)) or {"calls": 0, "cost_cny": 0.0}
+        trend.append({"day": day, "calls": row["calls"], "cost_cny": row["cost_cny"]})
+    by_model = sorted(
+        _usage_report(session, "model", today - timedelta(days=6), today, None)["rows"],
+        key=lambda row: row["cost_cny"], reverse=True,
+    )
     return {
         **request_totals(session),
+        "trend": trend,
+        "by_model": by_model,
+        "success_rate": (jobs.get("succeeded", 0) / finished) if finished else None,
         "users": session.scalar(select(func.count(User.id))),
         "projects": sum(count for stage, count in stages),
         "today": _usage_totals(
@@ -235,7 +262,10 @@ def overview(session: Session = Depends(get_session)):
         ),
         "total": _usage_totals(session),
         "stages": [{"stage": stage, "count": count} for stage, count in stages],
-        "jobs": {key: jobs.get(key, 0) for key in ("queued", "running", "failed")},
+        "jobs": {
+            key: jobs.get(key, 0)
+            for key in ("queued", "running", "failed", "succeeded", "cancelled")
+        },
     }
 
 

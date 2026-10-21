@@ -269,3 +269,13 @@ def test_retry_respects_disabled_user_budget_and_unknown_paid_result(admin_api):
         session.commit()
     response = client.post(f"/api/admin/jobs/{job_id}/retry")
     assert response.status_code == 409 and response.json()["error"]["code"] == "JOB_RESULT_UNKNOWN"
+
+
+def test_overview_carries_trend_model_share_and_success_rate(admin_api):
+    client, _factory, _user_id, _project_id = admin_api
+    payload = client.get("/api/admin/overview").json()
+    assert len(payload["trend"]) == 7
+    assert all({"day", "calls", "cost_cny"} <= set(point) for point in payload["trend"])
+    assert isinstance(payload["by_model"], list)
+    assert set(payload["jobs"]) == {"queued", "running", "failed", "succeeded", "cancelled"}
+    assert payload["success_rate"] is None or 0 <= payload["success_rate"] <= 1
