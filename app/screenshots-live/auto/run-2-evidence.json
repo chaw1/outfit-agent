@@ -1,0 +1,323 @@
+{
+  "base": "https://47.97.153.127:8443/",
+  "projectId": "88f4fcc0-3f69-4111-90c5-feeb18f62ab8",
+  "startedAt": "2026-10-21T03:13:32.071Z",
+  "observedSteps": [
+    "directions",
+    "script",
+    "images"
+  ],
+  "latestState": {
+    "stage": "images",
+    "mode": "auto",
+    "style_tags": [
+      "松弛通勤"
+    ],
+    "auto": {
+      "active": true,
+      "step": "note",
+      "label": "正在写这组片的笔记",
+      "started_at": "2026-10-21T03:13:40.001411Z",
+      "estimate_points": 48
+    },
+    "garments": [
+      {
+        "asset_id": "f9a0a51c-a83f-4fe0-bec0-8f1bce62b5e3",
+        "category": "连帽卫衣",
+        "color": "黄色",
+        "material": "视觉判断，待确认",
+        "style_tags": [
+          "短款",
+          "拉链开衫",
+          "胸前刺绣",
+          "抽绳连帽",
+          "袋鼠兜"
+        ],
+        "url": "https://47.97.153.127:8443/media/f9a0a51c-a83f-4fe0-bec0-8f1bce62b5e3"
+      },
+      {
+        "asset_id": "2d2856fa-1feb-4c62-ad9d-2ac818f09fce",
+        "category": "连帽卫衣",
+        "color": "黄色",
+        "material": "视觉判断，待确认",
+        "style_tags": [
+          "短款",
+          "抽绳连帽",
+          "无前袋",
+          "背面纯色"
+        ],
+        "url": "https://47.97.153.127:8443/media/2d2856fa-1feb-4c62-ad9d-2ac818f09fce"
+      }
+    ],
+    "directions": [
+      {
+        "id": "direction-1",
+        "name": "操场看台放学时刻",
+        "scene": "校园操场旁的旧看台与铁栏杆，下午四点斜射的太阳，坐下起身的松弛动作",
+        "mood": "青春、随性、像下课后随手被拍",
+        "palette": [
+          "鹅黄",
+          "水泥灰",
+          "草绿",
+          "旧白"
+        ],
+        "why": "自然光斜阳把鹅黄色打亮，短款卫衣配高腰阔腿裤落出利落比例，街头松弛与校园感同时在线，三张照片能cover封面、全身和细节",
+        "sample_title": "放学别急着走，操场看台拍一组",
+        "recommended": true,
+        "preview_status": "succeeded",
+        "preview_url": "https://47.97.153.127:8443/media/1c1138b1-d846-4d0c-b264-2103368617b6"
+      },
+      {
+        "id": "direction-2",
+        "name": "林荫道慢走",
+        "scene": "校园侧门外的树荫街道，斑驳光影落在身上，走路过程中的自然抓拍",
+        "mood": "安静、轻盈、有随性节奏",
+        "palette": [
+          "鹅黄",
+          "树影深绿",
+          "浅灰",
+          "日光白"
+        ],
+        "why": "树影透光最考验配色，鹅黄在绿影里格外跳，适合做动态感强的连拍和短视频素材",
+        "sample_title": "树影里走一段，黄色很上镜",
+        "recommended": false,
+        "preview_status": "succeeded",
+        "preview_url": "https://47.97.153.127:8443/media/da654ee0-be34-455c-8cab-5955a4ec65bd"
+      },
+      {
+        "id": "direction-3",
+        "name": "便利店门口随手一站",
+        "scene": "校门口的便利店外立面和塑料椅，傍晚回暖时的自然光，站着拉拉链、翻兜",
+        "mood": "日常、街头、有点漫不经心",
+        "palette": [
+          "鹅黄",
+          "亮蓝招牌",
+          "米白",
+          "铁灰"
+        ],
+        "why": "生活化场景让街头松弛更落地，正面刺绣和背面纯色都能在转身时自然交代，适合顺手拼成图文",
+        "sample_title": "买瓶水的时间也值得拍",
+        "recommended": false,
+        "preview_status": "succeeded",
+        "preview_url": "https://47.97.153.127:8443/media/d19b4302-503c-4caa-bc32-db4ef8aa1dfb"
+      }
+    ],
+    "chosen_direction_id": "direction-1",
+    "script": {
+      "status": "confirmed",
+      "title_ideas": [
+        "放学别急着走，看台拍一组",
+        "鹅黄卫衣 × 操场斜阳",
+        "下课四点，光刚好"
+      ],
+      "cover": {
+        "scene": "校园操场旁旧看台，下午四点斜射阳光，鹅黄短款拉链卫衣配高腰阔腿裤，坐在看台第二排对着镜头",
+        "pose": "坐在看台上身体微前倾，双手自然搭在膝盖上，头轻侧看向镜头，拉链拉到胸口位置",
+        "text_overlay": "放学别急着走"
+      },
+      "shots": [
+        {
+          "id": "shot-1",
+          "scene": "操场看台第二排，斜阳从右侧打来，背景是水泥台阶和老铁栏杆，自然光不过曝",
+          "outfit_asset_ids": [
+            "f9a0a51c-a83f-4fe0-bec0-8f1bce62b5e3",
+            "2d2856fa-1feb-4c62-ad9d-2ac818f09fce"
+          ],
+          "pose": "坐在看台上，一条腿上一阶，双手搭在膝盖，头轻侧看镜头，拉链停在胸口处，帽子自然垂在背后",
+          "camera": "50mm 半身，平视略低机位，人物在画面偏左",
+          "caption": "下课的四点光，落在这件鹅黄上刚好"
+        },
+        {
+          "id": "shot-2",
+          "scene": "看台前的空地，站着面对镜头，背景是草绿草地和铁栏杆",
+          "outfit_asset_ids": [
+            "f9a0a51c-a83f-4fe0-bec0-8f1bce62b5e3",
+            "2d2856fa-1feb-4c62-ad9d-2ac818f09fce"
+          ],
+          "pose": "站着，手插裤兜，短款衣摆落在高腰裤腰线上方，正面胸前刺绣完整露出，肩放松不挺",
+          "camera": "35mm 全身竖幅，略微仰拍，留出上方的天空",
+          "caption": "短款+高腰，比例一下就利落了"
+        },
+        {
+          "id": "shot-3",
+          "scene": "看台栏杆旁，侧身背对镜头，阳光打在背上",
+          "outfit_asset_ids": [
+            "2d2856fa-1feb-4c62-ad9d-2ac818f09fce"
+          ],
+          "pose": "侧身站，肩膀微转，背面纯色大面积露出，帽子自然挂在后颈",
+          "camera": "50mm 中景，从侧后方拍，铁栏杆做前景",
+          "caption": "正面有字，背面纯色，各有各的好看"
+        },
+        {
+          "id": "shot-4",
+          "scene": "看台阶梯上，坐着手拉抽绳，斜阳侧面打亮胸前刺绣",
+          "outfit_asset_ids": [
+            "f9a0a51c-a83f-4fe0-bec0-8f1bce62b5e3"
+          ],
+          "pose": "坐姿稍俯身，一手轻捏抽绳，视线落在手边，拉链头停在半开位置",
+          "camera": "85mm 特写，浅景深，对焦胸前刺绣与拉链头",
+          "caption": "刺绣字样和拉链头，细节都保留原样"
+        },
+        {
+          "id": "shot-5",
+          "scene": "看台往操场走的路上，回头一瞬间，背景草地与栏杆虚化",
+          "outfit_asset_ids": [
+            "f9a0a51c-a83f-4fe0-bec0-8f1bce62b5e3",
+            "2d2856fa-1feb-4c62-ad9d-2ac818f09fce"
+          ],
+          "pose": "背向走着回头，一手自然摆起，衣摆随动作微微上提",
+          "camera": "35mm 抓拍，从斜后方跟随，保留运动感",
+          "caption": "回头那一下最像放学"
+        }
+      ],
+      "video": {
+        "prompt": "校园操场旧看台，下午四点斜射自然光，穿鹅黄色短款拉链连帽卫衣、胸前刺绣字样保留原样、背面纯色的女生，拉链拉到胸口，帽子自然垂在背后，配高腰阔腿裤。镜头从看台上坐着的半身缓慢推近到胸前刺绣细节，再轻微上摇到她的侧脸；衣摆随呼吸与起身动作自然起伏，不改变颜色、版型与刺绣内容。画面色调温暖，水泥灰与草绿作背景，平底鞋不露出高跟鞋。",
+        "duration": 5
+      },
+      "version": 1
+    },
+    "images": [
+      {
+        "id": "290e403d-5a8a-5d80-b4e2-2847f05f41b8",
+        "shot_id": "shot-1",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/a47d8ae1-1030-4095-9122-141c7e867d2f",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "黄色连帽拉链卫衣正面左胸刺绣logo文字缺失严重：原图完整为'ACNE STUDIOS • STOCKHOLM • 1996'，生成图仅残留模糊片段，需按原样完整还原刺绣文字",
+            "未发现吊牌、价签、织标贴纸等杂物残留，符合规范"
+          ],
+          "score": 95,
+          "auto_fixed": false
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1
+      },
+      {
+        "id": "e8ca289f-0f0b-5c41-91e7-579cee9bb28b",
+        "shot_id": "shot-2",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/56c31e04-70bb-4071-8618-d8805fcc6be2",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "服装本体高度还原：品类（短款连帽拉链卫衣）、版型（修身短款）、颜色（芥末黄）、面料纹理（柔软毛圈布）、纽扣（单拉链，银色）、口袋（前双插袋）、logo（胸前左上方刺绣'ACNE STUDIOS · STOCKHOLM · 1896'，清晰完整）全部匹配；无任何吊牌、纸牌、织标贴纸残留；成品中无应去除的杂物"
+          ],
+          "score": 98,
+          "auto_fixed": false,
+          "anchor_score": 95
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1,
+        "anchor_id": "290e403d-5a8a-5d80-b4e2-2847f05f41b8"
+      },
+      {
+        "id": "d5a6c135-e515-5dad-b5ce-a16e5170053f",
+        "shot_id": "shot-3",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/7d5b79c3-311f-4f5c-96b7-fbb8d58c2ab4",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "生成图卫衣正面左胸位置出现原衣不存在的浅色字母印花，需修图去除",
+            "其余服装细节（品类：拉链连帽短款卫衣；版型：短款修身；颜色：明黄色；面料：毛圈棉质；袖口/下摆罗纹；无纽扣；无口袋；无本体logo）均还原准确"
+          ],
+          "score": 95,
+          "auto_fixed": false,
+          "anchor_score": 98
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1,
+        "anchor_id": "290e403d-5a8a-5d80-b4e2-2847f05f41b8"
+      },
+      {
+        "id": "0e978888-c14e-5c46-bedc-754cf8a7b7aa",
+        "shot_id": "shot-4",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/7ff4e731-b1ae-4da1-8b49-a2159718359e",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "黄色连帽卫衣本体还原度高：品类（短款拉链连帽卫衣）、版型（短款、落肩、罗纹收口）、颜色（暖黄）、面料纹理（毛圈布质感）一致；",
+            "胸前刺绣logo文字模糊，'1996'缺失，需修复为清晰完整刺绣；",
+            "无吊牌/标签残留，符合要求；",
+            "纽扣（拉链）数量1、颜色银灰一致；口袋位置与形态一致"
+          ],
+          "score": 95,
+          "auto_fixed": false,
+          "anchor_score": 98
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1,
+        "anchor_id": "290e403d-5a8a-5d80-b4e2-2847f05f41b8"
+      },
+      {
+        "id": "8cd20fb3-70b3-5531-92d1-741efcd6d381",
+        "shot_id": "shot-5",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/7d6265c1-865a-41f4-af55-f7e8708cca1f",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "黄色连帽卫衣胸前刺绣文字模糊失真，需按原图精确还原'ACNE STUDIOS • STOCKHOLM • 1996'深色细线刺绣位置与字形",
+            "拉链头颜色过暗，应调整为银灰色金属反光效果",
+            "无吊牌、价签、织标贴纸残留，符合要求"
+          ],
+          "score": 96,
+          "auto_fixed": false,
+          "anchor_score": 92
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1,
+        "anchor_id": "290e403d-5a8a-5d80-b4e2-2847f05f41b8"
+      }
+    ],
+    "note": null,
+    "video": null,
+    "active_jobs": [],
+    "pending_action": null,
+    "cost_cny": 4.228603,
+    "cost_points": 42.3,
+    "last_message_id": "74182755-a03e-5366-bf56-0b12bd01a971",
+    "script_versions": [
+      {
+        "version": 1,
+        "checkpoint_id": "1f1ccfd8-798f-68b0-8006-0358013a6018",
+        "created_at": "2026-10-21T03:14:29.893731+00:00",
+        "summary": "放学别急着走，看台拍一组 / 鹅黄卫衣 × 操场斜阳",
+        "current": true
+      }
+    ],
+    "budget": {
+      "tier": "free",
+      "daily_budget_cny": 60,
+      "today_cost_cny": 4.228603,
+      "remaining_cny": 55.771397,
+      "daily_budget_points": 600,
+      "today_cost_points": 42.3,
+      "remaining_points": 557.7
+    }
+  },
+  "pageErrors": []
+}
