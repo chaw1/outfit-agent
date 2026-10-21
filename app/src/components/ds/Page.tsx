@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
-import { ScrollView, type ViewStyle } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, View, type ViewStyle } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { studio } from '../../theme';
 import { ThemeProvider } from './ThemeProvider';
@@ -19,8 +19,10 @@ export interface PageProps {
 }
 
 export function Page({ children, scroll = false, contentStyle, tone = 'paper' }: PageProps) {
-  return <ThemeProvider tone={tone}><SafeAreaView style={[styles.page, tone === 'studio' && { backgroundColor: studio.bg }]} edges={['top', 'bottom']}>
+  // 安全区按主树的 insets 手动留：页面套在 Modal 里时原生 SafeAreaView 拿不到顶部高度，标题会压进状态栏。
+  const insets = useSafeAreaInsets();
+  return <ThemeProvider tone={tone}><View style={[styles.page, tone === 'studio' && { backgroundColor: studio.bg }, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
     <StatusBar style={tone === 'studio' ? 'light' : 'dark'} />
     {scroll ? <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, contentStyle]}>{children}</ScrollView> : children}
-  </SafeAreaView></ThemeProvider>;
+  </View></ThemeProvider>;
 }
