@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.costs import image_cost_cny
 from app.errors import AppError
 from app.local_edit import prepare_selection
 from app.media import asset_dict
@@ -67,6 +68,8 @@ class Workflow:
         self.tool = tool
 
     def _card(self, kind: str, content: dict) -> dict:
+        if kind == "directions":
+            content = {**content, "regenerate_estimate_cny": float(image_cost_cny(3))}
         return {"id": f"{self.project.id}:{kind}", "type": kind, **content}
 
     def _asset(self, asset_id: str) -> Asset:
