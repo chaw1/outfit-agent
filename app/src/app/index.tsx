@@ -90,11 +90,11 @@ export default function Projects() {
   return <Page tone="studio">
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingTop: space.lg }]} refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} tintColor={studio.ink} />}>
       <View style={[styles.row, { justifyContent: 'space-between', gap: space.md }]}>
-        <View style={{ flex: 1, gap: space.sm }}><Text style={local.eyebrow}>衣序 / OUTFIT STUDIO</Text><Text style={{ ...type.display, color: studio.ink }}>{user?.nickname ? `${user.nickname}的片场` : '我的片场'}</Text></View>
+        <View style={{ flex: 1, gap: space.sm }}><Text numberOfLines={1} style={local.eyebrow}>衣序 · {dateLabel()}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ ...type.display, color: studio.ink }}>{greeting()}{user?.nickname ? `，${user.nickname}` : ''}</Text><View style={[styles.row, { gap: space.xs, flexWrap: 'wrap' }]}><Text style={{ ...type.caption, color: studio.muted }}>{user?.nickname ? `${user.nickname}的片场` : '我的片场'}</Text>{active.length ? <Text style={{ ...type.caption, color: studio.muted }}>· {active.length} 组片正在拍</Text> : null}</View></View>
         <AssetLibraryEntry compact />
         <IconButton name="options-outline" label="设置" onPress={() => router.push('/settings')} />
       </View>
-      {!!completions.length && <View testID="recent-completions" style={{ gap: space.md }}><Text style={local.section}>刚刚出好</Text>{completions.map(item => <Pressable key={`${item.projectId}-${item.jobIds.join('-')}`} accessibilityRole="button" accessibilityLabel={`查看刚刚出好 ${item.title}`} onPress={() => openProject(item.projectId)} style={local.recent}><Ionicons name="sparkles-outline" size={20} color={studio.accent} /><View style={{ flex: 1, gap: space.xs }}><Text style={{ ...type.label, color: studio.ink }}>{item.title}</Text><Text style={{ ...type.caption, color: studio.muted }}>{item.body}</Text></View><Ionicons name="arrow-forward" size={18} color={studio.ink} /></Pressable>)}</View>}
+      {!!completions.length && <View testID="recent-completions" style={{ gap: space.md }}><Text style={local.section}>刚刚出好</Text>{completions.map(item => <Pressable key={`${item.projectId}-${item.jobIds.join('-')}`} accessibilityRole="button" accessibilityLabel={`查看刚刚出好 ${item.title}`} onPress={() => openProject(item.projectId)} style={local.recent}>{(() => { const cover = items.find(project => project.id === item.projectId)?.cover_url; return cover ? <FadeImage source={{ uri: previewUrl(cover, 360) }} style={local.recentCover} resizeMode="cover" /> : <View style={local.recentIcon}><Ionicons name="sparkles-outline" size={20} color={studio.accent} /></View>; })()}<View style={{ flex: 1, gap: space.xs }}><Text style={{ ...type.label, color: studio.ink }}>{item.title}</Text><Text style={{ ...type.caption, color: studio.muted }}>{item.body}</Text></View><Ionicons name="arrow-forward" size={18} color={studio.ink} /></Pressable>)}</View>}
       <AnimatedEntry><View style={{ gap: space.lg }}><View style={[styles.row, { justifyContent: 'space-between', alignItems: 'flex-end' }]}><Text style={local.section}>灵感墙</Text><Text style={local.eyebrow}>TAKE A LITTLE INSPIRATION</Text></View><Text style={{ ...type.body, color: studio.muted }}>一件衣服，可以有很多种主角感。</Text><InspirationWall /></View></AnimatedEntry>
       {!!items.length && <Field label="搜索片场" placeholder="搜索这组片的名称或品牌" value={query} onChangeText={setQuery} returnKeyType="search" />}
       {!!query.trim() && !visibleItems.length && <StatePanel icon="search-outline" title="没有找到这组片。" description="换个名字或品牌再找找。" actionLabel="清空搜索" onAction={() => setQuery('')} />}
@@ -117,11 +117,27 @@ export default function Projects() {
   </Page>;
 }
 
+function greeting(now = new Date()) {
+  const hour = now.getHours();
+  if (hour < 5) return '夜深了';
+  if (hour < 11) return '早上好';
+  if (hour < 14) return '中午好';
+  if (hour < 18) return '下午好';
+  return '晚上好';
+}
+
+function dateLabel(now = new Date()) {
+  const weekday = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][now.getDay()];
+  return `${now.getMonth() + 1}月${now.getDate()}日 ${weekday}`;
+}
+
 const local = StyleSheet.create({
   eyebrow: { ...type.badge, color: studio.muted, letterSpacing: 1.4 },
   section: { ...type.heading, color: studio.ink, fontWeight: '500', letterSpacing: 1 },
   count: { ...type.caption, color: studio.subtle },
   cover: { width: 64, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: studio.canvas },
-  recent: { padding: space.lg, borderRadius: radius.md, borderWidth: 1, borderColor: studio.line, backgroundColor: studio.glass, flexDirection: 'row', alignItems: 'center', gap: space.md },
+  recent: { padding: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: studio.accent, backgroundColor: studio.glass, flexDirection: 'row', alignItems: 'center', gap: space.md },
+  recentCover: { width: 56, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: studio.canvas },
+  recentIcon: { width: 56, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: studio.softAccent, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg, borderTopWidth: 1, borderTopColor: studio.line, backgroundColor: studio.bg },
 });

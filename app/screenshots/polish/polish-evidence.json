@@ -1,6 +1,6 @@
 {
-  "completedAt": "2026-10-21T05:46:35.257Z",
-  "projectId": "project_0db28724-dc03-4ee6-8659-cdc4cbcd90d3",
+  "completedAt": "2026-10-21T06:14:21.301Z",
+  "projectId": "project_d78b310d-416f-4cf5-a410-17f80cf335d2",
   "viewport": {
     "width": 390,
     "height": 844
@@ -32,7 +32,7 @@
       "file": "60-onboarding-1-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 37
+        "adjustedTextNodes": 38
       },
       "viewport": {
         "width": 390,
@@ -57,7 +57,7 @@
       "file": "61-onboarding-2-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 37
+        "adjustedTextNodes": 38
       },
       "viewport": {
         "width": 390,
@@ -82,7 +82,7 @@
       "file": "62-onboarding-3-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 37
+        "adjustedTextNodes": 38
       },
       "viewport": {
         "width": 390,
@@ -107,7 +107,7 @@
       "file": "63-home-skeleton-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 37
+        "adjustedTextNodes": 38
       },
       "viewport": {
         "width": 390,
@@ -156,7 +156,7 @@
       "file": "64-home-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 38
+        "adjustedTextNodes": 39
       },
       "viewport": {
         "width": 390,
