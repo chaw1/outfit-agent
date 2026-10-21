@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { AppState, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, KeyboardAvoidingView, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Project, Stage } from '../api/types';
 import { InspirationWall } from '../components/InspirationWall';
 import { AssetLibraryEntry } from '../components/AssetLibrary';
@@ -26,6 +26,10 @@ export default function Projects() {
   const [stageFilter, setStageFilter] = useState<Stage | ''>('');
   const [candidate, setCandidate] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [menuMode, setMenuMode] = useState<'menu' | 'rename' | 'delete'>('menu');
+  const [projectTitle, setProjectTitle] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const [menuError, setMenuError] = useState('');
   const [feedback, setFeedback] = useState('');
   const requestId = useRef(0);
   const focused = useRef(false);
@@ -35,7 +39,10 @@ export default function Projects() {
   const subscribe = useCallback((listener: () => void) => subscribeCompletions(scope, listener), [scope]);
   const snapshot = useCallback(() => recentCompletions(scope), [scope]);
   const completions = useSyncExternalStore(subscribe, snapshot, snapshot).filter(item => items.some(project => project.id === item.projectId));
-  function chooseCandidate(project: Project | null) {
+  function chooseCandidate(project: Project | null, mode: 'menu' | 'rename' | 'delete' = 'menu') {
+    setMenuMode(mode);
+    setProjectTitle(project?.title ?? '');
+    setMenuError('');
     candidateRef.current = project;
     setCandidate(project);
   }
@@ -78,6 +85,20 @@ export default function Projects() {
     } catch (e) { setError(errorText(e)); chooseCandidate(null); }
     finally { setDeleting(false); }
   }
+  async function updateProject(changes: { title?: string; pinned?: boolean }) {
+    if (!candidate || updating) return;
+    setUpdating(true); setMenuError('');
+    // Discard any older list response so it cannot undo this metadata update.
+    requestId.current += 1;
+    try {
+      const updated = await api.patchProject(candidate.id, changes);
+      requestId.current += 1;
+      setItems(previous => previous.map(item => item.id === updated.id ? updated : item));
+      chooseCandidate(null);
+      setFeedback(changes.title !== undefined ? '片场名称已更新' : changes.pinned ? '这组片已置顶' : '已取消置顶');
+    } catch (cause) { setMenuError(errorText(cause)); }
+    finally { setUpdating(false); }
+  }
   const openProject = (id: string) => router.push({ pathname: '/projects/[id]', params: { id } });
   const filters = stageFilters(items);
   const visibleItems = filterByStage(filterProjects(items, query), stageFilter);
@@ -89,7 +110,8 @@ export default function Projects() {
       <View style={{ flex: 1, gap: space.sm }}><Text style={{ ...type.badge, color: studio.muted, letterSpacing: 1 }}>{item.brand}</Text><Text numberOfLines={2} style={{ ...type.subtitle, color: studio.ink }}>{item.title}</Text>{ongoing ? <Text style={{ ...type.caption, color: item.progress?.status === 'generating' ? studio.generating : studio.muted }}>{item.progress?.label}</Text> : <Badge label={item.progress?.label || stageNames[item.stage]} tone={['done', 'note'].includes(item.stage) ? 'success' : 'neutral'} />}{!ongoing && <Text style={{ ...type.caption, color: studio.subtle }}>{new Date(item.updated_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 更新</Text>}</View>
       {ongoing && <Text style={{ ...type.label, color: studio.ink }}>继续</Text>}
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`删除这组片 ${item.title}`} onPress={event => { event.stopPropagation(); chooseCandidate(item); }} style={({ pressed }) => ({ minWidth: layout.touch, minHeight: layout.touch, borderRadius: radius.sm, backgroundColor: pressed ? studio.softAccent : 'transparent', alignItems: 'center', justifyContent: 'center' })}><Ionicons name="trash-outline" size={18} color={studio.muted} /></Pressable>
+      {item.pinned ? <View testID={`project-pin-${item.id}`} accessibilityLabel="已置顶" style={local.pin}><Ionicons name="pin" size={16} color={studio.accent} /></View> : null}
+      <Pressable accessibilityRole="button" accessibilityLabel={`删除这组片 ${item.title}`} onPress={event => { event.stopPropagation(); chooseCandidate(item, 'delete'); }} style={({ pressed }) => ({ minWidth: layout.touch, minHeight: layout.touch, borderRadius: radius.sm, backgroundColor: pressed ? studio.softAccent : 'transparent', alignItems: 'center', justifyContent: 'center' })}><Ionicons name="trash-outline" size={18} color={studio.muted} /></Pressable>
     </View></AnimatedEntry>;
   }
   const inspiration = <AnimatedEntry><View style={{ gap: space.lg }}><View style={[styles.row, { justifyContent: 'space-between', alignItems: 'flex-end' }]}><Text style={local.section}>灵感墙</Text><Text style={local.eyebrow}>TAKE A LITTLE INSPIRATION</Text></View><Text style={{ ...type.body, color: studio.muted }}>一件衣服，可以有很多种主角感。</Text><InspirationWall /></View></AnimatedEntry>;
@@ -115,14 +137,28 @@ export default function Projects() {
       <Text style={{ ...type.badge, color: studio.subtle, textAlign: 'center', letterSpacing: 2, paddingVertical: space.md }}>每一组片，都有你的表达</Text>
     </ScrollView>
     <View style={local.footer}><Button title="拍一组新片" icon="add" onPress={() => router.push('/projects/new')} /></View>
-    <Modal transparent animationType="fade" visible={!!candidate} onRequestClose={() => { if (!deleting) chooseCandidate(null); }}>
-      <View style={{ flex: 1, backgroundColor: studio.modalOverlay, justifyContent: 'center', padding: space.xl }}>
-        <AnimatedEntry style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}><View accessibilityViewIsModal accessibilityLabel="删除这组片确认" style={{ backgroundColor: studio.canvas, borderWidth: 1, borderColor: studio.line, borderRadius: radius.lg, padding: space.xl, gap: space.lg }}>
-          <View style={{ width: 48, height: 48, backgroundColor: studio.softAccent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="trash-outline" size={24} color={studio.accent} /></View>
-          <Text style={local.section}>删除这组片？</Text><Text style={{ ...type.body, color: studio.ink }}>{candidate?.title}</Text><Text style={{ ...type.body, color: studio.muted }}>对话、生成任务和生成的媒体会一并删除，上传的衣服原图会保留。删除后无法恢复。</Text>
-          <Button title="确认删除这组片" variant="danger" icon="trash-outline" loading={deleting} onPress={() => void removeProject()} /><Button title="保留这组片" variant="ghost" disabled={deleting} onPress={() => chooseCandidate(null)} />
+    <Modal transparent animationType="fade" visible={!!candidate} onRequestClose={() => { if (!deleting && !updating) chooseCandidate(null); }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: studio.modalOverlay, justifyContent: 'center', padding: space.xl }}>
+        <AnimatedEntry style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}><View testID="project-menu" accessibilityViewIsModal accessibilityLabel={menuMode === 'delete' ? '删除这组片确认' : menuMode === 'rename' ? '重命名片场' : '片场操作'} style={{ backgroundColor: studio.canvas, borderWidth: 1, borderColor: studio.line, borderRadius: radius.lg, padding: space.xl, gap: space.lg }}>
+          {menuMode === 'menu' ? <>
+            <Text style={local.section} numberOfLines={2}>{candidate?.title}</Text>
+            <Button title="重命名" icon="create-outline" variant="secondary" disabled={updating} testID="project-menu-rename" onPress={() => { setMenuMode('rename'); setMenuError(''); }} />
+            <Button title={candidate?.pinned ? '取消置顶' : '置顶'} icon="pin-outline" variant="secondary" loading={updating} testID="project-menu-pin" onPress={() => void updateProject({ pinned: !candidate?.pinned })} />
+            <Button title="删除" icon="trash-outline" variant="danger" disabled={updating} testID="project-menu-delete" onPress={() => setMenuMode('delete')} />
+          </> : menuMode === 'rename' ? <>
+            <Text style={local.section}>重命名片场</Text>
+            <Field label="片场名称" value={projectTitle} onChangeText={value => setProjectTitle(Array.from(value).slice(0, 40).join(''))} editable={!updating} autoFocus testID="project-rename-input" returnKeyType="done" onSubmitEditing={() => { if (projectTitle.trim() && Array.from(projectTitle.trim()).length <= 40) void updateProject({ title: projectTitle.trim() }); }} />
+            <Text style={{ ...type.caption, color: studio.muted }}>{Array.from(projectTitle.trim()).length}/40 字</Text>
+            <Button title="保存名称" loading={updating} disabled={!projectTitle.trim() || Array.from(projectTitle.trim()).length > 40} testID="project-rename-save" onPress={() => void updateProject({ title: projectTitle.trim() })} />
+          </> : <>
+            <View style={{ width: 48, height: 48, backgroundColor: studio.softAccent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="trash-outline" size={24} color={studio.accent} /></View>
+            <Text style={local.section}>删除这组片？</Text><Text style={{ ...type.body, color: studio.ink }}>{candidate?.title}</Text><Text style={{ ...type.body, color: studio.muted }}>对话、生成任务和生成的媒体会一并删除，上传的衣服原图会保留。删除后无法恢复。</Text>
+            <Button title="确认删除这组片" variant="danger" icon="trash-outline" loading={deleting} onPress={() => void removeProject()} />
+          </>}
+          {!!menuError && <Toast text={menuError} tone="danger" onDismiss={() => setMenuError('')} />}
+          <Button title={menuMode === 'delete' ? '保留这组片' : '取消'} variant="ghost" disabled={deleting || updating} onPress={() => chooseCandidate(null)} />
         </View></AnimatedEntry>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   </Page>;
 }
@@ -142,6 +178,7 @@ function dateLabel(now = new Date()) {
 }
 
 const local = StyleSheet.create({
+  pin: { position: 'absolute', top: space.xs, right: space.xs },
   projectCard: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: studio.line, backgroundColor: studio.glass, borderRadius: radius.md, padding: space.md, gap: space.md },
   eyebrow: { ...type.badge, color: studio.muted, letterSpacing: 1.4 },
   section: { ...type.heading, color: studio.ink, fontWeight: '500', letterSpacing: 1 },

@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException
@@ -51,6 +51,7 @@ from app.schemas import (
     ModeInput,
     ProjectInput,
     ProjectOutput,
+    ProjectPatch,
     StateOutput,
     UserOutput,
     UserProfilePatch,
@@ -362,7 +363,7 @@ def list_projects(user: User = Depends(current_user), session: Session = Depends
     projects = session.scalars(
         select(Project)
         .where(Project.user_id == user.id, Project.deleted_at.is_(None))
-        .order_by(Project.updated_at.desc())
+        .order_by(Project.pinned.desc(), Project.updated_at.desc())
     ).all()
     return [project_dict(project, session) for project in projects]
 
@@ -372,6 +373,25 @@ def get_project(
     project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
 ):
     return project_dict(owned_project(session, project_id, user.id), session)
+
+
+@app.patch("/api/projects/{project_id}", response_model=ProjectOutput)
+def patch_project(
+    project_id: str,
+    body: ProjectPatch,
+    user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    project = owned_project(session, project_id, user.id)
+    changes = body.model_dump(exclude_unset=True)
+    if changes:
+        # Metadata edits keep the existing content/progress recency within each pin group.
+        session.execute(update(Project).where(Project.id == project.id).values(
+            **changes, updated_at=Project.updated_at,
+        ))
+        session.commit()
+        session.refresh(project)
+    return project_dict(project, session)
 
 
 @app.delete("/api/projects/{project_id}", status_code=204)

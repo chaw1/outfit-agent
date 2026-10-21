@@ -526,8 +526,8 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     assert.equal(state.images.at(-1)!.status, 'succeeded');
     await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: imageIds } });
     state = await getState();
-    assert.equal(state.stage, 'note');
-    assert.equal(state.video, undefined);
+    assert.equal(state.stage, 'done');
+    assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     const refreshedHistory = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
     const savedVideo = refreshedHistory.flatMap((item) => item.cards).findLast((item) => item.type === 'video' && item.status === 'succeeded');
     assert.ok(savedVideo?.url);
@@ -536,17 +536,17 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     const pendingBeforeEdit = state.pending_action;
     await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: imageIds[0], instruction: '背景更明亮' } });
     state = await getState();
-    assert.equal(state.stage, 'note');
+    assert.equal(state.stage, 'done');
     assert.deepEqual(state.note, noteBeforeEdit);
     assert.deepEqual(state.pending_action, pendingBeforeEdit);
-    assert.equal(state.video, undefined);
+    assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     assert.equal(state.images.at(-1)!.status, 'queued');
     time += 250;
     state = await getState();
-    assert.equal(state.stage, 'note');
+    assert.equal(state.stage, 'done');
     assert.deepEqual(state.note, { ...noteBeforeEdit, cost_cny: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 100, cost_points: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 10 });
     assert.deepEqual(state.pending_action, pendingBeforeEdit);
-    assert.equal(state.video, undefined);
+    assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     assert.equal(state.images.at(-1)!.status, 'succeeded');
     const preservedHistory = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
     assert.ok(preservedHistory.flatMap((item) => item.cards).filter((item) => item.type === 'note').every((item) => 'image_ids' in item));
@@ -1285,5 +1285,83 @@ test('projects without references or a person keep parallel generation and omit 
     const completed = await getState();
     assert.ok(completed.images.every((image) => image.anchor_id === undefined && image.fidelity?.person_score === undefined && image.fidelity?.anchor_score === undefined));
     assert.ok(!(await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body.some((message) => /人像一致性|封面一致性/.test(message.text)));
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('project metadata patches validate ownership and lengths, preserve recency and persist pin order', async () => {
+  const dataDir = await temporaryData('outfit-project-patch-');
+  let time = Date.now();
+  let { server, base } = await startServer(dataDir, { clock: () => time });
+  try {
+    const owner = await register(base, 'pin-owner');
+    const other = await register(base, 'pin-other');
+    const asset = await upload(base, owner.token);
+    type Studio = Project & { title: string; pinned: boolean; updated_at: string };
+    const projects: Studio[] = [];
+    for (const title of ['旧片场', '中间片场', '新片场']) {
+      time += 1000;
+      const created = await request<Studio>(base, '/api/projects', { token: owner.token, body: { title, brand: '个人品牌', brief: '测试', garment_asset_ids: [asset.id] } });
+      assert.equal(created.body.pinned, false);
+      projects.push(created.body);
+    }
+    const [old, middle, recent] = projects;
+    const route = `/api/projects/${old.id}`;
+    const patch = (body: Record<string, unknown>, token = owner.token) => request<Studio>(base, route, { method: 'PATCH', token, body });
+    assert.equal((await patch({ pinned: true }, other.token)).response.status, 404);
+    for (const body of [{ title: '' }, { title: '   ' }, { title: '衣'.repeat(41) }, { title: null }, { pinned: null }, { pinned: 'true' }, { pinned: 1 }, { brief: '越界' }]) {
+      assert.equal((await patch(body)).response.status, 422);
+    }
+    const changed = await patch({ title: ' 🧵'.trim().repeat(40), pinned: true });
+    assert.equal(changed.response.status, 200);
+    assert.equal(changed.body.updated_at, old.updated_at);
+    assert.equal(changed.body.pinned, true);
+    assert.equal(Array.from(changed.body.title).length, 40);
+    const listIds = async () => (await request<Studio[]>(base, '/api/projects', { token: owner.token })).body.map(item => item.id);
+    assert.deepEqual(await listIds(), [old.id, recent.id, middle.id]);
+    assert.equal((await patch({ title: '  重命名后的片场  ' })).body.title, '重命名后的片场');
+    assert.equal((await patch({})).body.pinned, true);
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, { clock: () => time }));
+    assert.deepEqual(await listIds(), [old.id, recent.id, middle.id]);
+    assert.equal((await patch({ pinned: false })).body.title, '重命名后的片场');
+    assert.deepEqual(await listIds(), [recent.id, middle.id, old.id]);
+    await request(base, route, { method: 'DELETE', token: owner.token });
+    assert.equal((await patch({ title: '已删除' })).response.status, 404);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('generation and edit traces carry role-labelled inputs, resolved anchors and refreshed history links', async () => {
+  const dataDir = await temporaryData('outfit-trace-references-');
+  let time = Date.now();
+  const { server, base } = await startServer(dataDir, { clock: () => time });
+  try {
+    const account = await register(base, 'reference-trace');
+    const garment = await upload(base, account.token);
+    const model = await upload(base, account.token, 'model');
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '参考图透明', brand: '本地品牌', brief: '自然光', garment_asset_ids: [garment.id], model_asset_id: model.id } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    const messages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
+    await send(base, project.id, account.token, { text: '开始拍摄' });
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: 'direction_city' } });
+    const submitted = await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    const trace = submitted.find(event => event.type === 'trace')!.data as unknown as MessageTrace;
+    assert.deepEqual(trace.reference_images!.map(item => item.role), ['模特', '衣服']);
+    let state = await getState();
+    for (let tick = 0; tick < 8 && state.active_jobs.length; tick += 1) { time += 1000; state = await getState(); }
+    const completed = (await messages()).findLast(message => message.trace?.tool === 'generate_images')!;
+    const inputs = completed.trace!.reference_images!;
+    assert.ok(inputs.some(item => item.role === '封面锚点'));
+    assert.equal(new Set(inputs.map(item => item.id)).size, inputs.length);
+    for (const item of inputs) assert.equal((await fetch(item.url)).status, 200);
+    const original = state.images.find(item => item.anchor_id && item.status === 'succeeded')!;
+    const edited = await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: original.id, instruction: '背景亮一点' } });
+    const editTrace = edited.find(event => event.type === 'trace')!.data as unknown as MessageTrace;
+    assert.ok(editTrace.reference_images!.some(item => item.role === '参考图' && new URL(item.url).pathname === new URL(original.url!).pathname));
+    assert.ok(editTrace.reference_images!.some(item => item.role === '封面锚点'));
+    time += 86_401_000;
+    const refreshed = (await messages()).find(message => message.id === completed.id)!.trace!.reference_images!;
+    assert.notEqual(refreshed[0].url, inputs[0].url);
+    assert.equal((await fetch(inputs[0].url)).status, 403);
+    assert.equal((await fetch(refreshed[0].url)).status, 200);
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });

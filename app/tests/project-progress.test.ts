@@ -32,3 +32,20 @@ test('my studio preserves completed, failed, idle and older server projects with
   assert.equal(inProgressProjects(projects).length + otherProjects(projects).length, projects.length);
   assert.deepEqual(inProgressProjects([]), []);
 });
+
+test('pinning precedes recency in each existing section without mutating or mixing the sections', () => {
+  const projects = [
+    project('recent-active', '2026-10-21T12:00:00Z', 'generating'),
+    { ...project('old-active-pin', '2026-10-20T01:00:00Z', 'ready'), pinned: true },
+    { ...project('new-active-pin', '2026-10-21T10:00:00Z', 'waiting_you'), pinned: true },
+    project('recent-other', '2026-10-21T12:00:00Z', 'done'),
+    { ...project('old-other-pin', '2026-10-20T01:00:00Z', 'idle'), pinned: true },
+    { ...project('new-other-pin', '2026-10-21T10:00:00Z', 'done'), pinned: true },
+    project('old-other', '2026-10-19T01:00:00Z', 'idle'),
+  ];
+  const originalIds = projects.map(item => item.id);
+  assert.deepEqual(inProgressProjects(projects).map(item => item.id), ['new-active-pin', 'old-active-pin', 'recent-active']);
+  assert.deepEqual(otherProjects(projects).map(item => item.id), ['new-other-pin', 'old-other-pin', 'recent-other', 'old-other']);
+  assert.deepEqual(projects.map(item => item.id), originalIds);
+  assert.deepEqual(otherProjects(projects.map(item => ({ ...item, pinned: false }))).map(item => item.id), ['recent-other', 'new-other-pin', 'old-other-pin', 'old-other']);
+});

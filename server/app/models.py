@@ -46,6 +46,7 @@ class Project(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     title: Mapped[str] = mapped_column(String(200))
+    pinned: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     brand: Mapped[str] = mapped_column(String(200))
     brief: Mapped[str] = mapped_column(Text)
     mode: Mapped[str] = mapped_column(String(20), default="guided", server_default="guided")

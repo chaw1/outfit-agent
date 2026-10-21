@@ -6,8 +6,9 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-g
 import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, ClipPath, Defs, G, Polyline, Rect } from 'react-native-svg';
-import type { Action, ImageRegion, OutfitImage, PendingAction, Stage } from '../api/types';
+import type { Action, ImageRegion, OutfitImage, PendingAction, ScriptData, Stage } from '../api/types';
 import { prepareEditSubmission, rejectedResult, reusedResult, type EditSubmission } from '../lib/editAttempt';
+import { isCoverImage } from '../lib/images';
 import { feedback } from '../lib/haptics';
 import { clamp, constrainTransform, containRect, editActionForResult, IDENTITY_TRANSFORM, imageVersionFamily, regionFromPoints, screenToImage, zoomAtPoint, type ImageTransform, type Point, type Size } from '../lib/imageGeometry';
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
@@ -21,6 +22,7 @@ type DrawingTool = 'brush' | 'rectangle' | 'pan';
 type EditAction = Extract<Action, { type: 'edit_image' }>;
 export interface ImageViewerProps {
   images: OutfitImage[];
+  script?: ScriptData;
   editActions?: EditAction[];
   initialImageId: string;
   initialMode?: ViewerMode;
@@ -64,7 +66,7 @@ function TrackSlider({ value, min = 0, max = 1, label, testID, onChange }: { val
   </View></GestureDetector>;
 }
 
-export function ImageViewer({ images, editActions = [], initialImageId, initialMode = 'view', busy = false, canEdit = true, stage, pendingAction, adoptedImageIds = [], onAdopt, confirmationOverlay, onDismissConfirmation, onClose, onStartNew, onAction, onReference }: ImageViewerProps) {
+export function ImageViewer({ images, script, editActions = [], initialImageId, initialMode = 'view', busy = false, canEdit = true, stage, pendingAction, adoptedImageIds = [], onAdopt, confirmationOverlay, onDismissConfirmation, onClose, onStartNew, onAction, onReference }: ImageViewerProps) {
   const [currentId, setCurrentId] = useState(initialImageId);
   const inNote = ['note', 'video', 'done'].includes(stage ?? '');
   const [mode, setMode] = useState<ViewerMode>(canEdit ? initialMode : initialMode === 'local' || initialMode === 'whole' ? 'view' : initialMode);
@@ -402,7 +404,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
         <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.header}>
             <Pressable testID="viewer-close" accessibilityRole="button" accessibilityLabel="关闭图片查看器" onPress={() => { feedback(); onClose(); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="close" size={24} color={colors.white} /></Pressable>
-            <View style={styles.headerTitle}><Text testID="viewer-current-image" style={styles.title}>镜头 {shotNumber} · v{current.version}</Text><Text style={styles.hint}>{comparing ? '拖动滑块，看修改前后' : localEditing ? tool === 'pan' ? '拖动看细节，再切回涂抹' : '涂抹或框选 · 双指可缩放' : '左右切图 · 双指缩放 · 双击看细节'}</Text>{current.anchor_id ? <Text testID={`viewer-anchor-${current.id}`} style={styles.hint}>以封面为锚点</Text> : null}</View>
+            <View style={styles.headerTitle}>{isCoverImage(current, images, script, adoptedImageIds) ? <View testID={`viewer-cover-${current.id}`}><Badge label="主图" tone="brand" /></View> : null}<Text testID="viewer-current-image" style={styles.title}>镜头 {shotNumber} · v{current.version}</Text><Text style={styles.hint}>{comparing ? '拖动滑块，看修改前后' : localEditing ? tool === 'pan' ? '拖动看细节，再切回涂抹' : '涂抹或框选 · 双指可缩放' : '左右切图 · 双指缩放 · 双击看细节'}</Text>{current.anchor_id ? <Text testID={`viewer-anchor-${current.id}`} style={styles.hint}>以封面为锚点</Text> : null}</View>
             <Pressable testID="viewer-reference" accessibilityRole="button" accessibilityLabel="引用到对话" onPress={() => { feedback(); onReference(current); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.white} /></Pressable>
           </Animated.View>
 

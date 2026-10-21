@@ -42,6 +42,7 @@ from app.project_cleanup import drain_media_cleanup
 from app.prompting import COVER_ANCHOR, attach_identity_anchor, build_shot_fields, build_shot_prompt
 from app.providers import GeneratedMedia, ProviderError, ProviderHub
 from app.runtime_settings import assert_generation_allowed, get_runtime_settings
+from app.tracing import job_reference_images
 from app.views import image_items
 
 logger = logging.getLogger("outfit.worker")
@@ -516,6 +517,7 @@ def _worker_trace(session: Session, jobs: list[Job]) -> dict:
         "cost_cny": float(sum((row.estimated_cny for row in rows), Decimal(0))),
         "cost_points": points(sum((row.estimated_cny for row in rows), Decimal(0))),
         "refs": refs,
+        "reference_images": job_reference_images(session, jobs) if not video else [],
         "steps": steps,
     }
 

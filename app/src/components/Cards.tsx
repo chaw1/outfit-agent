@@ -12,6 +12,7 @@ import type { Action, Card, Direction, OutfitImage, ProjectState } from '../api/
 import { feedback } from '../lib/haptics';
 import { confirmationCost, formatPoints, pointsValue, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
 import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
+import { coverFirstImageIds, isCoverImage } from '../lib/images';
 import { previewUrl } from '../lib/previewUrl';
 import { AnimatedEntry, Badge, Button as ActionButton, FadeImage, ProgressStrip, Skeleton } from './ui';
 import { VideoPlayer } from './VideoPlayer';
@@ -142,6 +143,7 @@ function ImageGrid({ items, state, busy }: {
   const successful = images.filter((item) => item.status === 'succeeded' && item.url);
   const validIds = new Set(successful.map((item) => item.id));
   const selected = interaction.selectedIds.filter((id) => validIds.has(id));
+  const coverLocked = images.some(image => isCoverImage(image, images, state?.script, selected));
   const isGenerating = images.some((item) => item.status === 'queued' || item.status === 'running');
   const automatic = state?.mode === 'auto';
   const canEdit = !automatic && !busy && (!state || state.stage === 'images' || state.stage === 'note');
@@ -154,16 +156,17 @@ function ImageGrid({ items, state, busy }: {
     const image = images.find(item => item.id === id);
     if (!selected.includes(id) && image && !await interaction.confirmImage(image)) return;
     interaction.setSelected(selected.includes(id) ? selected.filter((value) => value !== id)
-      : image && state?.stage === 'note' ? replaceShotVersion(selected, image, images) : [...selected, id]);
+      : image && (state?.stage === 'note' || isCoverImage(image, images, state?.script, [image.id])) ? replaceShotVersion(selected, image, images) : [...selected, id]);
   };
   const move = (id: string, offset: number) => {
     const index = selected.indexOf(id);
     const nextIndex = index + offset;
+    if (coverLocked && (index === 0 || nextIndex === 0)) return;
     if (!canEdit || index < 0 || nextIndex < 0 || nextIndex >= selected.length) return;
     feedback();
     const next = [...selected];
     [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-    interaction.setSelected(next);
+    interaction.setSelected(coverFirstImageIds(next, images, state?.script));
   };
 
   return (
@@ -192,7 +195,7 @@ function ImageGrid({ items, state, busy }: {
                       {item.status === 'failed' ? <><Icon name="alert-circle-outline" color={colors.danger} size={26} /><Text style={styles.generatingTitle}>这张暂时没成功</Text><Text style={styles.generatingDetail}>{item.error ?? '在对话里告诉我，我们再试一次'}</Text></> : <ProgressStrip title={item.status === 'running' ? '画面生成中' : '等待生成'} detail={item.status === 'running' ? '好看的细节，值得等一等' : '马上就轮到这一张'} />}
                     </View>
                   )}
-                  <View style={styles.versionBadge}><Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} />{isUnverified(item) ? <Badge label="未改到位" tone="danger" /> : null}</View>
+                  <View style={styles.versionBadge}>{isCoverImage(item, images, state?.script, selected) ? <View testID={`cover-badge-${item.id}`}><Badge label="主图" tone="brand" /></View> : null}<Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} />{isUnverified(item) ? <Badge label="未改到位" tone="danger" /> : null}</View>
                   {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
                 </Pressable>
                 {item.status === 'succeeded' && !automatic ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={() => { void toggle(item.id); }} hitSlop={space.sm} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
@@ -223,9 +226,9 @@ function ImageGrid({ items, state, busy }: {
           return <View key={id} style={styles.sortRow}>
             <Text style={[styles.sortNumber, index === 0 && { color: colors.redText }]}>{String(index + 1).padStart(2, '0')}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="查看已选图片" onPress={() => interaction.open(item.id)} onLongPress={() => interaction.menu(item.id)}><FadeImage source={{ uri: item.url }} style={styles.sortThumbnail} /></Pressable>
-            <Text style={styles.sortLabel}>{index === 0 ? '封面 · ' : ''}镜头 {shotIds.indexOf(item.shot_id) + 1} <Text style={styles.smallText}>v{item.version}</Text></Text>
-            <Pressable onPress={() => move(id, -1)} disabled={index === 0 || !canEdit} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向前移`} testID={`move-up-${id}`} style={[styles.sortArrow, index === 0 && styles.dimmed]}><Icon name="arrow-up" size={15} color={colors.ink} /></Pressable>
-            <Pressable onPress={() => move(id, 1)} disabled={index === selected.length - 1 || !canEdit} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向后移`} testID={`move-down-${id}`} style={[styles.sortArrow, index === selected.length - 1 && styles.dimmed]}><Icon name="arrow-down" size={15} color={colors.ink} /></Pressable>
+            <Text style={styles.sortLabel}>{isCoverImage(item, images, state?.script, selected) ? '主图 · ' : ''}镜头 {shotIds.indexOf(item.shot_id) + 1} <Text style={styles.smallText}>v{item.version}</Text></Text>
+            <Pressable onPress={() => move(id, -1)} disabled={index === 0 || coverLocked && index === 1 || !canEdit} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向前移`} testID={`move-up-${id}`} style={[styles.sortArrow, (index === 0 || coverLocked && index === 1) && styles.dimmed]}><Icon name="arrow-up" size={15} color={colors.ink} /></Pressable>
+            <Pressable onPress={() => move(id, 1)} disabled={index === selected.length - 1 || coverLocked && index === 0 || !canEdit} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向后移`} testID={`move-down-${id}`} style={[styles.sortArrow, (index === selected.length - 1 || coverLocked && index === 0) && styles.dimmed]}><Icon name="arrow-down" size={15} color={colors.ink} /></Pressable>
           </View>;
         })}
       </View> : null}

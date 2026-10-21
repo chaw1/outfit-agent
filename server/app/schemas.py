@@ -101,6 +101,18 @@ class ProjectInput(StrictInput):
         return value
 
 
+class ProjectPatch(StrictInput):
+    title: str | None = Field(default=None, min_length=1, max_length=40)
+    pinned: bool | None = Field(default=None, strict=True)
+
+    @field_validator("title", "pinned", mode="before")
+    @classmethod
+    def provided_value(cls, value):
+        if value is None:
+            raise ValueError("名称和置顶状态不能为 null。")
+        return value.strip() if isinstance(value, str) else value
+
+
 Stage = Literal["brief", "direction", "script", "images", "note", "video", "done"]
 
 
@@ -114,6 +126,7 @@ class ProjectProgress(BaseModel):
 
 class ProjectOutput(BaseModel):
     id: str
+    pinned: bool = False
     title: str
     brand: str
     brief: str
@@ -275,6 +288,12 @@ class TraceStep(BaseModel):
     duration_ms: int = Field(ge=0)
 
 
+class TraceReferenceImage(BaseModel):
+    id: str
+    url: str
+    role: Literal["模特", "衣服", "参考图", "封面锚点"]
+
+
 class MessageTrace(BaseModel):
     tool: str
     model: str
@@ -282,6 +301,7 @@ class MessageTrace(BaseModel):
     cost_cny: float = Field(ge=0)
     cost_points: float = Field(default=0, ge=0)
     refs: list[str] = Field(default_factory=list)
+    reference_images: list[TraceReferenceImage] = Field(default_factory=list)
     steps: list[TraceStep] = Field(default_factory=list)
 
 

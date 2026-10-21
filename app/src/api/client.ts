@@ -201,6 +201,9 @@ export class ApiClient {
   createProject(input: CreateProjectInput): Promise<Project> {
     return this.request('/projects', { method: 'POST', body: JSON.stringify(input) });
   }
+  patchProject(id: string, input: { title?: string; pinned?: boolean }): Promise<Project> {
+    return this.request(`/projects/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(input) });
+  }
   project(id: string): Promise<Project> { return this.request(`/projects/${encodeURIComponent(id)}`); }
   setProjectMode(id: string, input: { mode: 'guided' }): Promise<ProjectState> {
     return this.request(`/projects/${encodeURIComponent(id)}/mode`, { method: 'POST', body: JSON.stringify(input) });

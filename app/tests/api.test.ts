@@ -255,3 +255,17 @@ test('legacy budget errors use the points message without changing other provide
   assert.equal(new ApiError('BUDGET_EXCEEDED', '今日预算不足 ¥2 元').message, '今日点数不够了，明天 00:00 恢复');
   assert.equal(new ApiError('PROVIDER_ERROR', '请重新选择图片').message, '请重新选择图片');
 });
+
+test('project metadata patch encodes its path, sends only changed fields and returns the refreshed project', async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const client = new ApiClient({ baseUrl: 'http://localhost:19321', token: 'session', fetchImpl: (async (url, init) => {
+    calls.push({ url: String(url), init: init! }); return json({ id: 'p/1', title: '新名称', pinned: true });
+  }) as typeof fetch });
+  assert.equal((await client.patchProject('p/1', { title: '新名称' })).title, '新名称');
+  assert.equal((await client.patchProject('p/1', { pinned: true })).pinned, true);
+  assert.equal(calls[0].url, 'http://localhost:19321/api/projects/p%2F1');
+  assert.equal(calls[0].init.method, 'PATCH');
+  assert.equal(new Headers(calls[0].init.headers).get('Authorization'), 'Bearer session');
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), { title: '新名称' });
+  assert.deepEqual(JSON.parse(String(calls[1].init.body)), { pinned: true });
+});
