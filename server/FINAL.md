@@ -33,4 +33,4 @@ U3 每个格子只有一次图片请求，不自动重试；固定原图、原�
 断点：`PROGRESS.md`；实验固定 `artifacts/local-edit-fix3.json` + 同名 `.sqlite`，生成/核对前写 started，未知结果或配置变化停止重提；`--phase check` 已以禁止模型调用 guard 复跑九项，新增调用 **0**（`evidence/fix3-resume.log`）。
 复验顺序：本项目 Mock compose → `REQUIRE_INTEGRATION=1 uv run pytest -q` → `uv run ruff check .` → `scripts/e2e.py --mode mock` → `scripts/experiments.py`；重启实验结束后再测 HTTP。离线接缝命令见 README。
 证据：`evidence/fix3-tests-final.log`、`fix3-ruff.log`、`fix3-e2e-final.log`、`fix3-experiments-final.log`；`artifacts/mock-fix3-final.json`、`experiments-fix3-final.json`、`verification-fix3.json`。证据、账本与断点留本地，未提交。
-约定：仅更新 `docs/设计.md` 8.3 的实现说明，无接口字段/迁移变化；实现提交 `734d07f`、`6cbe581`，均 feat/server、chaw1 <97000945@qq.com>、中文单行，无署名尾注。墙钟约 15 分钟，未触及 1.5 小时上限。
+约定：仅更新 `docs/设计.md` 8.3 的实现说明，无接口字段/迁移变化；实现提交 `7dd6fcd`、`9c213c0`，均 feat/server、chaw1 <97000945@qq.com>、中文单行，无署名尾注。墙钟约 15 分钟，未触及 1.5 小时上限。

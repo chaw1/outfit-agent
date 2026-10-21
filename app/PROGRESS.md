@@ -9,7 +9,7 @@
 - 测试修正：新用例统一localhost；Chromium省略multipart body，查API实际解析返回kind；旧全链图片等待按两段生成设60秒，未删原断言。
 - 证据：verification/fix6/日志/JSON/总览/final-audit；截图65–76共12张（11张390×844、1张320×844）均目视及尺寸/SHA核验，FINAL已覆盖≤25行。
 - 初始WIP保留：原148份截图/证据、6份verification日志按字节恢复，baseline在.tools/fix6-baseline/；screenshots-live/run-1/run-2、原round6-evidence.json及verification/fix5未动；新增JSON/日志留本地。
-- 源码提交：621ae4a（本地契约）、0cabd38（界面）；测试/截图/已跟踪正式交付文档在最终提交。均chaw1 <97000945@qq.com>、中文一行、无署名附记，不push。
+- 源码提交：d8d81f2（本地契约）、277fe78（界面）；测试/截图/已跟踪正式交付文档在最终提交。均chaw1 <97000945@qq.com>、中文一行、无署名附记，不push。
 - 已退出Playwright/Metro/假服务，19300/19301无监听。续接先读FINAL，Node22路径见下文；npm run verify、npm run test:e2e、CI=1 BROWSER=none npx expo prebuild --platform ios，勿并开第二套端口，禁止test:live。
 - 已知限制：固定假素材/风格/92及94分仅演示；未验真实服务或个人真机相册/权限/键盘/通知/手势。下一步按FINAL交验，无实现待办。
 
@@ -23,7 +23,7 @@
 - 最终验证：Node22 verify 五项绿，105/105 测试；完整 E2E 6/6（3.3 分钟），最终第六轮复跑 3/3（44.9 秒），pageErrors=[]；iOS prebuild 含 CocoaPods 成功。
 - 证据：`verification/fix5/` 的 summary、完整/定向 E2E、prebuild、round6-evidence、final-audit；新增截图 `screenshots/53–64` 共12张390×844，SHA与总览在同目录，全部已目视。报告/JSON/日志留本地。
 - 原有四份 verification WIP 已从 `.tools/fix5-baseline/` 按字节恢复；全部旧截图同样比对一致。原有 screenshots-live/run-1、run-2 保留，ios/ 已忽略。
-- 代码提交：`d9f8373` 本地契约，`8371b5b` 过程/费用/方向/同 ID 流，`dc01c3f` 表单草稿，`f332cb8` 断流恢复；验收文档/回归/截图在最终提交。均 chaw1 <97000945@qq.com>、中文一行。
+- 代码提交：`e79ecca` 本地契约，`730fc9a` 过程/费用/方向/同 ID 流，`958c5ec` 表单草稿，`e0c5427` 断流恢复；验收文档/回归/截图在最终提交。均 chaw1 <97000945@qq.com>、中文一行。
 - 已覆盖 `FINAL.md` ≤30行。Playwright/Metro/假服务均退出；续接用 Node22，`npm run verify`、`npm run test:e2e`、`CI=1 BROWSER=none npx expo prebuild --platform ios`，避免同时开第二套19300/19301。
 - 已知限制：本地覆盖不回写/不同步设备；未验证真实计费与个人真机键盘/相册/分享/通知/手势。下一步按 FINAL 交验，无其他实现待办。
 
@@ -36,7 +36,7 @@
 - 最终代码已冻结：修正对比度、44pt 窄消息/通知关闭、图片淡入截图等待和笔记骨架封面高度；verify 五项通过，93/93 单测；最终 E2E 3/3 全过（151.7秒，pageErrors/animationErrors 均空）。
 - 证据目标：`screenshots/polish/` 与 `verification/polish/`；最终结论写 `POLISH.md`（≤30行）。真机键盘/触感/动态字体/启动观感待验。
 - 初始 verification 四份 WIP 已备份 `.tools/polish-baseline/` 且已按字节恢复；本轮 verify 与 prebuild 日志已拷到 `verification/polish/`；screenshots-live/run-1、run-2 原样保留。
-- 完成断点：界面提交 `daca816`；75 张 390×844 截图、18 组 115% 字体检查、67 次控件尺寸/名称与12项操作可达检查通过；全部日志/哈希/联系表在 `verification/polish/`；报告 `POLISH.md` 留本地。
+- 完成断点：界面提交 `87fd9e6`；75 张 390×844 截图、18 组 115% 字体检查、67 次控件尺寸/名称与12项操作可达检查通过；全部日志/哈希/联系表在 `verification/polish/`；报告 `POLISH.md` 留本地。
 - 已修验证时序：等待含 note 的 state 排除后台旧轮询；截图等待图片 decode/淡入，并对确认后卡片稳定前的 DOM 替换重取定位；断言未删减。
 - 本轮 2026-10-21 01:29–01:49，约20分钟；未 push/合并，ios/ 未提交。真机验收仍需按 POLISH 限制项复测。
 - 续接：Node22 `PATH=/Users/jiawei/.local/share/mise/installs/node/22.23.1/bin:$PATH`；`npm run test:e2e` 自动启停本地19300/19301，无头；`npm run verify`；`CI=1 BROWSER=none npx expo prebuild --platform ios`。
@@ -50,7 +50,7 @@
 - P4/P5：通知持久去重/后台任务/账号隔离/前台提示；去叠加角标、两行折叠、长按复制、已拒绝消息重发、安全文本重写、三屏引导、关于隐私。
 - 最终验证：npm run verify五项全绿（93/93）；npm run test:e2e 2/2，约1.9分钟，pageErrors=[]；原始npx expo prebuild --platform ios含CocoaPods成功。
 - 证据：verification/summary.json、e2e.txt、prebuild-ios-full.txt、final-audit.json；55张390×844截图，其中新增36–52共20张，尺寸/SHA与总览已核验和目视。
-- 代码提交：2871318（档案/项目/假服务）、0dc92b0（通知/对话/原生配置）、02d8fc2（发布）；验收材料在本文件所在提交。均为chaw1 <97000945@qq.com>，中文一行，无署名附记，不push/合并。
+- 代码提交：eb17bcb（档案/项目/假服务）、49961c2（通知/对话/原生配置）、8019d3b（发布）；验收材料在本文件所在提交。均为chaw1 <97000945@qq.com>，中文一行，无署名附记，不push/合并。
 - 新原生依赖：expo-notifications、expo-background-task、expo-task-manager、AsyncStorage；app.json已配置权限。ios/保留本地且忽略，已安装Pods。
 - 设计未定项：profile只给ID，本机缓存预览；height_cm:null清空；可选can_regenerate + regenerate_reply防止重复付费；RN Share分享文案，媒体先入相册，平台选媒体/声明由用户操作。细节见FINAL/README。
 - 已知边界：后台检查15分钟调度提示由系统决定，不保证实时或进程被杀；原生通知/点按、相册图片顺序/视频、分享仍待个人真机。未联真实后端，mock不验证真实媒体标识。
@@ -71,7 +71,7 @@
 - `npm run verify`五项通过，59 tests；包含私密归档0600、旧断点升级、三遍上限、同项目续跑、请求发送前后失败保护、凭证脱敏。初始四份verification旧WIP已用本轮真实验证结果刷新。
 - Run3 最终复跑完成（修复后新Metro），项目 `22aca728-fdf5-4f32-842e-d4b0e4f1b15e`：13/13步骤通过、无SSE错误/pageErrors，7.5min；视频830×1108、5.007s，实际静音播放到1.927s。局部改仍被模型判未放平，见LIVE的S2，不等于效果达标。完整项目计数3/3，禁止再设置LIVE_NEW_RUN=1；只可原项目续跑。
 - 登录/动作断点：screenshots-live/checkpoint.json与private/run-N.json（0600，目录0700，Git忽略）；HTTP/SSE/状态/失败/截图在run-N。报告与截图按全局规则留本地，代码及已跟踪文档提交。
-- 提交：`9b20848` 修复工作台错误提示被长卡片遮挡；联调框架与最终证据索引随本文件提交，见git log。不push、不合并。
+- 提交：`1228d68` 修复工作台错误提示被长卡片遮挡；联调框架与最终证据索引随本文件提交，见git log。不push、不合并。
 - 所有任务已结束：三项目均active_jobs=[]，累计state成本估算¥13.814804。原自启Metro19310已停，最终Playwright管理的新Metro已随测试停止；本地mock也由测试自动起停。
 - 证据审计：final-audit.json确认run2/3全部13步骤、每个脚本镜头有成功图片、还原分、主动消息回读、归一化mask、refs与图序、成本声明和静音实播；manifest.json含58张390×844 UI截图与3张离线质检原图的尺寸/SHA256。最终关键截图已目视复核。
 - 收尾：LIVE.md≤40行、结论优先；敏感文件忽略且0600。报告/截图保留本地，代码与已跟踪正式文档提交；整个任务约40分钟，低于90分钟。未执行真机签名、安装或读取钥匙串。
@@ -88,7 +88,7 @@
 - 已完成组件集成；修复签名URL轮询导致选区/缩放丢失、移动工具误切selection类型、短拖重复圆点、双指接管误涂、同指令不同mask重试匹配；键盘可见时收起部分工具保证提交，SVG高亮裁到图片内。
 - 最终 Node22 verify 五项通过，51/51 测试；iOS prebuild 成功。标签遮挡修复后的最终无头全链 1/1 通过（约1.7分钟），pageErrors=[]。已通过zoom/pan坐标逆算、跨轮询保留、failed重开精确retry、框选→移动→region、refs持久化、菜单保存下载、preview引用往返和原视频/断网流程。
 - 截图34张均390×844，新增25–34；已逐项目视新增图及总览，修复compare label被还原分覆盖，深色状态栏改浅色。尺寸/哈希在verification/screenshots.json，总览contact-sheet.jpg。
-- 提交断点：1f83dcb（契约/依赖/坐标/测试）、fe3a6f7（假服务）；界面/端到端/最终证据与覆盖后的FINAL在最终提交，见git log。FINAL共31行。
+- 提交断点：3a5f1ce（契约/依赖/坐标/测试）、c0b4ee1（假服务）；界面/端到端/最终证据与覆盖后的FINAL在最终提交，见git log。FINAL共31行。
 - 完成：2026-10-20 23:51（Asia/Shanghai，约19分钟），未超过2小时；未做真实后端、签名安装或真机验收。下一步按README在自己的iPhone复测双指、键盘、触感、相册及真实媒体水印/元数据。
 - Node22：`PATH=/Users/jiawei/.local/share/mise/installs/node/22.23.1/bin:$PATH`；无头流程已自动退出19300/19301，无任务服务常驻。复测会自动起停，请勿同时启动第二套。
 
@@ -105,7 +105,7 @@
 - B3：默认地址与相机权限已更新，Node 22.23.1 prebuild 成功；ios/ 已忽略。README 含免费 Apple ID / Personal Team / 手机信任与开发者模式 / Debug 和 Release / 7 天重装。
 - B4：最终实现的 Node 22.23.1 verify 五项通过，35/35 测试；日志和 bundle 元数据校验见 verification/summary.json。最终无头 390×844 全链 1/1 通过（约 1.1 分钟），24 张截图尺寸逐张核对，新增截图及总览已目视核对。
 - 完成：2026-10-20 23:04（Asia/Shanghai，用时约 11 分钟），B1–B4 本地验收通过；没有执行真实 API、真机签名/安装或原生相册验收。
-- 提交：1d8963d（类型与同步）、ea373f2（假服务与集成测试）、f7c2542（界面与端到端）；配置及验收文档在最后一条提交。仅 feat/app，不 push、不合并。
+- 提交：bc36a4c（类型与同步）、87a08fc（假服务与集成测试）、9bf2b11（界面与端到端）；配置及验收文档在最后一条提交。仅 feat/app，不 push、不合并。
 - 当前验证服务已由 Playwright 自动退出；生成 ios/ 保留本地且已忽略，便于接续配置签名。下一步按 README 装到用户自己的 iPhone，并用同契约真实后端核验文件标识、权限和原生体验。
 - 已覆盖 `FINAL.md`（≤50行）。以下为第一轮历史，不能视为本轮验收证据。
 
@@ -125,6 +125,6 @@
 - 最近契约校正：健康检查也需要 token；类型兼容设计未细化的 palette 字符串/数组；未修改 `docs/设计.md`。
 - 验证入口：`npm run verify` 将每项结果写到 `verification/summary.json`，日志同目录；`npm run test:e2e` 自动起本任务的两项服务，优先本机 Chrome 无头模式，无需下载大体积 Chromium。
 - 完成：2026-10-20 22:40（用时约 27 分钟）；最终 `verify` 五项通过；E2E 1/1 通过（31.6 秒），18 张截图尺寸全部为 390×844，已逐张总览核对。
-- 提交：`4ac3ee7` 接口与状态合并；`e4f5baa` 假服务；`f692390` 移动端；交接文档与验收材料位于最后一条提交。作者均为 `chaw1 <97000945@qq.com>`，未 push。
+- 提交：`700faa2` 接口与状态合并；`a9afb68` 假服务；`53ab524` 移动端；交接文档与验收材料位于最后一条提交。作者均为 `chaw1 <97000945@qq.com>`，未 push。
 - 当前没有本任务服务常驻。复测时 `npm run test:e2e` 自动起停服务；手动演示按 README 的两个终端启动。数据/凭证、node_modules、dist、浏览器缓存均未提交。
 - 后续验收：匹配 SDK 58 的 Expo Go 真机验证权限/相册/播放，再接同契约的真实后端；不扩大到前公司或其他 worktree。最终结论以 `FINAL.md` 为准。

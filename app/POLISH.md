@@ -16,4 +16,4 @@
 - 接续：在 app/ 使用 Node22，运行 `npm run test:e2e`；截图与对比度证据可由 `node scripts/polish-evidence.mjs` 重建；详细断点见 `PROGRESS.md`。
 - 初始 verification 四份 WIP 已按字节恢复；本轮结果独立存放；原 screenshots-live/run-1、run-2 保留。POLISH.md 按报告规则留本地。
 - 仅 feat/app，未 push/合并，未提交 ios/；全程本地假服务，无线上模型调用、钥匙串或前公司环境访问；01:29–01:49，约20分钟。
-- 代码提交：`daca816`（统一界面样式并打磨交互反馈）；验收证据提交 `62a3600`。
+- 代码提交：`87fd9e6`（统一界面样式并打磨交互反馈）；验收证据提交 `7b2290f`。

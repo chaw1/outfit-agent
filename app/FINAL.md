@@ -16,4 +16,4 @@
 范围：仅feat/app本worktree；未改server/、设计或依赖，ios/忽略未提交，未访问线上/前公司/钥匙串，未push/合并；本地服务均已退出。
 保留：原148份截图/证据文件和6份验证文件按字节恢复，既有联调run-1/run-2未动；本轮日志/JSON/总览留本地。
 续接：先读PROGRESS.md；Node22执行npm run verify、npm run test:e2e、CI=1 BROWSER=none npx expo prebuild --platform ios；禁止test:live。
-提交：621ae4a（契约）、0cabd38（界面）；回归/截图/本文在最终提交，作者chaw1 <97000945@qq.com>，中文一行。
+提交：d8d81f2（契约）、277fe78（界面）；回归/截图/本文在最终提交，作者chaw1 <97000945@qq.com>，中文一行。

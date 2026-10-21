@@ -40,7 +40,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
 @media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
 </style></head>
-<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/开发记录.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/开发记录.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
 <div class="wrap"><nav class="toc"><div class="toc">
 <ul>
 <li><a href="#工作方式">工作方式</a></li>
@@ -71,6 +71,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li><a href="#16401730-配什么进入多轮搭配建议从方向到笔记走完整条线">16:40–17:30 "配什么"进入多轮：搭配建议从方向到笔记走完整条线</a></li>
 <li><a href="#17301810-真机第三轮短片进素材库标识不再一版叠一层">17:30–18:10 真机第三轮：短片进素材库、标识不再一版叠一层</a></li>
 <li><a href="#18101900-真实感接入豆包-seedream-50-pro同题对比后切为默认出图">18:10–19:00 真实感：接入豆包 Seedream 5.0 pro，同题对比后切为默认出图</a></li>
+<li><a href="#19302020-交付收口灵感墙重做readme-改成一页纸提交历史统一">19:30–20:20 交付收口：灵感墙重做、README 改成一页纸、提交历史统一</a></li>
 </ul>
 </li>
 </ul>
@@ -316,4 +317,10 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li>本人提供火山方舟密钥，确认已开通 <code>doubao-seedream-5-0-pro-260628</code>。拿线上一张真实镜头的全部输入同题各出一张（调研 §2.4 与 <code>docs/model-compare/</code>）：Seedream 的皮肤、自然光和姿态明显更像真人抓拍，衣服还原持平，吊牌同样去除；42 秒对 14 秒，0.62 元对 0.50 元，值得。</li>
 <li>接入：同一个出图入口按模型名分流到方舟 <code>images/generations</code>，参考图仍走 Base64、固定 1536×2048、不加平台水印（标识由服务端统一盖），对工作流、改图、局部改零改动；成本按方舟价格记账（2K 档 0.60 元 + 参考图 0.02 元/张）。密钥只在服务器环境变量里，仓库不落。</li>
 <li>管理端"模型与配额"的出图候选多了 Seedream，线上默认切过去，wan2.7 一键可切回；开发环境仍是 Mock。</li>
+</ul>
+<h3 id="19302020-交付收口灵感墙重做readme-改成一页纸提交历史统一">19:30–20:20 交付收口：灵感墙重做、README 改成一页纸、提交历史统一<a class="headerlink" href="#19302020-交付收口灵感墙重做readme-改成一页纸提交历史统一" title="Permanent link">¶</a></h3>
+<ul>
+<li>灵感墙原来的十张图是同一位模特穿同一件麻衬衫坐在同一家咖啡馆，标签写着"老钱极简""闪光灯夜拍"而画面对不上，谈不上审美。按十种风格各写一段摄影脚本（人、衣服、场景、光线、镜头都不同：阴天街道的灰西装通勤、码头逆光的羊绒披肩、巴黎阳台的条纹船领、便利店直闪的皮夹克、影棚硬光的西装裙、深夜机顶闪光的亮片、旧街霓虹的红缎裙、树影下的碎花裙、白盒子展厅的炭灰套装、雨后斑马线的驼色风衣），用 Seedream 5.0 pro 各出一张，十二张里挑十张，按明暗交错排两列，右列整体下沉半格让墙面有节奏。每张加英文小标题，点开大图能看到这一套是怎么配的。成片统一盖一次 AI 标识，源文件不进仓库。十二张约 7 元。</li>
+<li>README 原来是按开发过程堆出来的验收索引，第一次打开的人抓不到重点。改成一页纸：一句话介绍、按"文档 / 开发记录与卡点 / 开发感受 / 代码"四项排的交付目录、技术栈、怎么跑、工作方式；验收索引、管理端与部署的细节挪到 <code>docs/验收与部署.md</code>。</li>
+<li>提交历史统一成 <code>type(scope): 一句话</code> 的约定式格式（feat / fix / docs / test / ci / build / chore，scope 为 app / server），原来写在一行里的多件事拆到正文逐条列出；作者统一为同一个邮箱。235 条提交一次性改写后强推，文档里引用的提交号同步换成新号。</li>
 </ul></main></div></body></html>

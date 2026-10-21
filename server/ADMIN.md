@@ -1,6 +1,6 @@
 # 管理端验收交接
 
-结论：A1–A6 已通过本机 Mock 验证；本轮真实模型调用 0 次、费用 0 元。仅 feat/server，不部署、不 push、不合并。功能提交：`3fc9a9f`。
+结论：A1–A6 已通过本机 Mock 验证；本轮真实模型调用 0 次、费用 0 元。仅 feat/server，不部署、不 push、不合并。功能提交：`a8fdf6a`。
 
 - **A1 登录与隔离通过**：独立 8 小时 Bearer 会话，App JWT 双向隔离、口令旋转失效、空 ADMIN_TOKEN（含非法 JSON）统一 404。证据：`tests/test_admin_api.py`、`artifacts/admin/acceptance.json`、`artifacts/admin/review-browser.json`。
 - **A2 五页通过**：总览、三维用量/用户筛选/CSV、模型配额、队列重试取消、用户禁启用/层级。HTTP 验证重试后 Worker 成功、取消后 attempts=0；390px 全页 DOM 无溢出，页面无非预期报错。证据：`artifacts/admin/acceptance.json`、`artifacts/admin/browser.json`。

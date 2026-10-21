@@ -1,4 +1,4 @@
-结论：R1–R4 通过；真实调用估算 ¥2.569708，未超预算。实现提交 dd54345（feat/server），未 push、合并或部署。
+结论：R1–R4 通过；真实调用估算 ¥2.569708，未超预算。实现提交 a7739d1（feat/server），未 push、合并或部署。
 
 - **R1 参考图：通过。** ≤3 张、本人上传与 kind 校验；五维风格进入 brief、方向、脚本、预览和正式出图，references 卡可持久化并刷新签名 URL。
   证据：`tests/test_references.py`、`tests/test_anchor_reference_providers.py`；真实方向/风格分析 `evidence/anchor-real/anchor-real.json`。

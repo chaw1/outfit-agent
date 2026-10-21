@@ -30,4 +30,4 @@
 - 证据根目录：screenshots-live/；各run有http-evidence.json、sse-evidence.json、evidence.json、final-state.json；final-audit.json复核13步、镜头覆盖、引用顺序、成本声明、静音实播与截图尺寸。
 - 续接：checkpoint.json与private/run-N.json为0600且Git忽略；run-1未决自由文本请求保留标记未重发。仅可不带LIVE_NEW_RUN续跑，已发动作先核状态/消息，不能自动重放；测试账号均live-前缀。
 - 费用：三个项目state累计估算约¥13.81，最终均无活动任务；框架修复SSE finished/body无界等待，现按状态/持久消息等候并即时脱敏留证。
-- 提交：9b20848修复错误提示；3da4d1a增加真实联调与断点保护。仅feat/app，作者chaw1 <97000945@qq.com>，不push、不合并；本报告与截图按全局规则留本地。
+- 提交：1228d68修复错误提示；f14de62增加真实联调与断点保护。仅feat/app，作者chaw1 <97000945@qq.com>，不push、不合并；本报告与截图按全局规则留本地。

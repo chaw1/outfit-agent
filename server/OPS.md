@@ -18,4 +18,4 @@
 费用断点：[独立账本](evidence/ops-profile/profile-ledger.sqlite)；成功结果复用、未知 started 禁止重提；[禁止网络后续跑](evidence/ops-real-resume.log)确认零新增调用、证据哈希不变。
 实现未细定的规则及理由：档案部分合并/最多 20 张、HEIC 转 JPEG、固定窗口共享计数、保留删除标记与账本，详见 [README](README.md)。
 已知限制：已发送的上游请求不能撤回；文件异常时由 Worker 重试清理；观测表与限流身份行尚无自动保留期；断连后任务错误不追改已结束 HTTP 统计。
-提交：实现 `0025053`；CI `02b9431`，均在 `feat/server`，作者 `chaw1 <97000945@qq.com>`。本地 [PROGRESS](PROGRESS.md) 与忽略目录证据保留，可续跑复验。
+提交：实现 `dbb6c57`；CI `e2a9fba`，均在 `feat/server`，作者 `chaw1 <97000945@qq.com>`。本地 [PROGRESS](PROGRESS.md) 与忽略目录证据保留，可续跑复验。
