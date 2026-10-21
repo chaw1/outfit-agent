@@ -107,7 +107,7 @@ test('第八轮：未通过改图手动采用、笔记换版、草稿冲突与�
   const context = await setup(page, request, '可信闭环');
   await page.goto(`/projects/${context.project.id}`);
   await expect(page.getByTestId('regenerate-directions')).toBeEnabled();
-  await expect(page.getByTestId('regenerate-estimate')).toContainText('约 15 点 · 含 2–3 张预览');
+  await expect(page.getByTestId('regenerate-estimate')).toContainText('约 45 点 · 含 6–9 张预览，每方向 3 张');
   await screenshot(page, '77-directions-regenerate-estimate.png', page.getByTestId('regenerate-estimate'));
   const initial = await context.state();
   await page.getByTestId(`direction-${initial.directions[0].id}`).click();

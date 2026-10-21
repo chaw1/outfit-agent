@@ -115,6 +115,8 @@ test('脚本回看：两步选方向、单镜草稿与确认后生成中、刷�
   const context = await setup(page, request, 'guided');
   try {
     await context.send({ text: '帮我找几个拍摄方向。' });
+    context.advance(1_000);
+    await expect.poll(async () => (await context.state()).active_jobs.length).toBe(0);
     const directions = (await context.state()).directions;
     await page.goto(`/projects/${context.project.id}`);
     await expect(page.getByTestId('view-script')).toHaveCount(0);
@@ -128,7 +130,7 @@ test('脚本回看：两步选方向、单镜草稿与确认后生成中、刷�
     expect((await context.state()).chosen_direction_id).toBeFalsy();
     const chosen = page.waitForResponse(response => response.request().method() === 'POST' && response.url().endsWith(`/projects/${context.project.id}/messages`));
     await page.getByTestId('confirm-direction').click();
-    expect((await chosen).request().postDataJSON()).toEqual({ action: { type: 'choose_direction', direction_id: directions[1].id } });
+    expect((await chosen).request().postDataJSON()).toEqual({ action: { type: 'choose_direction', direction_id: directions[1].id, preview_id: directions[1].previews![0].id } });
     await expect(page.getByTestId('confirm-script')).toBeEnabled();
     expect((await context.state()).chosen_direction_id).toBe(directions[1].id);
     await expect(page.getByTestId('view-script')).toHaveCount(0);
@@ -171,7 +173,8 @@ test('脚本回看：两步选方向、单镜草稿与确认后生成中、刷�
     await expect(page.getByTestId('approve-images')).toBeEnabled();
     await expect(page.locator('button button, [role="button"] [role="button"]')).toHaveCount(0);
     const preview = page.getByTestId(`image-select-${selectedImages[0]}`);
-    const selection = page.getByTestId(`image-toggle-${selectedImages[0]}`);
+    // 主图固定在第一位，取消选中要用第二镜来验证。
+    const selection = page.getByTestId(`image-toggle-${selectedImages[1]}`);
     await expect(selection).toHaveText(/^\d+$/);
     await selection.click();
     await expect(selection).toHaveText('');

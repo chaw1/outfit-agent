@@ -280,6 +280,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <p><strong>与霖润自家 Chic-Image 的关系</strong>：霖润（Conrain AI，产品线 MuseGate）2026-08 发布的 Chic-Image 是面向博主穿搭照的垂直文生图模型（z-image 基座做 SFT 与偏好对齐专门去"AI 感"，蒸馏到 12 步，短提示自动扩成人物/服装/场景/光线/镜头的结构化长提示）。它解决的是"像真实博主发的照片"这一层，和本节切到 Seedream 的动机一致；但它是文生图，没有"把这件衣服穿到本人身上再换场景"的参考图能力，所以本作业的试衣 + 还原核对链路仍需 Seedream / wan2.7 这类支持多参考图的模型。接入上，出图是管理端可切的一个 provider，如果公司内部的模型开放接口，替换的是同一个 <code>image()</code> 入口。</p>
 <p>并排对比见 <code>docs/model-compare/wan27-vs-seedream50-shot1.jpg</code>（左 wan2.7，中 Seedream 5.0 pro，右为三张输入）。</p>
 <p>结论：出图默认切到 Seedream 5.0 pro，wan2.7 保留为可在管理端一键切回的备选；视频、看图、对话不变。接入方式是同一个 <code>image()</code> 入口按模型名分流到方舟 <code>images/generations</code>（固定 1536×2048、不加平台水印，标识仍由服务端统一盖），对工作流零改动。Seedream 5.0 pro 是字节 2026 年中发布的旗舰出图模型，国内第一梯队；横向看与 GPT-Image 2、Nano Banana Pro 同档，文字渲染略逊、价格约为前者四分之一。它不支持组图和流式，这两项我们不用。</p>
+<p>出图提示词已按七字段组织，见 server/app/prompting.py。</p>
 <h3 id="25-成本估算单篇笔记">2.5 成本估算（单篇笔记）<a class="headerlink" href="#25-成本估算单篇笔记" title="Permanent link">¶</a></h3>
 <p>按 6 张图 + 2 次改图 + 1 条 5 秒视频 + 对话和看图估算，单篇约 <strong>9–10 元</strong>（出图按最终默认的 Seedream 计；换回 wan2.7 约便宜 1 元）：</p>
 <table>

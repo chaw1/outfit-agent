@@ -135,12 +135,17 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tr>
 <td>我的片场</td>
 <td>首页</td>
-<td>项目列表：搜索、按阶段筛选（只列出现过的阶段，带数量）、长按删除（二次确认）</td>
+<td>项目列表：搜索、按阶段筛选（只列出现过的阶段，带数量）、长按管理（删除需二次确认）</td>
 </tr>
 <tr>
 <td>素材库入口</td>
 <td>首页</td>
 <td>见第 8 节</td>
+</tr>
+<tr>
+<td>片场管理</td>
+<td>首页</td>
+<td>长按卡片可重命名（1–40 字）、置顶 / 取消置顶、删除；置顶卡显示图钉并优先排序</td>
 </tr>
 </tbody>
 </table>
@@ -167,7 +172,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tr>
 <td>出镜的人</td>
 <td>新建页</td>
-<td>选填；默认用「我的形象」里的照片，可换、可上传</td>
+<td>衣序模特 / 我的模特 / 本次上传三组选择；预置 A/B/C 无需上传本人照片；卡片显示名字、正脸与状态</td>
 </tr>
 <tr>
 <td>参考图</td>
@@ -204,12 +209,12 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tr>
 <td>方向</td>
 <td>2–3 个穿搭方向</td>
-<td>每个方向有预览图与搭配说明；先选中、再点确认，有提示</td>
+<td>每方向 3 张灵感图，横滑挑选、点开看大图；默认第一张，选中后「按这张的感觉拍」，角度与光线带入第一镜和封面</td>
 </tr>
 <tr>
 <td>方向</td>
 <td>换一组</td>
-<td>先显示点数再重出；自由对话可提偏好（「搭配再简单一点」）</td>
+<td>按 6–9 张预览估点（上限约 45 点）；失败可只重试一张，其他图保留；自由对话可提偏好（「搭配再简单一点」）</td>
 </tr>
 <tr>
 <td>脚本</td>
@@ -238,8 +243,18 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 <tr>
 <td>出图</td>
+<td>七字段提示词</td>
+<td>人物 / 服装 / 场景 / 光线 / 镜头 / 构图 / 姿势固定组织；任务保留字段字典，改图与封面锚点同步更新</td>
+</tr>
+<tr>
+<td>出图</td>
 <td>主动消息</td>
 <td>出图完成后智能体主动汇报结果</td>
+</tr>
+<tr>
+<td>出图</td>
+<td>主图与顺序</td>
+<td>出图卡与查看器标明主图；笔记主图固定首位，同一镜头可换版本</td>
 </tr>
 <tr>
 <td>出图</td>
@@ -279,7 +294,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tr>
 <td>全程</td>
 <td>过程透明</td>
-<td>每条回复下可展开：用了哪个工具、耗时、点数、处理分步</td>
+<td>每条回复下可展开：用了哪个工具、耗时、点数、处理分步；出图与改图展示参考素材缩略图及角色</td>
 </tr>
 <tr>
 <td>全程</td>
@@ -343,6 +358,10 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <td>原图与各版本切换、左右对比、缩放</td>
 </tr>
 <tr>
+<td>主图</td>
+<td>封面镜头显示品牌色「主图」角标，采用新版后随版本切换</td>
+</tr>
+<tr>
 <td>局部改</td>
 <td>在图上涂抹要改的区域，写一句要求；只改涂抹区</td>
 </tr>
@@ -357,6 +376,10 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tr>
 <td>存为模特</td>
 <td>把满意的成片存进「我的模特」，下次出镜用</td>
+</tr>
+<tr>
+<td>换背景 / 扩图 / 高清</td>
+<td>六个背景与自定义场景、四个扩图方向、2 倍高清；提交前确认单次改图预估，版本条标明动作</td>
 </tr>
 </tbody>
 </table>
@@ -398,11 +421,15 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tbody>
 <tr>
 <td>我的模特</td>
-<td>上传的本人照片与存为模特的成片</td>
+<td>读取 <code>/api/me/models</code>，管理本人照片、成片模特与身份卡；显示建卡状态，支持设为默认和删除</td>
 </tr>
 <tr>
 <td>我的衣服</td>
 <td>上传过的衣服；新建时可直接选用</td>
+</tr>
+<tr>
+<td>衣服标签筛选</td>
+<td>从品类、颜色、季节、风格分析提取短词并显示数量；素材库和新建页衣服选择器均可点选筛选、再点取消</td>
 </tr>
 <tr>
 <td>我的成片 / 我的短片</td>
@@ -422,6 +449,10 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tr>
 <td>我的形象</td>
 <td>本人照片、身高体型、风格偏好、昵称；出图时自动参考</td>
+</tr>
+<tr>
+<td>建身份卡</td>
+<td>默认正脸照片建卡，先预估点数再确认；队列补齐全身、侧身与半身，显示进度与完成状态</td>
 </tr>
 <tr>
 <td>点数</td>

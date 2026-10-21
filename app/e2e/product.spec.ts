@@ -91,13 +91,19 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
   await page.getByRole('button', { name: '返回', exact: true }).click();
   await expect(page.getByText('松弛小序的片场')).toBeVisible();
   await page.getByRole('button', { name: '拍一组新片', exact: true }).click();
-  const firstProfile = page.getByRole('button', { name: '选择档案照片 1', exact: true });
-  const secondProfile = page.getByRole('button', { name: '选择档案照片 2', exact: true });
-  await expect(firstProfile).toContainText('档案默认 ✓');
+  const modelsPage = await request.get(`${apiBase}/me/models`, { headers });
+  expect(modelsPage.ok()).toBe(true);
+  const identities = (await modelsPage.json() as { items: { id: string; face_asset_id: string | null }[] }).items;
+  const identityFor = (assetId: string) => identities.find(item => item.face_asset_id === assetId)!.id;
+  const firstProfile = page.getByTestId(`select-model-${identityFor(profileUser.profile!.model_asset_ids[0])}`);
+  const secondProfile = page.getByTestId(`select-model-${identityFor(profileUser.profile!.model_asset_ids[1])}`);
+  await expect(firstProfile).toHaveAttribute('aria-selected', 'true');
+  await expect(firstProfile).toContainText('✓');
   await firstProfile.scrollIntoViewIfNeeded();
   await shot('40-new-project-default-profile.png');
   await secondProfile.click();
-  await expect(secondProfile).toContainText('照片 2 ✓');
+  await expect(secondProfile).toHaveAttribute('aria-selected', 'true');
+  await expect(secondProfile).toContainText('✓');
   await expect(firstProfile).not.toContainText('✓');
   await page.getByLabel('项目名称', { exact: true }).fill('档案换图合作');
   await page.getByLabel('品牌', { exact: true }).fill('PROFILE');
@@ -108,7 +114,7 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
   await expect(page.getByRole('button', { name: '移除衣服图 1', exact: true })).toBeVisible();
   const creation = page.waitForRequest(value => value.url() === `${apiBase}/projects` && value.method() === 'POST');
   await page.getByRole('button', { name: '开拍，先聊灵感', exact: true }).click();
-  expect((await creation).postDataJSON().model_asset_id).toBe(profileUser.profile?.model_asset_ids[1]);
+  expect((await creation).postDataJSON().model_id).toBe(identityFor(profileUser.profile!.model_asset_ids[1]));
   await expect(page.getByTestId('chat-input')).toBeVisible();
   await page.getByRole('button', { name: '返回', exact: true }).click();
 
@@ -156,8 +162,11 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
   await page.mouse.move(cardBox.x + cardBox.width / 2, cardBox.y + cardBox.height / 2);
   await page.mouse.down();
   await page.waitForTimeout(650);
-  await expect(page.getByText('删除这组片？')).toBeVisible();
+  await expect(page.getByTestId('project-menu')).toBeVisible();
   await page.mouse.up();
+  await expect(page.getByTestId('project-menu-rename')).toBeVisible();
+  await page.getByTestId('project-menu-delete').click();
+  await expect(page.getByText('删除这组片？')).toBeVisible();
   await expect(page).toHaveURL(`${process.env.E2E_WEB_BASE || 'http://localhost:19300'}/`);
   await page.getByRole('button', { name: '确认删除这组片', exact: true }).click();
   await expect(card).toHaveCount(0);

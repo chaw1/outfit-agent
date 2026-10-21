@@ -113,7 +113,14 @@ async function setup(page: Page, request: APIRequestContext, label: string, opti
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await rm(dataDir, { recursive: true, force: true });
   }
-  return { base, headers, project, garment, model, images, errors, savedRequests, uploadedRequests, assets, me, close };
+  async function identityFor(assetId: string) {
+    const response = await request.get(`${base}/api/me/models`, { headers });
+    expect(response.ok()).toBe(true);
+    const identity = ((await response.json()) as { items: { id: string; face_asset_id: string | null }[] }).items.find(item => item.face_asset_id === assetId);
+    expect(identity).toBeTruthy();
+    return identity!;
+  }
+  return { base, headers, project, garment, model, images, errors, savedRequests, uploadedRequests, assets, me, identityFor, close };
 }
 
 test('第十二轮：成片两处存模特、默认出镜与衣服跨项目复用', async ({ page, request }) => {
@@ -153,8 +160,8 @@ test('第十二轮：成片两处存模特、默认出镜与衣服跨项目复�
     await page.getByRole('button', { name: '返回', exact: true }).click();
     await page.getByRole('button', { name: '素材库', exact: true }).click();
     const tile = page.getByTestId(`library-${saved.asset.id}`);
-    await expect(tile).toContainText('成片');
-    await expect(page.getByTestId(`library-${context.model.id}`)).toContainText('上传');
+    await expect(tile).toContainText('可用');
+    await expect(page.getByTestId(`library-${context.model.id}`)).toContainText('可用');
     await touchSize(page.getByRole('tab', { name: '我的模特', exact: true }));
     await touchSize(tile.getByRole('button', { name: '设为默认', exact: true }));
     await tile.getByRole('button', { name: '设为默认', exact: true }).click();
@@ -163,9 +170,11 @@ test('第十二轮：成片两处存模特、默认出镜与衣服跨项目复�
     await screenshot(page, '142-library-default-model.png', tile);
     await page.getByRole('button', { name: '返回', exact: true }).click();
     await page.getByRole('button', { name: '拍一组新片', exact: true }).click();
-    const defaultPhoto = page.getByRole('button', { name: '选择档案照片 1', exact: true });
-    await expect(defaultPhoto).toContainText('档案默认 ✓');
-    await expect(defaultPhoto).toContainText('成片');
+    const savedIdentity = await context.identityFor(saved.asset.id);
+    const defaultPhoto = page.getByTestId(`select-model-${savedIdentity.id}`);
+    await expect(defaultPhoto).toHaveAttribute('aria-selected', 'true');
+    await expect(defaultPhoto).toContainText('✓');
+    await expect(defaultPhoto).toContainText('可用');
     await screenshot(page, '152-new-project-model-source.png', defaultPhoto);
     await page.getByRole('button', { name: '从我的衣服里选', exact: true }).click();
     const garment = page.getByTestId(`pick-garment-${context.garment.id}`);
@@ -179,7 +188,7 @@ test('第十二轮：成片两处存模特、默认出镜与衣服跨项目复�
     await page.getByTestId('start-shooting').click();
     const input = (await creation).postDataJSON() as CreateProjectInput;
     expect(input.garment_asset_ids).toEqual([context.garment.id]);
-    expect(input.model_asset_id).toBe(saved.asset.id);
+    expect(input.model_id).toBe(savedIdentity.id);
     await expect(page.getByTestId('chat-input')).toBeVisible();
     await page.getByRole('button', { name: '返回', exact: true }).click();
     await page.getByRole('button', { name: '素材库', exact: true }).click();
@@ -190,7 +199,7 @@ test('第十二轮：成片两处存模特、默认出镜与衣服跨项目复�
     await screenshot(page, '144-library-garment-prefilled.png', page.getByRole('button', { name: '移除衣服图 1', exact: true }));
     expect(context.uploadedRequests).toEqual([]);
     expect(context.errors).toEqual([]);
-    await record('reuse', { savedFromCard: saved.asset.id, savedFromViewer: savedSecond.asset.id, requests: context.savedRequests, modelCount: 3, submittedModel: input.model_asset_id, reusedGarment: input.garment_asset_ids, uploads: 0, pageErrors: context.errors });
+    await record('reuse', { savedFromCard: saved.asset.id, savedFromViewer: savedSecond.asset.id, requests: context.savedRequests, modelCount: 3, submittedModel: input.model_id, reusedGarment: input.garment_asset_ids, uploads: 0, pageErrors: context.errors });
   } finally { await context.close(); }
 });
 
@@ -203,14 +212,14 @@ test('第十二轮：素材库加载、空态、删除确认、引用保护与�
     await page.goto('/');
     await expect(page.getByRole('button', { name: '素材库', exact: true })).toBeVisible();
     const gate = new Promise<void>(resolve => { release = resolve; });
-    await page.route(`${context.base}/api/me/assets?kind=model*`, async route => { await gate; await route.continue(); });
+    await page.route(`${context.base}/api/me/models`, async route => { await gate; await route.continue(); });
     await page.goto('/assets');
     await expect(page.getByRole('progressbar', { name: '正在加载素材库', exact: true })).toBeVisible();
     await screenshot(page, '145-library-loading.png');
     release();
     const tile = page.getByTestId(`library-${saved.asset.id}`);
     await expect(tile).toBeVisible();
-    await page.unroute(`${context.base}/api/me/assets?kind=model*`);
+    await page.unroute(`${context.base}/api/me/models`);
     await page.reload();
     await expect(tile).toBeVisible();
     const frame = page.getByTestId(`library-image-${saved.asset.id}`);
@@ -224,13 +233,12 @@ test('第十二轮：素材库加载、空态、删除确认、引用保护与�
     await confirmation.getByRole('button', { name: '取消', exact: true }).click();
     await expect(tile).toBeVisible();
     expect((await context.assets('model')).items.some(item => item.id === saved.asset.id)).toBe(true);
-    for (const id of [saved.asset.id, context.model.id]) {
-      await page.getByTestId(`library-${id}`).getByRole('button', { name: '删除', exact: true }).click();
-      const deletion = page.waitForResponse(value => value.request().method() === 'DELETE' && value.url() === `${context.base}/api/me/assets/${id}`);
-      await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
-      expect((await deletion).status()).toBe(204);
-      await expect(page.getByTestId(`library-${id}`)).toHaveCount(0);
-    }
+    const savedIdentity = await context.identityFor(saved.asset.id);
+    await tile.getByRole('button', { name: '删除', exact: true }).click();
+    const deletion = page.waitForResponse(value => value.request().method() === 'DELETE' && value.url() === `${context.base}/api/me/models/${savedIdentity.id}`);
+    await confirmation.getByRole('button', { name: '确认删除', exact: true }).click();
+    expect((await deletion).status()).toBe(204);
+    await expect(tile).toHaveCount(0);
     expect((await context.me()).profile?.model_asset_ids).toEqual([]);
     await expect(page.getByText('拍过的片都会留在这里', { exact: true })).toBeVisible();
     await screenshot(page, '147-library-empty-models.png');
@@ -259,14 +267,14 @@ test('第十二轮：素材库加载、空态、删除确认、引用保护与�
     await imageTile.getByRole('button', { name: '回到这组片', exact: true }).click();
     await expect(page).toHaveURL(new RegExp(`/projects/${context.project.id}$`));
     expect(context.errors).toEqual([]);
-    await record('library', { loading: true, empty: true, directRouteAndReload: true, aspectRatio: box!.width / box!.height, cancelledDeletionPreserved: true, confirmedDeletions: 2, garmentConflictStatus: 409, imageCount: images.total, pageErrors: context.errors });
+    await record('library', { loading: true, empty: true, directRouteAndReload: true, aspectRatio: box!.width / box!.height, cancelledDeletionPreserved: true, confirmedDeletions: 1, garmentConflictStatus: 409, imageCount: images.total, pageErrors: context.errors });
   } finally { release(); await context.close(); }
 });
 
 test('第十二轮：旧服务 GET 404 隐藏素材库、衣服选择与存模特', async ({ page, request }) => {
   const context = await setup(page, request, 'legacy', { legacyAssets: true });
   try {
-    const probe = page.waitForResponse(value => value.url().includes('/api/me/assets?kind=model'));
+    const probe = page.waitForResponse(value => value.url().includes('/api/me/models'));
     await page.goto('/');
     expect((await probe).status()).toBe(404);
     await expect(page.getByRole('button', { name: '素材库', exact: true })).toHaveCount(0);

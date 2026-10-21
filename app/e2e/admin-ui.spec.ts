@@ -119,6 +119,7 @@ for (const width of [1440, 390, 320]) {
     await openAdmin(page);
     for (const name of pages) {
       await navigate(page, name);
+      if (name === '总览') await page.locator('.kpi-grid').first().waitFor();
       const size = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         shortControls: [...document.querySelectorAll('button,input:not([type=checkbox]),select')]

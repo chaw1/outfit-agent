@@ -188,8 +188,13 @@ def script_hash(script):
 def assert_preview_jobs_only(state):
     """Pre-confirmation jobs may only be the new direction previews."""
     assert not state["images"], "Batch images must wait for script confirmation"
-    pending_previews = sum(direction.get("preview_status") in {"queued", "running"}
-                           for direction in state["directions"])
+    pending_previews = 0
+    for direction in state["directions"]:
+        previews = direction.get("previews") or []
+        if previews:
+            pending_previews += sum(p.get("status") in {"queued", "running"} for p in previews)
+        elif direction.get("preview_status") in {"queued", "running"}:
+            pending_previews += 1
     assert len(state["active_jobs"]) == pending_previews
     assert all(job["kind"] == "image" for job in state["active_jobs"])
 

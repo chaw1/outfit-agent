@@ -208,6 +208,15 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li>预置模特可选可用，不上传照片也能出整组片。</li>
 <li>迁移后老项目正常打开。</li>
 </ul>
+<h4 id="实现落点">实现落点<a class="headerlink" href="#实现落点" title="Permanent link">¶</a></h4>
+<ul>
+<li>数据与接口：<code>server/app/models.py</code>、<code>server/alembic/versions/0012_model_library.py</code>、<code>server/app/model_library.py</code>、<code>server/app/main.py</code>；首次读取迁移旧照片与成片模特，旧项目保留单照片引用。</li>
+<li>预置身份卡：<code>server/app/fixtures/models/</code>，A/B/C 各四张 mock 占位图，正式图按固定文件名替换。</li>
+<li>建卡与计费：<code>server/app/identity_worker.py</code>、<code>server/app/providers.py</code>；确认后入队，逐步保存角度，沿用账本、预算和租约。</li>
+<li>多图与重出：<code>server/app/workflow.py</code>、<code>server/app/worker.py</code>、<code>server/app/auto_mode.py</code>；人物在前、衣服居中、封面最后，低人像分只自动修复一次。</li>
+<li>App：<code>app/src/components/ModelSelector.tsx</code>、<code>IdentityBuilder.tsx</code>、<code>ProfileEditor.tsx</code>、<code>AssetLibrary.tsx</code>、<code>app/src/app/projects/new.tsx</code>、<code>app/src/lib/models.ts</code>；mock 同步于 <code>app/mock-server/models.mjs</code> 与 <code>index.mjs</code>。</li>
+<li>测试：<code>server/tests/test_model_library.py</code>、<code>server/tests/test_auto_mode.py</code>、<code>app/tests/models.test.ts</code>、<code>app/tests/models-mock.test.ts</code>、<code>app/tests/image-selection.test.ts</code>。页面证据在 <code>docs/codex/runs/t-d-shots/</code>；真实六张整组片的人像分留待正式图片与模型验收。</li>
+</ul>
 <h3 id="二期1-周人脸后处理兜底-客观指标">二期（1 周）：人脸后处理兜底 + 客观指标<a class="headerlink" href="#二期1-周人脸后处理兜底-客观指标" title="Permanent link">¶</a></h3>
 <p>做什么：</p>
 <ol>

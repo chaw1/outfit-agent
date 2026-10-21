@@ -76,6 +76,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li><a href="#82-接口新增">8.2 接口新增</a></li>
 <li><a href="#83-服务端局部改的做法">8.3 服务端局部改的做法</a></li>
 <li><a href="#84-吊牌与包装">8.4 吊牌与包装</a></li>
+<li><a href="#85-查看器快捷动作">8.5 查看器快捷动作</a></li>
 </ul>
 </li>
 <li><a href="#9-管理端">9. 管理端</a><ul>
@@ -149,6 +150,13 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li><a href="#181-服务端">18.1 服务端</a></li>
 <li><a href="#182-app">18.2 App</a></li>
 <li><a href="#183-约束">18.3 约束</a></li>
+</ul>
+</li>
+<li><a href="#19-模特身份卡多图参考与人像一致性">19. 模特：身份卡、多图参考与人像一致性</a><ul>
+<li><a href="#191-表与迁移">19.1 表与迁移</a></li>
+<li><a href="#192-接口与确认">19.2 接口与确认</a></li>
+<li><a href="#193-任务与计费">19.3 任务与计费</a></li>
+<li><a href="#194-多图参考与一次修复">19.4 多图参考与一次修复</a></li>
 </ul>
 </li>
 </ul>
@@ -418,7 +426,11 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 </ul>
 <h3 id="72-字段新增">7.2 字段新增<a class="headerlink" href="#72-字段新增" title="Permanent link">¶</a></h3>
 <ul>
-<li><code>direction</code> 增加 <code>preview_url?</code>、<code>preview_status?</code>（<code>queued | running | succeeded | failed</code>）：每个方向一张灵感预览图，出方向后自动生成（低成本层，约 0.5 元/张；批量出图仍要确认脚本）。</li>
+<li><code>direction</code> 保留 <code>preview_url?</code>、<code>preview_status?</code>（<code>queued | running | succeeded | failed</code>），始终投影第一张灵感预览，兼容旧 App；批量正式出图仍要确认脚本。</li>
+<li><code>direction.previews: [{id, url?, status, variant}]</code>：每方向 3 张，分别为「全身街拍 / 半身特写 / 坐姿侧光」，同一方向保留穿搭、改变构图与光线。每张独立排队、成功或失败；旧单图任务按单项数组回读，不在读请求里补生成。</li>
+<li><code>choose_direction</code> 增加可选 <code>preview_id</code>，只接受本方向已成功的预览；省略时默认第一张。<code>state.chosen_preview_id</code> 与 <code>script.preview_id</code> 持久化所选图，脚本版本恢复后沿用该版本的灵感。写脚本 context 增加 <code>chosen_preview: {id, variant, description, asset_id?}</code> 和 <code>cover_inspiration</code>，第一镜写入角度、构图与光线；封面任务把所选成功预览作为额外参考，顺序为衣服 → 灵感图 → 本人照片，并追加「构图与光线以灵感图为基调」。其余镜头继续使用封面锚点。</li>
+<li>新动作 <code>{type: "retry_preview", direction_id, preview_id, attempt}</code>：方向阶段仅重试失败的一张；<code>attempt</code> 为 1–64 位无空白标识，相同标识重放不重复入队，新一次明确重试用新标识。每方向任务共用内容去重前缀、以 variant 区分；重试沿用稳定 <code>preview_id</code>、增加 <code>:retry:{attempt}</code> 后缀，不替换其他两张。状态与首页进度只取每张的最新尝试。</li>
+<li>App 方向卡横滑三张，当前选中描边；未主动选图默认第一张，点大图全屏看，再点「选这张灵感」带回选中态，确认按钮为「按这张的感觉拍」。生成中逐张更新，失败项展示重试及单张估点。</li>
 <li><code>image</code> 增加：</li>
 <li><code>fidelity?: {score: 0-100, diffs: [string], auto_fixed: bool}</code>：生成后用看图模型对比原衣服打的"还原分"和差异点；差异点只作为自动修图的提示词，App 只展示分数徽章，不把模型口吻的差异描述暴露给用户；低于 60 分自动修一版（每张最多一次），新版本 <code>instruction</code> 写明修了什么。</li>
 <li><code>script_version?</code>：这张图是按第几版脚本生成的。</li>
@@ -456,6 +468,14 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <p>按涂抹轨迹生成蒙版 → 取外接框并向外扩一圈上下文裁剪 → 只把裁剪块和指令（附原衣服图）交给生成模型，最后一张参考始终是唯一待编辑的裁剪画布 → 在蒙版内对齐边缘颜色和亮度，再按蒙版羽化贴回原图。<strong>蒙版以外的像素保持不变</strong>（测试验证）。上下文扩边按选区长边的 60% 取值（至少 16 像素）；指令描述需要看到的最终状态，保持未要求改变的品类与袖长，不把短袖展开误解为改成长袖；纯调色或亮度指令只改变对应属性。改完用看图模型核对指令是否做到，没做到自动加强指令重试一次，结果如实写进 <code>edit_check</code>。</p>
 <h3 id="84-吊牌与包装">8.4 吊牌与包装<a class="headerlink" href="#84-吊牌与包装" title="Permanent link">¶</a></h3>
 <p>衣服原图上的吊牌、价签、织标贴纸、衣架、包装袋不属于衣服：出图提示和还原分质检都要忽略它们，生成图里不能出现。</p>
+<h3 id="85-查看器快捷动作">8.5 查看器快捷动作<a class="headerlink" href="#85-查看器快捷动作" title="Permanent link">¶</a></h3>
+<ul>
+<li>沿用 <code>edit_image</code>，新增可选 <code>preset: background | outpaint | upscale</code>，不与 <code>region / mask_strokes</code> 混用。任务 payload 与图片版本都带 <code>preset</code>；过程透明显示「换背景 / 扩图 / 高清」，原版与采用逻辑保留。</li>
+<li>换背景：六个预设场景（街角、咖啡馆窗边、白盒子展厅、海边傍晚、地铁站、纯色影棚）或自定义一句话。可带 <code>background</code> 场景，服务端规范为「只换背景为 …，人物、服装、姿势、光线方向保持不变」；只传 <code>instruction</code> 也可。</li>
+<li>扩图：<code>direction: top | bottom | horizontal | all</code>（默认四周），给对应边各加原宽/高 25% 的白边，保留原图像素，生成派生来源资产，写入 <code>source_asset_id</code>。上下模式在所选边留白，左右与四周居中；派生参考图可改变比例，模型成片仍为 3:4。继续走还原检查和改图指令核对。</li>
+<li>高清：支持目标尺寸的模型适配器以原图作参考重绘为两倍宽高；当前 Seedream 适配器仅在自身尺寸范围内启用，其他情况走 Pillow Lanczos 加轻锐化。模型返回尺寸不符时也本地兜底；真实调用失败不静默发起第二次付费请求。结果及版本带 <code>upscale_method: provider_redraw | pillow_lanczos</code>，沿用原版 <code>fidelity / fidelity_error</code>，不发起还原检查或指令核对。</li>
+<li><code>GET /api/quotes/edit</code> 返回 <code>{estimate_points, breakdown}</code>，沿用单次改图估价与点数换算。查看器先取预估，再独立确认提交；额度不足禁用，最终仍由服务端预算校验。重发保留 attempt；不同 preset / 扩图方向参与任务去重。</li>
+</ul>
 <h2 id="9-管理端">9. 管理端<a class="headerlink" href="#9-管理端" title="Permanent link">¶</a></h2>
 <h3 id="91-定位">9.1 定位<a class="headerlink" href="#91-定位" title="Permanent link">¶</a></h3>
 <p>运营者视角的后台，和 App 共用同一个服务与数据库，不另起服务：页面在 <code>/admin</code>，接口在 <code>/api/admin/*</code>。独立口令登录（环境变量 <code>ADMIN_TOKEN</code>，只在服务器 <code>.env</code>），与 App 账号体系无关；App 用户拿不到管理接口。中文界面，手机浏览器也要能看（面试现场可能用手机打开）。</p>
@@ -530,7 +550,12 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <h3 id="102-项目管理app">10.2 项目管理（App）<a class="headerlink" href="#102-项目管理app" title="Permanent link">¶</a></h3>
 <ul>
 <li>项目列表：左滑或长按删除（二次确认，用现有 <code>DELETE /api/projects/{id}</code>）；按标题/品牌搜索；卡片显示阶段标签和封面；下拉刷新。</li>
-<li>服务端删除项目时级联清理该项目的消息、任务、生成媒体文件（上传的衣服原图保留，可能被别的项目复用）。</li>
+<li>
+<p>服务端删除项目时级联清理该项目的消息、任务、生成媒体文件（上传的衣服原图保留，可能被别的项目复用）。</p>
+</li>
+<li>
+<p><code>PATCH /api/projects/{id}</code> 接受 <code>{title?: string, pinned?: boolean}</code>，仅可修改本人未删除项目；名称去首尾空格后 1–40 字，拒绝 null 和非布尔置顶值。<code>Project.pinned</code> 默认 false，列表先按置顶降序，再保留更新时间降序；元数据修改不改内容更新时间。App 长按卡片展开重命名、置顶与删除菜单，删除保留二次确认，置顶卡显示图钉；进行中与我的片场各自保持现有分区和排序规则。</p>
+</li>
 </ul>
 <h3 id="103-发布闭环app">10.3 发布闭环（App）<a class="headerlink" href="#103-发布闭环app" title="Permanent link">¶</a></h3>
 <ul>
@@ -563,7 +588,12 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <ul>
 <li><code>message</code>（assistant）增加 <code>trace?: {tool, model, duration_ms, cost_cny, refs: [image_id], steps: [{label, duration_ms}]}</code>：这一轮模型选了哪个工具（<code>chat / propose_directions / write_script / revise_script / edit_image / write_note / generate_images / generate_video / restore_script</code>）、用的文本模型、这一轮对话调用耗时与估算费用、引用的图片、分步（如"看图 2 件 3.1s""写脚本 4.8s"）。</li>
 <li>SSE 新增 <code>event: trace</code> <code>data: trace</code>，在 <code>done</code> 之前发；<code>GET /messages</code> 可读回。Worker 完成的主动消息也带 <code>trace</code>（出图 n 张、耗时、费用）。</li>
-<li>App：每条智能体消息下方一行小字"用了 写脚本 · 4.8s · ¥0.01"，点开展开分步；不打扰阅读。</li>
+<li>
+<p>App：每条智能体消息下方一行小字"用了 写脚本 · 4.8s · ¥0.01"，点开展开分步；不打扰阅读。</p>
+</li>
+<li>
+<p><code>trace.reference_images?: {id, url, role}[]</code> 补充出图、改图回复所用的素材缩略图，<code>id</code> 为持久素材编号，<code>role</code> 为「模特 / 衣服 / 参考图 / 封面锚点」。提交回复列出当前已确定的输入，Worker 完成回复再包含实际解析到的封面锚点与自动修复来源；包含生成和还原核对用图，参考风格仅以分析文字进入生成时不列成直接图像输入。局部改图展示对应的原图，临时裁片不单独保存。按素材去重，封面锚点角色优先；仅返回当前用户可见素材。历史消息读取时重新生成签名链接。App 展开过程栏后，在分步上方横排 56 宽缩略图与角色，使用 360 预览链接；没有缩略图时保持原布局。</p>
+</li>
 </ul>
 <h3 id="112-花钱前预估">11.2 花钱前预估<a class="headerlink" href="#112-花钱前预估" title="Permanent link">¶</a></h3>
 <ul>
@@ -599,7 +629,12 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <li>确认脚本后批量出图改为两段：先出封面镜头（脚本 <code>cover</code> 对应的第一个镜头），成功后其余镜头并行生成，并把封面图作为额外参考传给生成模型（保持同一人、同一妆发、同一光线氛围）。封面失败则退回原来的并行方式。</li>
 <li><code>image</code> 增加 <code>anchor_id?</code>（这张图以哪张为锚点）；<code>fidelity</code> 增加 <code>person_score?: 0-100</code>（与博主本人照片的人像一致性，看图模型打分）和 <code>anchor_score?: 0-100</code>（与封面的一致性）。</li>
 <li>主动播报里带一句一致性摘要（"5 张都好了，人像一致性 90+"）。</li>
-<li>查看器角标显示"人像 92"。</li>
+<li>
+<p>查看器角标显示"人像 92"。</p>
+</li>
+<li>
+<p>App 出图卡与查看器用「主图」角标标识封面：优先按脚本第一镜定位，旧项目可通过 <code>anchor_id</code> 反查；采用版本优先，否则取最新核对通过的成功版本。笔记预览与挑图排序把主图固定首位，同镜头替换保留首位。</p>
+</li>
 </ul>
 <h3 id="123-约束">12.3 约束<a class="headerlink" href="#123-约束" title="Permanent link">¶</a></h3>
 <ul>
@@ -641,8 +676,8 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 </ul>
 <h3 id="136-换一组的费用提示">13.6 "换一组"的费用提示<a class="headerlink" href="#136-换一组的费用提示" title="Permanent link">¶</a></h3>
 <ul>
-<li>服务端 <code>directions</code> 卡片增加 <code>regenerate_estimate_cny</code>（按 <code>costs.py</code> 估算 2–3 张预览的费用）。</li>
-<li>App："换一组"按钮旁显示"约 ¥x · 含 2–3 张预览"；首次引导第二页标题改为"正式出图和视频，由你确认"。</li>
+<li>服务端 <code>directions</code> 卡片增加 <code>regenerate_estimate_cny</code> / <code>regenerate_estimate_points</code>（按 <code>costs.py</code> 估算最多 3 个方向 × 每方向 3 张，共 9 张）。</li>
+<li>App："换一组"按钮旁显示"约 45 点 · 含 6–9 张预览，每方向 3 张"，按 9 张上限提示；单张重试约 5 点。首次引导第二页标题为"正式出图和视频，由你确认"。</li>
 </ul>
 <h3 id="137-约束">13.7 约束<a class="headerlink" href="#137-约束" title="Permanent link">¶</a></h3>
 <ul>
@@ -662,7 +697,7 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <h3 id="142-一键出片mode-auto">14.2 一键出片（<code>mode: auto</code>）<a class="headerlink" href="#142-一键出片mode-auto" title="Permanent link">¶</a></h3>
 <ul>
 <li><code>POST /api/projects</code> 增加 <code>mode: "guided" | "auto"</code>（默认 <code>guided</code>，老客户端不变）和 <code>style_tags: list[str]</code>（≤ 6 条，每条 ≤ 12 字；进提方向与写脚本的上下文，不改 brief 原文）；<code>projects.mode</code>、<code>projects.style_tags</code> 新列（迁移 0010）；<code>ProjectOutput</code> 与 <code>state</code> 回 <code>mode</code> 与 <code>style_tags</code>。</li>
-<li><code>GET /api/quotes/auto</code> → <code>{estimate_points, breakdown: [{label, points}]}</code>：预览 3 张 + 正式出图 3 张（含自动修一版 20%）+ 视频 1 条，按 <code>costs.py</code> 估算（当前约 48 点）。App 在"开拍"按钮上显示它。</li>
+<li><code>GET /api/quotes/auto</code> → <code>{estimate_points, breakdown: [{label, points}]}</code>：预览 9 张（每方向 3 张，45 点）+ 正式出图 3 张（含自动修一版 20%，18 点）+ 视频 1 条（15 点），按 <code>costs.py</code> 估算（当前约 78 点，比单图预览方案增加 30 点）。App 在"开拍"按钮上显示它。</li>
 <li>auto 行为（服务端）：三个人在回路点自动走默认——方向取 <code>propose_directions</code> 标记的 <code>recommended: true</code> 那个（模型按 style_tags 与 brief 推荐，缺省第 1 个）；脚本写完立即确认并入队出图；出图完成后自动采用全部 v1（封面 = 封面锚点，跳过核对失败的版本）→ 写笔记 → 自动确认视频 → 视频完成 → <code>done</code>。任何一步失败（任务 failed、点数不够、模型错误）停在当前阶段，<code>mode</code> 转回 <code>guided</code>，发一条主动消息说明停在哪、为什么、下一步怎么做。</li>
 <li><code>state.auto: {active: bool, step: "directions"|"script"|"images"|"note"|"video"|"done", label: string, started_at, estimate_points}</code>；auto 进行中 <code>pending_action</code> 始终为 <code>null</code>，每步切换发一条主动消息（和出图完成的主动消息同一通道）。</li>
 <li><code>POST /api/projects/{id}/mode {mode: "guided"}</code>：从下一个人在回路点起停下等用户，已在跑的任务不取消；回 <code>state</code>。auto 中用户仍可发消息，<code>chat</code> 正常；<code>ALLOWED_TOOLS</code> 不变。</li>
@@ -672,6 +707,7 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <li>入队出图前，把每个镜头扩写成摄影脚本再交给图像模型：焦段（35/50mm）、光线（自然光 / 直闪 / 逆光 / 窗光）、构图（不居中、半身裁切、低角度、前景遮挡）、瞬间（走动、整理衣角、不看镜头）、质感（胶片颗粒、轻微动态模糊、真实皮肤纹理、不磨皮）；明确写"不要棚拍白底、不要对称居中、不要塑料感皮肤"。<code>style_tags</code> 各自映射一套摄影语言（见 14.5 词条表）；有参考图时参考图的构图与光线作为锚点优先。</li>
 <li>扩写结果写进 job payload 的 <code>photo_prompt</code>，管理端队列可见；衣服还原相关的描述不动。</li>
 </ul>
+<p>提示词七字段结构：<code>server/app/prompting.py</code> 统一按「人物 / 服装 / 场景 / 光线 / 镜头 / 构图 / 姿势」顺序生成，每字段一句，以中文分号分隔，最后保留「要求」段约束吊牌与包装去除、真实皮肤质感和无文字水印。人物带本人身份或成年虚构模特描述及档案偏好；服装带原衣服特征与脚本确认的整套搭配；参考图的场景、光线和构图进入各自字段，封面锚点补充在人物字段。方向预览、正式出图、改图与自动还原修图均保存字符串 <code>prompt</code> 和七字段字典 <code>prompt_fields</code>；<code>photo_prompt</code> 保存 <code>focal / light / composition / moment / texture</code> 结构化摄影参数，管理端沿用文本展示并兼容旧任务字符串。改图指令留在末尾要求段，并明确优先于原镜头描述。</p>
 <h3 id="144-离开再回来进度与通知">14.4 离开再回来：进度与通知<a class="headerlink" href="#144-离开再回来进度与通知" title="Permanent link">¶</a></h3>
 <ul>
 <li><code>GET /api/projects</code> 每项增加 <code>progress: {status: "waiting_you"|"generating"|"ready"|"done"|"failed"|"idle", label: string, running: int, total: int, updated_at}</code>，label 中文短句："出图中 2/3""等你确认脚本""改图中""笔记已就绪，等你看""视频生成中""全套已出好""出图失败，点开看看"。</li>
@@ -780,15 +816,77 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <li>衣服复用：<code>POST /api/projects</code> 的 <code>garment_asset_ids</code> 可引用本人任何 <code>kind=garment</code> 资产，不限制必须是本次上传（现有校验已满足，补测试固定这一行为）。</li>
 <li>注销（§15）清理本人全部资产时一并覆盖本节新增的副本。</li>
 <li>迁移：不加表；<code>in_profile</code> 与 <code>name</code> 由现有字段推导，<code>0012</code> 仅在需要索引时新增。</li>
+<li>衣服标签：<code>GET /api/me/assets?kind=garment</code> 每项新增 <code>tags: string[]</code>，从已有 <code>analysis</code> 的品类、颜色、季节、风格提取至多 6 个去重短词（单词不超过 12 字，缺失或无效字段不补造）；兼容 <code>category / color / season / seasons / style_tags / style</code> 及中文键。<code>&amp;tag=</code> 按完整标签筛选后再计算 <code>total</code> 与分页，保留本人归属及隐藏状态限制。<code>GET /api/me/assets/tags?kind=garment</code> → <code>{items: [{tag, count}]}</code>，数量按衣服去重，按数量倒序排列；未分析的衣服返回空标签。直接从本人分析数据计算，不增表或修改原分析。</li>
 </ul>
 <h3 id="182-app">18.2 App<a class="headerlink" href="#182-app" title="Permanent link">¶</a></h3>
 <ul>
 <li>图片查看器与挑图页的动作区加「存为我的模特」：成功后角标「已在我的模特」，再次点击不重复存（幂等）。旧服务端 404 → 隐藏该动作。</li>
 <li>新页面「素材库」（路由 <code>/assets</code>，设置页与首页头部各一个入口）：四段 <code>我的模特 / 我的衣服 / 我的成片 / 我的短片</code>，3:4 网格。短片：<code>GET /api/me/assets?kind=video</code> 列出生成成功、项目未删除的短片，带 <code>poster_url</code>（首帧）；封面带播放角标，点开直接播放，「回到这组片」；不在素材库删除（409，随项目）。模特：设为默认（移到 <code>model_asset_ids</code> 首位，<code>PATCH /api/me</code>）、删除（二次确认）、来源标签"上传 / 成片"；衣服：「用这件拍一组新片」跳到新建页并预填；成片：点开看大图、「回到这组片」。空态文案见 §14.5 口径（"拍过的片都会留在这里"）。</li>
 <li>「拍一组新片」：出镜的人一栏已列档案照片，加来源标签；衣服一栏加「从我的衣服里选」，不必再传一遍。</li>
+<li>「我的衣服」顶部横向 <code>Chip</code> 标签行显示名称与数量，点选后服务端筛选，再点取消；切换分类清空筛选。「从我的衣服里选」对完整分页取回的衣服使用同一标签匹配逻辑，支持相同操作，保留已选衣服的禁用状态与新建页预填。</li>
 <li>词汇：用户看到的是「素材库 / 我的模特 / 我的衣服 / 我的成片 / 我的短片」，不出现"资产 / asset"。</li>
 </ul>
 <h3 id="183-约束">18.3 约束<a class="headerlink" href="#183-约束" title="Permanent link">¶</a></h3>
 <ul>
 <li>只增不改：旧接口与字段语义不变；所有删除二次确认；文件删除在事务提交后执行，失败记日志不回滚。</li>
+</ul>
+<h2 id="19-模特身份卡多图参考与人像一致性">19. 模特：身份卡、多图参考与人像一致性<a class="headerlink" href="#19-模特身份卡多图参考与人像一致性" title="Permanent link">¶</a></h2>
+<p>规划内的一轮：把 §18 的模特照片提升为可复用的身份卡，兼容旧资产与旧项目。</p>
+<h3 id="191-表与迁移">19.1 表与迁移<a class="headerlink" href="#191-表与迁移" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>models</code>：<code>id</code>、<code>user_id</code>（预置为空）、<code>name</code>、<code>kind</code>（<code>preset / own / generated / trained</code>）、<code>status</code>（<code>queued / building / ready / failed / deleted</code>）、<code>identity_text</code>、<code>face_asset_id</code>、<code>sheet_asset_ids</code>、<code>created_at</code>。</li>
+<li><code>sheet_asset_ids</code> 按「正脸、全身正面、四分之三侧身、半身微笑」保存，包含正脸本身；接口另返回逐角度的 <code>sheets</code> 与 <code>missing</code>。单照片旧模特也可用，缺失角度明确标记。</li>
+<li>Alembic <code>0012</code> 新建表，<code>projects</code> 追加可空 <code>model_id</code>，保留 <code>model_asset_id</code>。预置图片的 <code>assets.user_id</code> 可空；独立建卡任务的 <code>jobs.project_id</code> 可空，不生成虚假的片场项目。现有数据和旧项目引用保留。</li>
+<li>首次读列表时，将 <code>users.profile.model_asset_ids</code> 与已存成片模特迁移为 <code>own / generated</code>，一张照片一位模特；确定性编号与用户级事务锁保证重复读取安全。补角度图片不再迁成独立模特；删除墓碑阻止旧照片再次冒出。</li>
+<li>API 启动时幂等写入 3 位衣序预置及 12 张本地身份卡图片。固定路径 <code>server/app/fixtures/models/preset-{a,b,c}-{face,full,three-quarter,half}.jpg</code>，当前为 mock provider 占位图，正式图可同名替换。预置图使用正常签名媒体链接，缩略图缓存写入媒体目录。</li>
+</ul>
+<h3 id="192-接口与确认">19.2 接口与确认<a class="headerlink" href="#192-接口与确认" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>输入 / 结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /api/me/models</code></td>
+<td><code>{items, total}</code>：公共预置与本人模特，含正脸 <code>face</code>、身份描述、逐角度 <code>sheets</code>、<code>missing</code>、<code>job_id</code>、<code>error</code> 与状态</td>
+</tr>
+<tr>
+<td><code>POST /api/me/models/quote</code></td>
+<td><code>{asset_ids: [正脸, 全身?, 侧身?, 半身?], name?}</code>，1–4 张有序本人模特照片；返回补齐张数、预估点数上限、明细与有效 15 分钟的 <code>confirmation_token</code></td>
+</tr>
+<tr>
+<td><code>POST /api/me/models</code></td>
+<td>原输入 + <code>confirmation_token</code>，返回 202 模特与独立 <code>identity</code> 任务；确认绑定账号、照片顺序、名字与看图/出图模型配置，同一确认幂等</td>
+</tr>
+<tr>
+<td><code>DELETE /api/me/models/{id}</code></td>
+<td>204；只可移除本人模特，建卡中或正被未删除片场引用时 409，预置不能删除</td>
+</tr>
+<tr>
+<td><code>POST /api/projects</code></td>
+<td>新增 <code>model_id</code>，两种引用同时传时以身份卡为准，并将正脸写回兼容字段；校验所有权与 ready 状态</td>
+</tr>
+<tr>
+<td><code>GET /api/jobs/{id}</code></td>
+<td>支持 <code>kind=identity</code>、<code>project_id=null</code>，只能读取本人任务</td>
+</tr>
+</tbody>
+</table>
+<p>删除模特保留原始素材与已拍成片，通过墓碑隐藏；旧素材删除接口遇到已迁成身份卡的模特也采用隐藏，保留身份卡引用。注销账号仍清理本人模特记录、独立建卡任务与媒体，保留公共预置。</p>
+<h3 id="193-任务与计费">19.3 任务与计费<a class="headerlink" href="#193-任务与计费" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>identity</code> 先用看图模型写脸型、眉眼、鼻唇、肤色、发型发色、身高体态及大致成年年龄段，不确定处保留未知；再按顺序补缺失角度，最多生成 3 张，每张沿用出图账本与预算预留。</li>
+<li>每一步完成即提交，保留已完成描述、角度与用量；失败显示原因。沿用租约心跳；真实请求结果未知时停止，避免重复付费。管理端可查看、取消排队任务，对明确失败任务重试；未知付费请求禁止重试。</li>
+<li>App 以第一张清晰正脸为参考，先预估补齐 3 张图及看图描述的点数上限，再明确确认。离开不影响任务，返回能继续查看进度。两类用量均归属本人，mock 实际扣点为零。</li>
+</ul>
+<h3 id="194-多图参考与一次修复">19.4 多图参考与一次修复<a class="headerlink" href="#194-多图参考与一次修复" title="Permanent link">¶</a></h3>
+<ul>
+<li>正式出图参考固定：正脸 → 全身 → 有的话侧身 → 本镜衣服 → 非封面的封面成片，人物段加入 <code>identity_text</code>。半身图保存在完整身份卡中，为衣服与封面保留参考图余量。旧项目继续以单张 <code>model_asset_id</code> 参考。</li>
+<li>改图以待修原图为首张，再带正脸、衣服与封面；局部改以末张裁剪块为唯一编辑画布，同时携带正脸与人物描述。</li>
+<li>还原分低于 60 的规则保留；<code>person_score &lt; 70</code> 同样进入 <code>_auto_fix</code>，复用确定性任务编号、单次上限和预算门禁。人物修复另加入本项目同一模特已完成版本中人像分最高的成片；原版与新版均保留，不递归重出。</li>
+<li>汇报给出人像分，仍低于 70 时提示核对。App 默认选图排除低分版本；全自动仅在身份修复达标后采用新版，否则交回手动选图。服装分与普通手动改图的既有入稿规则保留。</li>
+<li>超过所选图片模型参考图上限时明确报错，不能静默丢掉人物或服装。正式人像质量和六张整组片分数需后续付费验收记录，本轮仅以本机 mock 验证机制。</li>
 </ul></main></div></body></html>

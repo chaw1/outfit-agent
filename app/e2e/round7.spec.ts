@@ -157,8 +157,8 @@ test('第七轮：参考图上限、删除再加、人像与封面锚点贯穿�
   const selectedReferenceIds = [firstReferences[0].id, firstReferences[2].id, replacement.id];
   await expect(page.getByTestId(`reference-asset-${replacement.id}`)).toBeVisible();
   await screenshot(page, '67-references-remove-and-replace.png', page.getByTestId('reference-count'));
-  await context.upload(page.getByRole('button', { name: '上传我的照片', exact: true }), ['round7-portrait']);
-  await expect(page.getByRole('button', { name: '更换我的照片', exact: true })).toBeEnabled();
+  await context.upload(page.getByRole('button', { name: '上传本次的本人照片', exact: true }), ['round7-portrait']);
+  await expect(page.getByRole('button', { name: '移除本次照片', exact: true })).toBeEnabled();
   await expect.poll(() => context.uploaded.filter(asset => asset.kind === 'model').length).toBe(1);
   const model = context.uploaded.find(asset => asset.kind === 'model')!;
   const { project, input } = await context.create();

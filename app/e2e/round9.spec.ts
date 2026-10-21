@@ -149,7 +149,7 @@ test('第九轮：片场入口、两种模式、风格换批与全自动图文�
     await page.getByRole('button', { name: '知道了', exact: true }).click();
     await page.getByTestId('mode-auto').click();
     await expect(page.getByTestId('mode-description')).toHaveText('交给我们，全套图文和视频一次出好，中途可以接手。');
-    await expect(page.getByTestId('start-shooting')).toHaveAttribute('aria-label', '开拍，全自动 · 约 48 点');
+    await expect(page.getByTestId('start-shooting')).toHaveAttribute('aria-label', '开拍，全自动 · 约 78 点');
     await page.getByRole('button', { name: '了解一键出片', exact: true }).click();
     await screenshot(page, '94-new-auto-explanation.png');
     await page.getByRole('button', { name: '知道了', exact: true }).click();

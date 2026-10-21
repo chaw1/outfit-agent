@@ -87,7 +87,7 @@ test('第六轮：每轮过程、同 id 换方向卡与付费前预估贯穿本�
   expect(changed.directions.length).toBeLessThanOrEqual(3);
   await expect(page.getByTestId(`card-${directionCard!.id}`)).toHaveCount(1);
   for (const original of initial.directions) await expect(page.getByRole('button', { name: `选择方向：${original.name}`, exact: true })).toHaveCount(0);
-  await expect(page.getByTestId(`preview-image-${changedDirection.id}`)).toBeVisible();
+  await expect(page.getByTestId(`preview-image-${changedDirection.previews![0].id}`)).toBeVisible();
   await expect.poll(async () => (await state()).active_jobs.length).toBe(0);
   await screenshot(page, '54-regenerated-directions-preview.png', page.getByTestId(`direction-${changedDirection.id}`));
   await page.getByTestId(`direction-${changedDirection.id}`).click();

@@ -72,31 +72,32 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await (await chooser).setFiles([path.resolve('../docs/spike/inputs.jpg'), path.resolve('../docs/spike/t-wan-v.jpg')]);
   await expect(page.getByRole('button', { name: '移除衣服图 2' })).toBeVisible();
   const modelChooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: '上传我的照片', exact: true }).click();
+  await page.getByRole('button', { name: '上传本次的本人照片', exact: true }).click();
   await (await modelChooser).setFiles(path.resolve('../docs/spike/inputs.jpg'));
-  await expect(page.getByRole('button', { name: '更换我的照片', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '移除本次照片', exact: true })).toBeVisible();
   await shot(page, '03-new-project-uploaded.png', page.getByTestId('upload-garments'));
   await page.getByRole('button', { name: '开拍，先聊灵感', exact: true }).click();
   const direction = page.getByTestId('direction-direction_city');
   await expect(direction).toBeVisible();
-  await expect(page.getByTestId('preview-placeholder-direction_city')).toBeVisible();
   await shot(page, '19-direction-preview-generating.png', direction);
-  await expect(page.getByTestId('preview-image-direction_city')).toBeVisible();
-  await expect(page.getByText('三个方向的灵感预览图都准备好了，看看哪种感觉更像你。')).toBeVisible();
+  await expect.poll(() => latestState?.directions.find(option => option.id === 'direction_city')?.previews?.[0]?.id).toBeTruthy();
+  const cityPreviewId = latestState!.directions.find(option => option.id === 'direction_city')!.previews![0].id;
+  await expect(page.getByTestId(`preview-image-${cityPreviewId}`)).toBeVisible();
+  await expect(page.getByText('每个方向的三张灵感图都准备好了，左右滑动挑一张喜欢的。')).toBeVisible();
   await shot(page, '04-garments-and-directions.png', direction);
   // 以契约内 failed 响应检查失败占位，随后恢复正常服务响应。
   await page.route('**/api/projects/*/state', async route => {
     const response = await route.fetch();
     const state = await response.json() as ProjectState;
-    state.directions = state.directions.map(option => option.id === 'direction_city' ? { ...option, preview_status: 'failed', preview_url: undefined } : option);
+    state.directions = state.directions.map(option => option.id === 'direction_city' ? { ...option, preview_status: 'failed', preview_url: undefined, previews: option.previews?.map(preview => ({ ...preview, status: 'failed' as const, url: undefined })) } : option);
     await route.fulfill({ response, json: state });
   });
   await page.getByRole('button', { name: '刷新项目', exact: true }).click();
-  await expect(page.getByText('灵感图暂时没成功，可先按文字选方向')).toBeVisible();
+  await expect(page.getByText('这张灵感图暂时没成功').first()).toBeVisible();
   await shot(page, '24-direction-preview-failed.png', direction);
   await page.unroute('**/api/projects/*/state');
   await page.getByRole('button', { name: '刷新项目', exact: true }).click();
-  await expect(page.getByTestId('preview-image-direction_city')).toBeVisible();
+  await expect(page.getByTestId(`preview-image-${cityPreviewId}`)).toBeVisible();
   // 自由文本也经过同一 SSE 入口，随后再执行明确确认。
   await page.getByTestId('chat-input').fill('希望整体再松弛一点。');
   await page.getByTestId('send-message').click();
@@ -212,11 +213,12 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   const firstId = interactions.firstId;
   await expect(page.getByTestId('approve-images')).toBeEnabled();
   const selectedIds = await page.getByTestId(/^move-up-/).evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')!.replace('move-up-', '')));
-  // 默认选最新版本；向后移动封面，验证发送的图片顺序会被保留。
+  // 默认选最新版本；主图固定在第一位，把第二张往后移，验证发送的图片顺序会被保留。
   expect(selectedIds.length).toBeGreaterThanOrEqual(3);
-  const firstSortDown = page.getByTestId(/^move-down-/).first();
-  await firstSortDown.click();
+  await expect(page.getByTestId(/^move-down-/).first()).toBeDisabled();
+  await page.getByTestId(/^move-down-/).nth(1).click();
   const orderedIds = await page.getByTestId(/^move-up-/).evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')!.replace('move-up-', '')));
+  expect(orderedIds).toEqual([selectedIds[0], selectedIds[2], selectedIds[1], ...selectedIds.slice(3)]);
   await shot(page, '10-selected-order.png', page.getByTestId('approve-images'));
   const noteResponse = page.waitForResponse(async response => response.url().endsWith('/state') && response.request().method() === 'GET' && response.ok() && Boolean((await response.json() as ProjectState).note));
   await page.getByTestId('approve-images').click();
