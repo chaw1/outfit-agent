@@ -2,6 +2,17 @@
 
 Expo SDK 58、expo-router、strict TypeScript 的 iOS / Android / web 演示应用。唯一接口约定是 [`../docs/设计.md`](../docs/设计.md)（图片交互见第 8 节），真实联调任务见 [`../docs/codex/APP_LIVE_PROMPT.md`](../docs/codex/APP_LIVE_PROMPT.md)，实际结论见本地 `LIVE.md`。假服务可以完整演示品牌合作项目、衣服分析、方向预览、脚本历史与恢复、图片还原分、改图版本、成本、笔记和短视频，不调用真实模型。
 
+## 主要页面
+
+| 页面 | 路由 | 用途 |
+| --- | --- | --- |
+| 我的片场 | `/` | 灵感墙与项目列表 |
+| 拍一组新片 | `/projects/new` | 上传或复用衣服、选择出镜照片 |
+| 素材库 | `/assets` | 我的模特 / 我的衣服 / 我的成片 |
+| 编导间 | `/projects/[id]` | 对话、选图与改图 |
+| 笔记预览 | `/preview/[id]` | 编辑图文、保存与发布准备 |
+| 设置 | `/settings` | 形象档案、素材库入口与账号设置 |
+
 ## 第九轮：片场、点数与一键出片
 
 本轮只按 `docs/设计.md` 第 14 节接入。首页、登录、引导和新建页使用共享 `studio` 色板；编导间、查看器、局部改图、笔记草稿与预览延续既有交互。首页灵感墙来自 `assets/inspiration/studio-01..10.jpg`，两列展示，点图放大；底部“拍一组新片”固定可达。
@@ -240,3 +251,22 @@ PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers" E2E_WEB_PORT=19400 E2E_MOCK_PORT
 ```
 
 新增 `e2e/round10.spec.ts` 和恢复码、同意存储、首次门控、账号接口及假服务单测；截图从 `screenshots/110-` 起，逐项验证记录在 `verification/round10/`。`e2e/live.spec.ts` 仅调整注册阶段以接受隐私、勾选协议和确认恢复码；本轮未运行 live 或调用线上模型。
+
+## 第十二轮：素材库
+
+按设计第 18 节接入素材库。成片卡片与图片查看器均可“存为我的模特”，成功后显示“已在我的模特”；同一成片重复保存复用同一份副本。素材库从首页头部或设置进入，使用深色片场主题与 3:4 网格，提供加载、空态、分页和重试。
+
+“我的模特”显示上传 / 成片来源，可设为默认出镜或二次确认后删除；“我的衣服”可直接带到新建页预填，已被项目使用的衣服删除时显示项目名称；“我的成片”可放大查看并回到来源项目。新建页“从我的衣服里选”直接复用已有衣服 ID，档案照片显示来源并沿用默认顺序。
+
+本地假服务新增 `POST /api/me/models/from-image`、`GET /api/me/assets` 和 `DELETE /api/me/assets/{id}`，覆盖本人隔离、20 张上限、文件副本与幂等。删除来源项目会保留已存的模特，注销会清理副本。素材库接口返回 404 时隐藏首页、设置、保存与衣服选择入口。可用 `MOCK_LEGACY_ASSETS=1 npm run mock` 模拟此类旧服务。
+
+`metro.config.js` 将 `/assets` 的页面 HTML 请求交给 Expo 的网页路由处理，支持直接打开与刷新；具体媒体文件和原生 bundle 继续沿用默认处理。CI 模式 Metro 不监听源码变化，复用服务前应先重启；Playwright 自建服务会在测试结束后关闭。
+
+本地验证（Node 22，`app/` 下）：
+
+```sh
+npm run verify
+E2E_WEB_PORT=19642 E2E_MOCK_PORT=19643 npx playwright test
+```
+
+新增 `tests/assets.test.ts` 和 `e2e/round12.spec.ts`，覆盖两处保存、幂等、默认出镜、无上传复用衣服、预填、删除确认、引用保护、成片大图、直接访问与刷新、加载/空态及 GET/POST 404 降级。截图为 `screenshots/140-` 至 `152-`，检查可见用词、3:4 与 44px 触控尺寸；脱敏证据为 `screenshots/round12-evidence.json`，本地逐项日志在 `verification/round12/`。本轮仅验证本地假服务与平台导出，未运行 live 或原生真机验收。
