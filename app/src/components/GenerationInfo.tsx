@@ -21,7 +21,7 @@ export function ImageRevisionInfo({ image }: { image: OutfitImage }) {
   return <View style={styles.revision}>
     {image.fidelity?.auto_fixed ? <View testID={`auto-fixed-${image.id}`} style={styles.fixed}><Badge label="已自动修一版" tone="success" /></View> : null}
     {image.instruction ? <Text style={styles.detail}>{image.instruction}</Text> : null}
-    {image.edit_check ? <View style={styles.check}><Ionicons name={image.edit_check.passed ? 'checkmark-circle-outline' : 'alert-circle-outline'} size={15} color={image.edit_check.passed ? colors.green : colors.danger} /><Text testID={`edit-check-${image.id}`} style={[styles.detail, styles.checkText, { color: image.edit_check.passed ? colors.green : colors.danger }]}>{image.edit_check.passed ? '已按要求改好' : '可能没改到位'}：{image.edit_check.reason}</Text></View> : null}
+    {image.edit_check ? <View style={styles.check}><Ionicons name={image.edit_check.passed ? 'checkmark-circle-outline' : 'alert-circle-outline'} size={15} color={image.edit_check.passed ? colors.green : colors.danger} /><Text testID={`edit-check-${image.id}`} style={[styles.detail, styles.checkText, { color: image.edit_check.passed ? colors.green : colors.danger }]}>{image.edit_check.passed ? '已按要求改好' : `可能没改到位：${image.edit_check.reason}`}</Text></View> : null}
   </View>;
 }
 

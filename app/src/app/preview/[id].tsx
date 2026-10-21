@@ -36,7 +36,7 @@ function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url
     <Text style={styles.placeholderText}>图片暂时没能加载</Text>
     <Pressable accessibilityRole="button" accessibilityLabel={`重新加载第 ${index + 1} 张图片`} testID={`retry-preview-${id}`} onPress={() => { setFailedUrl(undefined); onRefresh(); }}><Text style={{ ...type.caption, color: colors.redText, padding: space.md, minHeight: 44 }}>重新加载</Text></Pressable>
   </View>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} disabled={disabled} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.82 : 1 }]}><FadeImage source={{ uri: previewUrl(url, 720) }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} disabled={disabled} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.82 : 1 }]}><FadeImage source={{ uri: previewUrl(url, 1080) }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /></Pressable>;
 }
 
 export default function NotePreview() {

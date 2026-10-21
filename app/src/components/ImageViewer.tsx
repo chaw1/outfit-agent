@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { ActivityIndicator, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, ClipPath, Defs, G, Polyline, Rect } from 'react-native-svg';
 import type { Action, ImageRegion, OutfitImage, PendingAction, Stage } from '../api/types';
 import { prepareEditSubmission, rejectedResult, reusedResult, type EditSubmission } from '../lib/editAttempt';
@@ -382,6 +382,8 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
     feedback();
   }
 
+  // 全屏 Modal 里顶部安全区按主树的 insets 手动留，否则真机上关闭按钮会压在状态栏下。
+  const insets = useSafeAreaInsets();
   if (!current) return null;
   const currentImage = <FadeImage key={current.url} source={{ uri: previewUrl(current.url, 1080) }} style={StyleSheet.absoluteFill} resizeMode="contain" accessibilityLabel={`镜头 ${shotNumber} 第 ${current.version} 版`} onLoad={event => {
     const source = event.nativeEvent.source;
@@ -393,7 +395,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
   return <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={confirmationOverlay ? onDismissConfirmation : onClose}>
     <GestureHandlerRootView style={styles.root}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.root} testID="image-viewer" edges={['top', 'bottom']} accessibilityElementsHidden={Boolean(confirmationOverlay)} importantForAccessibility={confirmationOverlay ? 'no-hide-descendants' : 'auto'}>
+      <SafeAreaView style={[styles.root, { paddingTop: insets.top }]} testID="image-viewer" edges={['bottom']} accessibilityElementsHidden={Boolean(confirmationOverlay)} importantForAccessibility={confirmationOverlay ? 'no-hide-descendants' : 'auto'}>
         <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.header}>
             <Pressable testID="viewer-close" accessibilityRole="button" accessibilityLabel="关闭图片查看器" onPress={() => { feedback(); onClose(); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="close" size={24} color={colors.white} /></Pressable>
@@ -447,7 +449,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
             {pending && !pendingImage ? <View testID="viewer-pending-version" style={styles.version}><View style={styles.versionPlaceholder}><ActivityIndicator size="small" color={colors.red} /></View><Badge tone="inverse" label="新版本 · 排队中" /></View> : null}
           </ScrollView> : null}
 
-          {!compactKeyboard ? (check ? <View testID={`viewer-edit-check-${current.id}`} style={[styles.check, !check.passed && styles.checkFailed]}><Text style={[styles.checkText, !check.passed && styles.checkFailedText]}>{check.passed ? '✓ 已按要求改好' : '可能没改到位'}：{check.reason}</Text>{!check.passed ? <View style={styles.checkActions}><Pressable accessibilityRole="button" testID="viewer-retry-edit" accessibilityLabel="再试一次" disabled={generationBusy || !canEdit || !current.parent_id || !current.instruction} onPress={() => { void sendEdit(retryAction()); }} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>再试一次</Text></Pressable><Pressable accessibilityRole="button" testID="viewer-rephrase-edit" accessibilityLabel="换个说法" disabled={generationBusy || !canEdit} onPress={rephrase} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>换个说法</Text></Pressable></View> : null}</View> : current.instruction ? <Text numberOfLines={2} style={styles.instructionCaption}>{current.instruction}</Text> : null) : null}
+          {!compactKeyboard ? (check ? <View testID={`viewer-edit-check-${current.id}`} style={[styles.check, !check.passed && styles.checkFailed]}><Text style={[styles.checkText, !check.passed && styles.checkFailedText]}>{check.passed ? '✓ 已按要求改好' : `可能没改到位：${check.reason}`}</Text>{!check.passed ? <View style={styles.checkActions}><Pressable accessibilityRole="button" testID="viewer-retry-edit" accessibilityLabel="再试一次" disabled={generationBusy || !canEdit || !current.parent_id || !current.instruction} onPress={() => { void sendEdit(retryAction()); }} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>再试一次</Text></Pressable><Pressable accessibilityRole="button" testID="viewer-rephrase-edit" accessibilityLabel="换个说法" disabled={generationBusy || !canEdit} onPress={rephrase} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>换个说法</Text></Pressable></View> : null}</View> : current.instruction ? <Text numberOfLines={2} style={styles.instructionCaption}>{current.instruction}</Text> : null) : null}
           {error ? <Text testID="viewer-error" accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           {reusedNotice ? <Text testID="viewer-reused" accessibilityRole="status" style={styles.instructionCaption}>{reusedNotice}</Text> : null}
           {!editing && onAdopt ? <View style={styles.adoptionRow}><ToolButton title={adoptedImageIds.includes(current.id) ? stage === 'note' ? '笔记正在用这版' : '已选这版' : stage === 'note' ? '采用此版本到笔记' : check?.passed === false ? '仍然采用' : '选用此版本'} testID="viewer-adopt-version" disabled={generationBusy || adopting || adoptedImageIds.includes(current.id)} onPress={() => {

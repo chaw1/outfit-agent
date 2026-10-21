@@ -240,11 +240,12 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
   const [videoImageId, setVideoImageId] = useState<string | null>(null);
   const [reselecting, setReselecting] = useState(false);
   const selectedImageId = videoImageId && note.image_ids.includes(videoImageId) ? videoImageId : note.image_ids[0];
-  const mayMakeVideo = state?.mode !== 'auto' && !state?.video && (!state || state.pending_action?.type === 'confirm_video' || (state.pending_action === undefined && state.stage === 'note'));
+  // 已有短片时，只要服务端把确认挂起来（用户说“再做一条”），同样显示选图确认。
+  const mayMakeVideo = state?.pending_action?.type === 'confirm_video' || (state?.mode !== 'auto' && !state?.video && (!state || (state.pending_action === undefined && state.stage === 'note')));
   return <View style={styles.card}>
     <CardHeading icon="document-text-outline" title="笔记写好了" detail="READY TO POST" />
     <Text style={styles.noteTitle}>{note.title}</Text>
-    <Text numberOfLines={6} style={styles.noteBody}>{note.body}</Text>
+    <Text numberOfLines={3} style={styles.noteBody}>{note.body}</Text>
     <View style={styles.tags}>{note.tags.map((tag) => <View key={tag} style={styles.noteTag}><Text style={styles.noteTagText}>#{tag.replace(/^#/, '')}</Text></View>)}</View>
     <NoteDisclosure note={note} projectCost={state?.cost_cny} projectPoints={state?.cost_points} testIDPrefix="card-note" />
     <Button title="打开笔记预览" onPress={onPreview} testID="preview-note" icon="open-outline" />
@@ -253,13 +254,13 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
       {reselecting ? <ImageGrid items={state.images} state={state} busy={busy} onAction={onAction} /> : null}
     </> : null}
     {mayMakeVideo && note.image_ids.length > 0 ? <View style={styles.videoPrompt}>
-      <View style={styles.rowBetween}><Text style={styles.sortTitle}>再让穿搭动起来？</Text><Text style={styles.optional}>可选 · 5 秒短视频</Text></View>
+      <View style={styles.rowBetween}><Text style={styles.sortTitle}>{state?.video ? '再做一条短片？' : '再让穿搭动起来？'}</Text><Text style={styles.optional}>可选 · 5 秒短视频</Text></View>
       <Text style={styles.intro}>选一张作为视频画面，确认后开始生成。</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.videoSources}>
         {note.image_ids.map((id, index) => {
           const image = state?.images.find((item) => item.id === id);
           return <View key={id} style={[styles.videoSource, id === selectedImageId && styles.videoSourceSelected]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`查看第 ${index + 1} 张视频源图`} testID={`video-source-view-${id}`} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)}>{image?.url ? <FadeImage source={{ uri: image.url }} style={styles.videoSourceImage} /> : <View style={[styles.videoSourceImage, styles.sourcePlaceholder]}><Icon name="image-outline" size={20} /></View>}</Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`查看第 ${index + 1} 张视频源图`} testID={`video-source-view-${id}`} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)}>{image?.url ? <FadeImage source={{ uri: previewUrl(image.url, 360) }} style={styles.videoSourceImage} /> : <View style={[styles.videoSourceImage, styles.sourcePlaceholder]}><Icon name="image-outline" size={20} /></View>}</Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel={`选择第 ${index + 1} 张生成视频`} accessibilityState={{ selected: id === selectedImageId }} testID={`video-source-${id}`} onPress={() => { feedback(); setVideoImageId(id); }} style={styles.sourceChoice}><Text style={styles.sourceChoiceText}>{id === selectedImageId ? '✓ 已选' : '选这张'}</Text></Pressable>
           </View>;
         })}
@@ -289,12 +290,43 @@ function VideoRetry({ state, busy, onAction }: {
     <Text style={styles.intro}>图文笔记已经保留，确认后只重新制作短片。</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.videoSources}>
       {images.map((image, index) => <View key={image.id} style={[styles.videoSource, image.id === selected && styles.videoSourceSelected]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`查看第 ${index + 1} 张视频源图`} onPress={() => interaction.open(image.id)} onLongPress={() => interaction.menu(image.id)}><FadeImage source={{ uri: image.url }} style={styles.videoSourceImage} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`查看第 ${index + 1} 张视频源图`} onPress={() => interaction.open(image.id)} onLongPress={() => interaction.menu(image.id)}><FadeImage source={{ uri: previewUrl(image.url, 360) }} style={styles.videoSourceImage} /></Pressable>
         <Pressable onPress={() => { feedback(); setChosen(image.id); }} disabled={busy} accessibilityRole="button" accessibilityLabel={`选择第 ${index + 1} 张重试视频`} accessibilityState={{ selected: image.id === selected }} testID={`retry-video-source-${image.id}`} style={styles.sourceChoice}><Text style={styles.sourceChoiceText}>{image.id === selected ? '✓ 已选' : '选这张'}</Text></Pressable>
       </View>)}
     </ScrollView>
     <CostEstimate state={state} action="confirm_video" />
     <Button title="确认重试短视频" secondary icon="refresh" disabled={Boolean(busy) || !selected || confirmationCost(state, 'confirm_video')?.insufficient} testID="retry-video" onPress={() => { if (selected) onAction({ type: 'confirm_video', image_id: selected }); }} />
+  </View>;
+}
+
+function VideoCard({ card, state, busy, onAction }: {
+  card: Extract<Card, { type: 'video' }>;
+  state?: ProjectState;
+  busy?: boolean;
+  onAction: (action: Action) => void;
+}) {
+  const video = state?.video ?? card;
+  const done = video.status === 'succeeded' && Boolean(video.url);
+  // 对话里只放一行紧凑卡，点了才展开播放，不把聊天内容顶出屏幕。
+  const [playing, setPlaying] = useState(false);
+  return <View style={styles.card}>
+    <CardHeading icon="videocam-outline" title={done ? '穿搭，会动了' : '你的穿搭短片'} detail="5s" />
+    {done && video.url ? (playing ? <VideoPlayer uri={video.url} posterUrl={video.poster_url} autoPlay /> : <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="播放穿搭短视频"
+      testID="play-video"
+      onPress={() => { feedback(); setPlaying(true); }}
+      style={({ pressed }) => [styles.videoCompact, pressed && styles.videoCompactPressed]}
+    >
+      {video.poster_url ? <FadeImage source={{ uri: previewUrl(video.poster_url, 360) }} style={styles.videoThumb} resizeMode="cover" /> : <View style={styles.videoThumb} />}
+      <View style={styles.videoCompactBody}><Text style={styles.videoCompactTitle}>5 秒穿搭短片已出好</Text><Text style={styles.smallText}>轻点播放，完整版在笔记预览里。</Text></View>
+      <View style={styles.videoPlayIcon}><Icon name="play" size={18} color={colors.white} /></View>
+    </Pressable>) : <View style={styles.videoWaiting}>
+      {video.poster_url ? <FadeImage source={{ uri: previewUrl(video.poster_url) }} style={styles.videoPoster} /> : null}
+      <View style={styles.videoWaitingContent}>{video.status === 'failed' ? <><Icon name="alert-circle-outline" size={28} color={colors.danger} /><Text style={styles.videoWaitingTitle}>视频这次没能完成</Text><Text style={styles.smallText}>别担心，笔记和图片都还在。</Text></> :
+ <ProgressStrip title={video.status === 'queued' ? '短片已加入队列' : '正在让画面动起来'} detail="可以先看笔记，视频好了会出现在这里。" />}</View>
+        </View>}
+    {video.status === 'failed' ? <VideoRetry state={state} busy={busy} onAction={onAction} /> : null}
   </View>;
 }
 
@@ -345,19 +377,7 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
         {state?.mode !== 'auto' ? <Button title={confirmed ? '脚本已确认' : '确认脚本，开始出图'} icon="checkmark" onPress={() => onAction({ type: 'confirm_script' })} disabled={!canConfirm} testID="confirm-script" /> : null}
       </View>;
     }
-    if (card.type === 'video') {
-      const video = state?.video ?? card;
-      const done = video.status === 'succeeded' && Boolean(video.url);
-      return <View key={card.id} style={styles.card}>
-        <CardHeading icon="videocam-outline" title={done ? '穿搭，会动了' : '你的穿搭短片'} detail="5s" />
-        {done && video.url ? <VideoPlayer uri={video.url} posterUrl={video.poster_url} /> : <View style={styles.videoWaiting}>
-          {video.poster_url ? <FadeImage source={{ uri: previewUrl(video.poster_url) }} style={styles.videoPoster} /> : null}
-          <View style={styles.videoWaitingContent}>{video.status === 'failed' ? <><Icon name="alert-circle-outline" size={28} color={colors.danger} /><Text style={styles.videoWaitingTitle}>视频这次没能完成</Text><Text style={styles.smallText}>别担心，笔记和图片都还在。</Text></> : <ProgressStrip title={video.status === 'queued' ? '短片已加入队列' : '正在让画面动起来'} detail="可以先看笔记，视频好了会出现在这里。" />}</View>
-        </View>}
-        {video.status === 'failed' ? <VideoRetry state={state} busy={busy} onAction={onAction} /> : null}
-        {done ? <Text style={styles.videoReadyHint}>点击播放，看看这份灵感的另一面。</Text> : null}
-      </View>;
-    }
+    if (card.type === 'video') return <VideoCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} />;
     return null;
   }).map((content, index) => content ? <AnimatedEntry key={cards[index].id} delay={index * 50}><View testID={`card-${cards[index].id}`}>{content}</View></AnimatedEntry> : null)}</View>;
 }
@@ -455,5 +475,10 @@ const styles = StyleSheet.create({
   videoPoster: { position: 'absolute', width: '100%', height: '100%', opacity: 0.16 },
   videoWaitingContent: { padding: space.lg, alignItems: 'center', width: '100%' },
   videoWaitingTitle: { ...typography.body, fontWeight: '600', color: colors.ink, marginTop: space.lg, marginBottom: space.sm },
-  videoReadyHint: { ...typography.caption, color: colors.muted, marginTop: space.md, textAlign: 'center' },
+  videoCompact: { flexDirection: 'row', alignItems: 'center', gap: space.md, backgroundColor: colors.paper, borderRadius: radius.md, padding: space.sm },
+  videoCompactPressed: { opacity: .85 },
+  videoThumb: { width: 64, height: 86, borderRadius: radius.sm, backgroundColor: colors.imagePlaceholder },
+  videoCompactBody: { flex: 1, gap: space.xs },
+  videoCompactTitle: { ...typography.body, fontWeight: '600', color: colors.ink },
+  videoPlayIcon: { width: 40, height: 40, borderRadius: radius.lg, backgroundColor: colors.red, alignItems: 'center', justifyContent: 'center', paddingLeft: space.xs },
 });

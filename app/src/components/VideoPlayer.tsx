@@ -10,9 +10,10 @@ type VideoPlayerProps = {
   uri: string;
   posterUrl?: string;
   testID?: string;
+  autoPlay?: boolean;
 };
 
-export function VideoPlayer({ uri, posterUrl, testID = 'video-player' }: VideoPlayerProps) {
+export function VideoPlayer({ uri, posterUrl, testID = 'video-player', autoPlay = false }: VideoPlayerProps) {
   let identity = uri;
   try {
     const resource = new URL(uri);
@@ -20,11 +21,11 @@ export function VideoPlayer({ uri, posterUrl, testID = 'video-player' }: VideoPl
     resource.searchParams.delete('sig');
     identity = resource.toString();
   } catch { /* 本地媒体路径没有签名参数。 */ }
-  return <VideoSurface key={identity} uri={uri} posterUrl={posterUrl} testID={testID} />;
+  return <VideoSurface key={identity} uri={uri} posterUrl={posterUrl} testID={testID} autoPlay={autoPlay} />;
 }
 
-function VideoSurface({ uri, posterUrl, testID }: VideoPlayerProps) {
-  const [started, setStarted] = useState(false);
+function VideoSurface({ uri, posterUrl, testID, autoPlay }: VideoPlayerProps) {
+  const [started, setStarted] = useState(Boolean(autoPlay));
   const [ready, setReady] = useState(false);
   const [initialUri] = useState(uri);
   const [playbackError, setPlaybackError] = useState(false);
@@ -38,6 +39,7 @@ function VideoSurface({ uri, posterUrl, testID }: VideoPlayerProps) {
 
   // 签名刷新不打断正在播放的同一条视频；加载失败时再用最新地址重试。
   useEffect(() => { latestUri.current = uri; }, [uri]);
+  useEffect(() => { if (autoPlay) player.play(); }, [autoPlay, player]);
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status }) => {
       if (status === 'readyToPlay') { setPlaybackError(false); setReady(true); }
