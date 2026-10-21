@@ -21,6 +21,8 @@ npm run verify
 PLAYWRIGHT_BROWSERS_PATH=$PWD/.tools/browsers npx playwright test
 ```
 
+并行验收时可用 `npx playwright test --output .tools/round9-playwright-results` 隔离产物，避免另一轮测试清理默认 `test-results/`。
+
 新增单测覆盖点数优先/换算、风格换批、进行中排序、六步进度和自动项目离开后的完成追踪。`e2e/round9.spec.ts` 覆盖自动完成、中途接手、点数全文扫描；新增截图从 `screenshots/90-` 起。完整检查证据归档到 `verification/round9/`，交付记录为 `../docs/codex/runs/app-round9-final.txt`。
 
 `e2e/live.spec.ts` 仅按新文案和点数改选择器；`e2e/live-auto.spec.ts` 已编写但本轮不执行。普通 Playwright 配置排除所有 live 用例；live 配置只有显式设置 `LIVE_API_BASE` 才启用，auto 用例上限 10 分钟、每步截图到 `screenshots-live/auto/`，六步证据不齐会明确失败。auto 独立断点放在 `~/Secrets/outfit-agent/`，不复用旧联调凭证，不自动重放已发出的开拍请求。
