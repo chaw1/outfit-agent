@@ -188,3 +188,13 @@ npx eas-cli@latest submit --platform ios --profile production --latest
 ```
 
 TestFlight 需要付费 Apple Developer Program，与前面的免费本机安装是两条独立路径。上线前确认 API、应用标识归属与权限说明，并在 TestFlight 配置测试人员。Android 可用 `npx eas-cli@latest build --platform android --profile production` 生成签名包。本次交付执行了 iOS prebuild，没有执行云构建、签名、上传或付费操作。
+
+## 第八轮：改图结果可信闭环
+
+按设计第 13 节，每个镜头默认选最新的成功且核对通过版本；“未改到位”的新版保留可查看，点“仍然采用”会显示原因确认，选图请求携带 `accept_unverified`。服务端返回 `unverified_image` 时也会确认后重发；预览和发布清单把这些图标为“手动采用”。改图每次提交生成 UUID `attempt`，传输重试复用，明确点“再试一次”或“换个说法”才开始新尝试；`reused=true` 会提示“这次和上次一样，没有重新生成”。
+
+笔记阶段可在查看器“采用此版本到笔记”，或从笔记卡“重新选图”，同镜头替换并保持原顺序；视频与完成阶段维持定稿。草稿记录 SHA-256 来源指纹及 dirty 状态，干净草稿跟随最新笔记，有修改且来源变化时提供“保留我的修改 / 采用新版本”，随时可恢复服务端版本；明确切换前会保留一份可恢复的本机草稿，旧图的“手动采用”标记随草稿保存。
+
+REST 读取、写入、上传分别在 20 / 60 / 120 秒超时，写入不自动重放；创建超时先刷新项目列表再提供人工判断入口，上传显示“第 n/N 张”。方向卡按服务返回的 `regenerate_estimate_cny` 显示“约 ¥x · 含 2–3 张预览”，缺字段时兼容旧服务。首次引导第二页标题改为“正式出图和视频，由你确认”。
+
+本轮验证使用本地假服务：`npm run verify`、`npx playwright test`；新增 `e2e/round8.spec.ts`，截图从 `screenshots/77-` 接续。单测覆盖默认选图、明确采用、新旧 attempt、草稿冲突与超时分类；假服务同时覆盖新字段和任务复用。未运行线上付费用例，`e2e/live.spec.ts` 保持原语义和文件内容。

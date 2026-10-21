@@ -13,6 +13,9 @@ export class ApiError extends Error {
 
 export interface NativeUploadFile { uri: string; name: string; type: string }
 
+export const REST_TIMEOUT_MS = { read: 20_000, write: 60_000, upload: 120_000 } as const;
+export type RestRequestKind = keyof typeof REST_TIMEOUT_MS;
+
 /** The common XMLHttpRequest subset available in browsers and Expo Go. */
 export interface StreamXHR {
   readyState: number;
@@ -37,6 +40,7 @@ export interface ApiClientOptions {
   fetchImpl?: typeof fetch;
   xhrFactory?: () => StreamXHR;
   streamTimeoutMs?: number;
+  restTimeoutMs?: Partial<Record<RestRequestKind, number>>;
 }
 
 export interface SendMessageOptions {
@@ -83,28 +87,47 @@ export class ApiClient {
     } catch { /* A navigation callback must not hide the original authentication error. */ }
   }
 
-  private async request<T>(path: string, init: RequestInit = {}, authenticated = true): Promise<T> {
+  private async request<T>(path: string, init: RequestInit = {}, authenticated = true, kind: RestRequestKind = /^(GET|HEAD)$/i.test(init.method ?? 'GET') ? 'read' : 'write'): Promise<T> {
+    if (init.signal?.aborted) throw abortError();
     const headers = new Headers(init.headers);
     headers.set('Accept', 'application/json');
     const token = this.token();
     if (authenticated && token) headers.set('Authorization', `Bearer ${token}`);
     if (typeof init.body === 'string') headers.set('Content-Type', 'application/json');
-    let response: Response;
-    try { response = await this.fetchImpl(`${this.baseUrl}${path}`, { ...init, headers }); }
-    catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') throw error;
-      throw new ApiError('NETWORK_ERROR', '连接不到服务器，请检查网络和服务器地址。');
+    const controller = new AbortController();
+    const cancel = (): void => controller.abort();
+    init.signal?.addEventListener('abort', cancel, { once: true });
+    let timedOut = false;
+    const timeoutError = new ApiError('TIMEOUT', kind === 'read' ? '读取超时，请重试。'
+      : kind === 'upload' ? '图片上传超时，请检查网络后重新选择。' : '提交等待超时，请先刷新查看结果，避免重复提交。');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { timedOut = true; reject(timeoutError); controller.abort(); }, this.options.restTimeoutMs?.[kind] ?? REST_TIMEOUT_MS[kind]);
+    });
+    try {
+      let response: Response;
+      try { response = await Promise.race([this.fetchImpl(`${this.baseUrl}${path}`, { ...init, headers, signal: controller.signal }), deadline]); }
+      catch (error) {
+        if (timedOut) throw timeoutError;
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        throw new ApiError('NETWORK_ERROR', '连接不到服务器，请检查网络和服务器地址。');
+      }
+      if (response.status === 401 && authenticated) this.unauthorized(token);
+      let body: string;
+      try { body = await Promise.race([response.text(), deadline]); }
+      catch (error) {
+        if (timedOut) throw timeoutError;
+        if (error instanceof Error && error.name === 'AbortError') throw error;
+        throw new ApiError('NETWORK_ERROR', '回复接收中断，请检查网络后重试。');
+      }
+      if (!response.ok) throw responseError(body, response.status);
+      if (!body) return undefined as T;
+      try { return JSON.parse(body) as T; }
+      catch { throw new ApiError('INVALID_RESPONSE', '服务器返回了无法读取的数据，请稍后重试。', response.status); }
+    } finally {
+      clearTimeout(timer);
+      init.signal?.removeEventListener('abort', cancel);
     }
-    if (response.status === 401 && authenticated) this.unauthorized(token);
-    let body: string;
-    try { body = await response.text(); }
-    catch { throw new ApiError('NETWORK_ERROR', '回复接收中断，请检查网络后重试。'); }
-    if (!response.ok) {
-      throw responseError(body, response.status);
-    }
-    if (!body) return undefined as T;
-    try { return JSON.parse(body) as T; }
-    catch { throw new ApiError('INVALID_RESPONSE', '服务器返回了无法读取的数据，请稍后重试。', response.status); }
   }
 
   register(input: RegisterInput): Promise<AuthResponse> {
@@ -126,7 +149,7 @@ export class ApiClient {
     if ('uri' in file) body.append('file', file as unknown as Blob);
     else body.append('file', file, file.name);
     body.append('kind', kind);
-    return this.request('/assets', { method: 'POST', body });
+    return this.request('/assets', { method: 'POST', body }, true, 'upload');
   }
 
   projects(): Promise<Project[]> { return this.request('/projects'); }

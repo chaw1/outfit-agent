@@ -19,7 +19,7 @@ interface State {
   directions: { id: string; name: string; scene: string; mood: string; why: string; preview_status?: string; preview_url?: string }[];
   garments: { asset_id: string; url: string }[];
   script?: { status: string; cover: { scene: string }; shots: { scene: string; pose: string; camera: string; caption: string }[] };
-  note?: { image_ids: string[]; title: string; body: string; tags: string[]; cost_cny?: number; ai_label: string };
+  note?: { image_ids: string[]; accepted_unverified_ids?: string[]; title: string; body: string; tags: string[]; cost_cny?: number; ai_label: string };
   video?: { status: string; url?: string };
   active_jobs: Job[];
   pending_action: { type: string; estimated_cost_cny?: number } | null;
@@ -812,6 +812,144 @@ test('local rectangle/brush edits preserve outside pixels, reject bad selections
     ({ server, base } = await startServer(dataDir, options));
     assert.deepEqual((await getMessages()).find((message) => message.id === refsMessage.id)?.refs, refsMessage.refs);
     assert.equal((await getState()).images.find((image) => image.id === firstEditId)?.edit_check?.passed, false);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('eighth-round approval requires explicit failed-check consent and rewrites a note with ordered versions', async () => {
+  const dataDir = await temporaryData('outfit-mock-trusted-note-');
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const options = { clock: () => time };
+  let { server, base } = await startServer(dataDir, options);
+  try {
+    const account = await register(base, 'trusted-note');
+    const garment = await upload(base, account.token);
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '可信用图', brand: '木棉', brief: '自然穿搭', garment_asset_ids: [garment.id] } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    const getMessages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
+    const directions = await send(base, project.id, account.token, { text: '先给我几个方向' });
+    assert.equal(directions.find((event) => event.type === 'card' && event.data.type === 'directions')?.data.regenerate_estimate_cny, 1.5);
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: (await getState()).directions[0].id } });
+    await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    time += 250;
+    await getState();
+    time += 250;
+    let state = await getState();
+    const original = state.images[0];
+    const second = state.images[1];
+    const instruction = '袖口放下来';
+    await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: original.id, instruction, region: { x: 0.2, y: 0.3, w: 0.25, h: 0.2 }, attempt: 'failed-check' } });
+    time += 250;
+    state = await getState();
+    const unverified = state.images.at(-1)!;
+    assert.equal(unverified.status, 'succeeded', 'a failed quality check is still a successfully paid image');
+    assert.equal(unverified.edit_check?.passed, false);
+    const historyBefore = await getMessages();
+    const denied = await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: [second.id, unverified.id] } });
+    assert.equal(denied[0].data.code, 'unverified_image');
+    assert.match(String(denied[0].data.message), /镜头 1/);
+    assert.ok(String(denied[0].data.message).includes(unverified.edit_check!.reason));
+    assert.deepEqual(await getState(), state);
+    assert.deepEqual(await getMessages(), historyBefore);
+    for (const accept_unverified of [null, unverified.id, [unverified.id, unverified.id], ['missing'], [42]]) {
+      assert.equal((await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: [second.id, unverified.id], accept_unverified } }))[0].data.code, 'INVALID_ACCEPT_UNVERIFIED');
+    }
+    await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: [second.id, original.id] } });
+    state = await getState();
+    assert.deepEqual(state.note?.image_ids, [second.id, original.id]);
+    assert.deepEqual(state.note?.accepted_unverified_ids, []);
+    assert.ok(!state.note?.body.includes(instruction), 'an unapproved edit request must not become a visible picture fact');
+    const originalNote = structuredClone(state.note!);
+    await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: [second.id, unverified.id], accept_unverified: [unverified.id] } });
+    state = await getState();
+    assert.equal(state.stage, 'note');
+    assert.deepEqual(state.note?.image_ids, [second.id, unverified.id]);
+    assert.deepEqual(state.note?.accepted_unverified_ids, [unverified.id]);
+    assert.ok(state.note?.body.includes(instruction));
+    assert.notEqual(state.note?.body, originalNote.body);
+    const storedAction = (await getMessages()).findLast((message) => message.action?.type === 'approve_images')!.action;
+    assert.deepEqual(storedAction, { type: 'approve_images', image_ids: [second.id, unverified.id], accept_unverified: [unverified.id] });
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, options));
+    assert.deepEqual((await getState()).note, state.note);
+    const replayedDirections = (await getMessages()).flatMap((message) => message.cards).find((card) => card.type === 'directions') as Card & { regenerate_estimate_cny?: number };
+    assert.equal(replayedDirections.regenerate_estimate_cny, 1.5);
+    await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: original.id, instruction: '背景亮一点', attempt: 'verified-version' } });
+    time += 250;
+    state = await getState();
+    const verified = state.images.at(-1)!;
+    assert.equal(verified.edit_check?.passed, true);
+    assert.deepEqual(state.note?.image_ids, [second.id, unverified.id], 'note-stage edits keep current published selection until explicit adoption');
+    await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: [second.id, verified.id] } });
+    state = await getState();
+    assert.deepEqual(state.note?.image_ids, [second.id, verified.id]);
+    assert.deepEqual(state.note?.accepted_unverified_ids, []);
+    assert.ok(state.note?.body.includes('背景亮一点'));
+    assert.ok(!state.note?.body.includes(instruction), 'replacing a manually adopted version clears its picture facts');
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('eighth-round edit attempts replay one task across restart and a new attempt generates a new paid version', async () => {
+  const dataDir = await temporaryData('outfit-mock-attempts-');
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const options = { clock: () => time };
+  let { server, base } = await startServer(dataDir, options);
+  try {
+    const account = await register(base, 'edit-attempts');
+    const garment = await upload(base, account.token);
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '改图新尝试', brand: '木棉', brief: '自然穿搭', garment_asset_ids: [garment.id] } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    await send(base, project.id, account.token, { text: '先给我几个方向' });
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: (await getState()).directions[0].id } });
+    await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    time += 250;
+    await getState();
+    time += 250;
+    let state = await getState();
+    const original = state.images[0];
+    const action = { type: 'edit_image', image_id: original.id, instruction: '背景亮一点', attempt: 'attempt-one' };
+    const originalCount = state.images.length;
+    const originalCost = state.cost_cny;
+    for (const attempt of [null, 42, '', 'a'.repeat(65)]) {
+      assert.equal((await send(base, project.id, account.token, { action: { ...action, attempt } }))[0].data.code, 'INVALID_ATTEMPT');
+    }
+    const submitted = await send(base, project.id, account.token, { action });
+    const firstJob = submitted.find((event) => event.type === 'job')!.data;
+    assert.equal(firstJob.reused, false);
+    assert.equal(submitted.at(-1)?.data.reused, false);
+    const replay = await send(base, project.id, account.token, { action });
+    assert.equal(replay.find((event) => event.type === 'job')?.data.id, firstJob.id);
+    assert.equal(replay.find((event) => event.type === 'job')?.data.reused, true);
+    assert.equal(replay.at(-1)?.data.reused, true);
+    assert.ok(replay.filter((event) => event.type === 'token').map((event) => event.data.delta).join('').includes('没有重新生成'));
+    state = await getState();
+    assert.equal(state.images.length, originalCount + 1);
+    assert.equal(state.active_jobs.filter((job) => job.kind === 'edit').length, 1);
+    assert.equal(state.cost_cny, originalCost);
+    time += 250;
+    state = await getState();
+    assert.equal(state.cost_cny, Math.round((originalCost + 1.2) * 100) / 100);
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, options));
+    const completedReplay = await send(base, project.id, account.token, { action });
+    assert.equal(completedReplay.find((event) => event.type === 'job')?.data.id, firstJob.id);
+    assert.equal(completedReplay.find((event) => event.type === 'job')?.data.status, 'succeeded');
+    assert.equal(completedReplay.find((event) => event.type === 'job')?.data.reused, true);
+    assert.equal((await getState()).images.length, originalCount + 1);
+    const secondAttempt = await send(base, project.id, account.token, { action: { ...action, attempt: 'attempt-two' } });
+    assert.notEqual(secondAttempt.find((event) => event.type === 'job')?.data.id, firstJob.id);
+    assert.equal(secondAttempt.at(-1)?.data.reused, false);
+    time += 250;
+    state = await getState();
+    assert.equal(state.images.length, originalCount + 2);
+    assert.equal(state.cost_cny, Math.round((originalCost + 2.4) * 100) / 100);
+    await send(base, project.id, account.token, { action: { ...action, region: { x: 0.2, y: 0.3, w: 0.25, h: 0.2 } } });
+    assert.equal((await getState()).images.length, originalCount + 3, 'selection is part of the deduplication key');
+    await send(base, project.id, account.token, { action: { ...action, instruction: '背景换成公园' } });
+    assert.equal((await getState()).images.length, originalCount + 4, 'instruction is part of the deduplication key');
+    const legacyAction = { type: 'edit_image', image_id: original.id, instruction: '姿势自然一点' };
+    await send(base, project.id, account.token, { action: legacyAction });
+    await send(base, project.id, account.token, { action: legacyAction });
+    assert.equal((await getState()).images.length, originalCount + 6, 'omitting attempt retains the existing local mock behavior');
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });
 

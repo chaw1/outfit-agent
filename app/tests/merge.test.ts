@@ -21,6 +21,22 @@ test('reference cards persist through polling without changing the current stage
   assert.deepEqual(mergeCards(cards, [refreshed]), [refreshed]);
 });
 
+test('direction estimates survive SSE state projection and polling while options refresh', () => {
+  const oldOption = { id: 'd1', name: '午后', scene: '咖啡馆', mood: '自然', palette: ['白'], why: '日常', sample_title: '午后出门', preview_status: 'running' as const };
+  for (const estimate of [0, 0.18]) {
+    const card: Card = { id: 'directions', type: 'directions', options: [oldOption], regenerate_estimate_cny: estimate };
+    const fromEvent = stateWithCard(state(), card);
+    const eventCards = mergeStateIntoCards([card], fromEvent);
+    assert.deepEqual(eventCards[0], card);
+    const refreshedOption = { ...oldOption, preview_status: 'succeeded' as const, preview_url: '/fresh-preview.jpg' };
+    const polled = mergeStateIntoCards(eventCards, { ...fromEvent, directions: [refreshedOption] });
+    assert.deepEqual(polled[0], { ...card, options: [refreshedOption] });
+    assert.equal(card.options[0].preview_status, 'running', 'projecting state cannot mutate the historical card');
+  }
+  const legacy: Card = { id: 'legacy', type: 'directions', options: [oldOption] };
+  assert.deepEqual(mergeStateIntoCards([legacy], stateWithCard(state(), legacy))[0], legacy);
+});
+
 test('same-id cards are replaced completely, preserve order, and never mutate inputs', () => {
   const first: Card = { id: 'same', type: 'video', status: 'running', job_id: 'old' };
   const other: Card = { id: 'other', type: 'images', items: [] };
@@ -175,6 +191,17 @@ test('a later images event extends note/video stages and retains their content a
     assert.equal(result.cost_cny, 2.4);
     assert.equal(result.last_message_id, 'm1');
     assert.deepEqual(result.images.map(image => image.id), ['i1', 'i2']);
+  }
+});
+
+test('a note card cannot reopen finalized image editing before the next authoritative state refresh', () => {
+  const card: Card = { id: 'note-late', type: 'note', title: '新版文案', body: '正文', tags: [], image_ids: ['i1'] };
+  for (const stage of ['video', 'done'] as const) {
+    const previous = state({ stage, video: { status: stage === 'done' ? 'succeeded' : 'running', url: '/video.mp4' } });
+    const next = stateWithCard(previous, card);
+    assert.equal(next.stage, stage);
+    assert.equal(next.note?.title, '新版文案');
+    assert.equal(next.video, previous.video);
   }
 });
 

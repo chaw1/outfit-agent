@@ -116,3 +116,10 @@ test('reopened identical edit instructions recover the mask for that specific re
   assert.deepEqual(editActionForResult(images, actions, 'right-result'), actions[2]);
   assert.equal(editActionForResult(images, actions, 'original'), undefined);
 });
+
+test('transport replays with the same attempt do not shift the mask for a later result', () => {
+  const images = [{ id: 'original', version: 1 }, { id: 'left-result', parent_id: 'original', version: 2, instruction: '袖口放下来' }, { id: 'right-result', parent_id: 'original', version: 3, instruction: '袖口放下来' }];
+  const left = { image_id: 'original', instruction: '袖口放下来', attempt: 'first', mask_strokes: { brush: .05, strokes: [[{ x: .2, y: .4 }]] } };
+  const right = { image_id: 'original', instruction: '袖口放下来', attempt: 'second', mask_strokes: { brush: .08, strokes: [[{ x: .8, y: .5 }]] } };
+  assert.deepEqual(editActionForResult(images, [left, { ...left }, right], 'right-result'), right);
+});

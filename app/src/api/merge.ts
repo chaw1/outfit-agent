@@ -59,7 +59,7 @@ export function stateWithCard(previous: ProjectState | undefined, card: Card): P
       const advance = state.stage === 'brief' || state.stage === 'direction' || (state.stage === 'script' && state.script?.status !== 'draft');
       return { ...state, stage: advance ? 'images' : state.stage, images: mergeImages(state.images, card.items) };
     }
-    case 'note': return { ...state, stage: 'note', note: card, pending_action: undefined };
+    case 'note': return { ...state, stage: state.stage === 'video' || state.stage === 'done' ? state.stage : 'note', note: card, pending_action: undefined };
     case 'video': return { ...state, stage: card.status === 'succeeded' ? 'done' : 'video', video: card, pending_action: null };
   }
 }
@@ -85,7 +85,11 @@ export function mergeStateIntoCards(previous: readonly Card[], state: ProjectSta
       if (result[i]?.type === restored.type) { index = i; break; }
     }
     const current = result[index];
-    if (current) result[index] = { ...restored, id: current.id };
+    if (current?.type === 'directions' && restored.type === 'directions') {
+      // Polling supplies the options; the regeneration estimate belongs to its card.
+      const estimate = restored.regenerate_estimate_cny ?? current.regenerate_estimate_cny;
+      result[index] = { ...restored, id: current.id, ...(estimate !== undefined ? { regenerate_estimate_cny: estimate } : {}) };
+    } else if (current) result[index] = { ...restored, id: current.id };
     else result.push(restored);
   }
   return result;

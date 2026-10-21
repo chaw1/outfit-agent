@@ -143,6 +143,7 @@ export interface NoteData {
   body: string;
   tags: string[];
   image_ids: string[];
+  accepted_unverified_ids?: string[];
   cost_cny?: number;
   ai_label?: string;
 }
@@ -151,7 +152,7 @@ export interface VideoData { status: JobStatus; url?: string; poster_url?: strin
 export type Card =
   | { id: string; type: 'garments'; items: Garment[] }
   | { id: string; type: 'references'; items: ReferenceImage[] }
-  | { id: string; type: 'directions'; options: Direction[] }
+  | { id: string; type: 'directions'; options: Direction[]; regenerate_estimate_cny?: number }
   | ({ id: string; type: 'script' } & ScriptData)
   | { id: string; type: 'images'; items: OutfitImage[] }
   | ({ id: string; type: 'note' } & NoteData)
@@ -160,8 +161,8 @@ export type Card =
 export type Action =
   | { type: 'choose_direction'; direction_id: string }
   | { type: 'confirm_script' }
-  | { type: 'edit_image'; image_id: string; instruction: string; region?: ImageRegion; mask_strokes?: ImageMaskStrokes }
-  | { type: 'approve_images'; image_ids: string[] }
+  | { type: 'edit_image'; image_id: string; instruction: string; region?: ImageRegion; mask_strokes?: ImageMaskStrokes; attempt?: string }
+  | { type: 'approve_images'; image_ids: string[]; accept_unverified?: string[] }
   | { type: 'confirm_video'; image_id: string }
   | { type: 'restore_script'; checkpoint_id: string }
   | { type: 'regenerate_reply'; message_id: string };
@@ -197,12 +198,14 @@ export interface Job {
   error?: string;
   created_at: string;
   updated_at: string;
+  reused?: boolean;
 }
 
 export interface PendingAction {
-  type: 'choose_direction' | 'confirm_script' | 'confirm_video';
+  type: 'choose_direction' | 'confirm_script' | 'confirm_video' | 'edit_image';
   prompt: string;
   estimated_cost_cny?: number;
+  reused?: boolean;
 }
 
 export interface ProjectBudget {
@@ -231,7 +234,7 @@ export interface ProjectState {
 
 export interface SendMessageInput { text?: string; action?: Action; refs?: string[] }
 export interface ErrorData { code: string; message: string }
-export interface DoneData { message_id: string }
+export interface DoneData { message_id: string; reused?: boolean }
 
 export type StreamEvent =
   | { type: 'token'; data: { delta: string } }

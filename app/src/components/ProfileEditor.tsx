@@ -6,7 +6,7 @@ import { ApiError } from '../api/client';
 import type { User, UserProfile } from '../api/types';
 import { useSession } from '../context/Session';
 import { parseHeight, profilePhotos, setDefaultPhoto } from '../lib/profile';
-import { Badge, Button, FadeImage, Field, Notice, Toast, errorText, styles } from './ui';
+import { Badge, Button, FadeImage, Field, Notice, ProgressStrip, Toast, errorText, styles } from './ui';
 import { colors, radius, space, type } from '../theme';
 
 export function ProfileEditor({ user }: { user: User & { profile: UserProfile } }) {
@@ -20,18 +20,20 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const changed = () => setSaved(false);
 
   async function upload() {
-    setError(''); changed();
+    if (busy) return;
+    setBusy(true); setError(''); changed();
     try {
       if (Platform.OS !== 'web' && !(await ImagePicker.requestMediaLibraryPermissionsAsync()).granted) {
         setError('请允许访问选中的照片，再添加本人照片。'); return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: 9, quality: 0.9 });
       if (result.canceled) return;
-      setBusy(true);
-      for (const item of result.assets) {
+      for (const [index, item] of result.assets.entries()) {
+        setUploadProgress({ current: index + 1, total: result.assets.length });
         const native = { uri: item.uri, name: item.fileName || `portrait-${Date.now()}.jpg`, type: item.mimeType || 'image/jpeg' };
         const file = Platform.OS === 'web' ? item.file || new File([await (await fetch(item.uri)).blob()], native.name, { type: native.type }) : native;
         const asset = await api.uploadAsset(file, 'model');
@@ -39,7 +41,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
         setIds(previous => [...previous, asset.id]);
       }
     } catch (e) { setError(`照片没传好：${errorText(e)}`); }
-    finally { setBusy(false); }
+    finally { setBusy(false); setUploadProgress(null); }
   }
 
   async function save() {
@@ -75,6 +77,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
         </View>
       </View>)}</View>
       <Button title="添加本人照片" variant="secondary" icon="images-outline" disabled={busy} onPress={() => void upload()} />
+      {uploadProgress && <ProgressStrip title="正在上传本人照片…" detail={`第 ${uploadProgress.current}/${uploadProgress.total} 张`} />}
     </View>
     <View style={localStyles.preferences}>
       <Text style={styles.section}>你的穿搭偏好</Text>

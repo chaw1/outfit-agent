@@ -130,6 +130,7 @@ export function useWorkspace(id: string) {
     let rejectedByServer = false;
     let mutationObserved = false;
     let tokenObserved = false;
+    let reused: boolean | undefined;
     try {
       await api.sendMessage(id, input, {
         signal: flight.controller.signal,
@@ -144,6 +145,7 @@ export function useWorkspace(id: string) {
             setState(previous => stateWithCard(previous, event.data));
           }
           if (event.type === 'job') {
+            if (typeof event.data.reused === 'boolean') reused = event.data.reused;
             mutationObserved = true;
             dataVersion.current += 1;
             const previous = liveJobs.current.get(event.data.id);
@@ -154,15 +156,27 @@ export function useWorkspace(id: string) {
               return { ...current, active_jobs: mergeJobs(current.active_jobs, merged ? [merged] : []).filter(active) };
             });
           }
-          if (event.type === 'done' && optimistic.current?.assistantId === assistantId) optimistic.current.expectedId = event.data.message_id;
-          if (event.type === 'error') { rejectedByServer = true; setError(event.data.message); }
+          if (event.type === 'done') {
+            if (typeof event.data.reused === 'boolean') reused = event.data.reused;
+            if (optimistic.current?.assistantId === assistantId) optimistic.current.expectedId = event.data.message_id;
+          }
+          if (event.type === 'error') { rejectedByServer = true; if (event.data.code !== 'unverified_image') setError(event.data.message); }
         },
       });
       accepted = true;
       flight.streaming = false;
-      if (isCurrent(owner, epoch)) await refresh();
+      if (isCurrent(owner, epoch)) {
+        const fresh = await refresh();
+        if (fresh?.pending_action?.type === 'edit_image' && typeof fresh.pending_action.reused === 'boolean') reused = fresh.pending_action.reused;
+      }
     } catch (e) {
       flight.streaming = false;
+      if (e instanceof ApiError && e.code === 'unverified_image' && isCurrent(owner, epoch)) {
+        optimistic.current = null;
+        setMessages(previous => previous.filter(message => !message.id.startsWith(prefix)));
+        setRecovering(false);
+        throw e;
+      }
       if (!flight.controller.signal.aborted && isCurrent(owner, epoch)) {
         const rejected = !accepted && !mutationObserved && (rejectedByServer || (e instanceof ApiError && Boolean(e.status && e.status >= 400 && e.status < 500)));
         if (rejected) {
@@ -186,7 +200,7 @@ export function useWorkspace(id: string) {
       }
     }
     if (accepted && retryId) setFailedMessages(previous => previous.filter(message => message.id !== retryId));
-    return accepted;
+    return { accepted, ...(typeof reused === 'boolean' ? { reused } : {}) };
   }, [api, id, token, owner, isCurrent, refresh]);
 
   useEffect(() => {
