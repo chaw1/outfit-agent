@@ -527,6 +527,7 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: imageIds } });
     state = await getState();
     assert.equal(state.stage, 'done');
+    assert.equal(state.video?.status, 'succeeded');
     assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     const refreshedHistory = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
     const savedVideo = refreshedHistory.flatMap((item) => item.cards).findLast((item) => item.type === 'video' && item.status === 'succeeded');
@@ -539,6 +540,7 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     assert.equal(state.stage, 'done');
     assert.deepEqual(state.note, noteBeforeEdit);
     assert.deepEqual(state.pending_action, pendingBeforeEdit);
+    assert.equal(state.video?.status, 'succeeded');
     assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     assert.equal(state.images.at(-1)!.status, 'queued');
     time += 250;
@@ -546,6 +548,7 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     assert.equal(state.stage, 'done');
     assert.deepEqual(state.note, { ...noteBeforeEdit, cost_cny: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 100, cost_points: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 10 });
     assert.deepEqual(state.pending_action, pendingBeforeEdit);
+    assert.equal(state.video?.status, 'succeeded');
     assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     assert.equal(state.images.at(-1)!.status, 'succeeded');
     const preservedHistory = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
@@ -1363,5 +1366,73 @@ test('generation and edit traces carry role-labelled inputs, resolved anchors an
     assert.notEqual(refreshed[0].url, inputs[0].url);
     assert.equal((await fetch(inputs[0].url)).status, 403);
     assert.equal((await fetch(refreshed[0].url)).status, 200);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('quick image tools quote one edit, preserve preset versions and skip checks for double-size upscale', async () => {
+  const dataDir = await temporaryData('outfit-mock-quick-tools-');
+  let time = Date.now();
+  const { server, base } = await startServer(dataDir, { clock: () => time });
+  try {
+    const { token } = await register(base, 'quick-tools');
+    const garment = await upload(base, token);
+    const project = (await request<Project>(base, '/api/projects', { token, body: { title: '快捷修片', brand: '日常', brief: '咖啡馆窗光', garment_asset_ids: [garment.id] } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token })).body;
+    assert.equal((await request<{ estimate_points: number }>(base, '/api/quotes/edit', { token })).body.estimate_points, 5);
+    await send(base, project.id, token, { text: '先给几个方向' });
+    await send(base, project.id, token, { action: { type: 'choose_direction', direction_id: (await getState()).directions[0].id } });
+    await send(base, project.id, token, { action: { type: 'confirm_script' } });
+    time += 250; await getState(); time += 250;
+    const original = (await getState()).images[0];
+    for (const preset of ['background', 'outpaint', 'upscale'] as const) {
+      const action = { type: 'edit_image', image_id: original.id, instruction: '街角', preset, attempt: `quick-${preset}`, ...(preset === 'outpaint' ? { direction: 'top' } : {}) };
+      const before = await getState();
+      const events = await send(base, project.id, token, { action });
+      assert.equal((events.find(item => item.type === 'trace')!.data).tool, preset);
+      await send(base, project.id, token, { action });
+      assert.equal((await getState()).images.length, before.images.length + 1);
+      time += 250;
+      const image = (await getState()).images.at(-1)! as Image & { preset: string; direction?: string; upscale_method?: string };
+      assert.equal(image.status, 'succeeded');
+      assert.equal(image.preset, preset);
+      assert.equal(image.parent_id, original.id);
+      if (preset === 'background') assert.equal(image.instruction, '只换背景为 街角，人物、服装、姿势、光线方向保持不变');
+      if (preset === 'outpaint') assert.equal(image.direction, 'top');
+      if (preset === 'upscale') {
+        assert.equal(image.edit_check, undefined);
+        assert.deepEqual(image.fidelity, original.fidelity);
+        assert.equal(image.upscale_method, 'pillow_lanczos');
+        const originalSize = await sharp(Buffer.from(await (await fetch(original.url!)).arrayBuffer())).metadata();
+        const resultSize = await sharp(Buffer.from(await (await fetch(image.url!)).arrayBuffer())).metadata();
+        assert.equal(resultSize.width, originalSize.width! * 2);
+        assert.equal(resultSize.height, originalSize.height! * 2);
+      } else assert.equal(image.edit_check?.passed, true);
+    }
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('garment library exposes bounded tags and owner-only counts before filtered pagination', async () => {
+  const dataDir = await temporaryData('outfit-mock-garment-tags-');
+  const { server, base } = await startServer(dataDir);
+  try {
+    const { token } = await register(base, 'garment-tags');
+    const other = await register(base, 'other-garment-tags');
+    const shirt = await upload(base, token);
+    const pants = await upload(base, token);
+    await upload(base, other.token);
+    const all = (await request<{ items: { id: string; tags: string[] }[]; total: number }>(base, '/api/me/assets?kind=garment', { token })).body;
+    assert.equal(all.total, 2);
+    assert.equal(all.items.find(item => item.id === shirt.id)!.tags.length, 6);
+    const counts = (await request<{ items: { tag: string; count: number }[] }>(base, '/api/me/assets/tags?kind=garment', { token })).body.items;
+    assert.equal(counts.find(item => item.tag === '衬衫')!.count, 1);
+    assert.equal(counts.find(item => item.tag === '简约')!.count, 2);
+    const page = (await request<{ items: { id: string; tags: string[] }[]; total: number }>(base, '/api/me/assets?kind=garment&tag=牛仔裤&limit=1', { token })).body;
+    assert.equal(page.total, 1);
+    assert.deepEqual(page.items.map(item => item.id), [pants.id]);
+    const empty = (await request(base, '/api/me/assets?kind=garment&tag=冬', { token })).body;
+    assert.deepEqual(empty, { items: [], total: 0 });
+    const second = (await request<{ items: unknown[]; total: number }>(base, '/api/me/assets?kind=garment&tag=简约&limit=1&offset=1', { token })).body;
+    assert.equal(second.total, 2);
+    assert.equal(second.items.length, 1);
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });

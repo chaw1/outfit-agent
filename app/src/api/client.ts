@@ -1,5 +1,6 @@
 import { INSUFFICIENT_POINTS_TEXT } from '../lib/transparency';
 import type { AssetPage, LibraryKind, SavedModel } from '../lib/assets';
+import type { GarmentTagPage } from '../lib/garmentTags';
 import { nativeUpload } from '../lib/upload';
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
@@ -158,9 +159,10 @@ export class ApiClient {
   }
 
   me(): Promise<User> { return this.request('/me'); }
-  myAssets(kind: LibraryKind, limit = 30, offset = 0): Promise<AssetPage> {
-    return this.request(`/me/assets?kind=${kind}&limit=${limit}&offset=${offset}`);
+  myAssets(kind: LibraryKind, limit = 30, offset = 0, tag?: string | null): Promise<AssetPage> {
+    return this.request(`/me/assets?kind=${kind}&limit=${limit}&offset=${offset}${kind === 'garment' && tag ? `&tag=${encodeURIComponent(tag)}` : ''}`);
   }
+  myAssetTags(): Promise<GarmentTagPage> { return this.request('/me/assets/tags?kind=garment'); }
   saveModelFromImage(image_id: string, name?: string): Promise<SavedModel> {
     return this.request('/me/models/from-image', { method: 'POST', body: JSON.stringify({ image_id, ...(name ? { name } : {}) }) });
   }
@@ -197,6 +199,7 @@ export class ApiClient {
   }
 
   autoQuote(): Promise<AutoQuote> { return this.request('/quotes/auto'); }
+  editQuote(): Promise<AutoQuote> { return this.request('/quotes/edit'); }
   projects(): Promise<Project[]> { return this.request('/projects'); }
   createProject(input: CreateProjectInput): Promise<Project> {
     return this.request('/projects', { method: 'POST', body: JSON.stringify(input) });

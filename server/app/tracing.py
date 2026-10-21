@@ -14,6 +14,7 @@ LABELS = {
     "chat": "组织回复", "propose_directions": "提出方向", "write_script": "写脚本",
     "revise_script": "修改脚本", "restore_script": "恢复脚本", "write_note": "写笔记",
     "generate_images": "安排出图", "edit_image": "安排改图", "generate_video": "安排视频",
+    "background": "换背景", "outpaint": "扩图", "upscale": "高清",
 }
 
 

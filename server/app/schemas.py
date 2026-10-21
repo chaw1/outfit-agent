@@ -221,6 +221,9 @@ class EditImage(StrictInput):
     region: ImageRegion | None = None
     mask_strokes: MaskStrokes | None = None
     attempt: str | None = Field(default=None, min_length=1, max_length=64)
+    preset: Literal["background", "outpaint", "upscale"] | None = None
+    background: str | None = Field(default=None, min_length=1, max_length=500)
+    direction: Literal["top", "bottom", "horizontal", "all"] | None = None
 
     @field_validator("attempt")
     @classmethod
@@ -233,6 +236,14 @@ class EditImage(StrictInput):
     def one_selection(self):
         if self.region is not None and self.mask_strokes is not None:
             raise ValueError("框选和涂抹只能选择一种，请清除另一种选择。")
+        if self.preset and (self.region is not None or self.mask_strokes is not None):
+            raise ValueError("快捷动作不能同时使用局部选区。")
+        if self.direction is not None and self.preset != "outpaint":
+            raise ValueError("只有扩图支持方向参数。")
+        if self.background is not None and (
+            self.preset != "background" or not self.background.strip()
+        ):
+            raise ValueError("换背景请填写场景。")
         return self
 
 

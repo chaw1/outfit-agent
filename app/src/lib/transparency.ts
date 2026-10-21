@@ -4,6 +4,7 @@ const toolNames: Record<string, string> = {
   chat: '对话', analyze_garments: '看懂衣服', propose_directions: '提方向',
   write_script: '写脚本', revise_script: '改脚本', edit_image: '改图',
   write_note: '写笔记', generate_images: '出图', generate_video: '生成视频', restore_script: '恢复脚本',
+  background: '换背景', outpaint: '扩图', upscale: '高清',
 };
 
 export const REGENERATE_DIRECTIONS_TEXT = '换一组方向，保留我刚才说的偏好';

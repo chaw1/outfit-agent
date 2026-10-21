@@ -13,11 +13,12 @@ from sqlalchemy.orm import Session
 from app.costs import image_cost_cny, with_points
 from app.errors import AppError
 from app.local_edit import prepare_selection
-from app.media import asset_dict
+from app.media import asset_dict, store_generated
 from app.models import Asset, Job, Project, User, utcnow
 from app.photography import expand_photo_prompt
 from app.prompting import COVER_ANCHOR, build_shot_fields, build_shot_prompt
 from app.providers import ProviderHub
+from app.quick_tools import outpaint_source, preset_action
 from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
 from app.tracing import dialogue_trace, job_reference_images
@@ -342,7 +343,7 @@ class Workflow:
                     422,
                 ) from exc
             action.clear()
-            action.update(normalized)
+            action.update(preset_action(normalized))
             if "region" in action or "mask_strokes" in action:
                 asset = self._asset(parent.result_asset_id)
                 if asset.width and asset.height:
@@ -672,6 +673,20 @@ class Workflow:
             self.session, self.project.user_id,
             kinds=("video",) if intent["kind"] == "video" else ("image",),
         )
+        payload = intent["payload"]
+        if payload.get("preset") == "outpaint" and not self.session.get(
+            Asset, payload["source_asset_id"],
+        ):
+            # A checkpoint can survive a rolled-back enqueue transaction. Rebuild
+            # its deterministic derived reference before restoring the job intent.
+            source = self._asset(payload["parent_asset_id"])
+            derived = store_generated(
+                self.session, user_id=self.project.user_id, project_id=self.project.id,
+                kind="reference", media=outpaint_source(source, payload["direction"]),
+                parent_id=source.id, preserve_visible_label=True,
+            )
+            derived.id = payload["source_asset_id"]
+            self.session.flush()
         job = Job(
             id=intent["id"],
             project_id=self.project.id,
@@ -829,7 +844,10 @@ class Workflow:
         )
 
     def _edit_key(self, action: dict) -> str:
-        selection = {key: action[key] for key in ("region", "mask_strokes") if key in action}
+        selection = {
+            key: action[key] for key in ("region", "mask_strokes", "preset", "direction")
+            if key in action
+        }
         identity = [action["image_id"], action["instruction"].strip()]
         if selection:
             identity.append(selection)
@@ -839,6 +857,9 @@ class Workflow:
 
     def _edit_image(self, state: dict, action: dict, result: dict | None = None) -> dict:
         self._allow(state["stage"], "edit_image")
+        action = preset_action(action)
+        if action.get("preset"):
+            self.tool = action["preset"]
         parent, instruction = self._image_job(action["image_id"]), action["instruction"].strip()
         key = self._edit_key(action)
         existing = self.session.scalar(select(Job).where(Job.dedupe_key == key))
@@ -858,6 +879,9 @@ class Workflow:
         selection = {
             key: deepcopy(action[key]) for key in ("region", "mask_strokes") if key in action
         }
+        source_id = parent.result_asset_id
+        if action.get("preset") == "outpaint":
+            source_id = str(uuid5(NAMESPACE_URL, key + ":outpaint-source"))
         shot_id = parent.payload["shot_id"]
         versions = [
             item["version"]
@@ -882,7 +906,7 @@ class Workflow:
             "version": max(versions, default=1) + 1,
             "parent_id": parent.id,
             "parent_asset_id": parent.result_asset_id,
-            "source_asset_id": parent.result_asset_id,
+            "source_asset_id": source_id,
             "instruction": instruction,
             **self._shot_prompt(
                 state, parent.payload.get("shot", {}), clothes,
@@ -891,13 +915,14 @@ class Workflow:
                 requirements=f"修改指令优先于原镜头描述，只做以下修改：{instruction}",
             ),
             "reference_asset_ids": list(dict.fromkeys([
-                parent.result_asset_id, *edit_clothes, *anchor_references,
+                source_id, *edit_clothes, *anchor_references,
             ])),
             "garment_asset_ids": clothes,
             "script_version": parent.payload.get("script_version"),
             "script_hash": parent.payload.get("script_hash"),
             "shot": deepcopy(parent.payload.get("shot", {})),
             **selection,
+            **{key: action[key] for key in ("preset", "direction") if key in action},
         }
         for field in ("anchor_id", "anchor_asset_id", "model_asset_id"):
             if parent.payload.get(field):
@@ -909,6 +934,8 @@ class Workflow:
         if action.get("attempt") is not None:
             payload["attempt"] = action["attempt"]
         job = self._enqueue(state, "edit", payload, key)
+        if action.get("preset"):
+            self.tool = action["preset"]
         # Editing an image must preserve the note and its video-confirmation pause.
         return self._finish(
             state,

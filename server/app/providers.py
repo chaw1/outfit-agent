@@ -27,7 +27,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.config import settings
 from app.costs import image_cost_cny, seedream_image_cost_cny, video_cost_cny
 from app.errors import AppError
-from app.media import erase_label
+from app.media import asset_path, erase_label
 from app.models import Asset, Project, UsageLedger
 from app.observability import log_model
 from app.runtime_settings import (
@@ -1193,7 +1193,24 @@ class ProviderHub:
         reserve = Decimal(16_384 * 2 * 3 + 800 * 30 + 3000) / 1_000_000
         return self._call("vision", str(reserve), operation)
 
-    def image(self, prompt: str, reference_assets: list[Asset]) -> GeneratedMedia:
+    def upscale(self, prompt: str, source: Asset) -> GeneratedMedia | None:
+        """Only request sizes explicitly supported by this adapter; no paid probing."""
+        with Image.open(asset_path(source)) as image:
+            width, height = image.width * 2, image.height * 2
+        if width * height > 40_000_000:
+            raise ProviderError("原图过大，无法生成 2 倍高清图。")
+        model = self._model("image")
+        if not self.mock and not (
+            model.startswith("doubao-seedream") and 921_600 <= width * height <= 4_620_000
+            and max(width, height) <= 4096
+        ):
+            return None
+        return self.image(prompt, [source], output_size=(width, height))
+
+    def image(
+        self, prompt: str, reference_assets: list[Asset],
+        *, output_size: tuple[int, int] | None = None,
+    ) -> GeneratedMedia:
         # Wan 2.7 supports up to nine inputs; 2.6 supports four. Keep every
         # garment plus the separate person and cover references in the request.
         model = self._model("image")
@@ -1206,7 +1223,8 @@ class ProviderHub:
         def operation():
             if self.mock:
                 digest = hashlib.sha256(prompt.encode()).digest()
-                image = Image.new("RGB", (768, 1024), tuple(170 + c % 70 for c in digest[:3]))
+                image = Image.new("RGB", output_size or (768, 1024),
+                                  tuple(170 + c % 70 for c in digest[:3]))
                 draw = ImageDraw.Draw(image)
                 draw.ellipse((294, 130, 474, 310), fill="#e7cbb2")
                 draw.polygon([(300, 310), (468, 310), (540, 620), (228, 620)], fill="#faf6e9")
@@ -1216,12 +1234,15 @@ class ProviderHub:
                 output = io.BytesIO()
                 image.save(output, "PNG")
                 return (
-                    GeneratedMedia(output.getvalue(), "image/png", self._model("image"), 768, 1024),
+                    GeneratedMedia(output.getvalue(), "image/png", self._model("image"),
+                                   *image.size),
                     {"images": 1},
                     Decimal(0),
                 )
             if seedream:
-                return self._seedream_image(model, prompt, reference_assets)
+                return self._seedream_image(
+                    model, prompt, reference_assets, output_size=output_size,
+                )
             content = [{"image": self._data_url(asset)} for asset in reference_assets]
             content.append({"text": prompt})
             with self._client() as client:
@@ -1250,7 +1271,10 @@ class ProviderHub:
 
         return self._call("image", str(image_cost_cny()), operation)
 
-    def _seedream_image(self, model: str, prompt: str, reference_assets: list[Asset]):
+    def _seedream_image(
+        self, model: str, prompt: str, reference_assets: list[Asset],
+        *, output_size: tuple[int, int] | None = None,
+    ):
         """火山方舟 Seedream：同一套提示词与参考图，走 images/generations。"""
         with self._client() as client:
             response = self._json(
@@ -1263,7 +1287,8 @@ class ProviderHub:
                         **({"image": [self._data_url(asset) for asset in reference_assets]}
                            if reference_assets else {}),
                         # 固定 3:4 竖图；像素数在 Seedream 允许区间内（92 万–462 万）。
-                        "size": "1536x2048",
+                        "size": (f"{output_size[0]}x{output_size[1]}"
+                                 if output_size else "1536x2048"),
                         "output_format": "png",
                         "response_format": "url",
                         "watermark": False,
