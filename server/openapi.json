@@ -1330,7 +1330,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthOutput"
+                  "$ref": "#/components/schemas/RecoveryAuthOutput"
                 }
               }
             }
@@ -1406,6 +1406,213 @@
             }
           }
         }
+      }
+    },
+    "/api/auth/recover": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Recover",
+        "operationId": "recover_api_auth_recover_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryAuthOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/me/recovery-code": {
+      "post": {
+        "tags": [
+          "account"
+        ],
+        "summary": "Regenerate Recovery Code",
+        "operationId": "regenerate_recovery_code_api_me_recovery_code_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodeOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/legal": {
@@ -4036,6 +4243,20 @@
         ],
         "title": "Overview"
       },
+      "PasswordInput": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "PasswordInput"
+      },
       "PendingAction": {
         "properties": {
           "type": {
@@ -4328,6 +4549,68 @@
           "failed"
         ],
         "title": "QueueCounts"
+      },
+      "RecoveryAuthOutput": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserOutput"
+          },
+          "recovery_code": {
+            "type": "string",
+            "title": "Recovery Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "user",
+          "recovery_code"
+        ],
+        "title": "RecoveryAuthOutput"
+      },
+      "RecoveryCodeOutput": {
+        "properties": {
+          "recovery_code": {
+            "type": "string",
+            "title": "Recovery Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recovery_code"
+        ],
+        "title": "RecoveryCodeOutput"
+      },
+      "RecoveryInput": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Username"
+          },
+          "recovery_code": {
+            "type": "string",
+            "title": "Recovery Code"
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 72,
+            "minLength": 8,
+            "title": "New Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "username",
+          "recovery_code",
+          "new_password"
+        ],
+        "title": "RecoveryInput"
       },
       "RegenerateReply": {
         "properties": {

@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     max_upload_edge: int = Field(default=6000, ge=1, le=6000)
     rate_limit_register: int = Field(default=120, ge=1)
     rate_limit_login: int = Field(default=120, ge=1)
+    rate_limit_recover: int = Field(default=5, ge=1)
     rate_limit_upload: int = Field(default=60, ge=1)
     rate_limit_messages: int = Field(default=120, ge=1)
     rate_limit_window_seconds: int = Field(default=60, ge=1)
