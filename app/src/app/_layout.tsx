@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SessionProvider, useSession } from '../context/Session';
 import { LoadingSkeleton, colors } from '../components/ui';
 import { Onboarding } from '../components/Onboarding';
+import { PrivacyGate } from '../components/PrivacyGate';
 import { GenerationNotifications } from '../components/GenerationNotifications';
 
 function Routes() {
@@ -25,7 +26,7 @@ function Routes() {
   return <View style={{ flex: 1, backgroundColor: colors.paper }}>
     <StatusBar style="dark" />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper }, animation: 'slide_from_right' }} />
-    {ready && <><GenerationNotifications /><Onboarding /></>}
+    {ready && <PrivacyGate><GenerationNotifications /><Onboarding /></PrivacyGate>}
     {!ready && <View style={{ position: 'absolute', inset: 0, backgroundColor: colors.paper, justifyContent: 'center' }}><LoadingSkeleton kind="list" /></View>}
   </View>;
 }

@@ -32,7 +32,7 @@ export interface LegalDocument extends LegalSummary { markdown: string }
 
 export interface AuthResponse { token: string; user: User }
 export interface LoginInput { username: string; password: string }
-export interface RegisterInput extends LoginInput { nickname?: string }
+export interface RegisterInput extends LoginInput { nickname?: string; agreed_legal_version?: string }
 
 export interface Asset {
   id: string;

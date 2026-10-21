@@ -3,6 +3,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { AnimatedEntry, Button, Field, IconButton, Notice, Page, StatePanel, colors, errorText, styles } from '../components/ui';
+import { LegalConsent } from '../components/LegalConsent';
+import { LEGAL_VERSION } from '../lib/legalConsent';
 import { LegalLinks } from '../components/LegalLinks';
 import { useSession } from '../context/Session';
 import { layout, radius, space, type } from '../theme';
@@ -13,17 +15,19 @@ export default function Login() {
   const { expired } = useLocalSearchParams<{ expired?: string }>();
   const usernameInput = useRef<React.ComponentRef<typeof TextInput>>(null);
   const [register, setRegister] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   async function submit() {
+    if (register && !agreed) return setError('请先阅读并同意用户协议与隐私政策。');
     if (username.trim().length < 3 || username.trim().length > 32) return setError('用户名用 3–32 个字符就好。');
     if (password.length < 8) return setError('密码至少 8 位，再多一点更安心。');
     setBusy(true); setError('');
     try {
-      const result = register ? await api.register({ username: username.trim(), password, nickname: nickname.trim() || undefined }) : await api.login({ username: username.trim(), password });
+      const result = register ? await api.register({ username: username.trim(), password, nickname: nickname.trim() || undefined, agreed_legal_version: LEGAL_VERSION }) : await api.login({ username: username.trim(), password });
       await signIn(result); router.replace('/');
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
@@ -45,8 +49,9 @@ export default function Login() {
         {register && <Field label="怎么称呼你" placeholder="你的博主昵称（选填）" value={nickname} onChangeText={setNickname} autoComplete="nickname" />}
         <Field inputRef={usernameInput} label="用户名" placeholder="3–32 位用户名" value={username} onChangeText={setUsername} autoCapitalize="none" autoCorrect={false} autoComplete="username" />
         <Field label="密码" placeholder="至少 8 位" value={password} onChangeText={setPassword} secureTextEntry autoComplete={register ? 'new-password' : 'current-password'} onSubmitEditing={() => void submit()} />
+        {register && <LegalConsent agreed={agreed} onChange={setAgreed} />}
         {!!error && <Notice text={error} />}
-        <Button title={register ? '创建账号，开始创作' : '登录，继续创作'} loading={busy} onPress={() => void submit()} icon="arrow-forward" />
+        <Button title={register ? '创建账号，开始创作' : '登录，继续创作'} loading={busy} disabled={register && !agreed} onPress={() => void submit()} icon="arrow-forward" />
       </View>
       <LegalLinks />
       <Text style={{ color: colors.muted, ...type.caption, textAlign: 'center' }}>你的品牌合作灵感，都从这里开始</Text>

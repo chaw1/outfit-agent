@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Asset, AuthResponse, Project, ProjectState } from '../src/api/types';
 
 const shots = path.resolve(process.env.E2E_SCREENSHOTS_DIR || 'screenshots/polish');
-const apiBase = 'http://localhost:19301/api';
+const apiBase = process.env.E2E_API_BASE || 'http://localhost:19301/api';
 const fontScale = 1.15;
 
 function gate() {
@@ -134,7 +134,7 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
     const initial = await request.get(`${apiBase}/projects/${project.id}/state`, { headers });
     expect(initial.ok()).toBe(true);
     const originalState = await initial.json() as ProjectState;
-    await page.addInitScript(({ token, base }) => { sessionStorage.setItem('outfit.session', token); localStorage.setItem('outfit.server', base); }, { token: auth.token, base: 'http://localhost:19301' });
+    await page.addInitScript(({ token, base }) => { sessionStorage.setItem('outfit.session', token); localStorage.setItem('outfit.server', base); localStorage.setItem('outfit.privacy-consent', '2026-10-21'); }, { token: auth.token, base: process.env.E2E_MOCK_BASE || 'http://localhost:19301' });
 
     const homeGate = gate(); releases.push(homeGate.release);
     await page.route(`${apiBase}/projects`, async route => { if (route.request().method() === 'GET') await homeGate.promise; await route.continue(); });

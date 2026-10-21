@@ -876,8 +876,10 @@ export async function createMockServer(options = {}) {
         let user = db.users.find((item) => item.username.toLowerCase() === username.toLowerCase());
         if (url.pathname.endsWith('register')) {
           if (user) throw failure(409, 'USERNAME_EXISTS', '这个用户名已经有人用了，换一个试试');
+          if (body.agreed_legal_version !== undefined && typeof body.agreed_legal_version !== 'string') throw failure(400, 'INVALID_LEGAL_VERSION', '协议版本格式有误');
+          const legalVersion = body.agreed_legal_version?.trim() || '';
           // Hash synchronously so two concurrent registrations cannot reserve the same name.
-          user = { id: newId('user'), username, nickname: typeof body.nickname === 'string' && body.nickname.trim() ? body.nickname.trim() : username, created_at: now(), passwordHash: bcrypt.hashSync(passwordInput(password), 10) };
+          user = { id: newId('user'), username, nickname: typeof body.nickname === 'string' && body.nickname.trim() ? body.nickname.trim() : username, created_at: now(), passwordHash: bcrypt.hashSync(passwordInput(password), 10), legal_version: legalVersion, legal_agreed_at: legalVersion ? now() : null };
           db.users.push(user);
           await persist();
         } else if (!user || !bcrypt.compareSync(passwordInput(password), user.passwordHash)) throw failure(401, 'INVALID_CREDENTIALS', '用户名或密码不对，再检查一下');
