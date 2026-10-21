@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { profilePhotos } from '../../lib/profile';
+import { checkProjectCreation, createProjectWithRecovery, projectCreationRecoveryText, type ProjectCreationRecovery } from '../../lib/projectCreation';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Asset, AssetKind } from '../../api/types';
 import { AnimatedEntry, Badge, Button, FadeImage, Field, Header, Notice, Page, ProgressStrip, errorText, styles } from '../../components/ui';
@@ -23,9 +24,11 @@ export default function NewProject() {
   const selectedModelId = modelChoice === undefined ? savedPhotos[0]?.id : modelChoice;
   const selectedModel = model?.id === selectedModelId ? model : savedPhotos.find(photo => photo.id === selectedModelId);
   const [uploading, setUploading] = useState<AssetKind | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const picking = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [creationRecovery, setCreationRecovery] = useState<ProjectCreationRecovery | null>(null);
   async function pick(kind: AssetKind) {
     if (picking.current || busy || (kind === 'reference' && references.length >= 3)) return;
     picking.current = true;
@@ -39,7 +42,9 @@ export default function NewProject() {
       const limit = kind === 'reference' ? 3 - references.length : kind === 'garment' ? 9 : 1;
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: kind !== 'model', selectionLimit: limit, quality: 0.9 });
       if (result.canceled) return;
-      for (const item of result.assets.slice(0, limit)) {
+      const items = result.assets.slice(0, limit);
+      for (const [index, item] of items.entries()) {
+        setUploadProgress({ current: index + 1, total: items.length });
         const nativeFile = { uri: item.uri, name: item.fileName || `outfit-${Date.now()}.jpg`, type: item.mimeType || 'image/jpeg' };
         const file = Platform.OS === 'web' ? item.file || new File([await (await fetch(item.uri)).blob()], nativeFile.name, { type: nativeFile.type }) : nativeFile;
         const asset = await api.uploadAsset(file, kind);
@@ -47,16 +52,25 @@ export default function NewProject() {
         else if (kind === 'reference') setReferences(previous => [...previous, asset].slice(0, 3));
         else setGarments(previous => [...previous, asset]);
       }
-    } catch (e) { setError(`图片没传好：${errorText(e)}`); } finally { picking.current = false; setUploading(null); }
+    } catch (e) { setError(`图片没传好：${errorText(e)}`); } finally { picking.current = false; setUploading(null); setUploadProgress(null); }
   }
-  async function submit() {
+  async function submit(confirmRecreate = false) {
     if (picking.current || busy) return;
+    if (creationRecovery && !confirmRecreate) {
+      setBusy(true); setError('');
+      try { setCreationRecovery(await checkProjectCreation(api, creationRecovery.input)); }
+      catch (e) { setCreationRecovery({ ...creationRecovery, projects: null }); setError(errorText(e)); }
+      finally { setBusy(false); }
+      return;
+    }
+    if (creationRecovery?.projects === null) return;
     if (!title.trim() || !brand.trim() || !brief.trim()) return setError('项目名、品牌和合作需求都写一点，灵感才有方向。');
     if (!garments.length) return setError('先上传至少一张品牌衣服图吧。');
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setCreationRecovery(null);
     try {
-      const result = await api.createProject({ title: title.trim(), brand: brand.trim(), brief: brief.trim(), garment_asset_ids: garments.map(item => item.id), ...(selectedModelId ? { model_asset_id: selectedModelId } : {}), ...(references.length ? { reference_asset_ids: references.map(item => item.id) } : {}) });
-      router.replace({ pathname: '/projects/[id]', params: { id: result.id } });
+      const result = await createProjectWithRecovery(api, { title: title.trim(), brand: brand.trim(), brief: brief.trim(), garment_asset_ids: garments.map(item => item.id), ...(selectedModelId ? { model_asset_id: selectedModelId } : {}), ...(references.length ? { reference_asset_ids: references.map(item => item.id) } : {}) });
+      if (result.kind === 'created') router.replace({ pathname: '/projects/[id]', params: { id: result.project.id } });
+      else setCreationRecovery(result.recovery);
     } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
   return <Page>
@@ -105,9 +119,14 @@ export default function NewProject() {
           {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={[styles.row, { flexWrap: 'wrap' }]}>{selectedModel.url && <FadeImage source={{ uri: selectedModel.url }} style={localStyles.profileImage} />}<Text style={styles.subtitle}>本次合作的本人照片</Text><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
           <Button title={uploading === 'model' ? '正在上传…' : selectedModelId ? '更换我的照片' : '上传我的照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} />
         </View>
-        {!!uploading && <ProgressStrip title={uploading === 'garment' ? '正在上传衣服图…' : uploading === 'reference' ? '正在上传参考图…' : '正在上传本人照片…'} detail="稍等一下，马上就能继续创作" />}
+        {!!uploading && <ProgressStrip title={uploading === 'garment' ? '正在上传衣服图…' : uploading === 'reference' ? '正在上传参考图…' : '正在上传本人照片…'} detail={uploadProgress ? `第 ${uploadProgress.current}/${uploadProgress.total} 张` : '正在选择图片'} />}
         {!!error && <Notice text={error} />}
-        <Button title="开始聊灵感" icon="arrow-forward" loading={busy} disabled={!!uploading} onPress={() => void submit()} />
+        {creationRecovery && <View style={{ gap: space.md }}>
+          <Notice text={projectCreationRecoveryText(creationRecovery)} />
+          {creationRecovery.projects?.map(project => <Button key={project.id} title={`打开项目：${project.title}`} variant="secondary" disabled={busy} onPress={() => router.replace({ pathname: '/projects/[id]', params: { id: project.id } })} />)}
+          {creationRecovery.projects !== null && <Button title="确认重新新建" variant="secondary" disabled={busy || !!uploading} onPress={() => void submit(true)} />}
+        </View>}
+        <Button title={creationRecovery ? '再查一次项目' : '开始聊灵感'} icon="arrow-forward" loading={busy} disabled={!!uploading} onPress={() => void submit()} />
       </ScrollView>
     </KeyboardAvoidingView>
   </Page>;
