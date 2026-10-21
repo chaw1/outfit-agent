@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { formatPoints, pointsValue } from '../src/lib/transparency';
 import type { Asset, AuthResponse, Message, Project, ProjectState } from '../src/api/types';
 
 const apiBase = 'http://localhost:19301/api';
@@ -65,7 +66,7 @@ test('第六轮：每轮过程、同 id 换方向卡与付费前预估贯穿本�
   const firstTrace = initialHistory.find(message => message.role === 'assistant')!;
   expect(firstTrace.trace).toBeTruthy();
   const summary = page.getByTestId(`trace-${firstTrace.id}`);
-  await expect(summary).toContainText(/用了.+·.+s.+·.+¥/);
+  await expect(summary).toContainText(/用了.+·.+s.+·.+点/);
   await expect(page.getByTestId(`trace-steps-${firstTrace.id}`)).toHaveCount(0);
   await summary.click();
   const steps = page.getByTestId(`trace-steps-${firstTrace.id}`);
@@ -95,10 +96,10 @@ test('第六轮：每轮过程、同 id 换方向卡与付费前预估贯穿本�
   const scriptState = await state();
   expect(scriptState.pending_action?.estimated_cost_cny).toBeGreaterThan(0);
   const scriptEstimate = page.getByTestId('cost-estimate-confirm_script');
-  await expect(scriptEstimate).toContainText('预计约 ¥');
-  await expect(scriptEstimate).toContainText('今日剩余 ¥');
-  await expect(scriptEstimate).toContainText(scriptState.pending_action!.estimated_cost_cny!.toFixed(2));
-  await expect(scriptEstimate).toContainText(scriptState.budget!.remaining_cny.toFixed(2));
+  await expect(scriptEstimate).toContainText('预计 ');
+  await expect(scriptEstimate).toContainText('今日还有 ');
+  await expect(scriptEstimate).toContainText(formatPoints(pointsValue(scriptState.pending_action!.estimated_cost_points, scriptState.pending_action!.estimated_cost_cny)!));
+  await expect(scriptEstimate).toContainText(formatPoints(pointsValue(scriptState.budget!.remaining_points, scriptState.budget!.remaining_cny)!));
   await screenshot(page, '55-script-estimate-and-budget.png', scriptEstimate);
 
   // Block history recovery so only token/trace stream events can update this reply.
@@ -188,8 +189,8 @@ test('第六轮：每轮过程、同 id 换方向卡与付费前预估贯穿本�
   await expect(page.getByTestId('confirm-video')).toBeEnabled();
   const noteState = await state();
   const videoEstimate = page.getByTestId('cost-estimate-confirm_video');
-  await expect(videoEstimate).toContainText(noteState.pending_action!.estimated_cost_cny!.toFixed(2));
-  await expect(videoEstimate).toContainText(noteState.budget!.remaining_cny.toFixed(2));
+  await expect(videoEstimate).toContainText(formatPoints(pointsValue(noteState.pending_action!.estimated_cost_points, noteState.pending_action!.estimated_cost_cny)!));
+  await expect(videoEstimate).toContainText(formatPoints(pointsValue(noteState.budget!.remaining_points, noteState.budget!.remaining_cny)!));
   await screenshot(page, '57-video-estimate-and-budget.png', videoEstimate);
   await page.getByTestId('confirm-video').click();
   await expect(page.getByTestId('play-video')).toBeVisible({ timeout: 60_000 });
@@ -224,10 +225,10 @@ test('第六轮：旧字段缺失时隐藏过程与预估，出图和视频余�
   current.pending_action = { type: 'confirm_script', prompt: '确认后开始出图', estimated_cost_cny: 1.38 };
   current.budget = { tier: 'free', daily_budget_cny: 20, today_cost_cny: 19.9, remaining_cny: 0.1 };
   await page.goto(`/projects/${project.id}`);
-  await expect(page.getByTestId('cost-estimate-confirm_script')).toContainText('1.38');
-  await expect(page.getByTestId('cost-estimate-confirm_script')).toContainText('0.10');
+  await expect(page.getByTestId('cost-estimate-confirm_script')).toContainText('13.8 点');
+  await expect(page.getByTestId('cost-estimate-confirm_script')).toContainText('1 点');
   await expect(page.getByTestId('confirm-script')).toBeDisabled();
-  await expect(page.getByTestId('budget-insufficient-confirm_script')).toContainText(/余额|不足/);
+  await expect(page.getByTestId('budget-insufficient-confirm_script')).toContainText(/点数不够/);
   await screenshot(page, '58-script-insufficient-budget.png', page.getByTestId('budget-insufficient-confirm_script'));
 
   delete current.budget;
@@ -246,9 +247,9 @@ test('第六轮：旧字段缺失时隐藏过程与预估，出图和视频余�
   currentHistory = [...currentHistory, { id: 'round6-budget-note-message', role: 'assistant', text: '笔记已准备好。', cards: [{ id: `${project.id}_note`, type: 'note', ...note }], created_at: new Date().toISOString() }];
   await page.reload();
   await expect(page.getByTestId('cost-estimate-confirm_video')).toContainText('1.20');
-  await expect(page.getByTestId('cost-estimate-confirm_video')).toContainText('0.10');
+  await expect(page.getByTestId('cost-estimate-confirm_video')).toContainText('1 点');
   await expect(page.getByTestId('confirm-video')).toBeDisabled();
-  await expect(page.getByTestId('budget-insufficient-confirm_video')).toContainText(/余额|不足/);
+  await expect(page.getByTestId('budget-insufficient-confirm_video')).toContainText(/点数不够/);
   await screenshot(page, '60-video-insufficient-budget.png', page.getByTestId('budget-insufficient-confirm_video'));
   delete current.budget;
   delete current.pending_action!.estimated_cost_cny;

@@ -37,6 +37,24 @@ test('direction estimates survive SSE state projection and polling while options
   assert.deepEqual(mergeStateIntoCards([legacy], stateWithCard(state(), legacy))[0], legacy);
 });
 
+test('direction point estimates survive polling, including zero and responses containing both fields', () => {
+  const option = { id: 'd1', name: '午后', scene: '咖啡馆', mood: '自然', palette: ['白'], why: '日常', sample_title: '午后出门', preview_status: 'running' as const };
+  for (const estimates of [
+    { regenerate_estimate_points: 0 },
+    { regenerate_estimate_points: 15 },
+    { regenerate_estimate_points: 15, regenerate_estimate_cny: 0.18 },
+  ]) {
+    const card: Card = { id: 'directions', type: 'directions', options: [option], ...estimates };
+    const eventState = stateWithCard(state(), card);
+    const firstPoll = mergeStateIntoCards([card], eventState);
+    assert.deepEqual(firstPoll[0], card);
+    const completedOption = { ...option, preview_status: 'succeeded' as const, preview_url: '/preview.jpg' };
+    const nextPoll = mergeStateIntoCards(firstPoll, { ...eventState, directions: [completedOption] });
+    assert.deepEqual(nextPoll[0], { ...card, options: [completedOption] });
+    assert.equal(card.options[0].preview_status, 'running');
+  }
+});
+
 test('same-id cards are replaced completely, preserve order, and never mutate inputs', () => {
   const first: Card = { id: 'same', type: 'video', status: 'running', job_id: 'old' };
   const other: Card = { id: 'other', type: 'images', items: [] };

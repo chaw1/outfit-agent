@@ -97,7 +97,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
           setState(next);
           if (next.note) setDraft(current => reconcileNoteDraft(next.note!, current));
           setNotFound(false);
-          observeGeneration(projectId, '合作项目', next);
+          observeGeneration(projectId, '这组片', next);
           setEditActions(history.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : []));
           hasActiveJobs = next.active_jobs.length > 0;
           setError('');
@@ -302,7 +302,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         const next = await api.state(projectId); setState(next);
         if (next.pending_action?.type === 'edit_image' && typeof next.pending_action.reused === 'boolean') reused = next.pending_action.reused;
         if (next.note) setDraft(current => reconcileNoteDraft(next.note!, current));
-        observeGeneration(projectId, '合作项目', next);
+        observeGeneration(projectId, '这组片', next);
       }
       catch (cause) { setActionError(`修改已提交，进度暂时没同步：${errorText(cause)}`); }
       setRetry(value => value + 1);
@@ -318,7 +318,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
       {loading && !state ? <LoadingSkeleton kind="note" /> : !note ? <StatePanel
         icon={notFound ? 'document-text-outline' : error ? 'cloud-offline-outline' : 'document-text-outline'}
         title={notFound ? '项目已删除或不存在' : error ? '连接暂时中断' : '笔记还在酝酿中'}
-        description={notFound ? '这个项目已无法访问，返回列表查看其他合作。' : error || '先回工作台选好图片，我们就把这份穿搭灵感写成一篇笔记。'}
+        description={notFound ? '这组片已无法访问，返回列表看看其他片场。' : error || '先回编导间选好图片，我们就把这份穿搭灵感写成一篇笔记。'}
         actionLabel={notFound ? '返回项目列表' : error ? '重试' : '返回工作台'}
         onAction={error && !notFound ? () => setRetry(value => value + 1) : backToStudio}
       /> : <>
@@ -384,7 +384,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Button title="恢复服务端版本" variant="ghost" icon="refresh-outline" disabled={preparing || saving} onPress={() => resolveDraft(false)} testID="restore-server-note" />
             {previousDraft ? <Button title="恢复我的草稿" variant="ghost" disabled={preparing || saving} onPress={restorePreviousDraft} testID="restore-previous-note-draft" /> : null}
           </View>
-          <NoteDisclosure note={note} projectCost={state?.cost_cny} />
+          <NoteDisclosure note={note} projectCost={state?.cost_cny} projectPoints={state?.cost_points} />
           <View style={styles.noteEnd}><View style={styles.endLine} /><Text style={styles.endLabel}>记录穿搭，也记录自己</Text><View style={styles.endLine} /></View>
           {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <ProgressStrip title="短片正在制作" detail="好了会出现在这里，你可以继续查看笔记。" /> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
           <View style={styles.checklist} testID="publish-checklist">

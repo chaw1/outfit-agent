@@ -15,7 +15,7 @@ import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationIn
 import { ScriptHistory } from './ScriptHistory';
 import { useImageInteractions } from './ImageInteractions';
 import { feedback } from '../lib/haptics';
-import { confirmationCost, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
+import { confirmationCost, formatPoints, pointsValue, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
 import { CostEstimate } from './CostEstimate';
 import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
 
@@ -137,8 +137,9 @@ function ImageGrid({ items, state, busy }: {
   const validIds = new Set(successful.map((item) => item.id));
   const selected = interaction.selectedIds.filter((id) => validIds.has(id));
   const isGenerating = images.some((item) => item.status === 'queued' || item.status === 'running');
-  const canEdit = !busy && (!state || state.stage === 'images' || state.stage === 'note');
-  const canApprove = !busy && !isGenerating && selected.length > 0 && (!state || state.stage === 'images' || state.stage === 'note');
+  const automatic = state?.mode === 'auto';
+  const canEdit = !automatic && !busy && (!state || state.stage === 'images' || state.stage === 'note');
+  const canApprove = !automatic && !busy && !isGenerating && selected.length > 0 && (!state || state.stage === 'images' || state.stage === 'note');
   const shotIds = [...new Set(images.map((item) => item.shot_id))];
   const latestDone = [...latest.values()].filter((item) => item.status === 'succeeded').length;
 
@@ -162,7 +163,7 @@ function ImageGrid({ items, state, busy }: {
   return (
     <View style={styles.card}>
       <CardHeading icon="images-outline" title="你的穿搭影像" detail={`${latestDone}/${latest.size} 已完成`} />
-      <Text style={styles.intro}>{isGenerating ? '正在把灵感变成画面，完成的图片会陆续出现。' : '点图放大看细节，长按可修改或引用。点右上角选图，再排发布顺序。'}</Text>
+      <Text style={styles.intro}>{isGenerating ? '正在把灵感变成画面，完成的图片会陆续出现。' : automatic ? '画面已出好，点图放大看细节。' : '点图放大看细节，长按可修改或引用。点右上角选图，再排发布顺序。'}</Text>
       <View style={styles.imageGrid}>
         {images.map((item) => {
           const selectedIndex = selected.indexOf(item.id);
@@ -171,7 +172,7 @@ function ImageGrid({ items, state, busy }: {
             <View key={item.id} style={styles.imageTile}>
               <Pressable
                 onPress={() => interaction.open(item.id)}
-                onLongPress={() => interaction.menu(item.id)}
+                onLongPress={automatic ? undefined : () => interaction.menu(item.id)}
                 delayLongPress={400}
                 disabled={item.status !== 'succeeded' || !item.url}
                 accessibilityRole="button"
@@ -184,7 +185,7 @@ function ImageGrid({ items, state, busy }: {
                     {item.status === 'failed' ? <><Icon name="alert-circle-outline" color={colors.danger} size={26} /><Text style={styles.generatingTitle}>这张暂时没成功</Text><Text style={styles.generatingDetail}>{item.error ?? '在对话里告诉我，我们再试一次'}</Text></> : <ProgressStrip title={item.status === 'running' ? '画面生成中' : '等待生成'} detail={item.status === 'running' ? '好看的细节，值得等一等' : '马上就轮到这一张'} />}
                   </View>
                 )}
-                {item.status === 'succeeded' ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={event => { event.stopPropagation(); void toggle(item.id); }} hitSlop={8} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
+                {item.status === 'succeeded' && !automatic ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={event => { event.stopPropagation(); void toggle(item.id); }} hitSlop={8} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
                 <View style={styles.versionBadge}><Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} />{isUnverified(item) ? <Badge label="未改到位" tone="danger" /> : null}</View>
                 {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
               </Pressable>
@@ -205,7 +206,7 @@ function ImageGrid({ items, state, busy }: {
         })}
       </View>
       {images.some((item) => item.parent_id) ? <View style={styles.versionHint}><Icon name="layers-outline" size={13} /><Text style={styles.smallText}>新版和原版都在，随时可以重新选。</Text></View> : null}
-      {selected.length > 0 ? <View style={styles.sortSection}>
+      {!automatic && selected.length > 0 ? <View style={styles.sortSection}>
         <View style={styles.rowBetween}><Text style={styles.sortTitle}>笔记图片顺序</Text><Text style={styles.smallText}>已选 {selected.length} 张</Text></View>
         {selected.map((id, index) => {
           const item = successful.find((value) => value.id === id);
@@ -219,7 +220,7 @@ function ImageGrid({ items, state, busy }: {
           </View>;
         })}
       </View> : null}
-      <Button title={state?.stage === 'note' ? '采用选图到笔记' : state && state.stage !== 'images' ? '图片已确认' : `选好了，生成笔记${selected.length ? `（${selected.length} 张）` : ''}`} icon="checkmark" onPress={() => { void interaction.approve(selected); }} disabled={!canApprove} testID="approve-images" />
+      {!automatic ? <Button title={state?.stage === 'note' ? '采用选图到笔记' : state && state.stage !== 'images' ? '图片已确认' : `选好了，生成笔记${selected.length ? `（${selected.length} 张）` : ''}`} icon="checkmark" onPress={() => { void interaction.approve(selected); }} disabled={!canApprove} testID="approve-images" /> : null}
     </View>
   );
 }
@@ -236,15 +237,15 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
   const [videoImageId, setVideoImageId] = useState<string | null>(null);
   const [reselecting, setReselecting] = useState(false);
   const selectedImageId = videoImageId && note.image_ids.includes(videoImageId) ? videoImageId : note.image_ids[0];
-  const mayMakeVideo = !state?.video && (!state || state.pending_action?.type === 'confirm_video' || (state.pending_action === undefined && state.stage === 'note'));
+  const mayMakeVideo = state?.mode !== 'auto' && !state?.video && (!state || state.pending_action?.type === 'confirm_video' || (state.pending_action === undefined && state.stage === 'note'));
   return <View style={styles.card}>
     <CardHeading icon="document-text-outline" title="笔记写好了" detail="READY TO POST" />
     <Text style={styles.noteTitle}>{note.title}</Text>
     <Text numberOfLines={6} style={styles.noteBody}>{note.body}</Text>
     <View style={styles.tags}>{note.tags.map((tag) => <View key={tag} style={styles.noteTag}><Text style={styles.noteTagText}>#{tag.replace(/^#/, '')}</Text></View>)}</View>
-    <NoteDisclosure note={note} projectCost={state?.cost_cny} testIDPrefix="card-note" />
+    <NoteDisclosure note={note} projectCost={state?.cost_cny} projectPoints={state?.cost_points} testIDPrefix="card-note" />
     <Button title="打开笔记预览" onPress={onPreview} testID="preview-note" icon="open-outline" />
-    {state?.stage === 'note' ? <>
+    {state?.mode !== 'auto' && state?.stage === 'note' ? <>
       <Button title={reselecting ? '收起选图' : '重新选图'} secondary icon="images-outline" disabled={busy} testID="reselect-images" onPress={() => setReselecting(value => !value)} />
       {reselecting ? <ImageGrid items={state.images} state={state} busy={busy} onAction={onAction} /> : null}
     </> : null}
@@ -279,7 +280,7 @@ function VideoRetry({ state, busy, onAction }: {
   });
   const selected = images.some((image) => image.id === chosen) ? chosen : images[0]?.id;
   const awaitingConfirmation = state?.pending_action?.type === 'confirm_video' || (state?.pending_action === undefined && state?.stage === 'note');
-  if (!awaitingConfirmation) return null;
+  if (state?.mode === 'auto' || !awaitingConfirmation) return null;
   return <View style={styles.videoRetry}>
     <Text style={styles.sortTitle}>选一张图片，再试一次</Text>
     <Text style={styles.intro}>图文笔记已经保留，确认后只重新制作短片。</Text>
@@ -314,13 +315,14 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
       </View>)}
     </View>;
     if (card.type === 'directions') {
-      const enabled = !busy && (!state || (!state.chosen_direction_id && (state.pending_action?.type === 'choose_direction' || (state.pending_action === undefined && state.stage === 'direction'))));
+      const regeneratePoints = pointsValue(card.regenerate_estimate_points, card.regenerate_estimate_cny);
+      const enabled = state?.mode !== 'auto' && !busy && (!state || (!state.chosen_direction_id && (state.pending_action?.type === 'choose_direction' || (state.pending_action === undefined && state.stage === 'direction'))));
       return <View key={card.id} style={styles.card}>
         <CardHeading icon="compass-outline" title="找一个心动的方向" detail={`${card.options.length} 个提案`} />
-        <Text style={styles.intro}>选一个最像你的，也可以在对话里聊聊想法。</Text>
+        <Text style={styles.intro}>{state?.mode === 'auto' ? '正在为这组片选出最合适的方向，也可以在对话里聊聊想法。' : '选一个最像你的，也可以在对话里聊聊想法。'}</Text>
         {card.options.map((option) => <DirectionOption key={option.id} direction={option} selected={state?.chosen_direction_id === option.id} enabled={enabled} onPress={() => onAction({ type: 'choose_direction', direction_id: option.id })} />)}
-        <Button title="换一组" secondary icon="refresh-outline" disabled={!enabled} testID="regenerate-directions" onPress={() => onText(REGENERATE_DIRECTIONS_TEXT)} />
-        {typeof card.regenerate_estimate_cny === 'number' && Number.isFinite(card.regenerate_estimate_cny) && card.regenerate_estimate_cny >= 0 ? <Text testID="regenerate-estimate" style={styles.intro}>约 ¥{card.regenerate_estimate_cny.toFixed(2)} · 含 2–3 张预览</Text> : null}
+        {state?.mode !== 'auto' ? <Button title="换一组" secondary icon="refresh-outline" disabled={!enabled} testID="regenerate-directions" onPress={() => onText(REGENERATE_DIRECTIONS_TEXT)} /> : null}
+        {regeneratePoints !== undefined ? <Text testID="regenerate-estimate" style={styles.intro}>约 {formatPoints(regeneratePoints)} · 含 2–3 张预览</Text> : null}
       </View>;
     }
     if (card.type === 'script') {
@@ -328,16 +330,16 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
       const canConfirm = !busy && !confirmed && !confirmationCost(state, 'confirm_script')?.insufficient && (!state || state.pending_action?.type === 'confirm_script' || (state.pending_action === undefined && state.stage === 'script'));
       return <View key={card.id} style={styles.card}>
         <CardHeading icon="reader-outline" title="这次，我们这样拍" detail={confirmed ? '已确认' : '脚本草稿'} />
-        <ScriptHistory versions={state?.script_versions} busy={busy} generating={Boolean(state?.active_jobs.length)} onAction={onAction} />
+        {state?.mode !== 'auto' ? <ScriptHistory versions={state?.script_versions} busy={busy} generating={Boolean(state?.active_jobs.length)} onAction={onAction} /> : null}
         <Text style={styles.sectionLabel}>标题灵感</Text>
         {card.title_ideas.map((title, index) => <Text key={`${index}-${title}`} style={styles.scriptTitle}><Text style={styles.scriptNumber}>{String(index + 1).padStart(2, '0')}  </Text>{title}</Text>)}
         <View style={styles.coverBrief}><Text style={styles.coverHeading}>封面计划</Text><Text style={styles.coverBody}>{card.cover.scene} · {card.cover.pose}</Text>{card.cover.text_overlay ? <Text style={styles.coverOverlay}>封面字：{card.cover.text_overlay}</Text> : null}</View>
         <Text style={styles.sectionLabel}>分镜与画面</Text>
         {card.shots.map((shot, index) => <View key={shot.id} style={styles.shotRow}><View style={styles.shotNumber}><Text style={styles.shotNumberText}>{String(index + 1).padStart(2, '0')}</Text></View><View style={styles.shotContent}><Text style={styles.shotScene}>{shot.scene}</Text><Text style={styles.shotDetail}>{shot.pose} · {shot.camera}</Text><Text style={styles.shotCaption}>{shot.caption}</Text></View></View>)}
         {card.video?.prompt ? <View style={styles.scriptVideo}><Icon name="videocam-outline" size={14} color={colors.muted} /><View style={styles.shotContent}><Text style={styles.coverHeading}>{card.video.duration} 秒短片灵感</Text><Text style={styles.shotDetail}>{card.video.prompt}</Text></View></View> : null}
-        <View style={styles.scriptFooter}><Icon name="information-circle-outline" size={14} /><Text style={styles.smallText}>{confirmed ? '脚本已确认，画面正在按计划制作。' : '确认后开始生成图片，想调整也可以继续聊。'}</Text></View>
-        {!confirmed ? <CostEstimate state={state} action="confirm_script" /> : null}
-        <Button title={confirmed ? '脚本已确认' : '确认脚本，开始出图'} icon="checkmark" onPress={() => onAction({ type: 'confirm_script' })} disabled={!canConfirm} testID="confirm-script" />
+        <View style={styles.scriptFooter}><Icon name="information-circle-outline" size={14} /><Text style={styles.smallText}>{confirmed ? '脚本已确认，画面正在按计划制作。' : state?.mode === 'auto' ? '脚本写好后会接着出图，整套好了会通知你。' : '确认后开始生成图片，想调整也可以继续聊。'}</Text></View>
+        {state?.mode !== 'auto' && !confirmed ? <CostEstimate state={state} action="confirm_script" /> : null}
+        {state?.mode !== 'auto' ? <Button title={confirmed ? '脚本已确认' : '确认脚本，开始出图'} icon="checkmark" onPress={() => onAction({ type: 'confirm_script' })} disabled={!canConfirm} testID="confirm-script" /> : null}
       </View>;
     }
     if (card.type === 'video') {
