@@ -219,10 +219,21 @@ export async function createMockServer(options = {}) {
     const state = project.state;
     const jobs = db.jobs.filter((job) => job.project_id === project.id);
     const active = jobs.filter((job) => activeStatuses.has(job.status));
-    const current = jobs.filter((job) => state.stage === 'video' || state.stage === 'done' ? job.kind === 'video' : state.stage === 'direction' ? Boolean(job.directionId) : !job.directionId && job.kind !== 'video');
+    let current = [];
+    if (active.length) {
+      const groups = new Set(active.map((job) => job.groupId));
+      current = jobs.filter((job) => groups.has(job.groupId));
+    } else if (state.stage === 'direction') {
+      current = state.directions.map((direction) => jobs.findLast((job) => job.directionId === direction.id)).filter(Boolean);
+    } else if (['video', 'done'].includes(state.stage) || (state.stage === 'note' && state.video)) {
+      current = jobs.filter((job) => job.id === state.video?.job_id);
+    } else if (['images', 'note'].includes(state.stage)) {
+      const latestImageJob = jobs.findLast((job) => !job.directionId && job.kind !== 'video');
+      if (latestImageJob) current = jobs.filter((job) => job.groupId === latestImageJob.groupId);
+    }
     const result = (status, label) => ({ status, label, running: active.length, total: current.length, updated_at: project.updated_at });
     if (active.length) return result('generating', active.some((job) => job.kind === 'video') ? '视频生成中' : active.every((job) => job.kind === 'edit') ? '改图中' : active.every((job) => job.directionId) ? '方向预览生成中' : `出图中 ${current.filter((job) => job.status === 'succeeded').length}/${current.length}`);
-    if (current.some((job) => job.status === 'failed') || state.video?.status === 'failed') return result('failed', '出图失败，点开看看');
+    if (current.some((job) => job.status === 'failed')) return result('failed', '出图失败，点开看看');
     if (state.stage === 'done') return result('done', '全套已出好');
     if (project.mode === 'auto' && state.auto?.active) return result('generating', state.auto.label);
     if (state.pending_action?.type === 'confirm_script') return result('waiting_you', '等你确认脚本');

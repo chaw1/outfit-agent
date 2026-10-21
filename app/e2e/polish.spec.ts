@@ -199,7 +199,7 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
     await page.getByTestId('chat-input').fill('想让风格再松弛一点，面料细节保持自然。');
     await expect(page.getByTestId('send-message')).toBeEnabled();
     await capture('70-workspace-font115.png', 'workspace', page.getByTestId('direction-direction_city'));
-    await reachable('工作台发送消息', page.getByTestId('send-message'));
+    await reachable('编导间发送消息', page.getByTestId('send-message'));
 
     mode = 'empty'; stateGate = gate(); historyGate = gate(); releases.push(stateGate.release, historyGate.release);
     await page.goto(`/preview/${project.id}`);
@@ -210,7 +210,7 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
     stateGate.release(); historyGate.release(); stateGate = undefined; historyGate = undefined;
     await expect(page.getByText('笔记还在酝酿中', { exact: true })).toBeVisible();
     await capture('72-preview-empty-font115.png', 'preview-empty');
-    await reachable('无笔记返回工作台', page.getByRole('button', { name: '返回工作台', exact: true }));
+    await reachable('无笔记返回编导间', page.getByRole('button', { name: '返回编导间', exact: true }));
 
     mode = 'missing-image';
     await page.reload();

@@ -1,12 +1,25 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-| (node:94327) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (node:67273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 | (Use `node --trace-warnings ...` to show where the warning was created)
-Android Bundled 3955ms node_modules/expo-router/entry.js (2000 modules)
+| (node:67273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:67273) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android Bundled 5041ms node_modules/expo-router/entry.js (2015 modules)
 
-› Assets (46):
-assets/editorial.jpg (141KB)
+› Assets (55):
+assets/inspiration/studio-01.jpg (126KB)
+assets/inspiration/studio-02.jpg (152KB)
+assets/inspiration/studio-03.jpg (153KB)
+assets/inspiration/studio-04.jpg (160KB)
+assets/inspiration/studio-05.jpg (161KB)
+assets/inspiration/studio-06.jpg (230KB)
+assets/inspiration/studio-07.jpg (153KB)
+assets/inspiration/studio-08.jpg (162KB)
+assets/inspiration/studio-09.jpg (158KB)
+assets/inspiration/studio-10.jpg (154KB)
 node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf (130KB)
 node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf (66KB)
 node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf (13KB)
@@ -42,9 +55,9 @@ node_modules/expo-router/assets/sitemap.png (465B)
 node_modules/expo-router/assets/unmatched.png (4.8KB)
 
 › android bundles (1):
-_expo/static/js/android/entry-581a39a46c58bd5f437f2ea0fb0b7387.hbc (5.1MB)
+_expo/static/js/android/entry-c8af6c73a2eaca8179e8b212a0e1d432.hbc (5.1MB)
 
 › Files (1):
-metadata.json (3KB)
+metadata.json (3.6KB)
 
 Exported: dist/android

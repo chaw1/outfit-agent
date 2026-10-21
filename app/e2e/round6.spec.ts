@@ -246,7 +246,7 @@ test('第六轮：旧字段缺失时隐藏过程与预估，出图和视频余�
   current = { ...script, stage: 'note', images: [{ id: imageId, shot_id: 'round6-budget-shot', version: 1, status: 'succeeded', url: garment.url }], note, pending_action: { type: 'confirm_video', prompt: '确认生成视频', estimated_cost_cny: 1.2 }, budget: { tier: 'free', daily_budget_cny: 20, today_cost_cny: 19.9, remaining_cny: 0.1 }, active_jobs: [] };
   currentHistory = [...currentHistory, { id: 'round6-budget-note-message', role: 'assistant', text: '笔记已准备好。', cards: [{ id: `${project.id}_note`, type: 'note', ...note }], created_at: new Date().toISOString() }];
   await page.reload();
-  await expect(page.getByTestId('cost-estimate-confirm_video')).toContainText('1.20');
+  await expect(page.getByTestId('cost-estimate-confirm_video')).toContainText('12 点');
   await expect(page.getByTestId('cost-estimate-confirm_video')).toContainText('1 点');
   await expect(page.getByTestId('confirm-video')).toBeDisabled();
   await expect(page.getByTestId('budget-insufficient-confirm_video')).toContainText(/点数不够/);

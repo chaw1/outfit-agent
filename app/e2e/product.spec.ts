@@ -66,7 +66,7 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
   await page.getByLabel('体型描述', { exact: true }).fill('肩略宽，希望突出腰线');
   await page.getByLabel('风格偏好', { exact: true }).fill('喜欢松弛感，不穿高跟鞋');
   await page.getByRole('button', { name: '保存我的形象', exact: true }).click();
-  await expect(page.getByText('形象已保存，新建合作会默认带上你的照片。')).toBeVisible();
+  await expect(page.getByText('形象已保存，拍新片会默认带上你的照片。')).toBeVisible();
   const profileUser = await me();
   expect(profileUser.nickname).toBe('松弛小序');
   expect(profileUser.profile?.model_asset_ids).toHaveLength(2);

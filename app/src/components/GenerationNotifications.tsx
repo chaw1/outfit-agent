@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppState, Pressable, Text, View } from 'react-native';
 import { useSession } from '../context/Session';
-import { publishCompletion } from '../lib/completionFeed';
 import type { Completion } from '../lib/completionTracker';
 import { configureNotifications, listenNotificationTap, pollGenerations } from '../lib/notificationRuntime';
 import { colors, layout, radius, space, type } from '../theme';
@@ -17,7 +16,7 @@ export function GenerationNotifications() {
   const userId = user?.id;
   const scope = JSON.stringify([baseUrl, userId]);
   const notice = noticeState?.scope === scope ? noticeState.value : undefined;
-  const completed = useCallback((value: Completion) => { publishCompletion(scope, value); if (AppState.currentState === 'active' || !AppState.currentState) setNotice({ scope, value }); }, [scope]);
+  const completed = useCallback((value: Completion) => { if (AppState.currentState === 'active' || !AppState.currentState) setNotice({ scope, value }); }, [scope]);
   useEffect(() => {
     if (!ready || (token && !userId)) return;
     void configureNotifications(token && userId ? { api, token, baseUrl, userId } : null, completed).catch(() => undefined);

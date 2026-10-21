@@ -1,63 +1,28 @@
 {
-  "flow": {
-    "projectId": "project_f6b6d35e-e47b-4723-ab62-661f96c501f4",
-    "defaultIds": [
-      "image_4877f3d6-56da-47ea-ad8f-28d0389dad3b",
-      "image_6c39c9fe-f97a-41a6-aa95-c5d885614c57",
-      "image_cc8159af-3d4f-4acf-86bb-942e85027fbc"
-    ],
-    "unverifiedImageId": "image_5e39c66a-9073-46a2-be16-d601fc32c051",
-    "originalImageId": "image_4877f3d6-56da-47ea-ad8f-28d0389dad3b",
-    "approvalAction": {
-      "type": "approve_images",
-      "image_ids": [
-        "image_5e39c66a-9073-46a2-be16-d601fc32c051",
-        "image_6c39c9fe-f97a-41a6-aa95-c5d885614c57",
-        "image_cc8159af-3d4f-4acf-86bb-942e85027fbc"
-      ],
-      "accept_unverified": [
-        "image_5e39c66a-9073-46a2-be16-d601fc32c051"
-      ]
-    },
-    "firstAttempt": "e648287c-23af-4dd7-8eda-4db01ff55ddc",
-    "retryAttempt": "a9f6c36e-71c3-48cf-85c3-dd864a8161c8",
-    "verifiedImageId": "image_6008053a-e7b7-4cc6-9a24-21fb886fec92",
-    "noteOrder": [
-      "image_6008053a-e7b7-4cc6-9a24-21fb886fec92",
-      "image_6c39c9fe-f97a-41a6-aa95-c5d885614c57",
-      "image_cc8159af-3d4f-4acf-86bb-942e85027fbc"
-    ],
-    "conflictKeep": true,
-    "conflictAdopt": true,
-    "restoreServer": true,
-    "reusedTaskStopsWaiting": true,
-    "transportReplayAttempt": "829cafd7-94ad-4268-b6cc-fcf39468528b",
-    "pageErrors": []
-  },
   "serverFallback": {
-    "projectId": "project_51bba1a5-b17d-489e-b72a-c2155ffcd5a4",
-    "unverifiedImageId": "image_e5bc25ed-434c-48bf-9ede-84bbed4ea06c",
+    "projectId": "project_9009bf51-b4ca-48bb-9054-135a38930aa0",
+    "unverifiedImageId": "image_5739a286-e76f-408c-9279-4782dee9fb12",
     "deniedFirst": true,
     "approvals": [
       {
         "type": "approve_images",
         "image_ids": [
-          "image_e5bc25ed-434c-48bf-9ede-84bbed4ea06c",
-          "image_e24629c4-283e-4f4a-9be9-9a262d3167ef",
-          "image_eb619aad-f5ad-4c75-82a2-46579d58b83f"
+          "image_5739a286-e76f-408c-9279-4782dee9fb12",
+          "image_ff4f7b51-09f0-4840-a706-37c31e3f06e8",
+          "image_ef736c8d-f325-4243-9f99-accb78140462"
         ]
       },
       {
         "type": "approve_images",
         "image_ids": [
-          "image_e5bc25ed-434c-48bf-9ede-84bbed4ea06c",
-          "image_e24629c4-283e-4f4a-9be9-9a262d3167ef",
-          "image_eb619aad-f5ad-4c75-82a2-46579d58b83f"
+          "image_5739a286-e76f-408c-9279-4782dee9fb12",
+          "image_ff4f7b51-09f0-4840-a706-37c31e3f06e8",
+          "image_ef736c8d-f325-4243-9f99-accb78140462"
         ],
         "accept_unverified": [
-          "image_e5bc25ed-434c-48bf-9ede-84bbed4ea06c",
-          "image_e24629c4-283e-4f4a-9be9-9a262d3167ef",
-          "image_eb619aad-f5ad-4c75-82a2-46579d58b83f"
+          "image_5739a286-e76f-408c-9279-4782dee9fb12",
+          "image_ff4f7b51-09f0-4840-a706-37c31e3f06e8",
+          "image_ef736c8d-f325-4243-9f99-accb78140462"
         ]
       }
     ],
@@ -65,7 +30,7 @@
     "pageErrors": []
   },
   "pendingReuse": {
-    "projectId": "project_9b4df925-29f2-4d05-ad38-e7222de7f67a",
+    "projectId": "project_881fcd96-9927-4b14-bb87-104ca446ff79",
     "streamReuseFieldsOmitted": true,
     "failedStateReads": 1,
     "recoveredStateReads": 1,

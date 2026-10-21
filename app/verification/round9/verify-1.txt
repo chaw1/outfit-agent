@@ -1,0 +1,9 @@
+
+> outfit-notes@1.0.0 verify
+> node scripts/verify.mjs
+
+通过 typecheck (3652 ms)
+通过 lint (6049 ms)
+通过 tests (7438 ms)
+通过 ios (7277 ms)
+通过 android (6858 ms)

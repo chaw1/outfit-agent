@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ProfileEditor } from '../components/ProfileEditor';
 import { supportsProfile } from '../lib/profile';
@@ -9,8 +9,9 @@ import { useSession } from '../context/Session';
 import { formatPoints, pointsValue } from '../lib/transparency';
 
 export default function Settings() {
-  const { baseUrl, setBaseUrl, signOut, token, user } = useSession();
+  const { baseUrl, setBaseUrl, signOut, token, user, refreshUser } = useSession();
   const router = useRouter();
+  useFocusEffect(useCallback(() => { if (token) void refreshUser().catch(() => undefined); }, [token, refreshUser]));
   const [url, setUrl] = useState(baseUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');

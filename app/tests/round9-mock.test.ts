@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -245,5 +245,65 @@ test('round nine image takeover survives restart, preserves every task, and maps
     assert.equal(state.stage, 'done');
     assert.equal(state.pending_action, null);
     assert.equal((await progress()).status, 'done');
+  } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('round nine progress ignores replaced previews and failed image/video attempts after successful retries', async () => {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'outfit-round9-progress-retry-'));
+  const fixturesDir = path.join(dataDir, 'fixtures');
+  await mkdir(fixturesDir);
+  const source = path.resolve(import.meta.dirname, '../../docs/spike');
+  const imageFixture = path.join(fixturesDir, 't-wan-v.jpg');
+  await copyFile(path.join(source, 't-wan-v.jpg'), imageFixture);
+  let time = Date.parse('2026-10-21T01:00:00Z');
+  const { server, base } = await start(dataDir, { clock: () => time, fixturesDir });
+  try {
+    const { token, input } = await setup(base);
+    const project = (await request<Project>(base, '/api/projects', token, input)).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, token)).body;
+    const progress = async () => (await request<Project[]>(base, '/api/projects', token)).body[0].progress;
+    await send(base, project.id, token, { text: '先给我三个方向' });
+    await send(base, project.id, token, { text: '换一组' });
+    assert.equal((await progress()).status, 'generating');
+    assert.equal((await progress()).total, 3, 'superseded preview jobs are excluded from the current batch');
+    time += 21;
+    let state = await getState();
+    assert.equal((await progress()).status, 'waiting_you');
+    assert.equal((await progress()).label, '等你挑个方向');
+    assert.equal((await progress()).total, 3);
+    await send(base, project.id, token, { action: { type: 'choose_direction', direction_id: state.directions[0].id } });
+    await send(base, project.id, token, { action: { type: 'confirm_script' } });
+    await rm(imageFixture);
+    time += 21;
+    state = await getState();
+    assert.ok(state.images.every((image) => image.status === 'failed'));
+    assert.equal((await progress()).status, 'failed');
+    await copyFile(path.join(source, 't-wan-v.jpg'), imageFixture);
+    await send(base, project.id, token, { text: '重试没有完成的图片' });
+    assert.equal((await progress()).total, 3);
+    time += 21;
+    await getState();
+    time += 21;
+    state = await getState();
+    assert.ok(state.images.every((image) => image.status === 'succeeded'));
+    assert.equal((await progress()).status, 'waiting_you');
+    const selected = state.images.filter((image) => image.version === 1).map((image) => image.id);
+    await send(base, project.id, token, { action: { type: 'approve_images', image_ids: selected } });
+    assert.equal((await progress()).status, 'ready');
+    await send(base, project.id, token, { action: { type: 'confirm_video', image_id: selected[0] } });
+    time += 21;
+    state = await getState();
+    assert.equal(state.stage, 'note');
+    assert.equal((await progress()).status, 'failed');
+    await copyFile(path.join(source, 'v-wan.mp4'), path.join(fixturesDir, 'v-wan.mp4'));
+    await send(base, project.id, token, { action: { type: 'confirm_video', image_id: selected[0] } });
+    assert.equal((await progress()).status, 'generating');
+    assert.equal((await progress()).total, 1, 'the replaced failed video is excluded');
+    time += 21;
+    state = await getState();
+    assert.equal(state.stage, 'done');
+    assert.equal((await progress()).status, 'done');
+    assert.equal((await progress()).label, '全套已出好');
+    assert.equal((await progress()).total, 1);
   } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
 });

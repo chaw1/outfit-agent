@@ -87,7 +87,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
 
     async function refresh() {
       if (inFlight || !projectId) {
-        if (!projectId && alive) { setError('找不到这份项目，请返回工作台重新打开。'); setLoading(false); }
+        if (!projectId && alive) { setError('找不到这份项目，请返回编导间重新打开。'); setLoading(false); }
         return;
       }
       inFlight = true;
@@ -319,7 +319,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         icon={notFound ? 'document-text-outline' : error ? 'cloud-offline-outline' : 'document-text-outline'}
         title={notFound ? '项目已删除或不存在' : error ? '连接暂时中断' : '笔记还在酝酿中'}
         description={notFound ? '这组片已无法访问，返回列表看看其他片场。' : error || '先回编导间选好图片，我们就把这份穿搭灵感写成一篇笔记。'}
-        actionLabel={notFound ? '返回项目列表' : error ? '重试' : '返回工作台'}
+        actionLabel={notFound ? '返回项目列表' : error ? '重试' : '返回编导间'}
         onAction={error && !notFound ? () => setRetry(value => value + 1) : backToStudio}
       /> : <>
         {draftConflict ? <View style={styles.draftConflict} testID="note-draft-conflict" accessibilityRole="alert">
@@ -379,14 +379,14 @@ function PreviewPage({ projectId }: { projectId?: string }) {
               <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 后移`} accessibilityState={{ disabled: index === images.length - 1 || preparing || saving }} disabled={index === images.length - 1 || preparing || saving} onPress={() => reorderImage(index, 1)} testID={`move-note-image-${image.id}-later`} style={[styles.orderButton, (index === images.length - 1 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-down" size={18} color={colors.redText} /></Pressable>
             </View>)}
           </View>
-          <View style={styles.draftNotice}><Ionicons name="save-outline" size={16} color={colors.muted} /><View style={{ flex: 1, gap: space.xs }}><Text style={styles.checklistHint}>编辑会在本机覆盖发布文案，原始笔记保留在工作台。草稿保存在当前设备。</Text>{!!draftStatus && <Text testID="note-draft-status" accessibilityLiveRegion="polite" style={styles.draftStatus}>{draftStatus}</Text>}</View></View>
+          <View style={styles.draftNotice}><Ionicons name="save-outline" size={16} color={colors.muted} /><View style={{ flex: 1, gap: space.xs }}><Text style={styles.checklistHint}>编辑会在本机覆盖发布文案，原始笔记保留在编导间。草稿保存在当前设备。</Text>{!!draftStatus && <Text testID="note-draft-status" accessibilityLiveRegion="polite" style={styles.draftStatus}>{draftStatus}</Text>}</View></View>
           <View style={styles.draftActions}>
             <Button title="恢复服务端版本" variant="ghost" icon="refresh-outline" disabled={preparing || saving} onPress={() => resolveDraft(false)} testID="restore-server-note" />
             {previousDraft ? <Button title="恢复我的草稿" variant="ghost" disabled={preparing || saving} onPress={restorePreviousDraft} testID="restore-previous-note-draft" /> : null}
           </View>
           <NoteDisclosure note={note} projectCost={state?.cost_cny} projectPoints={state?.cost_points} />
           <View style={styles.noteEnd}><View style={styles.endLine} /><Text style={styles.endLabel}>记录穿搭，也记录自己</Text><View style={styles.endLine} /></View>
-          {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <ProgressStrip title="短片正在制作" detail="好了会出现在这里，你可以继续查看笔记。" /> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
+          {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <ProgressStrip title="短片正在制作" detail="好了会出现在这里，你可以继续查看笔记。" /> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回编导间重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
           <View style={styles.checklist} testID="publish-checklist">
             <View style={styles.videoHeading}><Ionicons name="checkbox-outline" size={18} color={colors.red} /><Text style={styles.videoTitle}>发布清单</Text></View>
             <Text style={styles.checklistHint}>{images.length} 张图片，按以下顺序保存{Platform.OS === 'web' ? '到下载目录' : '到相册'}。图片已有 AI 角标。</Text>
@@ -403,7 +403,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Text style={styles.checklistHint}>这里的确认不会替你设置发布平台。请在发布页手动勾选 AI 内容声明，并按清单顺序选择图片和视频。</Text>
             <Text testID="publish-share" style={styles.checklistHint}>{publishProgress.share === 'unavailable' ? '当前浏览器不支持系统分享，可手动打开发布平台。' : publishProgress.share === 'dismissed' ? '分享已取消，可重新打开。' : publishProgress.share === 'shared' ? '系统分享面板已打开；是否发布由你在目标平台确认。' : '素材准备完成后会打开系统分享面板。'}</Text>
           </View>
-          <Button title="返回工作台继续创作" variant="ghost" icon="arrow-back" onPress={backToStudio} />
+          <Button title="返回编导间继续创作" variant="ghost" icon="arrow-back" onPress={backToStudio} />
         </AnimatedEntry>
       </>}
     </ScrollView>

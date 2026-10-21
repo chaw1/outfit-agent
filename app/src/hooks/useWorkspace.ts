@@ -305,8 +305,7 @@ export function useWorkspace(id: string) {
     } catch (e) {
       if (isCurrent(owner, epoch)) setError(`${errorText(e)} 请刷新查看是否已接手。`);
     } finally {
-      sending.current = false;
-      if (isCurrent(owner, epoch)) setBusy(false);
+      if (isCurrent(owner, epoch)) { sending.current = false; setBusy(false); }
     }
   }, [api, id, owner, isCurrent, refresh]);
   return { takeOver, project, state, messages, cards: latestCards, loading, busy, error, send, retry, failedMessages, retryMessage, missing };

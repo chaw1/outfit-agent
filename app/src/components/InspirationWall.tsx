@@ -24,7 +24,7 @@ export function InspirationWall() {
     <View testID="inspiration-wall" style={local.wall}>
       {[0, 1].map(column => <View key={column} style={local.column}>
         {inspiration.map((item, index) => index % 2 === column ? <Pressable key={index} testID={`inspiration-${String(index + 1).padStart(2, '0')}`} accessibilityRole="button" accessibilityLabel={`查看灵感 ${index + 1} · ${item.label}`} onPress={() => setSelected(index)} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, gap: space.sm })}>
-          <FadeImage source={item.source} resizeMode="cover" accessibilityLabel={`${item.label}穿搭成片`} style={[local.image, { aspectRatio: index % 3 === 0 ? 0.68 : index % 3 === 1 ? 0.85 : 0.75 }]} />
+          <View style={[local.image, { aspectRatio: index % 3 === 0 ? 0.68 : index % 3 === 1 ? 0.85 : 0.75 }]}><FadeImage source={item.source} resizeMode="cover" accessibilityLabel={`${item.label}穿搭成片`} style={{ width: '100%', height: '100%' }} /></View>
           <View style={local.caption}><Text style={local.number}>{String(index + 1).padStart(2, '0')}</Text><Text style={local.label}>{item.label}</Text></View>
         </Pressable> : null)}
       </View>)}
@@ -42,7 +42,7 @@ export function InspirationWall() {
 const local = StyleSheet.create({
   wall: { flexDirection: 'row', gap: space.md, alignItems: 'flex-start' },
   column: { flex: 1, gap: space.xl },
-  image: { width: '100%', borderRadius: radius.sm, backgroundColor: studio.canvas },
+  image: { overflow: 'hidden', width: '100%', borderRadius: radius.sm, backgroundColor: studio.canvas },
   caption: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   number: { ...type.badge, color: studio.subtle, letterSpacing: 1 },
   label: { ...type.caption, color: studio.muted, flex: 1 },

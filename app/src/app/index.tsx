@@ -6,6 +6,7 @@ import type { Project } from '../api/types';
 import { InspirationWall } from '../components/InspirationWall';
 import { AnimatedEntry, Badge, Button, FadeImage, Field, IconButton, LoadingSkeleton, Page, StatePanel, Toast, errorText, stageNames, styles } from '../components/ui';
 import { useSession } from '../context/Session';
+import { notificationOwner } from '../lib/completionTracker';
 import { recentCompletions, subscribeCompletions } from '../lib/completionFeed';
 import { filterProjects } from '../lib/profile';
 import { inProgressProjects, otherProjects } from '../lib/projectProgress';
@@ -25,7 +26,7 @@ export default function Projects() {
   const focused = useRef(false);
   const removedIds = useRef(new Set<string>());
   const candidateRef = useRef<Project | null>(null);
-  const scope = JSON.stringify([baseUrl, user?.id]);
+  const scope = notificationOwner({ baseUrl, userId: user?.id ?? '' });
   const subscribe = useCallback((listener: () => void) => subscribeCompletions(scope, listener), [scope]);
   const snapshot = useCallback(() => recentCompletions(scope), [scope]);
   const completions = useSyncExternalStore(subscribe, snapshot, snapshot).filter(item => items.some(project => project.id === item.projectId));
@@ -48,7 +49,12 @@ export default function Projects() {
   const generating = items.some(item => item.progress?.status === 'generating');
   useEffect(() => {
     if (!generating) return;
-    const timer = setInterval(() => { if (focused.current && (!AppState.currentState || AppState.currentState === 'active')) void load(true); }, 5000);
+    let polling = false;
+    const timer = setInterval(() => {
+      if (polling || !focused.current || (AppState.currentState && AppState.currentState !== 'active')) return;
+      polling = true;
+      void load(true).finally(() => { polling = false; });
+    }, 5000);
     return () => clearInterval(timer);
   }, [generating, load]);
   useEffect(() => {
