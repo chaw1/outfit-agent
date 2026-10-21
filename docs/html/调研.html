@@ -456,6 +456,16 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <td>适合多智能体对话/仿真；阶段化业务流程不是强项</td>
 </tr>
 <tr>
+<td>Spring AI 1.x（Java）</td>
+<td>ChatMemory 可接 JDBC，只存对话，不存流程状态</td>
+<td>无内建，需在业务层自己做暂停与恢复</td>
+<td>ChatClient + Advisor 链，没有状态图</td>
+<td>需自己编排</td>
+<td>无内建</td>
+<td>Java/Spring 生态一等公民，模型接入广</td>
+<td>我之前用它做过对话类功能，熟悉；但它是「模型接入层」不是「流程层」，H1–H5 都要自己写。适合将来业务后端（Java）接智能体服务时做客户端</td>
+</tr>
+<tr>
 <td>Dify / Coze</td>
 <td>平台托管</td>
 <td>有限（表单节点）</td>
@@ -540,6 +550,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li><strong>interrupt 的重放安全</strong>：确认动作重复发送、服务中途重启，都不会重复入队花钱（实验 E1、E2）。</li>
 </ol>
 <p><strong>诚实的结论</strong>：如果流程永远只有这 7 个阶段、只有一个博主，手写也够用；选 LangGraph 是为了公司链路往下长——多个智能体协作（选款、文案、审核分开）、更多人工确认点、跨天的长会话、需要回放和审计——这些都是图 + checkpoint 的原生能力。</p>
+<p><strong>为什么不用 Java（Spring AI）</strong>：我之前用 Spring AI 做过对话功能，它把模型调用、记忆和工具调用封装得很顺手，但它解决的是「怎么调模型」，不是「怎么把一个多阶段、要人确认、要跨重启续跑的流程管起来」。这次的难点恰好在后者，加上出图、改图、视频的 SDK 与实测素材都在 Python 侧，所以智能体服务用 Python；Java 更适合承担业务后端（账号、订单、结算），通过 HTTP/SSE 调这个智能体服务（见第 5 节演进方向第 7 条）。</p>
 <p><strong>第二名是 AgentScope</strong>：阿里开源、和百炼模型配合最好、实时打断做得好。如果团队全在阿里云和百炼上、更看重多智能体对话，它值得选；它的短板是阶段化业务流程和 Postgres 持久化不是一等公民。</p>
 <h2 id="4-整体架构">4. 整体架构<a class="headerlink" href="#4-整体架构" title="Permanent link">¶</a></h2>
 <p>见 <code>docs/设计.md</code>。</p>
