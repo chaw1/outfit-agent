@@ -38,6 +38,8 @@ class AgentState(TypedDict, total=False):
     images: list[dict]
     note: dict | None
     video: dict | None
+    # 第几次制作短片；再做一条时递增，用它区分“新制作”和“同一次确认的重发”。
+    video_attempt: int
     pending_action: dict | None
     messages: Annotated[list, add_messages]
     incoming: dict

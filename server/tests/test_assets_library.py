@@ -217,7 +217,7 @@ def test_deleted_project_images_are_excluded(library_api):
     assert save_model(env).status_code == 404
 
 
-def test_delete_model_copy_removes_profile_file_and_project_reference(library_api):
+def test_delete_model_copy_is_blocked_while_a_project_uses_it(library_api):
     env = library_api
     asset = save_model(env).json()["asset"]
     with env.factory() as session:
@@ -229,12 +229,22 @@ def test_delete_model_copy_removes_profile_file_and_project_reference(library_ap
         }
         session.commit()
     assert copy_path.exists()
+    blocked = env.client.delete(f"/api/me/assets/{asset['id']}")
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "ASSET_IN_USE"
+    assert "操场那组" in blocked.json()["error"]["message"]
+    assert copy_path.exists()
+    with env.factory() as session:
+        assert session.get(Project, "owner-project").model_asset_id == asset["id"]
+        profile = session.get(User, "owner").profile
+        assert profile["model_asset_ids"] == [asset["id"], "upload-model"]
+        session.get(Project, "owner-project").deleted_at = utcnow()
+        session.commit()
     response = env.client.delete(f"/api/me/assets/{asset['id']}")
     assert response.status_code == 204
     assert not copy_path.exists() and (env.media / "owner-image-asset.png").exists()
     with env.factory() as session:
         assert session.get(Asset, asset["id"]) is None
-        assert session.get(Project, "owner-project").model_asset_id is None
         assert session.get(User, "owner").profile == {
             "model_asset_ids": ["upload-model"], "style_notes": "保留偏好",
         }
@@ -286,8 +296,10 @@ def test_uploaded_model_is_removed_from_profile_and_original_is_retained(library
         assert session.get(Asset, "upload-model") is not None
         assert session.get(Project, "owner-project").model_asset_id == "upload-model"
         assert session.get(User, "owner").profile["model_asset_ids"] == []
-    uploaded = env.client.get("/api/me/assets", params={"kind": "model"}).json()["items"][0]
-    assert uploaded["id"] == "upload-model" and uploaded["in_profile"] is False
+    listing = env.client.get("/api/me/assets", params={"kind": "model"}).json()
+    assert listing == {"items": [], "total": 0}
+    with env.factory() as session:
+        assert session.get(Asset, "upload-model").analysis["library_hidden"] is True
 
 
 @pytest.mark.parametrize(("asset_id", "status"), [

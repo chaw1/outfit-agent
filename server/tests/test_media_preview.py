@@ -106,3 +106,15 @@ def test_compress_video_shrinks_generated_clip(tmp_path):
     assert 0 < len(compressed) < len(original)
     assert compressed[4:8] == b"ftyp"
     assert compress_video(b"not a video") == b"not a video"
+
+
+def test_concurrent_first_previews_both_succeed(media_dir):
+    """同一张图、同一档宽度同时来两个请求：各自用独立临时文件，谁都不该 404。"""
+    from concurrent.futures import ThreadPoolExecutor
+
+    path = persist_bytes(_png(1536, 2048), "image/png")
+    asset = Asset(id="a1", user_id="u", kind="reference", mime="image/png", path=path)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(pool.map(lambda _: preview_path(asset, 360), range(4)))
+    assert all(item.is_file() for item in results)
+    assert not list(media_dir.rglob("*.tmp"))

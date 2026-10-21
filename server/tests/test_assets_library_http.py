@@ -27,6 +27,8 @@ def live_library(base_url):
     )
     media = Path(os.environ.get("MEDIA_DIR", str(default_media))).resolve()
     assert media.is_relative_to(ROOT / "data"), "Use this worktree's local media directory"
+    # 只有 README 里的独立本机 API（18081）与测试共用 MEDIA_DIR；compose 栈的媒体目录在容器里。
+    shared_media = urlsplit(base_url).port == 18081
     engine = create_engine(url)
     accounts = []
 
@@ -39,7 +41,9 @@ def live_library(base_url):
         return SimpleNamespace(api=client, credentials=credentials, user=user)
 
     try:
-        yield SimpleNamespace(register=register, engine=engine, media=media)
+        yield SimpleNamespace(
+            register=register, engine=engine, media=media, shared_media=shared_media,
+        )
     finally:
         for client, credentials in accounts:
             try:
@@ -83,6 +87,8 @@ def file_for(env, user_id, asset_id):
         path = (env.media / asset.path).resolve()
         assert path.is_relative_to(env.media)
         if not path.is_file():
+            if env.shared_media:
+                raise AssertionError(f"共用媒体目录下应有这个文件：{path}")
             pytest.skip(
                 "这两条用例要求 API 与测试共用本机 MEDIA_DIR（compose 栈的媒体目录在容器里）；"
                 "用 README 里的独立本机 API（18081）运行即可覆盖"

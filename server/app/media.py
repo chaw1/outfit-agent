@@ -306,9 +306,13 @@ def preview_path(asset: Asset, width: int) -> Path:
             image = image.convert("RGB")
             if image.width > width:
                 image.thumbnail((width, int(image.height * width / image.width) + 1))
-            temporary = target.with_suffix(".tmp")
-            image.save(temporary, format="JPEG", quality=86, optimize=True)
-            temporary.replace(target)
+            # 每次生成用独立的临时文件：同一张图同时来两个请求时，各写各的，再原子替换。
+            temporary = target.with_name(f"{target.stem}.{uuid4().hex}.tmp")
+            try:
+                image.save(temporary, format="JPEG", quality=86, optimize=True)
+                temporary.replace(target)
+            finally:
+                temporary.unlink(missing_ok=True)
     except (UnidentifiedImageError, OSError) as exc:
         raise AppError("MEDIA_NOT_FOUND", "文件不存在", 404) from exc
     return target

@@ -364,9 +364,16 @@ class Workflow:
                  if image_id == action["image_id"]],
             )
             if repeated_video:
-                video_job = self.session.get(Job, (state.get("video") or {}).get("job_id"))
-                if not video_job or video_job.payload.get("image_id") != action["image_id"]:
-                    raise AppError("video_already_confirmed", "这个项目已经确认了视频生成。")
+                video_job = self._current_video_job(state)
+                # 上一条还在做时只接受同一次确认的重发；做完（或失败）后可以换图再做一条。
+                if (
+                    video_job is not None
+                    and video_job.status in {"queued", "running"}
+                    and video_job.payload.get("image_id") != action["image_id"]
+                ):
+                    raise AppError(
+                        "video_in_progress", "上一条短片还在做，等它出来后再换一张图重做。"
+                    )
         replayed_edit = (
             kind == "edit_image"
             and action.get("attempt") is not None
@@ -945,6 +952,10 @@ class Workflow:
             [self._card("note", note)],
         )
 
+    def _current_video_job(self, state: dict) -> Job | None:
+        job_id = (state.get("video") or {}).get("job_id")
+        return self.session.get(Job, job_id) if job_id else None
+
     def _video_card_content(self, job: Job) -> dict:
         source = self._asset(job.payload["image_asset_id"])
         return {
@@ -966,7 +977,17 @@ class Workflow:
         image = self._image_job(action["image_id"])
         prompt = state["script"].get("video", {}).get("prompt", "模特自然展示穿搭，镜头缓慢移动")
         prompt += "；人物面部和服装保持不变。"
-        key = f"{self.project.id}:video:{fingerprint([image.id, prompt])}"
+        identity = [image.id, prompt]
+        previous = self._current_video_job(state)
+        if previous is not None and (
+            previous.status not in {"queued", "running"}
+            or previous.payload.get("image_id") != image.id
+        ):
+            # 已有一条短片（做完或失败）后再做一条：换一个制作序号，不被旧任务去重。
+            state["video_attempt"] = int(state.get("video_attempt") or 0) + 1
+        if state.get("video_attempt"):
+            identity.append(state["video_attempt"])
+        key = f"{self.project.id}:video:{fingerprint(identity)}"
         payload = {
             "image_id": image.id,
             "image_asset_id": image.result_asset_id,

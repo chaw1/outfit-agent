@@ -74,7 +74,8 @@ def locked_user(session: Session, user_id: str) -> User:
 
 def check_password(user: User, password: str) -> None:
     if not verify_password(password, user.password_hash):
-        raise AppError("INVALID_CREDENTIALS", "密码不正确", 401)
+        # 400 而不是 401：这是业务校验失败，登录态仍然有效，客户端不能因此退出登录。
+        raise AppError("INVALID_PASSWORD", "密码不正确，请再试一次", 400)
 
 
 def replace_password(user: User, password: str) -> None:

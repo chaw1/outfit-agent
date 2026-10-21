@@ -114,7 +114,11 @@ def list_assets(
 ):
     query = completed_images(user.id) if kind == "image" else select(Asset, Project).outerjoin(
         Project, and_(Project.id == Asset.project_id, Project.user_id == user.id),
-    ).where(Asset.user_id == user.id, Asset.kind == kind)
+    ).where(
+        Asset.user_id == user.id, Asset.kind == kind,
+        # 用户在素材库里“删除”过的上传模特不再出现；文件和项目引用都还在。
+        func.coalesce(Asset.analysis["library_hidden"].as_boolean(), False).is_(False),
+    )
     unique_ids = query.with_only_columns(Asset.id).distinct().subquery()
     total = session.scalar(select(func.count()).select_from(unique_ids))
     rows = session.execute(query.distinct().order_by(
@@ -134,6 +138,16 @@ def delete_asset(
     if asset is None:
         raise AppError("NOT_FOUND", "素材不存在", 404)
     if asset.kind == "model":
+        if asset.source == "generated":
+            # 正在被项目当出镜人用的成片模特不能删：排队中的出图还要靠它，删了会换人。
+            titles = session.scalars(select(Project.title).where(
+                Project.user_id == user.id, Project.deleted_at.is_(None),
+                Project.model_asset_id == asset.id,
+            ).order_by(Project.title, Project.id)).all()
+            if titles:
+                raise AppError(
+                    "ASSET_IN_USE", "这位模特正在被以下项目使用：" + "、".join(titles) + "。", 409,
+                )
         profile = dict(user.profile or {})
         profile["model_asset_ids"] = [
             item for item in profile.get("model_asset_ids", []) if item != asset.id
@@ -141,6 +155,8 @@ def delete_asset(
         user.profile = profile
         if asset.source == "upload":
             # Original uploads remain available to projects; only saved copies are removed.
+            # 列表里不再展示，免得“已删除”之后再进来又看见它。
+            asset.analysis = {**(asset.analysis or {}), "library_hidden": True}
             session.commit()
             return Response(status_code=204)
         session.execute(update(Project).where(

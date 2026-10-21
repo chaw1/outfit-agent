@@ -203,7 +203,8 @@ def test_legacy_user_without_code_can_set_one_after_password_verification(accoun
         session.get(User, result["user"]["id"]).recovery_code_hash = None
         session.commit()
     denied = client.post("/api/me/recovery-code", json={"password": "wrong-password"})
-    assert denied.status_code == 401
+    assert denied.status_code == 400
+    assert denied.json()["error"]["code"] == "INVALID_PASSWORD"
     rotated = client.post("/api/me/recovery-code", json={"password": "initial-password"})
     assert rotated.status_code == 200
     assert rotated.headers["cache-control"] == "no-store"
@@ -228,7 +229,8 @@ def test_password_change_revokes_same_second_tokens_and_retains_recovery_hash(
     denied = client.post("/api/me/password", json={
         "current_password": "wrong-password", "new_password": "changed-password",
     })
-    assert denied.status_code == 401
+    assert denied.status_code == 400
+    assert denied.json()["error"]["code"] == "INVALID_PASSWORD"
     assert client.get("/api/me").status_code == 200
     claims = jwt.decode(logged_in["token"], settings.jwt_secret, algorithms=["HS256"])
     cutoff = datetime.fromtimestamp(claims["iat"], UTC) + timedelta(microseconds=1)

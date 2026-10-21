@@ -244,7 +244,8 @@ def test_admin_photo_script_markup_escapes_payload_and_keeps_line_breaks():
     start = source.index('${j.photo_prompt?`')
     end = source.index("</details>`:''}", start) + len("</details>")
     markup = source[start:end]
-    assert '<details class="job-photo-prompt"><summary>摄影脚本</summary>' in markup
+    assert '<details class="job-photo-prompt" data-job="${esc(j.id)}"' in markup
+    assert "<summary>摄影脚本</summary>" in markup
     assert '<pre>${esc(j.photo_prompt)}</pre>' in markup
     assert '${j.photo_prompt}' not in markup
     assert ".job-photo-prompt pre{white-space:pre-wrap;" in source

@@ -177,8 +177,12 @@ export class ApiClient {
       const headers: Record<string, string> = { Accept: 'application/json' };
       if (token) headers.Authorization = `Bearer ${token}`;
       let result: { status: number; body: string };
-      try { result = await nativeUpload(`${this.baseUrl}/assets`, file.uri, { mimeType: file.type, headers, fields: { kind } }); }
-      catch (error) { throw new ApiError('NETWORK_ERROR', `图片上传失败，请检查网络后重试。${error instanceof Error && error.message ? `（${error.message}）` : ''}`); }
+      const timeoutMs = this.options.restTimeoutMs?.upload ?? REST_TIMEOUT_MS.upload;
+      try { result = await nativeUpload(`${this.baseUrl}/assets`, file.uri, { mimeType: file.type, headers, fields: { kind }, timeoutMs }); }
+      catch (error) {
+        if (error instanceof Error && error.name === 'NativeUploadTimeout') throw new ApiError('TIMEOUT', '图片上传超时，请检查网络后重新选择。');
+        throw new ApiError('NETWORK_ERROR', `图片上传失败，请检查网络后重试。${error instanceof Error && error.message ? `（${error.message}）` : ''}`);
+      }
       if (result.status === 401) this.unauthorized(token);
       if (result.status < 200 || result.status >= 300) throw responseError(result.body, result.status);
       try { return JSON.parse(result.body) as Asset; }

@@ -847,3 +847,67 @@ def test_tiny_local_selection_is_rejected_before_models_and_keeps_pause(flow):
     assert len(session.scalars(select(Job)).all()) == count
     snapshot = graph.get_state({"configurable": {"thread_id": project.id}})
     assert snapshot.next == ("await_images",) and any(task.interrupts for task in snapshot.tasks)
+
+
+def _finish_video(session, project, graph, video_id):
+    asset = Asset(
+        user_id=project.user_id, project_id=project.id, kind="reference",
+        path="video.mp4", mime="video/mp4", source="generated",
+    )
+    session.add(asset)
+    session.flush()
+    job = session.get(Job, video_id)
+    job.status, job.result_asset_id = "succeeded", asset.id
+    session.commit()
+    assert run_turn(graph, project, "视频好了吗", None)["stage"] == "done"
+
+
+def test_second_video_after_done_makes_a_new_clip_with_same_or_other_image(flow):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    image_ids = [job["id"] for job in generated["jobs"]][:2]
+    succeed_images(session, project)
+    run_turn(graph, project, None, {"type": "approve_images", "image_ids": image_ids})
+    first = run_turn(graph, project, None, {"type": "confirm_video", "image_id": image_ids[0]})
+    first_id = first["jobs"][0]["id"]
+
+    # 还在做的时候重发同一次确认：复用同一个任务；换图则被挡住。
+    replay = run_turn(graph, project, None, {"type": "confirm_video", "image_id": image_ids[0]})
+    assert replay["jobs"][0]["id"] == first_id
+    with pytest.raises(AppError, match="还在做"):
+        run_turn(graph, project, None, {"type": "confirm_video", "image_id": image_ids[1]})
+
+    _finish_video(session, project, graph, first_id)
+    # 做完后换一张图再做一条：是新任务，不被旧的去重。
+    second = run_turn(graph, project, None, {"type": "confirm_video", "image_id": image_ids[1]})
+    second_id = second["jobs"][0]["id"]
+    assert second_id != first_id and second["stage"] == "video"
+    assert session.get(Job, second_id).payload["image_id"] == image_ids[1]
+    assert session.get(Job, second_id).status == "queued"
+    assert get_graph_state(graph, project.id)["video"]["job_id"] == second_id
+
+    _finish_video(session, project, graph, second_id)
+    # 同一张图也能再做一条（上一条失真了想重来）。
+    third = run_turn(graph, project, None, {"type": "confirm_video", "image_id": image_ids[1]})
+    assert third["jobs"][0]["id"] not in {first_id, second_id}
+    assert session.get(Job, third["jobs"][0]["id"]).status == "queued"
+
+
+def test_failed_video_can_be_retried_with_a_fresh_job(flow):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    image_ids = [job["id"] for job in generated["jobs"]][:2]
+    succeed_images(session, project)
+    run_turn(graph, project, None, {"type": "approve_images", "image_ids": image_ids})
+    first = run_turn(graph, project, None, {"type": "confirm_video", "image_id": image_ids[0]})
+    first_id = first["jobs"][0]["id"]
+    job = session.get(Job, first_id)
+    job.status, job.error = "failed", "上游超时"
+    session.commit()
+
+    retried = run_turn(graph, project, None, {"type": "confirm_video", "image_id": image_ids[0]})
+    assert retried["jobs"][0]["id"] != first_id
+    assert session.get(Job, retried["jobs"][0]["id"]).status == "queued"
+    assert retried["stage"] == "video"
