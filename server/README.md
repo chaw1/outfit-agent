@@ -307,3 +307,21 @@ uv run python scripts/verify_anchor.py --run --offline
 ```
 
 首次真实验证仅在已将个人钥匙串凭证注入子进程后运行 `scripts/verify_anchor.py --run`。它使用独立 SQLite 业务库与请求账本，固定 `evidence/anchor-real`，R1/R2 各不超过 2 元、总闸 5 元；每次调用先持久化 `started`，未知结果拒绝重提，成功结果复用，离线模式不新增预留。常驻服务始终保持 Mock。真实验证只执行每组一个方向预览和三镜头，未运行的预览在实验私有库标为失败；其余镜头的并行领取由 PostgreSQL Mock 测试验证。夜晚参考是脚本原创的霓虹街景插画，风格会相应影响结果。结果、调用账本和对比图见 `evidence/anchor-real/anchor-real.json`，交接结论见 [ANCHOR.md](ANCHOR.md)。
+
+## 第八轮：改图结果可信闭环
+
+`approve_images` 遇到 `edit_check.passed=false` 的成功图片时返回 `unverified_image`，消息包含镜头号和核对原因。用户确认后在同一 action 中传 `accept_unverified: [image_id]`；笔记的 `accepted_unverified_ids` 保存实际采用的未通过图片，普通文字修订保留该记录，重新选图重新确认。视频首帧仍须来自当前 `note.image_ids`，并通过同样的采用校验；质检未通过仍保持任务 `succeeded`，不会自动重新付费。
+
+文案上下文逐图分开 `requested_change` 和 `confirmed_visual_facts`。只有核对明确通过或本次手动采用的修改进入事实；其余沿用原衣服和原画面描述。提示词要求较晚确认的修改覆盖较早描述，禁止将未确认修改写成已完成事实。note 阶段重新 `approve_images` 会重写笔记并更新选图顺序。
+
+`edit_image` 可传非空字符串 `attempt`（最多 64 字符）。同一父图、指令、选区和 attempt 返回原任务，SSE `job` 事件在任务字段同级给出 `reused=true`；新 attempt 创建新任务并给出 `reused=false`，仍走原预算和限流。显式 attempt 重放不再调用文字模型，预算已耗尽也可取回已有任务；不传 attempt 保留旧去重键。`attempt` 仅是客户端提交标识，与 Worker 的队列尝试次数无关。
+
+新方向卡片及历史卡片读回新增 `regenerate_estimate_cny`，由 `costs.py` 按三张预览保守估算（当前为 ¥1.50，下一组实际为 2–3 张）；不含另计的文字和看图费用。新增数据沿用现有 JSON/checkpoint，无需新增数据库列或迁移。
+
+零费用验证：
+
+```bash
+uv run ruff check .
+REQUIRE_INTEGRATION=1 uv run python -m pytest -q
+uv run python scripts/e2e.py --mode mock --output artifacts/round8/mock-e2e.json
+```
