@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { Buffer } from 'node:buffer';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -166,7 +166,7 @@ export async function createMockServer(options = {}) {
     const update = body.profile;
     if (update.model_asset_ids !== undefined) {
       const ids = update.model_asset_ids;
-      if (!Array.isArray(ids) || ids.length > 20 || new Set(ids).size !== ids.length || ids.some((id) => typeof id !== 'string' || !db.assets.some((asset) => asset.id === id && asset.ownerId === user.id && asset.kind === 'model' && asset.source === 'upload'))) throw failure(400, 'INVALID_MODEL_ASSETS', '形象照片必须是当前账号上传的本人照片，每张只选一次');
+      if (!Array.isArray(ids) || ids.length > 20 || new Set(ids).size !== ids.length || ids.some((id) => typeof id !== 'string' || !db.assets.some((asset) => asset.id === id && asset.ownerId === user.id && asset.kind === 'model'))) throw failure(400, 'INVALID_MODEL_ASSETS', '形象照片必须来自当前账号的我的模特，每张只选一次，最多 20 张');
       profile.model_asset_ids = [...ids];
     }
     if (update.height_cm !== undefined) {
@@ -212,8 +212,8 @@ export async function createMockServer(options = {}) {
     return `${base}/media/${assetId}?exp=${exp}&sig=${sign(`${assetId}:${exp}`)}`;
   }
   function publicAsset(asset, base) {
-    const { id, kind, width, height, mime, created_at, source, parent_id, prompt } = asset;
-    return { id, kind, url: mediaUrl(id, base), width, height, mime, created_at, source, ...(parent_id ? { parent_id } : {}), ...(prompt ? { prompt } : {}) };
+    const { id, kind, width, height, mime, created_at, source, parent_id, prompt, analysis } = asset;
+    return { id, kind, url: mediaUrl(id, base), width, height, mime, created_at, source, ...(parent_id ? { parent_id } : {}), ...(prompt ? { prompt } : {}), ...(analysis ? { analysis: structuredClone(analysis) } : {}) };
   }
   function publicImage(image, base) {
     const { assetId, autoFixAttempted: _autoFixAttempted, automatic: _automatic, editSelection: _editSelection, ...result } = image;
@@ -414,7 +414,7 @@ export async function createMockServer(options = {}) {
   function removeProjectRecords(projects, ownerId) {
     const projectIds = new Set(projects.filter((project) => project.ownerId === ownerId).map((project) => project.id));
     const generatedIds = new Set([
-      ...db.assets.filter((asset) => asset.source === 'generated' && projectIds.has(asset.projectId)).map((asset) => asset.id),
+      ...db.assets.filter((asset) => asset.source === 'generated' && asset.kind !== 'model' && projectIds.has(asset.projectId)).map((asset) => asset.id),
       ...db.jobs.filter((job) => projectIds.has(job.project_id)).map((job) => job.result_asset_id).filter(Boolean),
       ...projects.flatMap((project) => [
         ...project.state.images.map((image) => image.assetId),
@@ -422,7 +422,7 @@ export async function createMockServer(options = {}) {
         project.state.video?.assetId,
       ]).filter(Boolean),
     ]);
-    const generated = db.assets.filter((asset) => asset.ownerId === ownerId && asset.source === 'generated' && generatedIds.has(asset.id));
+    const generated = db.assets.filter((asset) => asset.ownerId === ownerId && asset.source === 'generated' && asset.kind !== 'model' && generatedIds.has(asset.id));
     db.projects = db.projects.filter((project) => project.ownerId !== ownerId || !projectIds.has(project.id));
     db.jobs = db.jobs.filter((job) => job.ownerId !== ownerId || !projectIds.has(job.project_id));
     return generated;
@@ -430,7 +430,16 @@ export async function createMockServer(options = {}) {
   async function removeAssets(assets) {
     const removed = new Set(assets);
     db.assets = db.assets.filter((asset) => !removed.has(asset));
-    for (const asset of assets) if (asset.filename && !asset.fixture) await rm(assetPath(asset), { force: true });
+    await persist();
+    for (const asset of assets) if (asset.filename && !asset.fixture) {
+      try { await rm(assetPath(asset), { force: true }); }
+      catch (error) { console.warn(`素材文件清理失败：${asset.id}`, error.message); }
+    }
+  }
+  let savedModelQueue = Promise.resolve();
+  function libraryAsset(asset, user, base, project, kind = asset.kind) {
+    const sourceProject = project || db.projects.find((item) => item.ownerId === user.id && (item.id === asset.projectId || item.garmentAssetIds.includes(asset.id)));
+    return { ...publicAsset(asset, base), kind, project_id: sourceProject?.id || asset.projectId || null, project_title: sourceProject?.title || asset.projectTitle || null, ...(asset.analysis?.name ? { name: asset.analysis.name } : {}), in_profile: (user.profile?.model_asset_ids || []).includes(asset.id) };
   }
   function generationPrompt(project, job, image) {
     let prompt = image?.instruction || project.analyzedBrief || project.brief;
@@ -1075,6 +1084,66 @@ export async function createMockServer(options = {}) {
         json(res, 200, { token: tokenFor(user), user: publicUser(user), ...(recovery_code ? { recovery_code } : {}) }); return;
       }
       const user = authenticate(req);
+      if (url.pathname === '/api/me/models/from-image' && req.method === 'POST') {
+        if (options.legacyProfile || options.legacyAssets) throw failure(404, 'NOT_FOUND', '当前服务未开通素材库');
+        const body = await readJson(req);
+        if (typeof body.image_id !== 'string' || !body.image_id || (body.name !== undefined && (typeof body.name !== 'string' || !body.name.trim() || body.name.trim().length > 100))) throw failure(422, 'INVALID_MODEL', '请选择一张成片，名称请填写 1–100 个字');
+        const operation = savedModelQueue.then(async () => {
+          const matches = (image) => (image.id === body.image_id || image.assetId === body.image_id) && image.status === 'succeeded' && image.assetId;
+          const project = db.projects.find((item) => item.ownerId === user.id && item.state.images.some(matches));
+          const image = project?.state.images.find(matches);
+          const original = image && db.assets.find((asset) => asset.id === image.assetId && asset.ownerId === user.id);
+          if (!original) throw failure(404, 'IMAGE_NOT_FOUND', '没有找到这张本人项目的成片');
+          const existing = db.assets.find((asset) => asset.ownerId === user.id && asset.kind === 'model' && asset.source === 'generated' && asset.parent_id === original.id);
+          const ids = user.profile?.model_asset_ids || [];
+          if (existing && ids.includes(existing.id)) return existing;
+          if (ids.length >= 20) throw failure(422, 'MODEL_LIMIT', '我的模特最多保存 20 张，请先删除一张再保存');
+          if (existing) {
+            user.profile = { ...(user.profile || {}), model_asset_ids: [...ids, existing.id] };
+            await persist();
+            return existing;
+          }
+          const id = newId('asset');
+          const asset = { id, ownerId: user.id, kind: 'model', source: 'generated', parent_id: original.id, projectId: project.id, projectTitle: project.title, width: original.width, height: original.height, mime: original.mime, created_at: now(), analysis: { name: body.name?.trim() || project.title }, filename: `${id}.bin` };
+          await copyFile(assetPath(original), assetPath(asset));
+          db.assets.push(asset);
+          user.profile = { ...(user.profile || {}), model_asset_ids: [...ids, id] };
+          await persist();
+          return asset;
+        });
+        savedModelQueue = operation.catch(() => undefined);
+        const asset = await operation;
+        json(res, 200, { asset: publicAsset(asset, base), user: publicUser(user) }); return;
+      }
+      if (url.pathname === '/api/me/assets' && req.method === 'GET') {
+        if (options.legacyProfile || options.legacyAssets) throw failure(404, 'NOT_FOUND', '当前服务未开通素材库');
+        const kind = url.searchParams.get('kind');
+        const limit = Number(url.searchParams.get('limit') ?? 30);
+        const offset = Number(url.searchParams.get('offset') ?? 0);
+        if (!['model', 'garment', 'image'].includes(kind) || !Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0) throw failure(422, 'INVALID_ASSET_QUERY', '请选择我的模特、我的衣服或我的成片，并填写有效分页');
+        const items = kind === 'image'
+          ? db.projects.filter((project) => project.ownerId === user.id).flatMap((project) => project.state.images.filter((image) => image.status === 'succeeded' && image.assetId).flatMap((image) => {
+            const asset = db.assets.find((item) => item.id === image.assetId && item.ownerId === user.id);
+            return asset ? [libraryAsset(asset, user, base, project, 'image')] : [];
+          }))
+          : db.assets.filter((asset) => asset.ownerId === user.id && asset.kind === kind).map((asset) => libraryAsset(asset, user, base));
+        items.sort((a, b) => b.created_at.localeCompare(a.created_at));
+        json(res, 200, { items: items.slice(offset, offset + limit), total: items.length }); return;
+      }
+      const libraryMatch = url.pathname.match(/^\/api\/me\/assets\/([^/]+)$/);
+      if (libraryMatch && req.method === 'DELETE') {
+        if (options.legacyProfile || options.legacyAssets) throw failure(404, 'NOT_FOUND', '当前服务未开通素材库');
+        const asset = db.assets.find((item) => item.id === decodeId(libraryMatch[1]) && item.ownerId === user.id);
+        if (!asset) throw failure(404, 'ASSET_NOT_FOUND', '没有找到这张素材');
+        if (!['model', 'garment'].includes(asset.kind)) throw failure(409, 'IMAGE_DELETE_NOT_ALLOWED', '成片跟随这组片保留，请回到片场删除这组片');
+        if (asset.kind === 'garment') {
+          const projects = db.projects.filter((project) => project.ownerId === user.id && project.garmentAssetIds.includes(asset.id));
+          if (projects.length) throw failure(409, 'ASSET_IN_USE', `这件衣服仍被这些片场使用：${projects.map((project) => project.title).join('、')}`);
+        }
+        if (user.profile) user.profile.model_asset_ids = user.profile.model_asset_ids.filter((id) => id !== asset.id);
+        await removeAssets([asset]);
+        res.writeHead(204); res.end(); return;
+      }
       if (url.pathname === '/api/quotes/auto' && req.method === 'GET') { json(res, 200, autoQuote()); return; }
       if (url.pathname === '/api/me' && req.method === 'DELETE') {
         const body = await readJson(req);
@@ -1150,7 +1219,7 @@ export async function createMockServer(options = {}) {
         if (!Array.isArray(referenceIds) || referenceIds.length > 3 || new Set(referenceIds).size !== referenceIds.length || referenceIds.some((id) => typeof id !== 'string' || !db.assets.some((asset) => asset.id === id && asset.ownerId === user.id && asset.kind === 'reference' && asset.source === 'upload'))) throw failure(400, 'INVALID_REFERENCE_ASSETS', '参考图最多 3 张，必须是当前账号上传的参考图，每张只选一次');
         const assets = ids.map((id) => db.assets.find((item) => item.id === id && item.ownerId === user.id && item.kind === 'garment'));
         const modelId = body.model_asset_id || (!options.legacyProfile ? user.profile?.model_asset_ids[0] : undefined);
-        const model = modelId ? db.assets.find((item) => item.id === modelId && item.ownerId === user.id && item.kind === 'model' && item.source === 'upload') : undefined;
+        const model = modelId ? db.assets.find((item) => item.id === modelId && item.ownerId === user.id && item.kind === 'model') : undefined;
         if (assets.some((item) => !item) || (modelId && !model)) throw failure(400, 'INVALID_ASSET', '图片不属于当前账号，或图片类型不正确');
         const created_at = now();
         const referenceStyleTags = ['街角咖啡馆', '柔和自然光', '竖构图', '松弛日常', '奶白·浅卡其配色'];
@@ -1224,7 +1293,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const port = Number(process.env.PORT || 19301);
   const previewDelayMs = Number(process.env.MOCK_PREVIEW_DELAY_MS);
   const legacyProfile = process.env.MOCK_LEGACY_PROFILE;
-  const server = await createMockServer({ ...(Number.isFinite(previewDelayMs) && previewDelayMs >= 0 ? { previewDelayMs } : {}), ...(['missing', 'old-fields'].includes(legacyProfile) ? { legacyProfile } : {}) });
+  const server = await createMockServer({ ...(Number.isFinite(previewDelayMs) && previewDelayMs >= 0 ? { previewDelayMs } : {}), ...(['missing', 'old-fields'].includes(legacyProfile) ? { legacyProfile } : {}), ...(process.env.MOCK_LEGACY_ASSETS === '1' ? { legacyAssets: true } : {}) });
   server.listen(port, '0.0.0.0', () => console.log(`本地假服务已启动：http://localhost:${port}/api/health`));
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));
 }

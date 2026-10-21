@@ -19,6 +19,8 @@ export interface MockServerOptions {
   workerIntervalMs?: number;
   /** Exercise App fallback against a missing /me route or a pre-profile user shape. */
   legacyProfile?: 'missing' | 'old-fields';
+  /** Return 404 for the material library while keeping the existing profile API. */
+  legacyAssets?: boolean;
 }
 
 /** The first local edit per project reports edit_check.passed=false; later edits pass. */
