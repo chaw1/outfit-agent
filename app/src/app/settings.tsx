@@ -8,7 +8,7 @@ import { AnimatedEntry, Button, Field, Header, Notice, Page, Toast, errorText, s
 import { colors, radius, space, type } from '../theme';
 import { LegalLinks } from '../components/LegalLinks';
 import { useSession } from '../context/Session';
-import { formatPoints, pointsValue } from '../lib/transparency';
+import { AMPLE_POINTS, formatPoints, pointsValue, remainingLabel } from '../lib/transparency';
 
 export default function Settings() {
   const { baseUrl, setBaseUrl, signOut, token, user, refreshUser } = useSession();
@@ -29,8 +29,8 @@ export default function Settings() {
     {token && <AnimatedEntry style={localStyles.profileSection}>{supportsProfile(user) ? <ProfileEditor key={`${baseUrl}:${user.id}`} user={user} /> : <View style={{ gap: space.sm }}><Text style={styles.section}>我的形象</Text><Text style={styles.subtitle}>当前服务未开通我的形象，现有创作功能可以继续使用。</Text></View>}</AnimatedEntry>}
     {token && <View style={localStyles.pointsSection}>
       <Text style={styles.section}>我的点数</Text>
-      {dailyPoints !== undefined && usedPoints !== undefined ? <Text testID="settings-remaining-points" style={styles.subtitle}>今日还有 {formatPoints(Math.max(0, dailyPoints - usedPoints))}</Text> : null}
-      {dailyPoints !== undefined ? <Text testID="settings-daily-points" style={styles.subtitle}>每日 {formatPoints(dailyPoints)}</Text> : null}
+      {dailyPoints !== undefined && usedPoints !== undefined ? <Text testID="settings-remaining-points" style={styles.subtitle}>{remainingLabel(Math.max(0, dailyPoints - usedPoints))}</Text> : null}
+      {dailyPoints !== undefined && dailyPoints < AMPLE_POINTS ? <Text testID="settings-daily-points" style={styles.subtitle}>每日 {formatPoints(dailyPoints)}</Text> : null}
       {usedPoints !== undefined ? <Text testID="settings-used-points" style={styles.subtitle}>今天用了 {formatPoints(usedPoints)}</Text> : null}
       <Text style={styles.subtitle}>正式出图和视频会扣点，确认前会显示预计点数。每日点数在 00:00 恢复。</Text>
     </View>}

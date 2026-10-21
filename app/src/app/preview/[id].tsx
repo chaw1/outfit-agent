@@ -387,7 +387,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
           </View>
           <View style={styles.draftNotice}><Ionicons name="save-outline" size={16} color={colors.muted} /><View style={{ flex: 1, gap: space.xs }}><Text style={styles.checklistHint}>编辑会在本机覆盖发布文案，原始笔记保留在编导间。草稿保存在当前设备。</Text>{!!draftStatus && <Text testID="note-draft-status" accessibilityLiveRegion="polite" style={styles.draftStatus}>{draftStatus}</Text>}</View></View>
           <View style={styles.draftActions}>
-            <Button title="恢复服务端版本" variant="ghost" icon="refresh-outline" disabled={preparing || saving} onPress={() => resolveDraft(false)} testID="restore-server-note" />
+            <Button title="恢复原始笔记" variant="ghost" icon="refresh-outline" disabled={preparing || saving} onPress={() => resolveDraft(false)} testID="restore-server-note" />
             {previousDraft ? <Button title="恢复我的草稿" variant="ghost" disabled={preparing || saving} onPress={restorePreviousDraft} testID="restore-previous-note-draft" /> : null}
           </View>
           <NoteDisclosure note={note} projectCost={state?.cost_cny} projectPoints={state?.cost_points} />

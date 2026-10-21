@@ -27,6 +27,12 @@ export function traceSummary(trace: MessageTrace): string {
   return `用了 ${toolNames[trace.tool] || '智能体处理'} · ${seconds(trace.duration_ms)}${amount === undefined ? '' : ` · ${formatPoints(amount)}`}`;
 }
 
+/** 额度大到用不完时（演示或内部账号），不把一长串数字摆给用户看。 */
+export const AMPLE_POINTS = 100_000;
+export function remainingLabel(remaining: number): string {
+  return remaining >= AMPLE_POINTS ? '今日额度充足' : `今日还有 ${formatPoints(remaining)}`;
+}
+
 export function confirmationCost(state: ProjectState | undefined, action: PendingAction['type']) {
   const estimate = pointsValue(state?.pending_action?.estimated_cost_points, state?.pending_action?.estimated_cost_cny);
   const remaining = pointsValue(state?.budget?.remaining_points, state?.budget?.remaining_cny);
@@ -34,6 +40,6 @@ export function confirmationCost(state: ProjectState | undefined, action: Pendin
   return {
     estimate, remaining,
     insufficient: estimate > remaining + 1e-8,
-    label: `预计 ${formatPoints(estimate)} · 今日还有 ${formatPoints(remaining)}`,
+    label: `预计 ${formatPoints(estimate)} · ${remainingLabel(remaining)}`,
   };
 }
