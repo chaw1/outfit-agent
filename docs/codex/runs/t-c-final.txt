@@ -1,0 +1,43 @@
+任务 C：方向三张灵感图交付摘要
+
+分支：feat/direction-previews-3。仅本地提交，未 push。
+
+契约与行为
+- Direction.previews 新增 {id, url?, status, variant}[]，每方向三张：全身街拍、半身特写、坐姿侧光。preview_url / preview_status 始终投影第一张，旧单图项目仍可读取。
+- choose_direction 可传 preview_id，校验属于当前方向且已成功；省略时默认第一张。chosen_preview_id 与 script.preview_id 持久化，脚本历史沿用自身的灵感选择。
+- 写脚本 context 包含 chosen_preview 的 variant、画面描述与 cover_inspiration；第一镜写入角度、构图和光线。封面参考顺序为衣服 → 所选灵感图 → 本人照片，并明确灵感图只供构图与光线参考，人物身份仍以本人照片为准。
+- 每方向三条独立任务，共用内容去重前缀、按 variant 区分；重放不重复创建。retry_preview 的 {direction_id, preview_id, attempt} 只重试失败的一张，同一次 attempt 重放不重复入队，其他两张保留。回读和进度统计采用每张的最新尝试。
+- App 横滑三张、选中描边、全屏查看、默认第一张、逐张更新和失败重试已接通；确认按钮为「按这张的感觉拍」。mock 服务端同步契约、任务数量、选择与封面参考。
+- 更新 docs/设计.md 对应契约、换组与一键出片小节，更新 docs/功能清单.md 第 4 节两行。
+
+点数变化（沿用 10 点 = 1 元、预览单张约 5 点）
+- 三个方向的预览从 3 张 / 15 点变成 9 张 / 45 点，是原预览开销的三倍，增加 30 点。
+- 两个方向实际为 6 张 / 30 点；换一组的 regenerate_estimate_cny / regenerate_estimate_points 按 9 张上限提示 4.5 / 45，文案说明含 6–9 张、每方向 3 张。
+- 一键出片预估从 48 点变为 78 点：预览 45 + 正式出图（含 20% 自动修复预留）18 + 视频 15。新建页读取同一报价；单张预览重试约 5 点。
+
+验证
+- 服务端 uv run ruff check .：通过。
+- 当前分支隔离检查：uv run pytest -q -p no:cacheprovider -m 'not integration' --ignore=tests/test_auto_http.py，534 passed、50 deselected。覆盖三张任务与去重、逐张状态、默认与指定选图、无效选图、重试重放、脚本 context、封面参考顺序、状态 HTTP 序列化及进度恢复。
+- 服务端规定的全量命令 uv run pytest -q -p no:cacheprovider：587 passed、2 skipped、2 failed。未达到全量全绿，原因和复测要求见下方。
+- App npx tsc --noEmit -p .、npm run lint：通过；npm test：227 passed。另补齐既有 live-auto 验收脚本两处参数类型，并将一个旧 mock 断言调整为当前已实现的「完成后换图保留视频」行为，未改该行为。
+- 使用 mock 19341 / Expo 19350 和本机 Chrome 单独运行 Playwright 脚本，验证三张选中态、390px 横滑、全屏查看、第三张回传脚本和失败按钮只提交该图的重试动作；页面无运行错误。未运行完整 Playwright 测试套件。
+
+证据
+- docs/codex/runs/t-c-shots/01-three-previews-selected.png
+- docs/codex/runs/t-c-shots/02-fullscreen-preview.png
+- docs/codex/runs/t-c-shots/checks.json
+- 本地复现脚本：app/.tools/t-c-previews.mjs（按规则留在工具目录，未提交）。
+
+未通过、未做与复测要求
+- 全量失败的两项是 tests/test_auto_http.py::test_auto_quote_and_legacy_creation 与 ::test_auto_worker_finishes_without_client_confirmations。测试默认访问现有 http://127.0.0.1:18080，其接口仍返回「方向预览 3 张 / 总计 48 点」，而当前分支契约为「9 张 / 78 点」。没有为通过测试而修改新报价断言，也没有停止或重启其他工作目录的既有后端。需在加载本分支代码的本机 mock 后端上重跑这两项及全量验收。
+- 任务 A 的七字段结构尚未合入，按任务书在现有 prompt 上追加「构图与光线以灵感图为基调」及参考用途说明。
+- 未调用真实模型，未连接线上服务；mock 三张复用已有本机照片。真实三角度视觉质量尚未实测。
+- 功能代码和两张截图均已交付；当前限制是上述旧本机后端的集成复测。
+
+本地实现提交
+- 3d164aa 支持方向三张灵感图与封面基调传递
+- 9c571a5 补齐验收脚本的参数类型
+- 4e565b9 明确封面灵感与本人照片的参考用途
+- b092ed6 支持横滑选择灵感图与全屏预览
+
+工作区原有未跟踪的 app/node_modules 符号链接未纳入提交。
