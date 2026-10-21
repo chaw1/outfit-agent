@@ -21,6 +21,8 @@ git config core.hooksPath .githooks
 
 ## 提交前检查
 
+根目录 `make check` 运行 App 完整校验和服务端 ruff/强制集成测试；`make e2e` 运行假服务浏览器流程和服务端 Mock HTTP 闭环。后者要求已启动本地 Mock API/Worker。`make dev` 使用 Compose 启动本项目 Mock 服务，App 可另开终端执行 `cd app && npm run start`。已有栈占用端口时复用，勿重复启动。
+
 ```bash
 cd app
 npm run verify
