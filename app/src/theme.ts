@@ -26,6 +26,8 @@ export const colors = {
   viewerLine: '#3D4048',
   viewerSelected: '#4B2630',
   mask: '#FF244255',
+  warning: '#8A5A00',
+  warningSoft: '#FFF4D6',
 } as const;
 
 export const studio = {
@@ -39,6 +41,12 @@ export const studio = {
   subtle: '#777B83',
   accent: '#FF2442',
   softAccent: '#39232A',
+  redText: '#FF7084',
+  danger: '#FF8B9B',
+  green: '#9DCDB1',
+  successSoft: '#1D3428',
+  warning: '#F2CB7C',
+  warningSoft: '#3A2F1B',
 } as const;
 
 export const space = {
