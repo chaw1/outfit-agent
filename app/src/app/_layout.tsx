@@ -18,7 +18,7 @@ function Routes() {
     if (!ready) return;
     const expired = !!previousToken.current && !token && !['settings', 'login'].includes(segments[0] ?? '');
     previousToken.current = token;
-    const isPublic = segments[0] === 'login' || segments[0] === 'settings' || segments[0] === 'about';
+    const isPublic = segments[0] === 'login' || segments[0] === 'settings' || segments[0] === 'about' || segments[0] === 'legal';
     if (!token && !isPublic) router.replace(expired ? { pathname: '/login', params: { expired: '1' } } : '/login');
     else if (token && segments[0] === 'login') router.replace('/');
   }, [ready, token, segments, router]);

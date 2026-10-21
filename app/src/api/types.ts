@@ -26,6 +26,10 @@ export interface User {
   profile?: UserProfile;
 }
 
+export type LegalKind = 'terms' | 'privacy' | 'disclaimer';
+export interface LegalSummary { kind: LegalKind; title: string; version: string }
+export interface LegalDocument extends LegalSummary { markdown: string }
+
 export interface AuthResponse { token: string; user: User }
 export interface LoginInput { username: string; password: string }
 export interface RegisterInput extends LoginInput { nickname?: string }

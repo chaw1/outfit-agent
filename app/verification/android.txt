@@ -1,48 +1,66 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-| (node:94327) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 | (Use `node --trace-warnings ...` to show where the warning was created)
-Android Bundled 3955ms node_modules/expo-router/entry.js (2000 modules)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:24442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android Bundled 8979ms ../../outfit-agent/app/node_modules/expo-router/entry.js (2003 modules)
 
 › Assets (46):
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf (130KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf (66KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf (13KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf (56KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf (166KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf (134KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf (34KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf (203KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf (209KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf (68KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf (424KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Fontisto.ttf (314KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Foundation.ttf (57KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf (390KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf (1.3MB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf (357KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf (69KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/SimpleLineIcons.ttf (54KB)
+../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Zocial.ttf (26KB)
+../../outfit-agent/app/node_modules/expo-router/assets/arrow_down.png (9.5KB)
+../../outfit-agent/app/node_modules/expo-router/assets/arrow_right.xml (307B)
+../../outfit-agent/app/node_modules/expo-router/assets/checkmark.xml (312B)
+../../outfit-agent/app/node_modules/expo-router/assets/error.png (469B)
+../../outfit-agent/app/node_modules/expo-router/assets/file.png (138B)
+../../outfit-agent/app/node_modules/expo-router/assets/forward.png (188B)
+../../outfit-agent/app/node_modules/expo-router/assets/pkg.png (364B)
+../../outfit-agent/app/node_modules/expo-router/assets/react-navigation/elements/back-icon-mask.png (653B)
+../../outfit-agent/app/node_modules/expo-router/assets/react-navigation/elements/back-icon.png (4 variations | 152B)
+../../outfit-agent/app/node_modules/expo-router/assets/react-navigation/elements/clear-icon.png (4 variations | 425B)
+../../outfit-agent/app/node_modules/expo-router/assets/react-navigation/elements/close-icon.png (4 variations | 235B)
+../../outfit-agent/app/node_modules/expo-router/assets/react-navigation/elements/search-icon.png (4 variations | 599B)
+../../outfit-agent/app/node_modules/expo-router/assets/sitemap.png (465B)
+../../outfit-agent/app/node_modules/expo-router/assets/unmatched.png (4.8KB)
 assets/editorial.jpg (141KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf (130KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Entypo.ttf (66KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/EvilIcons.ttf (13KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Feather.ttf (56KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome.ttf (166KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf (134KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf (34KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf (203KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Brands.ttf (209KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Regular.ttf (68KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome6_Solid.ttf (424KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Fontisto.ttf (314KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Foundation.ttf (57KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf (390KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialCommunityIcons.ttf (1.3MB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/MaterialIcons.ttf (357KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Octicons.ttf (69KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/SimpleLineIcons.ttf (54KB)
-node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Zocial.ttf (26KB)
-node_modules/expo-router/assets/arrow_down.png (9.5KB)
-node_modules/expo-router/assets/arrow_right.xml (307B)
-node_modules/expo-router/assets/checkmark.xml (312B)
-node_modules/expo-router/assets/error.png (469B)
-node_modules/expo-router/assets/file.png (138B)
-node_modules/expo-router/assets/forward.png (188B)
-node_modules/expo-router/assets/pkg.png (364B)
-node_modules/expo-router/assets/react-navigation/elements/back-icon-mask.png (653B)
-node_modules/expo-router/assets/react-navigation/elements/back-icon.png (4 variations | 152B)
-node_modules/expo-router/assets/react-navigation/elements/clear-icon.png (4 variations | 425B)
-node_modules/expo-router/assets/react-navigation/elements/close-icon.png (4 variations | 235B)
-node_modules/expo-router/assets/react-navigation/elements/search-icon.png (4 variations | 599B)
-node_modules/expo-router/assets/sitemap.png (465B)
-node_modules/expo-router/assets/unmatched.png (4.8KB)
 
 › android bundles (1):
-_expo/static/js/android/entry-581a39a46c58bd5f437f2ea0fb0b7387.hbc (5.1MB)
+_expo/static/js/android/entry-a71410b7ec2f36201a9b892fe2b51e83.hbc (5.1MB)
 
 › Files (1):
 metadata.json (3KB)

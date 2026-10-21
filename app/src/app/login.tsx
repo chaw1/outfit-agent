@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { AnimatedEntry, Button, Field, IconButton, Notice, Page, StatePanel, colors, errorText, styles } from '../components/ui';
+import { LegalLinks } from '../components/LegalLinks';
 import { useSession } from '../context/Session';
 import { layout, radius, space, type } from '../theme';
 
@@ -47,6 +48,7 @@ export default function Login() {
         {!!error && <Notice text={error} />}
         <Button title={register ? '创建账号，开始创作' : '登录，继续创作'} loading={busy} onPress={() => void submit()} icon="arrow-forward" />
       </View>
+      <LegalLinks />
       <Text style={{ color: colors.muted, ...type.caption, textAlign: 'center' }}>你的品牌合作灵感，都从这里开始</Text>
     </KeyboardAvoidingView>
   </Page>;

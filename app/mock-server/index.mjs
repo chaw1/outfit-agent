@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import bcrypt from 'bcryptjs';
 import sharp from 'sharp';
+import { getLegalDocument, listLegalDocuments } from './legal.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DAY = 86_400;
@@ -858,6 +859,13 @@ export async function createMockServer(options = {}) {
       const host = req.headers.host || 'localhost:19301';
       const base = options.publicBase || `http://${host}`;
       const url = new URL(req.url || '/', base);
+      if (req.method === 'GET' && url.pathname === '/api/legal') { json(res, 200, listLegalDocuments()); return; }
+      const legalMatch = url.pathname.match(/^\/api\/legal\/([^/]+)$/);
+      if (req.method === 'GET' && legalMatch) {
+        const document = getLegalDocument(decodeId(legalMatch[1]));
+        if (!document) throw failure(404, 'NOT_FOUND', '没有找到这份协议');
+        json(res, 200, document); return;
+      }
       if (await advanceJobs(base)) await persist();
       if (url.pathname.startsWith('/media/') && ['GET', 'HEAD'].includes(req.method)) { await serveMedia(req, res, url); return; }
       if (['/api/auth/register', '/api/auth/login'].includes(url.pathname) && req.method === 'POST') {

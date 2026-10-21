@@ -1,7 +1,7 @@
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
   Asset, AssetKind, AuthResponse, CreateProjectInput, DoneData, ErrorData, HealthResponse,
-  Job, LoginInput, Message, Project, ProjectState, RegisterInput, SendMessageInput, StreamEvent, UpdateMeInput, User,
+  Job, LegalDocument, LegalKind, LegalSummary, LoginInput, Message, Project, ProjectState, RegisterInput, SendMessageInput, StreamEvent, UpdateMeInput, User,
 } from './types';
 
 export class ApiError extends Error {
@@ -137,6 +137,9 @@ export class ApiClient {
   login(input: LoginInput): Promise<AuthResponse> {
     return this.request('/auth/login', { method: 'POST', body: JSON.stringify(input) }, false);
   }
+
+  legal(): Promise<LegalSummary[]> { return this.request('/legal', {}, false); }
+  legalDocument(kind: LegalKind): Promise<LegalDocument> { return this.request(`/legal/${kind}`, {}, false); }
 
   me(): Promise<User> { return this.request('/me'); }
   patchMe(input: UpdateMeInput): Promise<User> {
