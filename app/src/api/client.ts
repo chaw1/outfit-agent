@@ -1,4 +1,5 @@
 import { INSUFFICIENT_POINTS_TEXT } from '../lib/transparency';
+import type { AssetPage, LibraryKind, SavedModel } from '../lib/assets';
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
   Asset, AssetKind, AuthResponse, AutoQuote, ChangePasswordInput, CreateProjectInput, DoneData, ErrorData, HealthResponse,
@@ -156,6 +157,15 @@ export class ApiClient {
   }
 
   me(): Promise<User> { return this.request('/me'); }
+  myAssets(kind: LibraryKind, limit = 30, offset = 0): Promise<AssetPage> {
+    return this.request(`/me/assets?kind=${kind}&limit=${limit}&offset=${offset}`);
+  }
+  saveModelFromImage(image_id: string, name?: string): Promise<SavedModel> {
+    return this.request('/me/models/from-image', { method: 'POST', body: JSON.stringify({ image_id, ...(name ? { name } : {}) }) });
+  }
+  deleteMyAsset(id: string): Promise<void> {
+    return this.request(`/me/assets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
   patchMe(input: UpdateMeInput): Promise<User> {
     return this.request('/me', { method: 'PATCH', body: JSON.stringify(input) });
   }

@@ -18,6 +18,7 @@ import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationIn
 import { ScriptHistory } from './ScriptHistory';
 import { useImageInteractions } from './ImageInteractions';
 import { CostEstimate } from './CostEstimate';
+import { SaveAsModel } from './SaveAsModel';
 
 type CardsProps = {
   cards: Card[];
@@ -201,6 +202,7 @@ function ImageGrid({ items, state, busy }: {
                 ><Icon name="create-outline" size={13} color={colors.red} /><Text style={styles.editText}>改一改</Text></Pressable> : null}
               </View>
               <ImageRevisionInfo image={item} />
+              <SaveAsModel image={item} />
             </View>
           );
         })}

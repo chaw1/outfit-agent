@@ -1,0 +1,41 @@
+{
+  "reuse": {
+    "savedFromCard": "asset_9696418e-dc18-4350-988b-3576d23d78b2",
+    "savedFromViewer": "asset_797ab7b1-dc57-47f5-96bc-60e3b2c96941",
+    "requests": [
+      "image_f9bf535e-d928-4d3c-966c-46f0e67c12e6",
+      "image_75b2c3dd-4f11-4f98-9545-751a68b6a5a9"
+    ],
+    "modelCount": 3,
+    "submittedModel": "asset_9696418e-dc18-4350-988b-3576d23d78b2",
+    "reusedGarment": [
+      "asset_afe837f9-632a-4105-a04c-9dd2d882970a"
+    ],
+    "uploads": 0,
+    "pageErrors": []
+  },
+  "library": {
+    "loading": true,
+    "empty": true,
+    "directRouteAndReload": true,
+    "aspectRatio": 0.7500179739736861,
+    "cancelledDeletionPreserved": true,
+    "confirmedDeletions": 2,
+    "garmentConflictStatus": 409,
+    "imageCount": 4,
+    "pageErrors": []
+  },
+  "legacy": {
+    "probeStatus": 404,
+    "libraryHiddenAtHomeAndSettings": true,
+    "pickerHidden": true,
+    "cardAndViewerSaveHidden": true,
+    "pageErrors": []
+  },
+  "post404": {
+    "cardAndViewerSaveHidden": true,
+    "libraryHiddenAtHomeAndSettings": true,
+    "requests": 1,
+    "pageErrors": []
+  }
+}

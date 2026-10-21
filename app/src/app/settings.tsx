@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ProfileEditor } from '../components/ProfileEditor';
+import { AssetLibraryEntry } from '../components/AssetLibrary';
 import { supportsProfile } from '../lib/profile';
 import { AnimatedEntry, Button, Field, Header, Notice, Page, Toast, errorText, styles } from '../components/ui';
 import { colors, radius, space, type } from '../theme';
@@ -24,6 +25,7 @@ export default function Settings() {
     try { await setBaseUrl(url); setSaved(true); } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
   return <Page><Header title="设置" onBack={() => router.canGoBack() ? router.back() : router.replace(token ? '/' : '/login')} /><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+    {token && <AssetLibraryEntry />}
     {token && <AnimatedEntry style={localStyles.profileSection}>{supportsProfile(user) ? <ProfileEditor key={`${baseUrl}:${user.id}`} user={user} /> : <View style={{ gap: space.sm }}><Text style={styles.section}>我的形象</Text><Text style={styles.subtitle}>当前服务未开通我的形象，现有创作功能可以继续使用。</Text></View>}</AnimatedEntry>}
     {token && <View style={localStyles.pointsSection}>
       <Text style={styles.section}>我的点数</Text>
