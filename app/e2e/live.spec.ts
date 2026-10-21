@@ -219,7 +219,7 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
       if (onboarding) {
         for (let index = 1; index <= 3; index += 1) {
           await expect(page.getByTestId(`onboarding-${index}`)).toBeVisible();
-          await page.getByRole('button', { name: index === 3 ? '开始创作' : '下一步', exact: true }).click();
+          await page.getByRole('button', { name: index === 3 ? '进入片场' : '下一步', exact: true }).click();
         }
         await expect(page.getByTestId('onboarding-1')).toHaveCount(0);
       }

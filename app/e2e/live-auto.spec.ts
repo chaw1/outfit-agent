@@ -74,15 +74,13 @@ test('真实服务一键出片：注册、开拍、自动推进到全套完成�
       await page.getByLabel('用户名', { exact: true }).fill(checkpoint.username);
       await page.getByLabel('密码', { exact: true }).fill(checkpoint.password);
       await page.getByRole('checkbox', { name: '我已阅读并同意《用户协议》和《隐私政策》' }).check();
-      const registered = page.waitForResponse(response => response.url() === `${base}/api/auth/register` && response.request().method() === 'POST');
       await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
-      const response = await registered;
-      expect(response.ok()).toBe(true);
-      const auth = await response.json() as AuthResponse;
-      checkpoint.registered = true; checkpoint.session = auth.token;
-      await persist();
       await page.getByRole('button', { name: '我已保存', exact: true }).click();
       await expect(page.getByRole('button', { name: '拍一组新片', exact: true })).toBeVisible();
+      const session = await page.evaluate(() => sessionStorage.getItem('outfit.session') ?? undefined);
+      expect(session, '注册后应持有会话').toBeTruthy();
+      checkpoint.registered = true; checkpoint.session = session;
+      await persist();
       await shot('01-registered');
     } else {
       const loginButton = page.getByRole('button', { name: '登录，继续创作', exact: true });
