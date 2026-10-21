@@ -1,4 +1,4 @@
-import type { AutoState, AutoStep } from '../api/types';
+import type { AutoState, AutoStep, ProjectState } from '../api/types';
 
 export const AUTO_STEPS: readonly { step: AutoStep; label: string }[] = [
   { step: 'directions', label: '找方向' }, { step: 'script', label: '写脚本' },
@@ -11,4 +11,21 @@ export function autoProgress(auto: AutoState) {
     index, percent: auto.step === 'done' ? 100 : Math.round(index / (AUTO_STEPS.length - 1) * 100),
     steps: AUTO_STEPS.map((value, position) => ({ ...value, completed: position < index || auto.step === 'done', current: position === index && auto.step !== 'done' })),
   };
+}
+
+export interface AutoSummary { images: number; selected: number; noteTitle: string; video: 'ready' | 'generating' | 'failed' | 'none' }
+/** 一键出片跑完后的收尾账：出了几张、入稿几张、笔记标题、短片状态，给收尾卡一眼看全。 */
+export function autoSummary(state: Pick<ProjectState, 'images' | 'note' | 'video'>): AutoSummary {
+  const images = state.images.filter(image => image.status === 'succeeded' && image.url).length;
+  const selected = state.note?.image_ids.length ?? 0;
+  const status = state.video?.status;
+  const video = status === 'succeeded' ? 'ready' : status === 'failed' ? 'failed' : status ? 'generating' : 'none';
+  return { images, selected, noteTitle: state.note?.title?.trim() ?? '', video };
+}
+export function autoSummaryLine(summary: AutoSummary): string {
+  const parts = [`出了 ${summary.images} 张图`];
+  if (summary.selected) parts.push(`入稿 ${summary.selected} 张`);
+  parts.push(summary.noteTitle ? `笔记《${summary.noteTitle}》已写好` : '笔记未写');
+  parts.push(summary.video === 'ready' ? '短片已生成' : summary.video === 'generating' ? '短片还在做' : summary.video === 'failed' ? '短片没做成' : '没有短片');
+  return parts.join(' · ');
 }

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AppState, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import type { Project } from '../api/types';
+import type { Project, Stage } from '../api/types';
 import { InspirationWall } from '../components/InspirationWall';
 import { AssetLibraryEntry } from '../components/AssetLibrary';
 import { StudioGlow } from '../components/ds/StudioGlow';
@@ -11,7 +11,8 @@ import { useSession } from '../context/Session';
 import { notificationOwner } from '../lib/completionTracker';
 import { recentCompletions, subscribeCompletions } from '../lib/completionFeed';
 import { filterProjects } from '../lib/profile';
-import { inProgressProjects, otherProjects } from '../lib/projectProgress';
+import { filterByStage, inProgressProjects, otherProjects, stageFilters } from '../lib/projectProgress';
+import { Chip } from '../components/ds/Chip';
 import { layout, radius, space, studio, type } from '../theme';
 import { previewUrl } from '../lib/previewUrl';
 
@@ -22,6 +23,7 @@ export default function Projects() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [stageFilter, setStageFilter] = useState<Stage | ''>('');
   const [candidate, setCandidate] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState('');
@@ -77,7 +79,8 @@ export default function Projects() {
     finally { setDeleting(false); }
   }
   const openProject = (id: string) => router.push({ pathname: '/projects/[id]', params: { id } });
-  const visibleItems = filterProjects(items, query);
+  const filters = stageFilters(items);
+  const visibleItems = filterByStage(filterProjects(items, query), stageFilter);
   const active = inProgressProjects(visibleItems);
   const others = otherProjects(visibleItems);
   function projectCard(item: Project, index: number, ongoing: boolean) {
@@ -101,6 +104,8 @@ export default function Projects() {
       {!!completions.length && <View testID="recent-completions" style={{ gap: space.md }}><Text style={local.section}>刚刚出好</Text>{completions.map(item => <Pressable key={`${item.projectId}-${item.jobIds.join('-')}`} accessibilityRole="button" accessibilityLabel={`查看刚刚出好 ${item.title}`} accessibilityHint={item.read ? '已查看' : '有新结果未查看'} testID={`recent-completion-${item.projectId}`} onPress={() => openProject(item.projectId)} style={[local.recent, !item.read && local.recentUnread]}>{(() => { const cover = items.find(project => project.id === item.projectId)?.cover_url; return cover ? <FadeImage source={{ uri: previewUrl(cover, 360) }} style={local.recentCover} resizeMode="cover" /> : <View style={local.recentIcon}><Ionicons name="sparkles-outline" size={20} color={studio.accent} /></View>; })()}<View style={{ flex: 1, gap: space.xs }}><Text style={{ ...type.label, color: studio.ink }}>{item.title}</Text><Text style={{ ...type.caption, color: studio.muted }}>{item.body}</Text></View><Ionicons name="arrow-forward" size={18} color={studio.ink} /></Pressable>)}</View>}
       {!items.length && !query.trim() && inspiration}
       {!!items.length && <Field label="搜索片场" placeholder="搜索这组片的名称或品牌" value={query} onChangeText={setQuery} returnKeyType="search" />}
+      {filters.length > 1 && <ScrollView horizontal showsHorizontalScrollIndicator={false} testID="stage-filters" contentContainerStyle={{ gap: space.sm, paddingVertical: space.xs }}><Chip label="全部" selected={!stageFilter} onPress={() => setStageFilter('')} />{filters.map(entry => <Chip key={entry.stage} label={`${stageNames[entry.stage]} ${entry.count}`} selected={stageFilter === entry.stage} onPress={() => setStageFilter(current => current === entry.stage ? '' : entry.stage)} />)}</ScrollView>}
+      {!!stageFilter && !query.trim() && !visibleItems.length && <StatePanel icon="albums-outline" title="这个阶段现在没有片。" description="换个阶段看看，或者看全部。" actionLabel="看全部" onAction={() => setStageFilter('')} />}
       {!!query.trim() && !visibleItems.length && <StatePanel icon="search-outline" title="没有找到这组片。" description="换个名字或品牌再找找。" actionLabel="清空搜索" onAction={() => setQuery('')} />}
       {!!error && <View accessibilityRole="alert"><StatePanel icon="cloud-offline-outline" title="暂时连接不上" description={error} actionLabel="重试" onAction={() => void load()} /></View>}
       {!!feedback && <Toast text={feedback} onDismiss={() => setFeedback('')} />}
