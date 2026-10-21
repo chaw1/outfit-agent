@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>功能清单 · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/功能清单.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#1-进入与账号">1. 进入与账号</a></li>
+<li><a href="#2-首页我的片场">2. 首页：我的片场</a></li>
+<li><a href="#3-拍一组新片">3. 拍一组新片</a></li>
+<li><a href="#4-编导间沉浸编导">4. 编导间：沉浸编导</a></li>
+<li><a href="#5-一键出片">5. 一键出片</a></li>
+<li><a href="#6-图片查看器与局部改">6. 图片查看器与局部改</a></li>
+<li><a href="#7-笔记预览与发布">7. 笔记预览与发布</a></li>
+<li><a href="#8-素材库">8. 素材库</a></li>
+<li><a href="#9-我的形象与设置">9. 我的形象与设置</a></li>
+<li><a href="#10-离开再回来">10. 离开再回来</a></li>
+<li><a href="#11-服务端">11. 服务端</a></li>
+<li><a href="#12-管理端admin">12. 管理端（/admin）</a></li>
+<li><a href="#已验证与未验证">已验证与未验证</a></li>
+</ul>
+</div>
+</nav><main><h1 id="功能清单">功能清单<a class="headerlink" href="#功能清单" title="Permanent link">¶</a></h1>
+<p>一页看全「衣序」做了什么。按用户走的顺序排，每条写在哪、怎么用。设计约定见 <a href="设计.html">设计.md</a>，页面细节见 <a href="UI设计稿.html">UI设计稿.md</a>，验收证据见 <a href="验收与部署.html">验收与部署.md</a>。</p>
+<h2 id="1-进入与账号">1. 进入与账号<a class="headerlink" href="#1-进入与账号" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>在哪</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>隐私提示</td>
+<td>首次启动</td>
+<td>同意后才进入；「暂不使用」停留在提示页</td>
+</tr>
+<tr>
+<td>三屏引导</td>
+<td>首次启动</td>
+<td>介绍片场、编导间、出片</td>
+</tr>
+<tr>
+<td>注册 / 登录</td>
+<td>登录页</td>
+<td>只用用户名和密码，注册需勾选协议与隐私</td>
+</tr>
+<tr>
+<td>恢复码</td>
+<td>注册后</td>
+<td>只展示一次，复制并确认已保存；用于找回密码</td>
+</tr>
+<tr>
+<td>忘记密码</td>
+<td>登录页</td>
+<td>用户名 + 恢复码 + 新密码，成功后旧登录失效</td>
+</tr>
+<tr>
+<td>修改密码 / 重新生成恢复码</td>
+<td>设置 → 账号与安全</td>
+<td>需输入当前密码</td>
+</tr>
+<tr>
+<td>注销账号</td>
+<td>设置 → 账号与安全</td>
+<td>说明影响 → 输密码 → 二次确认；清理全部项目与媒体</td>
+</tr>
+<tr>
+<td>协议页</td>
+<td>登录页、设置</td>
+<td>用户协议、隐私政策、AI 内容免责声明</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-首页我的片场">2. 首页：我的片场<a class="headerlink" href="#2-首页我的片场" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>在哪</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>灵感墙</td>
+<td>首页</td>
+<td>十种风格成片；点开看大图，「按这个风格拍一组」直接进新建页并带入风格与氛围描述</td>
+</tr>
+<tr>
+<td>进行中</td>
+<td>首页</td>
+<td>正在出图 / 等你确认的项目优先露出，带已完成数量</td>
+</tr>
+<tr>
+<td>我的片场</td>
+<td>首页</td>
+<td>项目列表：搜索、按阶段筛选、长按删除（二次确认）</td>
+</tr>
+<tr>
+<td>素材库入口</td>
+<td>首页</td>
+<td>见第 8 节</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-拍一组新片">3. 拍一组新片<a class="headerlink" href="#3-拍一组新片" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>在哪</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>两种模式</td>
+<td>新建页顶部</td>
+<td>沉浸编导（逐项确认）/ 一键出片（全自动，可接手）；带说明弹层</td>
+</tr>
+<tr>
+<td>衣服</td>
+<td>新建页</td>
+<td>必填，相册多选上传，或「从我的衣服里选」（素材库）</td>
+</tr>
+<tr>
+<td>出镜的人</td>
+<td>新建页</td>
+<td>选填；默认用「我的形象」里的照片，可换、可上传</td>
+</tr>
+<tr>
+<td>参考图</td>
+<td>新建页</td>
+<td>选填；只作氛围参考，不进成片</td>
+</tr>
+<tr>
+<td>这次想拍什么</td>
+<td>新建页</td>
+<td>自由描述；风格标签多选，可换一批</td>
+</tr>
+<tr>
+<td>一键出片预估</td>
+<td>新建页</td>
+<td>开拍前显示总点数与明细</td>
+</tr>
+<tr>
+<td>品牌 / 项目名</td>
+<td>新建页</td>
+<td>选填，留空自动命名</td>
+</tr>
+</tbody>
+</table>
+<h2 id="4-编导间沉浸编导">4. 编导间：沉浸编导<a class="headerlink" href="#4-编导间沉浸编导" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>方向</td>
+<td>2–3 个穿搭方向</td>
+<td>每个方向有预览图与搭配说明；先选中、再点确认，有提示</td>
+</tr>
+<tr>
+<td>方向</td>
+<td>换一组</td>
+<td>先显示点数再重出；自由对话可提偏好（「搭配再简单一点」）</td>
+</tr>
+<tr>
+<td>脚本</td>
+<td>脚本草稿</td>
+<td>选定方向后立即写出：标题灵感、封面计划、分镜（场景 / 动作 / 镜头 / 搭配 / 文案）、短片灵感</td>
+</tr>
+<tr>
+<td>脚本</td>
+<td>改脚本</td>
+<td>对话改任意内容（「把挎包换成双肩书包」）；每一镜有「换个场景 / 换个动作 / 换搭配 / 删掉这一镜 / 自己说」</td>
+</tr>
+<tr>
+<td>脚本</td>
+<td>历史版本</td>
+<td>任意一版可回看、可恢复（时间旅行）</td>
+</tr>
+<tr>
+<td>脚本</td>
+<td>确认出图</td>
+<td>显示点数后确认；先出封面，再出其余镜头</td>
+</tr>
+<tr>
+<td>出图</td>
+<td>还原核对</td>
+<td>每张图自动核对衣服还原度与人像一致性，给分与差异说明</td>
+</tr>
+<tr>
+<td>出图</td>
+<td>主动消息</td>
+<td>出图完成后智能体主动汇报结果</td>
+</tr>
+<tr>
+<td>出图</td>
+<td>改图</td>
+<td>对话改一版，或在查看器里圈选局部改（见第 6 节）</td>
+</tr>
+<tr>
+<td>出图</td>
+<td>换一种氛围 / 整体调整</td>
+<td>自由对话</td>
+</tr>
+<tr>
+<td>挑图</td>
+<td>采用与排序</td>
+<td>勾选入稿图并排序；核对未通过的版本不默认入稿，可手动采用</td>
+</tr>
+<tr>
+<td>笔记</td>
+<td>写笔记</td>
+<td>用选中图生成标题、正文、标签；对话可改（短一点、换标题、换标签）</td>
+</tr>
+<tr>
+<td>短片</td>
+<td>确认与生成</td>
+<td>单独确认点数；选首帧；就绪后在对话里点开播放</td>
+</tr>
+<tr>
+<td>全程</td>
+<td>快捷话术</td>
+<td>输入框上方按阶段给三句常用话，不花钱</td>
+</tr>
+<tr>
+<td>全程</td>
+<td>过程透明</td>
+<td>每条回复下可展开：用了哪个工具、耗时、点数、处理分步</td>
+</tr>
+<tr>
+<td>全程</td>
+<td>花钱门禁</td>
+<td>所有花钱动作都要独立确认；重复确认不重复花钱；服务重启后续跑</td>
+</tr>
+<tr>
+<td>全程</td>
+<td>引用图片对话</td>
+<td>引用某张图只讨论不改图；长按消息复制、换个说法</td>
+</tr>
+<tr>
+<td>全程</td>
+<td>越阶段保护</td>
+<td>跨阶段请求被礼貌拒绝并说明当前该做什么</td>
+</tr>
+</tbody>
+</table>
+<h2 id="5-一键出片">5. 一键出片<a class="headerlink" href="#5-一键出片" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>全自动</td>
+<td>推荐方向 → 脚本 → 封面与其余图 → 采用 → 笔记 → 短片，一次授权</td>
+</tr>
+<tr>
+<td>步骤条</td>
+<td>六步进度与当前步骤</td>
+</tr>
+<tr>
+<td>我来接手</td>
+<td>任何时候切回沉浸编导，在下一个确认点停下；在跑的任务继续</td>
+</tr>
+<tr>
+<td>失败兜底</td>
+<td>任一步失败或点数不足，停在当前阶段并主动说明原因与下一步</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-图片查看器与局部改">6. 图片查看器与局部改<a class="headerlink" href="#6-图片查看器与局部改" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>查看</td>
+<td>原图与各版本切换、左右对比、缩放</td>
+</tr>
+<tr>
+<td>局部改</td>
+<td>在图上涂抹要改的区域，写一句要求；只改涂抹区</td>
+</tr>
+<tr>
+<td>核对结果</td>
+<td>改图后再次核对；未改到位会说明原因，保留原版，可重试或仍采用</td>
+</tr>
+<tr>
+<td>保存 / 分享</td>
+<td>保存到相册、系统分享</td>
+</tr>
+<tr>
+<td>存为模特</td>
+<td>把满意的成片存进「我的模特」，下次出镜用</td>
+</tr>
+</tbody>
+</table>
+<h2 id="7-笔记预览与发布">7. 笔记预览与发布<a class="headerlink" href="#7-笔记预览与发布" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>笔记预览</td>
+<td>标题、正文、标签、图片顺序；本地可编辑、保存草稿</td>
+</tr>
+<tr>
+<td>发布清单</td>
+<td>AI 内容声明提醒、图片与文案检查</td>
+</tr>
+<tr>
+<td>准备发布</td>
+<td>复制文案、保存全部图片与短片、系统分享面板；平台发帖由系统分享接手</td>
+</tr>
+<tr>
+<td>重新选图</td>
+<td>笔记阶段可回去换图</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8-素材库">8. 素材库<a class="headerlink" href="#8-素材库" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>我的模特</td>
+<td>上传的本人照片与存为模特的成片</td>
+</tr>
+<tr>
+<td>我的衣服</td>
+<td>上传过的衣服；新建时可直接选用</td>
+</tr>
+<tr>
+<td>我的成片 / 我的短片</td>
+<td>所有项目的产出；点开预览、回到这组片</td>
+</tr>
+</tbody>
+</table>
+<h2 id="9-我的形象与设置">9. 我的形象与设置<a class="headerlink" href="#9-我的形象与设置" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>我的形象</td>
+<td>本人照片、身高体型、风格偏好、昵称；出图时自动参考</td>
+</tr>
+<tr>
+<td>点数</td>
+<td>用户侧只显示点数（10 点 = 1 元），每日额度不足时保留进度次日恢复</td>
+</tr>
+<tr>
+<td>关于</td>
+<td>版本、服务地址、隐私说明</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-离开再回来">10. 离开再回来<a class="headerlink" href="#10-离开再回来" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>后台继续</td>
+<td>生成任务在服务端排队执行，App 退后台不影响</td>
+</tr>
+<tr>
+<td>通知</td>
+<td>完成后本机通知 / 前台横幅，点开直达编导间</td>
+</tr>
+<tr>
+<td>回前台刷新</td>
+<td>首页与编导间自动刷新；进行中显示已完成数量</td>
+</tr>
+<tr>
+<td>断线</td>
+<td>保留上次进度，提示连接后刷新</td>
+</tr>
+</tbody>
+</table>
+<h2 id="11-服务端">11. 服务端<a class="headerlink" href="#11-服务端" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>智能体</td>
+<td>LangGraph 状态图，7 个阶段，Postgres checkpoint 按项目持久化</td>
+</tr>
+<tr>
+<td>阶段内 ReAct</td>
+<td>模型从当前阶段允许的工具里选，代码只管放行和花钱门禁</td>
+</tr>
+<tr>
+<td>任务队列</td>
+<td>Postgres 队列，Worker × 2，SKIP LOCKED 领任务，失败重试</td>
+</tr>
+<tr>
+<td>模型</td>
+<td>对话 DeepSeek、看图 qwen3-vl-plus、出图豆包 Seedream 5.0 pro（备 wan2.7）、视频 wan2.6-i2v；管理端可切</td>
+</tr>
+<tr>
+<td>出图质量</td>
+<td>3:4 竖版、封面锚点保持人像一致、吊牌与包装自动去除、AI 标识</td>
+</tr>
+<tr>
+<td>还原核对</td>
+<td>每张图看图模型打分；改图二次核对</td>
+</tr>
+<tr>
+<td>媒体</td>
+<td>签名链接、按需出 JPEG 预览（360 / 720 / 1080）</td>
+</tr>
+<tr>
+<td>账本</td>
+<td>按项目与用户记点数与元；每层每日预算</td>
+</tr>
+<tr>
+<td>合规</td>
+<td>隐私同意记录、AI 内容声明、注销清理</td>
+</tr>
+</tbody>
+</table>
+<h2 id="12-管理端admin">12. 管理端（<code>/admin</code>）<a class="headerlink" href="#12-管理端admin" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总览</td>
+<td>用户数、项目数、调用与费用、阶段分布、任务状态、7 天趋势</td>
+</tr>
+<tr>
+<td>用量统计</td>
+<td>按模型 / 用户 / 天，可筛选、导出 CSV</td>
+</tr>
+<tr>
+<td>模型与配额</td>
+<td>四种能力各用哪个模型；用户分层与每日预算；改了即时生效</td>
+</tr>
+<tr>
+<td>任务队列</td>
+<td>列表、失败重试、排队取消</td>
+</tr>
+<tr>
+<td>用户管理</td>
+<td>禁用 / 启用、改层级</td>
+</tr>
+</tbody>
+</table>
+<h2 id="已验证与未验证">已验证与未验证<a class="headerlink" href="#已验证与未验证" title="Permanent link">¶</a></h2>
+<ul>
+<li>以上功能均在 iPhone 真机或线上回归（见 <a href="验收与部署.html">验收与部署.md</a>）走过。</li>
+<li>未验证：小红书平台实际发帖（App 到「准备发布」为止，由系统分享接手）。</li>
+</ul></main></div></body></html>

@@ -10,7 +10,7 @@
 
 | | 看什么 | 在哪 |
 |---|---|---|
-| 1 | **文档**：场景与调研、生成能力实测、框架选型、设计约定、UI 设计稿、设计系统 | [docs/调研.md](docs/调研.md) · [docs/调研-Chiccify对照.md](docs/调研-Chiccify对照.md) · [docs/设计.md](docs/设计.md) · [docs/UI设计稿.md](docs/UI设计稿.md) · [docs/设计系统.md](docs/设计系统.md) |
+| 1 | **文档**：功能清单、场景与调研、生成能力实测、框架选型、设计约定、UI 设计稿、设计系统 | [docs/功能清单.md](docs/功能清单.md) · [docs/调研.md](docs/调研.md) · [docs/调研-Chiccify对照.md](docs/调研-Chiccify对照.md) · [docs/设计.md](docs/设计.md) · [docs/UI设计稿.md](docs/UI设计稿.md) · [docs/设计系统.md](docs/设计系统.md) |
 | 2 | **开发记录与卡点**：从接到作业到交付的完整时间线，每个卡点怎么定位、怎么解 | [docs/开发记录.md](docs/开发记录.md) |
 | 3 | **开发感受** | [docs/开发感受.md](docs/开发感受.md) |
 | 4 | **代码**：服务端、App、管理端，以及验收证据与部署 | [server/](server/) · [app/](app/) · [docs/验收与部署.md](docs/验收与部署.md) |
