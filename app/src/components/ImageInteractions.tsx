@@ -3,9 +3,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { Action, NoteData, OutfitImage, PendingAction, Stage } from '../api/types';
+import type { Action, NoteData, OutfitImage, PendingAction, ScriptData, Stage } from '../api/types';
 import { ApiError } from '../api/client';
 import { approveImages, defaultImageIds, isUnverified, isUsable, replaceShotVersion } from '../lib/imageSelection';
+import { coverFirstImageIds } from '../lib/images';
 import { rejectedResult } from '../lib/editAttempt';
 import { feedback } from '../lib/haptics';
 import { saveImages } from '../lib/media';
@@ -26,13 +27,14 @@ type Interaction = {
 const ImageContext = createContext<Interaction>({ open: () => {}, menu: () => {}, selectedIds: [], setSelected: () => {}, confirmImage: async () => false, approve: async () => false });
 export const useImageInteractions = () => useContext(ImageContext);
 
-export function ImageInteractions({ images, editActions, busy, canEdit = true, stage, note, pendingAction, onAction, onReference, onVisibilityChange, onStartNew, children }: {
+export function ImageInteractions({ images, editActions, busy, canEdit = true, stage, note, script, pendingAction, onAction, onReference, onVisibilityChange, onStartNew, children }: {
   images: OutfitImage[];
   editActions?: Extract<Action, { type: 'edit_image' }>[];
   busy?: boolean;
   canEdit?: boolean;
   stage?: Stage;
   note?: NoteData;
+  script?: ScriptData;
   pendingAction?: PendingAction | null;
   onAction: (action: Action) => Promise<unknown> | void;
   onReference: (image: OutfitImage) => void;
@@ -46,13 +48,13 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, s
   const [notice, setNotice] = useState('');
   const source = `${stage ?? 'images'}:${JSON.stringify(note?.image_ids ?? [])}`;
   const [selection, setSelection] = useState<{ source: string; ids: string[] }>();
-  const selectedIds = (selection?.source === source ? selection.ids : defaultImageIds(images, note)).filter(id => images.some(image => image.id === id && isUsable(image)));
+  const selectedIds = coverFirstImageIds((selection?.source === source ? selection.ids : defaultImageIds(images, note)).filter(id => images.some(image => image.id === id && isUsable(image))), images, script);
   const accepted = useRef(new Set<string>());
   const [confirmation, setConfirmation] = useState<{ reason: string; resolve: (value: boolean) => void }>();
   const confirmationRef = useRef(confirmation);
   useEffect(() => { confirmationRef.current = confirmation; }, [confirmation]);
   useEffect(() => () => { confirmationRef.current?.resolve(false); }, []);
-  const setSelected = (ids: string[]) => setSelection({ source, ids });
+  const setSelected = (ids: string[]) => setSelection({ source, ids: coverFirstImageIds(ids, images, script) });
   const confirm = (reason: string) => new Promise<boolean>(resolve => setConfirmation({ reason, resolve }));
   const finishConfirmation = (value: boolean) => { confirmation?.resolve(value); setConfirmation(undefined); };
   async function confirmImage(image: OutfitImage) {
@@ -76,7 +78,7 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, s
       const image = images.find(item => item.id === id);
       if (image && !await confirmImage(image)) return false;
     }
-    return submitAction(approveImages(ids, images, [...accepted.current, ...(note?.accepted_unverified_ids ?? [])]));
+    return submitAction(approveImages(coverFirstImageIds(ids, images, script), images, [...accepted.current, ...(note?.accepted_unverified_ids ?? [])]));
   }
   async function adopt(image: OutfitImage) {
     if (!canEdit || busy || !await confirmImage(image)) return false;
@@ -124,7 +126,7 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, s
   return <ImageContext.Provider value={{ open, menu: id => { feedback(); setNotice(''); setMenuId(id); }, selectedIds, setSelected, confirmImage, approve }}>
     {children}
     {notice ? <Pressable testID="image-feedback" accessibilityRole="button" accessibilityLabel="关闭图片提示" onPress={() => setNotice('')} style={styles.toast}><Toast text={notice} tone={notice.startsWith('已') || notice === '图片已保存' ? 'success' : 'danger'} onDismiss={() => setNotice('')} /></Pressable> : null}
-    {viewer ? <ImageViewer images={images} editActions={editActions} initialImageId={viewer.id} initialMode={viewer.mode} busy={busy} canEdit={canEdit} stage={stage} pendingAction={pendingAction} onStartNew={onStartNew ? () => { setViewer(undefined); onStartNew(); } : undefined} adoptedImageIds={stage === 'note' ? note?.image_ids : selectedIds} onAdopt={canEdit && (stage === 'images' || stage === 'note' || !stage) ? adopt : undefined} confirmationOverlay={confirmationOverlay} onDismissConfirmation={() => finishConfirmation(false)} onClose={() => setViewer(undefined)} onAction={submitAction} onReference={reference} /> : null}
+    {viewer ? <ImageViewer images={images} script={script} editActions={editActions} initialImageId={viewer.id} initialMode={viewer.mode} busy={busy} canEdit={canEdit} stage={stage} pendingAction={pendingAction} onStartNew={onStartNew ? () => { setViewer(undefined); onStartNew(); } : undefined} adoptedImageIds={stage === 'note' ? note?.image_ids : selectedIds} onAdopt={canEdit && (stage === 'images' || stage === 'note' || !stage) ? adopt : undefined} confirmationOverlay={confirmationOverlay} onDismissConfirmation={() => finishConfirmation(false)} onClose={() => setViewer(undefined)} onAction={submitAction} onReference={reference} /> : null}
     <Modal transparent visible={Boolean(menuImage)} animationType="fade" onRequestClose={() => setMenuId(undefined)}>
       <View style={styles.shade}>
         <Pressable accessibilityRole="button" accessibilityLabel="关闭图片菜单" style={StyleSheet.absoluteFill} onPress={() => { if (!saving) setMenuId(undefined); }} />

@@ -25,6 +25,7 @@ import { readPublishCheckpoint, writePublishCheckpoint } from '../../lib/publish
 import { observeGeneration } from '../../lib/notificationRuntime';
 import { applyNoteDraft, changeNoteDraft, cleanTag, draftFromNote, hasNoteDraftConflict, keepNoteDraft, limitTitle, moveDraftImage, NOTE_TITLE_LIMIT, readNoteDraft, readPreviousNoteDraft, reconcileNoteDraft, titleLength, writeNoteDraft, writePreviousNoteDraft, type NoteDraft } from '../../lib/noteDraft';
 import { localDraftStorage } from '../../lib/noteDraftStorage';
+import { coverFirstImageIds, isCoverImage } from '../../lib/images';
 import { previewUrl } from '../../lib/previewUrl';
 
 function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url?: string; index: number; onRefresh: () => void; disabled?: boolean }) {
@@ -121,7 +122,9 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     return () => { alive = false; clearInterval(timer); };
   }, [api, projectId, retry]));
 
-  const note = state?.note ? applyNoteDraft(state.note, draft) : undefined;
+  const editableNote = state?.note ? applyNoteDraft(state.note, draft) : undefined;
+  const note = editableNote ? { ...editableNote, image_ids: coverFirstImageIds(editableNote.image_ids, state?.images ?? [], state?.script) } : undefined;
+  const coverLocked = Boolean(note?.image_ids[0] && state?.images.some(image => image.id === note.image_ids[0] && isCoverImage(image, state.images, state.script, note.image_ids)));
   const draftConflict = state?.note ? hasNoteDraftConflict(state.note, draft) : false;
   const aiConfirmed = draft?.aiConfirmed ?? true;
   const titleCount = titleLength(note?.title ?? '');
@@ -151,7 +154,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   }
 
   function reorderImage(index: number, offset: -1 | 1) {
-    if (!note) return;
+    if (!note || coverLocked && (index === 0 || index + offset === 0)) return;
     updateDraft({ image_ids: moveDraftImage(note.image_ids, index, offset) });
     setPage(0);
     carouselRef.current?.scrollTo({ x: 0, animated: false });
@@ -314,7 +317,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
     finally { setEditing(false); }
   }
 
-  return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note'].includes(state?.stage ?? '')} stage={state?.stage} note={state?.note} pendingAction={state?.pending_action} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
+  return <ImageInteractions images={state?.images ?? []} script={state?.script} editActions={editActions} busy={editing} canEdit={['images', 'note'].includes(state?.stage ?? '')} stage={state?.stage} note={note} pendingAction={state?.pending_action} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
     <Header title="编辑笔记" subtitle="把灵感，穿进日常" onBack={backToStudio} />
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       {!!error && !!state && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}
@@ -377,12 +380,12 @@ function PreviewPage({ projectId }: { projectId?: string }) {
           </View>
           <View style={styles.formSection}>
             <View style={styles.videoHeading}><Ionicons name="images-outline" size={18} color={colors.red} /><Text style={styles.videoTitle}>图片顺序</Text></View>
-            <Text style={styles.checklistHint}>第一张作为封面，保存和发布时按这个顺序。</Text>
+            <Text style={styles.checklistHint}>主图固定在第一位，其他图片可调整顺序。</Text>
             {images.map((image, index) => <View key={image.id} style={styles.orderRow} testID={`note-image-order-${image.id}`}>
               {image.url ? <FadeImage source={{ uri: previewUrl(image.url, 360) }} style={styles.orderThumbnail} /> : <View style={styles.orderThumbnail}><Ionicons name="image-outline" size={22} color={colors.muted} /></View>}
-              <Text style={styles.orderLabel}>图片 {index + 1}{index === 0 ? ' · 封面' : ''}{image.manuallyAccepted ? ' · 手动采用' : ''}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 前移`} accessibilityState={{ disabled: index === 0 || preparing || saving }} disabled={index === 0 || preparing || saving} onPress={() => reorderImage(index, -1)} testID={`move-note-image-${image.id}-earlier`} style={[styles.orderButton, (index === 0 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-up" size={18} color={colors.redText} /></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 后移`} accessibilityState={{ disabled: index === images.length - 1 || preparing || saving }} disabled={index === images.length - 1 || preparing || saving} onPress={() => reorderImage(index, 1)} testID={`move-note-image-${image.id}-later`} style={[styles.orderButton, (index === images.length - 1 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-down" size={18} color={colors.redText} /></Pressable>
+              <Text style={styles.orderLabel}>图片 {index + 1}{index === 0 ? coverLocked ? ' · 主图' : ' · 封面' : ''}{image.manuallyAccepted ? ' · 手动采用' : ''}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 前移`} accessibilityState={{ disabled: (index === 0 || coverLocked && index === 1) || preparing || saving }} disabled={(index === 0 || coverLocked && index === 1) || preparing || saving} onPress={() => reorderImage(index, -1)} testID={`move-note-image-${image.id}-earlier`} style={[styles.orderButton, ((index === 0 || coverLocked && index === 1) || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-up" size={18} color={colors.redText} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 后移`} accessibilityState={{ disabled: (index === images.length - 1 || coverLocked && index === 0) || preparing || saving }} disabled={(index === images.length - 1 || coverLocked && index === 0) || preparing || saving} onPress={() => reorderImage(index, 1)} testID={`move-note-image-${image.id}-later`} style={[styles.orderButton, ((index === images.length - 1 || coverLocked && index === 0) || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-down" size={18} color={colors.redText} /></Pressable>
             </View>)}
           </View>
           <View style={styles.draftNotice}><Ionicons name="save-outline" size={16} color={colors.muted} /><View style={{ flex: 1, gap: space.xs }}><Text style={styles.checklistHint}>编辑会在本机覆盖发布文案，原始笔记保留在编导间。草稿保存在当前设备。</Text>{!!draftStatus && <Text testID="note-draft-status" accessibilityLiveRegion="polite" style={styles.draftStatus}>{draftStatus}</Text>}</View></View>
@@ -398,7 +401,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Text style={styles.checklistHint}>{images.length} 张图片，按以下顺序保存{Platform.OS === 'web' ? '到下载目录' : '到相册'}。图片已有 AI 角标。</Text>
             {!savedImagesAreInOrder(note.image_ids, publishProgress.savedImageIds) ? <Text accessibilityRole="alert" testID="publish-order-changed" style={styles.actionError}>图片顺序已调整。已保存的图片不会重复下载，请在发布平台按这份清单重新排列。</Text> : null}
             <Text testID="publish-copy" style={styles.checklistItem}>{publishProgress.copiedText === noteText(note) ? '✓ 文案已复制' : '○ 文案待复制'}</Text>
-            {images.map((image, index) => <Text key={image.id} testID={`publish-image-${image.id}`} style={styles.checklistItem}>{publishProgress.savedImageIds.includes(image.id) ? '✓' : '○'} 图片 {index + 1}{index === 0 ? ' · 封面' : ''}{image.manuallyAccepted ? ' · 手动采用' : ''} · {publishProgress.savedImageIds.includes(image.id) ? '已保存' : image.url && image.status === 'succeeded' ? '待保存' : '等待生成'}</Text>)}
+            {images.map((image, index) => <Text key={image.id} testID={`publish-image-${image.id}`} style={styles.checklistItem}>{publishProgress.savedImageIds.includes(image.id) ? '✓' : '○'} 图片 {index + 1}{index === 0 ? coverLocked ? ' · 主图' : ' · 封面' : ''}{image.manuallyAccepted ? ' · 手动采用' : ''} · {publishProgress.savedImageIds.includes(image.id) ? '已保存' : image.url && image.status === 'succeeded' ? '待保存' : '等待生成'}</Text>)}
             <Text testID="publish-video" style={styles.checklistItem}>{state?.video?.status === 'succeeded'
               ? `${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '✓' : '○'} 视频 · ${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '已保存' : '待保存'}`
               : state?.video && ['queued', 'running'].includes(state.video.status) ? '○ 视频 · 制作中，完成后继续' : state?.video?.status === 'failed' ? '— 视频未生成成功，本次仅发布图文' : '— 无视频，本次发布图文'}</Text>
