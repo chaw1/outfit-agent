@@ -45,9 +45,15 @@ for (const tone of ['paper', 'studio'] as const) {
       await expect(page.getByTestId('design-button-secondary-disabled')).toBeDisabled();
       await expect(page.getByTestId('design-field-disabled')).toBeDisabled();
       await expect(page.getByTestId('design-toast-info')).toBeVisible();
-      await expect(page).toHaveScreenshot(`${tone}-${width}.png`, { fullPage: true, animations: 'disabled', caret: 'hide', scale: 'css', maxDiffPixels: 0, threshold: 0.1 });
+      if (process.platform === 'darwin') {
+        await expect(page).toHaveScreenshot(`${tone}-${width}.png`, { fullPage: true, animations: 'disabled', caret: 'hide', scale: 'css', maxDiffPixels: 0, threshold: 0.1 });
+      } else {
+        test.info().annotations.push({ type: 'pixel-baseline', description: '仓库像素基线使用 macOS 系统字体；其他平台执行结构与状态检查，并留存实际截图。' });
+      }
       await mkdir(screenshots, { recursive: true });
-      await page.screenshot({ path: path.join(screenshots, `${tone}-${width}.png`), fullPage: true, animations: 'disabled', caret: 'hide', scale: 'css' });
+      const screenshotPath = path.join(screenshots, `${tone}-${width}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: true, animations: 'disabled', caret: 'hide', scale: 'css' });
+      if (process.platform !== 'darwin') await test.info().attach(`${tone}-${width}`, { path: screenshotPath, contentType: 'image/png' });
       expect(errors).toEqual([]);
       expect(apiRequests).toEqual([]);
     });

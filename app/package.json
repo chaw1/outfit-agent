@@ -15,8 +15,8 @@
     "verify": "node scripts/verify.mjs",
     "export:ios": "expo export --platform ios",
     "export:android": "expo export --platform android",
-    "tokens": "node scripts/build-tokens.mjs",
-    "tokens:check": "node scripts/build-tokens.mjs --check"
+    "tokens": "node scripts/build-tokens.mjs && node scripts/build-token-docs.mjs",
+    "tokens:check": "node scripts/build-tokens.mjs --check && node scripts/build-token-docs.mjs --check"
   },
   "engines": {
     "node": ">=22.13.0"
