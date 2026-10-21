@@ -7,7 +7,7 @@ const pages=JSON.parse(await readFile(path.join(here,'pages.json'),'utf8'));
 const stateNames={empty:'空',loading:'加载',error:'错误',success:'成功',insufficient:'点数不足'};
 const start='<!-- pages:start -->',end='<!-- pages:end -->';
 const sections=pages.map((p,i)=>`### 4.${i+1} ${p.title}\n\n**目标：** ${p.goal}\n\n**布局：** ${p.layout}\n\n![${p.title} · 390 × 844 设计画布与旁注](design/shots/${String(i+1).padStart(2,'0')}-${p.id}.png)\n\n| 状态 | 设计处理 |\n|---|---|\n${Object.entries(p.states).map(([key,value])=>`| ${stateNames[key]} | ${value} |`).join('\n')}\n\n**文案口径：** ${p.copy.map(c=>`「${c}」`).join('；')}。\n\n**契约映射：** ${p.contract}\n${['home','new-auto','note'].includes(p.id)?`\n[查看该页向下滚动后的内容](design/shots/${p.id}-continued.png)。\n`:''}`).join('\n');
-const generated=`${start}\n## 4. 页面设计\n\n以下 35 节与设计板画布一一对应。配图是设计定格，按钮、选区与播放条用于评审布局；浏览器可滚动长内容，只有顶部主题预览可交互。每节列出空、加载、错误、成功、点数不足；不扣点的页面明确写出不适用，避免为了凑状态引入功能。旁注只摘录关键变体，完整处理以下表为准。\n\n${sections}\n${end}`;
+const generated=`${start}\n## 4. 页面设计\n\n以下 35 节与设计板画布一一对应。配图是设计定格，按钮、选区与播放条用于评审布局；浏览器可滚动长内容，只有顶部主题预览可交互。每节列出空、加载、错误、成功、点数不足；不扣点的页面明确写出不适用，避免为了凑状态引入功能。旁注只摘录关键变体，完整处理以下表为准。\n\n主题切换对照：[首页的 paper 预览](design/shots/theme-paper.png)、[编导间的 studio 预览](design/shots/theme-studio.png)。[浏览器检查记录](design/verification.json)与[复现方式](design/README.md)随稿交付。\n\n${sections}\n${end}`;
 let doc=await readFile(target,'utf8');
 if(doc.includes(start))doc=doc.slice(0,doc.indexOf(start))+generated+doc.slice(doc.indexOf(end)+end.length);
 else doc+='\n\n'+generated+'\n';
