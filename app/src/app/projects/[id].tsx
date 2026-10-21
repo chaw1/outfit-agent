@@ -86,6 +86,8 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
   const insets = useSafeAreaInsets();
   const { project, state, messages, cards, loading, busy, error, send, retry, failedMessages, retryMessage, missing, takeOver } = useWorkspace(id);
   const [text, setText] = useState('');
+  // 键盘弹出后要能一键收起：输入框旁出现「收起键盘」，轻点消息气泡也收。
+  const [typing, setTyping] = useState(false);
   const [selectedMessage, setSelectedMessage] = useState<Message>();
   const [copyStatus, setCopyStatus] = useState('');
   const [notice, setNotice] = useState<{ text: string; tone: 'info' | 'success' }>();
@@ -156,7 +158,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         {resultsFirst ? cardsNode : null}
         {messages.map((message, index) => <AnimatedEntry key={message.id} delay={Math.min(index * 30, 120)} style={[styles.message, message.role === 'user' ? styles.userMessage : styles.assistantMessage]}>
           {message.role === 'assistant' && <View style={styles.assistantIdentity}><View style={styles.assistantIcon}><Ionicons name="sparkles-outline" size={13} color={colors.redText} /></View><Text style={styles.identityText}>衣序 · 你的穿搭搭子</Text></View>}
-          {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={({ pressed }) => [styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble, pressed && styles.pressed]}><Text selectable style={styles.messageText}>{messageText(message, state)}</Text></Pressable> : busy && message.role === 'assistant' ? <ProgressStrip title="正在整理你的灵感…" /> : null}
+          {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onPress={() => Keyboard.dismiss()} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={({ pressed }) => [styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble, pressed && styles.pressed]}><Text selectable style={styles.messageText}>{messageText(message, state)}</Text></Pressable> : busy && message.role === 'assistant' ? <ProgressStrip title="正在整理你的灵感…" /> : null}
           {message.role === 'assistant' && busy && index === messages.length - 1 && !messageText(message, state) ? <View testID="assistant-thinking" accessibilityRole="progressbar" accessibilityLabel="衣序正在想" style={[styles.bubble, styles.assistantBubble, styles.thinking]}><ActivityIndicator size="small" color={colors.redText} /><Text style={styles.thinkingText}>{thinkingLabel(state)}</Text></View> : null}
           <MessageTrace message={message} />
           {!busy && canRephrase(message, messages, state) ? <Pressable testID="rephrase-message" accessibilityRole="button" accessibilityLabel="换个说法" onPress={() => { void send({ action: { type: 'regenerate_reply', message_id: message.id } }); }} style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}><Ionicons name="refresh-outline" size={14} color={colors.redText} /><Text style={styles.textActionLabel}>换个说法</Text></Pressable> : null}
@@ -181,7 +183,8 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         {!automatic && state?.pending_action && <View style={styles.pendingAction}><View style={styles.pendingDot} /><Text style={styles.pendingText} numberOfLines={2}>{state.pending_action.prompt}</Text></View>}
         {!automatic && !busy && prompts.length ? <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickPrompts} testID="quick-prompts">{prompts.map(prompt => <Chip key={prompt} label={prompt} onPress={() => { feedback(); setText(''); setRefs([]); void send({ text: prompt }); }} />)}</ScrollView> : null}
         <View style={styles.inputRow}>
-          <TextInput ref={input} accessibilityLabel="发给穿搭搭子" testID="chat-input" placeholder="说说你的想法，随时都能聊…" placeholderTextColor={colors.muted} value={text} onChangeText={setText} multiline maxLength={4000} style={styles.input} />
+          <TextInput ref={input} accessibilityLabel="发给穿搭搭子" testID="chat-input" placeholder="说说你的想法，随时都能聊…" placeholderTextColor={colors.muted} value={text} onChangeText={setText} onFocus={() => setTyping(true)} onBlur={() => setTyping(false)} multiline maxLength={4000} style={styles.input} />
+          {typing && Platform.OS !== 'web' ? <Pressable accessibilityRole="button" accessibilityLabel="收起键盘" testID="dismiss-keyboard" onPress={() => Keyboard.dismiss()} style={({ pressed }) => [styles.keyboardButton, pressed && styles.pressed]}><Ionicons name="chevron-down" size={20} color={colors.muted} /></Pressable> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="发送消息" accessibilityState={{ disabled: busy || !text.trim() }} testID="send-message" disabled={busy || !text.trim()} onPress={submit} style={({ pressed }) => [styles.sendButton, (busy || !text.trim()) && styles.disabled, pressed && styles.pressed]}><Ionicons name="arrow-up" size={22} color={colors.white} /></Pressable>
         </View>
       </View>
@@ -247,6 +250,7 @@ const styles = StyleSheet.create({
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.paper, paddingLeft: space.lg, paddingRight: space.xs, borderRadius: radius.lg },
   input: { ...typography.body, flex: 1, minHeight: 52, paddingVertical: space.md, paddingRight: space.sm, maxHeight: 128, color: colors.ink },
   sendButton: { width: 44, height: 44, marginBottom: space.xs, backgroundColor: colors.redText, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  keyboardButton: { width: 44, height: 44, marginBottom: space.xs, marginRight: space.xs, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.4 },
   modalShade: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end', alignItems: 'center' },
   messageSheet: { width: '100%', maxWidth: 520, backgroundColor: colors.white, padding: space.xl, gap: space.lg, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg },
