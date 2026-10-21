@@ -5,7 +5,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SessionProvider, useSession } from '../context/Session';
-import { studio } from '../theme';
+import { motion, studio } from '../theme';
 import { LoadingSkeleton, colors } from '../components/ui';
 import { Onboarding } from '../components/Onboarding';
 import { PrivacyGate } from '../components/PrivacyGate';
@@ -27,7 +27,7 @@ function Routes() {
   const dark = segments[0] === 'login' || segments[0] === 'assets' || !segments[0] || segments.join('/') === 'projects/new';
   return <View style={{ flex: 1, backgroundColor: dark ? studio.bg : colors.paper }}>
     <StatusBar style={dark ? "light" : "dark"} />
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper }, animation: 'slide_from_right' }} />
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper }, animation: 'slide_from_right', animationDuration: motion.slow, gestureEnabled: true, fullScreenGestureEnabled: true, animationMatchesGesture: true }} />
     {ready && <PrivacyGate><GenerationNotifications /><Onboarding /></PrivacyGate>}
     {!ready && <View style={{ position: 'absolute', inset: 0, backgroundColor: colors.paper, justifyContent: 'center' }}><LoadingSkeleton kind="list" /></View>}
   </View>;

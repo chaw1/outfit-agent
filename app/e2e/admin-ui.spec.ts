@@ -118,8 +118,9 @@ for (const width of [1440, 390, 320]) {
     page.on('pageerror', error => errors.push(error.message));
     await openAdmin(page);
     for (const name of pages) {
+      const loaded = name === '总览' ? page.waitForResponse(value => value.url().includes('/api/admin/overview')) : null;
       await navigate(page, name);
-      if (name === '总览') await page.locator('.kpi-grid').first().waitFor();
+      if (loaded) { await loaded; await page.locator('.kpi-grid').first().waitFor(); }
       const size = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
         shortControls: [...document.querySelectorAll('button,input:not([type=checkbox]),select')]

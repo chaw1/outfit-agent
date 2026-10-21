@@ -1,15 +1,15 @@
 {
   "reuse": {
-    "savedFromCard": "asset_7d32ee24-1c9d-4596-a8b8-a7db6e346255",
-    "savedFromViewer": "asset_76c5e7a7-d1fa-445a-8d0e-ec66bce08655",
+    "savedFromCard": "asset_d1f42955-cd48-4cd0-aca2-36262dfb6469",
+    "savedFromViewer": "asset_ef877fa9-dbe9-410c-9214-ae5738e9e769",
     "requests": [
-      "image_a3449049-5a28-4ede-a42f-7e8e3c9e4005",
-      "image_d6e05a32-6af5-4af9-931e-8f511332d518"
+      "image_12ee30de-da3d-42b6-a253-1e77a3a0bc0e",
+      "image_12c03462-cadf-4921-ac8e-edf2b2a68c5e"
     ],
     "modelCount": 3,
-    "submittedModel": "asset_7d32ee24-1c9d-4596-a8b8-a7db6e346255",
+    "submittedModel": "model_34cebca4fa021b5f9ef94fec165355b3",
     "reusedGarment": [
-      "asset_2a2b035d-83b2-4270-b449-d790babe0ad5"
+      "asset_e656db9a-ed1b-4787-9d6f-d525d96ce72b"
     ],
     "uploads": 0,
     "pageErrors": []
@@ -20,7 +20,7 @@
     "directRouteAndReload": true,
     "aspectRatio": 0.7500179739736861,
     "cancelledDeletionPreserved": true,
-    "confirmedDeletions": 2,
+    "confirmedDeletions": 1,
     "garmentConflictStatus": 409,
     "imageCount": 4,
     "pageErrors": []

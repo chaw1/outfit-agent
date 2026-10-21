@@ -1,7 +1,7 @@
 {
   "flow": {
-    "projectId": "project_c39b85bf-731a-40c5-b880-01fc59e0a591",
-    "directionCardId": "project_c39b85bf-731a-40c5-b880-01fc59e0a591_directions",
+    "projectId": "project_7a778cfc-ce4f-46e2-8c78-079445232697",
+    "directionCardId": "project_7a778cfc-ce4f-46e2-8c78-079445232697_directions",
     "fixedSwapText": true,
     "sameCardIdSingleInstance": true,
     "previewsReady": true,
@@ -20,9 +20,9 @@
       "generate_video"
     ],
     "scriptEstimate": 1.8,
-    "scriptRemaining": 18.5,
+    "scriptRemaining": 15.5,
     "videoEstimate": 1.5,
-    "videoRemaining": 16.5,
+    "videoRemaining": 13.5,
     "pageErrors": []
   },
   "compatibility": {

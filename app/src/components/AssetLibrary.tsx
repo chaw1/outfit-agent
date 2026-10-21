@@ -2,15 +2,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { ApiError } from '../api/client';
 import type { Asset } from '../api/types';
 import { useSession } from '../context/Session';
 import { hideAssetLibrary, loadLibraryModels, modelLibraryAsset, useLibraryModels, type LibraryAsset, type LibraryKind } from '../lib/assets';
-import { colors, layout, radius, space, studio, type } from '../theme';
+import { colors, layout, motion, radius, space, studio, type } from '../theme';
 import { previewUrl } from '../lib/previewUrl';
 import { filterGarmentsByTag, garmentTagCounts, toggleGarmentTag, type GarmentTagCount } from '../lib/garmentTags';
 import { defaultModelId, modelStatusText } from '../lib/models';
 import { Chip } from './ds/Chip';
+import { Segmented } from './ds/Segmented';
 import { Badge, Button, FadeImage, Header, IconButton, Notice, Page, Skeleton, StatePanel, Toast, errorText } from './ui';
 import { VideoPlayer } from './VideoPlayer';
 
@@ -100,6 +102,7 @@ export function GarmentPicker({ selectedIds, onSelect, disabled = false }: { sel
 export function AssetLibrary() {
   const { api, user, token, baseUrl, updateMe, refreshUser, isCurrentSession } = useSession();
   const library = useLibraryModels();
+  const reduced = useReducedMotion();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const tileWidth = (Math.min(width, layout.maxWidth) - space.xl * 2 - space.md) / 2;
@@ -175,7 +178,7 @@ export function AssetLibrary() {
   const title = (item: LibraryAsset) => item.name || item.analysis?.name || item.project_title || (item.kind === 'model' ? '我的模特' : item.kind === 'garment' ? '我的衣服' : item.kind === 'video' ? '我的短片' : '我的成片');
   if (library.supported === false) return <View style={local.content}><StatePanel icon="images-outline" title="当前服务未开通素材库" description="拍过的片都会留在这里" /></View>;
   return <View style={local.root}>
-    <View accessibilityRole="tablist" style={local.tabs}>{tabs.map(tab => <Pressable key={tab.kind} accessibilityRole="tab" accessibilityLabel={tab.title} accessibilityState={{ selected: kind === tab.kind }} aria-selected={kind === tab.kind} testID={`library-tab-${tab.kind}`} onPress={() => { if (kind !== tab.kind) { setKind(tab.kind); setSelectedTag(null); setNotice(''); } }} style={({ pressed }) => [local.tab, kind === tab.kind && local.tabSelected, pressed && local.pressed]}><Text style={[local.tabText, kind === tab.kind && local.selectedText]}>{tab.title}</Text></Pressable>)}</View>
+    <View style={local.tabs}><Segmented label="素材类型" options={tabs.map(tab => ({ value: tab.kind, label: tab.title }))} value={kind} optionTestID={value => `library-tab-${value}`} onChange={next => { if (kind !== next) { setKind(next); setSelectedTag(null); setNotice(''); } }} /></View>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={local.content}>
       {kind === 'garment' ? <GarmentTagFilters tags={tags} selected={selectedTag} onSelect={setSelectedTag} testID="library-garment-tags" /> : null}
       {kind === 'garment' && tagError ? <Notice text={tagError} onRetry={() => setTagRevision(value => value + 1)} /> : null}
@@ -183,7 +186,7 @@ export function AssetLibrary() {
       {!!error && <Notice text={error} onRetry={() => void load(items.length ? items.length : 0)} />}
       {loading && !items.length ? <View accessibilityRole="progressbar" accessibilityLabel="正在加载素材库" style={local.grid}>{[0, 1].map(index => <Skeleton key={index} width={tileWidth} height={tileWidth / layout.thumbnailRatio} />)}</View> : null}
       {!loading && !items.length && !error ? <StatePanel icon={kind === 'garment' ? 'shirt-outline' : kind === 'model' ? 'person-outline' : kind === 'video' ? 'videocam-outline' : 'images-outline'} title={tabs.find(tab => tab.kind === kind)!.title} description={kind === 'garment' && selectedTag ? '这个标签下还没有衣服，再点标签可取消筛选。' : '拍过的片都会留在这里'} /> : null}
-      <View style={local.grid}>{items.map(item => <View key={item.model_id || item.id} testID={`library-${item.id}`} style={[local.tile, { width: tileWidth }]}>
+      <Animated.View key={kind} entering={reduced ? undefined : FadeIn.duration(motion.normal)} style={local.grid}>{items.map(item => <View key={item.model_id || item.id} testID={`library-${item.id}`} style={[local.tile, { width: tileWidth }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={`查看${title(item)}`} onPress={() => setPreview(item)} style={local.imageFrame} testID={`library-image-${item.id}`}><FadeImage source={{ uri: previewUrl(item.kind === 'video' ? (item.poster_url || item.url) : item.url) }} style={local.image} resizeMode="cover" accessibilityLabel={title(item)} />{item.kind === 'video' ? <View style={local.playBadge}><Ionicons name="play" size={16} color={colors.white} /></View> : null}</Pressable>
         <View style={local.details}><View style={local.labels}><Badge label={item.model_status ? modelStatusText({ status: item.model_status, missing: item.missing || [] }) : item.kind === 'video' ? '5 秒短片' : item.source === 'generated' ? '成片' : '上传'} />{kind === 'model' && (item.model_id ? item.model_id === defaultModelId(library.identities || [], user?.profile?.model_asset_ids[0]) : user?.profile?.model_asset_ids[0] === item.id) ? <Badge label="默认" tone="brand" /> : null}</View><Text numberOfLines={2} style={local.name}>{title(item)}</Text>
           {kind === 'garment' && item.tags?.length ? <Text style={local.source}>{item.tags.join(' · ')}</Text> : null}
@@ -191,7 +194,7 @@ export function AssetLibrary() {
           {kind === 'garment' ? <><Button title="用这件拍一组新片" variant="secondary" onPress={() => router.push({ pathname: '/projects/new', params: { garment: item.id } })} /><Button title="删除" variant="ghost" disabled={busy} onPress={() => setCandidate(item)} /></> : null}
           {(kind === 'image' || kind === 'video') && item.project_id ? <Button title="回到这组片" variant="secondary" onPress={() => router.push({ pathname: '/projects/[id]', params: { id: item.project_id! } })} /> : null}
         </View>
-      </View>)}</View>
+      </View>)}</Animated.View>
       {items.length < total && items.length > 0 ? <Button title="再看一些" variant="secondary" loading={loading} onPress={() => void load(items.length)} /> : null}
     </ScrollView>
     <Modal visible={!!candidate} transparent animationType="fade" onRequestClose={() => { if (!busy) setCandidate(undefined); }}><View style={local.shade}><View accessibilityViewIsModal testID="library-delete-confirmation" style={local.dialog}><Text style={local.dialogTitle}>确认删除{candidate?.kind === 'model' ? '这位模特' : '这件衣服'}？</Text><Text style={local.body}>{candidate?.kind === 'model' ? '会从我的模特与默认出镜中移除；正在被片场使用或正在建立身份卡的模特不能删，已拍的片会保留。' : '没有被片场使用的衣服可以删除。'}</Text><Button title="确认删除" variant="danger" loading={busy} onPress={() => void remove()} /><Button title="取消" variant="secondary" disabled={busy} onPress={() => setCandidate(undefined)} /></View></View></Modal>
@@ -208,12 +211,8 @@ const local = StyleSheet.create({
   pickerImage: { width: layout.touch * 2, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm },
   pickerDescription: { flex: 1, gap: space.sm },
   root: { flex: 1 },
-  tabs: { flexDirection: 'row', padding: space.lg, gap: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: studio.line },
+  tabs: { paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: studio.line },
   playBadge: { position: 'absolute', right: space.sm, bottom: space.sm, width: 32, height: 32, borderRadius: radius.md, backgroundColor: colors.red, alignItems: 'center', justifyContent: 'center', paddingLeft: space.xs },
-  tab: { flex: 1, minHeight: layout.touch, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: studio.canvas, paddingHorizontal: space.xs },
-  tabSelected: { backgroundColor: studio.softAccent },
-  tabText: { ...type.label, color: studio.muted },
-  selectedText: { color: studio.ink },
   pressed: { backgroundColor: studio.surface },
   content: { padding: space.xl, paddingBottom: space.xxl, gap: space.lg },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md, alignItems: 'flex-start' },

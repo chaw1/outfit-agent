@@ -7,6 +7,7 @@
 - 线上服务：`https://47.97.153.127:8443`
 - App：iPhone 真机 Release 包已安装；iOS / Android / Web 同一套代码
 - 管理端：`/admin`（模型切换、配额、用量、任务队列）
+- 文档在线版：`https://47.97.153.127:8443/docs/`（全部文档的 HTML 阅读版）· `https://47.97.153.127:8443/docs/design/`（UI 设计板）
 
 ## 交付材料
 
@@ -17,7 +18,7 @@
 | 3 | **开发感受** | [docs/开发感受.md](docs/开发感受.md) |
 | 4 | **代码**：服务端、App、管理端，以及验收证据与部署 | [server/](server/) · [app/](app/) · [docs/验收与部署.md](docs/验收与部署.md) |
 
-全部文档的 HTML 阅读版（带目录与流程图）：[docs/html/index.html](docs/html/index.html)。
+全部文档的 HTML 阅读版（带目录与流程图）：[docs/html/index.html](docs/html/index.html)，线上同一份在 [47.97.153.127:8443/docs/](https://47.97.153.127:8443/docs/)。
 
 ## 技术栈
 

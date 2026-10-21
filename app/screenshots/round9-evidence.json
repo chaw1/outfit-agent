@@ -1,5 +1,5 @@
 {
-  "projectId": "project_92adc242-32cd-4312-adc5-650619879947",
+  "projectId": "project_ab6fc24d-c5d4-4351-8116-b482d69386bc",
   "submitted": {
     "title": "自由创作 · 松弛通勤",
     "brand": "自由创作",
@@ -10,8 +10,9 @@
       "户外野餐"
     ],
     "garment_asset_ids": [
-      "asset_76d438c8-3aee-499b-9bd8-46fdc42c1339"
-    ]
+      "asset_29aef411-7945-4dc5-8015-7e95f90d54b5"
+    ],
+    "model_id": "preset-a"
   },
   "steps": [
     "正在找拍摄方向",

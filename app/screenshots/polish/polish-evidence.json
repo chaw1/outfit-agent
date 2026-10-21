@@ -1,6 +1,6 @@
 {
-  "completedAt": "2026-10-21T10:13:00.300Z",
-  "projectId": "project_763092a1-f97e-43ea-aa3e-2dd8c2f977f9",
+  "completedAt": "2026-10-21T16:46:58.386Z",
+  "projectId": "project_a34a9419-7fca-45ca-b918-1c4cc7d0c331",
   "viewport": {
     "width": 390,
     "height": 844
@@ -192,7 +192,7 @@
         {
           "role": "button",
           "name": "打开这组片 秋日松弛穿搭视觉验收",
-          "testID": "project-project_763092a1-f97e-43ea-aa3e-2dd8c2f977f9",
+          "testID": "project-project_a34a9419-7fca-45ca-b918-1c4cc7d0c331",
           "width": 260,
           "height": 117.11,
           "disabled": false
@@ -237,7 +237,7 @@
       "file": "65-new-project-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 41
+        "adjustedTextNodes": 51
       },
       "viewport": {
         "width": 390,
@@ -342,7 +342,7 @@
       "file": "66-new-project-submit-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 41
+        "adjustedTextNodes": 51
       },
       "viewport": {
         "width": 390,
@@ -447,7 +447,7 @@
       "file": "67-settings-profile-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 38
+        "adjustedTextNodes": 40
       },
       "viewport": {
         "width": 390,
@@ -504,7 +504,7 @@
       "file": "68-settings-service-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 38
+        "adjustedTextNodes": 40
       },
       "viewport": {
         "width": 390,
@@ -602,7 +602,7 @@
       "file": "70-workspace-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 57
+        "adjustedTextNodes": 81
       },
       "viewport": {
         "width": 390,
@@ -629,26 +629,10 @@
         },
         {
           "role": "button",
-          "name": "选择方向：轻松通勤日 · 调整版",
-          "testID": "direction-direction_work",
-          "width": 324,
-          "height": 513.72,
-          "disabled": false
-        },
-        {
-          "role": "button",
           "name": "选择方向：周末城市漫步",
           "testID": "direction-direction_city",
-          "width": 324,
-          "height": 513.72,
-          "disabled": false
-        },
-        {
-          "role": "button",
-          "name": "选择方向：出走去公园",
-          "testID": "direction-direction_nature",
-          "width": 324,
-          "height": 495.31,
+          "width": 298,
+          "height": 300.44,
           "disabled": false
         },
         {
@@ -1134,7 +1118,7 @@
       "reachable": true,
       "bounds": {
         "x": 24,
-        "y": 430.78125,
+        "y": 430.5625,
         "width": 342,
         "height": 52
       }
@@ -1144,7 +1128,7 @@
       "reachable": true,
       "bounds": {
         "x": 24,
-        "y": 430.15625,
+        "y": 430.9375,
         "width": 342,
         "height": 52
       }

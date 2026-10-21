@@ -39,7 +39,7 @@ export function modelStatusText(model: Pick<ModelCard, 'status' | 'missing'>): s
     case 'building': return '正在建身份卡';
     case 'failed': return '建卡未完成';
     case 'deleted': return '已移除';
-    case 'ready': return model.missing.length ? `可用 · 缺 ${model.missing.length} 个角度` : '身份卡已就绪';
+    case 'ready': return !model.missing.length ? '身份卡已就绪' : model.missing.length >= 3 ? '可用 · 单张照片' : `可用 · 已备 ${4 - model.missing.length} 个角度`;
   }
 }
 export function defaultModelId(models: readonly ModelCard[], profileFace?: string): string | undefined {

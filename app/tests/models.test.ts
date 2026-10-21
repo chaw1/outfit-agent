@@ -26,7 +26,8 @@ test('model status copy distinguishes queued, building, complete, missing and fa
   assert.equal(modelStatusText(card('a', 'own', 'building')), '正在建身份卡');
   assert.equal(modelStatusText(card('a', 'own', 'failed')), '建卡未完成');
   assert.equal(modelStatusText(card('a', 'own', 'deleted')), '已移除');
-  assert.equal(modelStatusText(card('a')), '可用 · 缺 3 个角度');
+  assert.equal(modelStatusText(card('a')), '可用 · 单张照片');
+  assert.equal(modelStatusText({ status: 'ready', missing: ['half'] }), '可用 · 已备 3 个角度');
   assert.equal(modelStatusText({ status: 'ready', missing: [] }), '身份卡已就绪');
   assert.equal(identityIsPending('queued'), true);
   assert.equal(identityIsPending('building'), true);

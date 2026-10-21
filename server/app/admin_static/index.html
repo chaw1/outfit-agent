@@ -1432,6 +1432,39 @@
         animation:none;
       }
     }
+
+    /* 动效：切页淡入上浮、按钮与导航的过渡、卡片悬停；系统关闭动态效果时全部停用 */
+    @keyframes page-enter {
+      from { opacity:0; transform:translateY(8px); }
+      to { opacity:1; transform:none; }
+    }
+    .content.page-enter > * {
+      animation:page-enter .32s cubic-bezier(.2,.7,.2,1) both;
+    }
+    .content.page-enter > :nth-child(2) { animation-delay:40ms; }
+    .content.page-enter > :nth-child(3) { animation-delay:80ms; }
+    .content.page-enter > :nth-child(4) { animation-delay:120ms; }
+    .content.page-enter > :nth-child(n+5) { animation-delay:160ms; }
+    .content.page-enter .kpi-grid > .kpi { animation:page-enter .36s cubic-bezier(.2,.7,.2,1) both; }
+    .content.page-enter .kpi-grid > .kpi:nth-child(2) { animation-delay:50ms; }
+    .content.page-enter .kpi-grid > .kpi:nth-child(3) { animation-delay:100ms; }
+    .content.page-enter .kpi-grid > .kpi:nth-child(4) { animation-delay:150ms; }
+    .content.page-enter .kpi-grid > .kpi:nth-child(5) { animation-delay:200ms; }
+    .content.page-enter .kpi-grid > .kpi:nth-child(6) { animation-delay:250ms; }
+    .btn, .nav a, .segmented button, .panel, .topbar a, .brand {
+      transition:background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .2s ease, transform .16s ease, opacity .18s ease;
+    }
+    .btn:hover:not(:disabled) { filter:brightness(1.04); box-shadow:0 4px 14px rgba(0,0,0,.08); }
+    .btn:active:not(:disabled) { transform:scale(.97); box-shadow:none; }
+    .nav a:active { transform:scale(.985); }
+    .panel:hover { box-shadow:0 6px 22px rgba(20,16,12,.06); }
+    .kpi strong, .kpi b { transition:color .18s ease; }
+    tbody tr { transition:background-color .15s ease; }
+    @media(prefers-reduced-motion:reduce) {
+      .content.page-enter > *, .content.page-enter .kpi-grid > .kpi { animation:none; }
+      .btn, .nav a, .segmented button, .panel, .topbar a, .brand, tbody tr { transition:none; }
+      .btn:active:not(:disabled), .nav a:active { transform:none; }
+    }
   </style>
 </head>
 <body>
@@ -1492,6 +1525,7 @@
                 s.limit = el('job-limit').value;
                 s.openPrompts = [...document.querySelectorAll('details[open][data-job]')].map(d => d.dataset.job);
             }
+            quietRender = true;
             render('jobs');
         }, 10000);
     }
@@ -1526,7 +1560,9 @@
         return raw ? response : response.json();
     }
     function title(name, eng, description, action = true) { return `<div class="page-heading"><div><div class="eyebrow">${eng}</div><h1>${name}</h1><p class="subtitle">${description}</p></div>${action ? `<div class="heading-meta"><small class="updated muted">${new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })} 更新</small><button class="btn secondary" id="refresh">${icon('refresh')}刷新</button></div>` : ''}</div><div id="page-error" class="feedback hidden" role="alert"></div>`; }
-    const setMain = html => { el('main').innerHTML = html; const refresh = el('refresh'); if (refresh)
+    // 自动刷新走“静默”路径：不闪转圈、不重放入场动画，只把新数据换进去
+    let quietRender = false;
+    const setMain = html => { const main = el('main'); const loading = html.startsWith('<div class="loading"'); if (quietRender && loading) return; main.classList.remove('page-enter'); main.innerHTML = html; if (!loading && !quietRender) { void main.offsetWidth; main.classList.add('page-enter'); } if (!loading) quietRender = false; const refresh = el('refresh'); if (refresh)
         refresh.addEventListener('click', () => render(active)); };
     function error(message) { const target = el('page-error'); if (target) {
         target.textContent = message;
@@ -1582,6 +1618,7 @@
         catch (err) {
             if (current !== version)
                 return;
+            quietRender = false;
             setMain(title('读取失败', 'CONNECTION', '请刷新重试') + `<div class="panel">${empty('暂时无法读取数据', err.message)}</div>`);
         }
     }
