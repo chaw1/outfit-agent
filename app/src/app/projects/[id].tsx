@@ -66,6 +66,7 @@ function messageText(message: Message, state?: ProjectState) {
   if (!action) return '';
   switch (action.type) {
     case 'choose_direction': return `就选「${state?.directions.find(item => item.id === action.direction_id)?.name || '这个方向'}」。`;
+    case 'retry_preview': return '重试这张方向灵感图。';
     case 'confirm_script': return '脚本确认，开始出图吧。';
     case 'edit_image': return `帮我改一版：${action.instruction}`;
     case 'approve_images': return `这 ${action.image_ids.length} 张选好了，按这个顺序写笔记。`;

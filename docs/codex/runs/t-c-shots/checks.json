@@ -1,0 +1,13 @@
+{
+  "directions": 3,
+  "previewsPerDirection": [
+    3,
+    3,
+    3
+  ],
+  "selectedVariant": "坐姿侧光",
+  "mobileHorizontalScroll": true,
+  "chosenPreviewInScript": true,
+  "failedPreviewRetryAction": true,
+  "pageErrors": []
+}

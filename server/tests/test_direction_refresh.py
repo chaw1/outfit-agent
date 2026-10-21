@@ -76,7 +76,7 @@ def test_mock_refresh_keeps_prior_user_preferences_and_new_previews(direction_da
 
     preview_jobs = session.scalars(select(Job)).all()
     new_jobs = [job for job in preview_jobs if job.id not in original_ids]
-    assert len(new_jobs) == len(options)
+    assert len(new_jobs) == len(options) * 3
     assert len({job.dedupe_key for job in preview_jobs}) == len(preview_jobs)
     assert not ({job.payload["prompt"] for job in new_jobs} & set(original_prompts))
     hub = ProviderHub(session, project.id)

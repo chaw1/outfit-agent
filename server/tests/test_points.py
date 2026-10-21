@@ -65,5 +65,5 @@ def test_auto_quote_uses_shared_cost_constants(monkeypatch):
     monkeypatch.setattr(costs, "IMAGE_ESTIMATE_CNY", Decimal("0.7"))
     monkeypatch.setattr(costs, "VIDEO_ESTIMATE_CNY", Decimal("2"))
     quote = costs.auto_quote()
-    assert [item["points"] for item in quote["breakdown"]] == [21, 25.2, 20]
-    assert quote["estimate_points"] == 66.2
+    assert [item["points"] for item in quote["breakdown"]] == [63, 25.2, 20]
+    assert quote["estimate_points"] == 108.2

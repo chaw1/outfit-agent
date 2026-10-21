@@ -129,6 +129,7 @@ export interface Direction {
   sample_title: string;
   /** 整套搭配建议：博主只给一件单品时，配什么下装、鞋和配饰。 */
   styling?: string;
+  previews?: { id: string; url?: string | null; status: JobStatus; variant: string }[];
   preview_url?: string;
   preview_status?: JobStatus;
   recommended?: boolean;
@@ -209,7 +210,8 @@ export type Card = (
 ) & { cost_cny?: number; cost_points?: number };
 
 export type Action =
-  | { type: 'choose_direction'; direction_id: string }
+  | { type: 'choose_direction'; direction_id: string; preview_id?: string }
+  | { type: 'retry_preview'; direction_id: string; preview_id: string; attempt: string }
   | { type: 'confirm_script' }
   | { type: 'edit_image'; image_id: string; instruction: string; region?: ImageRegion; mask_strokes?: ImageMaskStrokes; attempt?: string; preset?: 'background' | 'outpaint' | 'upscale'; background?: string; direction?: 'top' | 'bottom' | 'horizontal' | 'all' }
   | { type: 'approve_images'; image_ids: string[]; accept_unverified?: string[] }
@@ -279,6 +281,7 @@ export interface ProjectState {
   garments: Garment[];
   directions: Direction[];
   chosen_direction_id?: string;
+  chosen_preview_id?: string;
   script?: ScriptData;
   images: OutfitImage[];
   note?: NoteData;

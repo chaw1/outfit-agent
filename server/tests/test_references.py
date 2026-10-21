@@ -144,7 +144,7 @@ def test_reference_style_reaches_cards_context_previews_and_formal_prompts_after
         assert STYLE[field] in state["brief"]["summary"]
         assert STYLE[field] in graph.workflow.providers.contexts[0]["reference_style_summary"]
     previews = list(session.scalars(select(Job)))
-    assert len(previews) in {2, 3}
+    assert len(previews) in {6, 9}
     assert all("夜晚街头霓虹" in job.payload["prompt"] for job in previews)
     assert all(job.payload["reference_asset_ids"] == ["garment"] for job in previews)
     assert "夜晚街头霓虹" in json.dumps(cards["directions"], ensure_ascii=False)

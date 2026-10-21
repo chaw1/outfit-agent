@@ -33,6 +33,7 @@ class AgentState(TypedDict, total=False):
     model_asset_id: str | None
     directions: list[dict]
     chosen_direction_id: str | None
+    chosen_preview_id: str | None
     script: dict | None
     script_revision: int
     images: list[dict]

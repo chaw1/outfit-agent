@@ -128,7 +128,7 @@ export function useWorkspace(id: string) {
     const baseline = new Set(currentMessages.current.map(message => message.id));
     optimistic.current = { assistantId, baseline, ...(rewrittenMessage ? { expectedId: assistantId } : {}) };
     const now = new Date().toISOString();
-    const actionLabels: Record<string, string> = { choose_direction: '就选这个方向。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。', regenerate_reply: '换个说法。' };
+    const actionLabels: Record<string, string> = { choose_direction: '按这张的感觉拍。', retry_preview: '重试这张灵感图。', confirm_script: '脚本确认，开始出图吧。', edit_image: '帮我改一张图。', approve_images: '图片选好了，按这个顺序写笔记。', confirm_video: '确认，用这张图生成短视频。', restore_script: '恢复到这版脚本，重新确认。', regenerate_reply: '换个说法。' };
     const text = input.text || (input.action?.type === 'edit_image' ? input.action.instruction : actionLabels[input.action?.type || ''] || '');
     setMessages(previous => rewrittenMessage
       ? previous.map(message => message.id === assistantId ? { ...message, text: '', trace: undefined, can_regenerate: false } : message)

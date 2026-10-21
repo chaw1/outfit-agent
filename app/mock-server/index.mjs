@@ -19,7 +19,7 @@ const PRESET_NAMES = { background: '换背景', outpaint: '扩图', upscale: '�
 const money = (value) => Math.round(value * 100) / 100;
 const points = (value) => Math.round(value * 100) / 10;
 const AUTO_LABELS = { directions: '正在找拍摄方向', script: '正在写拍摄脚本', images: '正在出图', note: '正在整理图文', video: '正在生成视频', done: '全套已出好' };
-const autoQuote = () => ({ estimate_points: points(money(3 * PRICES.preview + 3 * PRICES.image * 1.2 + PRICES.video)), breakdown: [{ label: '方向预览 3 张', points: points(3 * PRICES.preview) }, { label: '正式出图 3 张，含自动修一版预留', points: points(3 * PRICES.image * 1.2) }, { label: '视频 1 条', points: points(PRICES.video) }] });
+const autoQuote = () => ({ estimate_points: points(money(9 * PRICES.preview + 3 * PRICES.image * 1.2 + PRICES.video)), breakdown: [{ label: '方向预览 9 张（每方向 3 张）', points: points(9 * PRICES.preview) }, { label: '正式出图 3 张，含自动修一版预留', points: points(3 * PRICES.image * 1.2) }, { label: '视频 1 条', points: points(PRICES.video) }] });
 
 function garmentTags(analysis) {
   if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) return [];
@@ -266,8 +266,9 @@ export async function createMockServer(options = {}) {
     return { ...result, ...(assetId ? { url: mediaUrl(assetId, base) } : {}) };
   }
   function publicDirection(direction, base) {
-    const { previewAssetId, ...result } = direction;
-    return { ...result, ...(previewAssetId ? { preview_url: mediaUrl(previewAssetId, base) } : {}) };
+    const { previewAssetId, previews, ...result } = direction;
+    const items = previews?.map(({ assetId, ...preview }) => ({ ...preview, ...(assetId ? { url: mediaUrl(assetId, base) } : {}) }));
+    return { ...result, ...(items ? { previews: items } : {}), ...(previewAssetId ? { preview_url: mediaUrl(previewAssetId, base) } : {}) };
   }
   function publicJob(job, base) {
     const { id, project_id, kind, status, result_asset_id, error, created_at, updated_at } = job;
@@ -286,7 +287,9 @@ export async function createMockServer(options = {}) {
       const groups = new Set(active.map((job) => job.groupId));
       current = jobs.filter((job) => groups.has(job.groupId));
     } else if (state.stage === 'direction') {
-      current = state.directions.map((direction) => jobs.findLast((job) => job.directionId === direction.id)).filter(Boolean);
+      current = state.directions.flatMap((direction) => direction.previews?.length
+        ? direction.previews.map((preview) => jobs.findLast((job) => job.previewId === preview.id))
+        : [jobs.findLast((job) => job.directionId === direction.id)]).filter(Boolean);
     } else if (['video', 'done'].includes(state.stage) || (state.stage === 'note' && state.video)) {
       current = jobs.filter((job) => job.id === state.video?.job_id);
     } else if (['images', 'note'].includes(state.stage)) {
@@ -319,6 +322,7 @@ export async function createMockServer(options = {}) {
       garments: project.state.garments.map((item) => ({ ...item, url: mediaUrl(item.asset_id, base) })),
       directions: directions.map((item) => publicDirection(item, base)),
       ...(chosen_direction_id ? { chosen_direction_id } : {}),
+      ...(project.state.chosen_preview_id ? { chosen_preview_id: project.state.chosen_preview_id } : {}),
       ...(script ? { script } : {}),
       images: project.state.images.map((item) => publicImage(item, base)),
       ...(note ? { note } : {}),
@@ -336,7 +340,7 @@ export async function createMockServer(options = {}) {
     const contents = {
       garments: { items: state.garments },
       references: { items: (project.references || []).map((item) => ({ ...item, url: mediaUrl(item.asset_id, base) })) },
-      directions: { options: state.directions, ...(!options.legacyProfile ? { regenerate_estimate_cny: money(3 * PRICES.preview) } : {}) },
+      directions: { options: state.directions, ...(!options.legacyProfile ? { regenerate_estimate_cny: money(9 * PRICES.preview) } : {}) },
       script: state.script,
       images: { items: state.images },
       note: state.note,
@@ -497,6 +501,9 @@ export async function createMockServer(options = {}) {
       if (direction) prompt += `；方向预览：${direction.scene}，${direction.mood}，${direction.palette}`;
       if (shot) prompt += `；拍摄脚本：${shot.scene}，${shot.camera}，${shot.pose}`;
     }
+    const preview = project.state.directions.flatMap((item) => item.previews || []).find((item) => item.id === project.state.script?.preview_id);
+    if (image?.shot_id === project.state.script?.shots[0]?.id && preview) prompt += `；构图与光线以灵感图为基调：${preview.variant}`;
+    if (job.directionId) prompt += `；灵感图角度：${job.variant}`;
     if (project.modelAssetId && image) prompt += '；保持博主本人五官、体型和妆发一致';
     if (image?.anchor_id) prompt += `；以封面 ${image.anchor_id} 为锚点，保持同一人、同一妆发和光线氛围`;
     return prompt;
@@ -588,7 +595,7 @@ export async function createMockServer(options = {}) {
           const asset = await addGeneratedAsset(project, job, image);
           job.status = 'succeeded';
           job.result_asset_id = asset.id;
-          if (direction) { direction.preview_status = 'succeeded'; direction.previewAssetId = asset.id; }
+          if (direction) updatePreview(direction, job, 'succeeded', asset.id);
           if (image) {
             image.status = 'succeeded'; image.assetId = asset.id;
             if (job.kind === 'edit' && image.preset !== 'upscale') image.edit_check = job.editCheckShouldFail
@@ -635,7 +642,7 @@ export async function createMockServer(options = {}) {
         } catch {
           job.status = 'failed';
           job.error = '演示素材暂时不可用，请恢复素材后重试';
-          if (direction) direction.preview_status = 'failed';
+          if (direction) updatePreview(direction, job, 'failed');
           if (image) { image.status = 'failed'; image.error = job.error; }
           if (job.kind === 'video') {
             project.state.video.status = 'failed';
@@ -648,7 +655,7 @@ export async function createMockServer(options = {}) {
         jobChanged = true;
       } else if (clock() >= job.runningAt && job.status === 'queued') {
         job.status = 'running';
-        if (direction) direction.preview_status = 'running';
+        if (direction) updatePreview(direction, job, 'running');
         if (image) image.status = 'running';
         if (job.kind === 'video') project.state.video.status = 'running';
         jobChanged = true;
@@ -674,7 +681,7 @@ export async function createMockServer(options = {}) {
         const autoFixed = jobs.some((job) => project.state.images.find((image) => image.id === job.imageId)?.automatic);
         let text = failed
           ? `${first.directionId ? '方向预览' : first.kind === 'video' ? '视频' : '图片'}有 ${failed} 个任务未完成，演示素材暂时不可用，可以恢复素材后重试。`
-          : first.directionId ? '三个方向的灵感预览图都准备好了，看看哪种感觉更像你。'
+          : first.directionId ? '每个方向的三张灵感图都准备好了，左右滑动挑一张喜欢的。'
           : first.kind === 'video' ? '5 秒穿搭短视频做好啦，可以打开预览播放。'
           : jobs.some((job) => project.state.images.find((image) => image.id === job.imageId)?.edit_check?.passed === false) ? '这版已经生成，但可能没改到位。查看检查原因后，可以再试一次或换个说法。'
           : autoFixed ? '3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。'
@@ -706,22 +713,36 @@ export async function createMockServer(options = {}) {
       runningAt: clock() + runningDelay, dueAt: clock() + timings[details.directionId ? 'preview' : kind] + delayOffset,
       groupId: details.groupId || newId('group'), ...details, ...(image ? { imageId: image.id } : {}),
     };
+    if (image?.shot_id === project.state.script?.shots[0]?.id) {
+      const preview = project.state.directions.flatMap((item) => item.previews || []).find((item) => item.id === project.state.script?.preview_id);
+      job.reference_asset_ids = [...project.garmentAssetIds, ...(preview?.assetId ? [preview.assetId] : []), ...(project.modelAssetId ? [project.modelAssetId] : [])];
+    }
     job.traceReferences = jobTraceReferences(project, job, image);
     db.jobs.push(job);
     return job;
   }
+  function updatePreview(direction, job, status, assetId) {
+    const preview = direction.previews?.find((item) => item.id === job.previewId);
+    if (preview) { preview.status = status; if (assetId) preview.assetId = assetId; }
+    if (!direction.previews || direction.previews[0]?.id === job.previewId) {
+      direction.preview_status = status;
+      if (assetId) direction.previewAssetId = assetId;
+    }
+  }
   function queuePreviews(project) {
     const replacing = db.jobs.filter((item) => item.project_id === project.id && item.directionId && activeStatuses.has(item.status));
-    requireBudget(project, money(project.state.directions.length * PRICES.preview), replacing.reduce((sum, job) => sum + jobCost(job), 0));
+    requireBudget(project, money(project.state.directions.length * 3 * PRICES.preview), replacing.reduce((sum, job) => sum + jobCost(job), 0));
     for (const job of replacing) {
       job.status = 'failed'; job.error = '方向已调整，已替换为新版预览任务'; job.updated_at = now();
       project.notifiedGroups ||= [];
       project.notifiedGroups.push(job.groupId);
     }
     const groupId = newId('group');
-    return project.state.directions.map((direction, index) => {
+    const variants = ['全身街拍', '半身特写', '坐姿侧光'];
+    return project.state.directions.flatMap((direction, index) => {
       direction.preview_status = 'queued';
-      return queueJob(project, 'image', undefined, index * (options.previewStaggerMs ?? 150), { directionId: direction.id, groupId });
+      direction.previews = variants.map((variant) => ({ id: newId('preview'), status: 'queued', variant }));
+      return direction.previews.map((preview, variantIndex) => queueJob(project, 'image', undefined, (index * 3 + variantIndex) * (options.previewStaggerMs ?? 150), { directionId: direction.id, previewId: preview.id, variant: preview.variant, groupId }));
     });
   }
   function makeDirections(project, revision = '') {
@@ -798,6 +819,11 @@ export async function createMockServer(options = {}) {
       for (const shot of result.shots) shot.camera += `；参考图风格：${project.referenceStyleSummary}`;
       result.video.prompt += `；参考图风格：${project.referenceStyleSummary}`;
     }
+    const preview = direction.previews?.find((item) => item.id === project.state.chosen_preview_id);
+    if (preview) {
+      result.preview_id = preview.id;
+      result.shots[0].camera += `；构图与光线以灵感图为基调：${preview.variant}，${direction.scene}，柔和自然光`;
+    }
     if (!revision) return result;
     const draft = structuredClone(project.state.script || result);
     const shotNumber = revision.match(/第([123一二三])张/);
@@ -822,7 +848,7 @@ export async function createMockServer(options = {}) {
     return draft;
   }
   function normalizedAction(action) {
-    const fields = { choose_direction: ['direction_id'], confirm_script: [], edit_image: ['image_id', 'instruction', 'attempt', 'preset', 'background', 'direction'], approve_images: ['image_ids', 'accept_unverified'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
+    const fields = { choose_direction: ['direction_id', 'preview_id'], retry_preview: ['direction_id', 'preview_id', 'attempt'], confirm_script: [], edit_image: ['image_id', 'instruction', 'attempt', 'preset', 'background', 'direction'], approve_images: ['image_ids', 'accept_unverified'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
     return { type: action.type, ...Object.fromEntries(fields[action.type].map((key) => [key, action[key]])), ...(action.type === 'edit_image' ? editSelection(action) : {}) };
   }
   function processMessage(project, body, base, automatic = false) {
@@ -849,10 +875,28 @@ export async function createMockServer(options = {}) {
     let reused;
     if (action) {
       switch (action.type) {
+        case 'retry_preview': {
+          if (state.stage !== 'direction') throw failure(409, 'INVALID_STAGE', '请在方向阶段重试灵感图');
+          const direction = state.directions.find((item) => item.id === action.direction_id);
+          const preview = direction?.previews?.find((item) => item.id === action.preview_id);
+          if (!preview || typeof action.attempt !== 'string' || !/^\S{1,64}$/.test(action.attempt)) throw failure(400, 'INVALID_PREVIEW', '请选择当前方向的灵感图');
+          const existing = db.jobs.find((job) => job.project_id === project.id && job.previewId === preview.id && job.attempt === action.attempt);
+          if (!existing && preview.status !== 'failed') throw failure(409, 'PREVIEW_NOT_FAILED', '请等待这张灵感图生成完成');
+          if (!existing) requireBudget(project, PRICES.preview);
+          const job = existing || queueJob(project, 'image', undefined, 0, { directionId: direction.id, previewId: preview.id, variant: preview.variant, attempt: action.attempt });
+          updatePreview(direction, job, job.status);
+          jobs.push(job); tool = 'propose_directions'; types = ['directions'];
+          reply = '这张灵感图已重新排队，其他两张保留。';
+          break;
+        }
         case 'choose_direction': {
           if (!['direction', 'script'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '先和我聊聊需求，再选择一个方向吧');
           if (!state.directions.some((item) => item.id === action.direction_id)) throw failure(400, 'INVALID_DIRECTION', '这个方向不存在，请重新选择');
+          const direction = state.directions.find((item) => item.id === action.direction_id);
+          if (action.preview_id && !direction.previews?.some((item) => item.id === action.preview_id)) throw failure(400, 'INVALID_PREVIEW', '请从这个方向的灵感图中选择');
+          if (action.preview_id && !direction.previews?.some((item) => item.id === action.preview_id && item.status === 'succeeded')) throw failure(409, 'PREVIEW_NOT_READY', '请等这张灵感图生成完成后再确认');
           state.chosen_direction_id = action.direction_id;
+          state.chosen_preview_id = action.preview_id || direction.previews?.[0]?.id;
           tool = 'write_script';
           state.script = makeScript(project);
           saveScriptVersion(project, `按“${state.directions.find((item) => item.id === action.direction_id).name}”创建脚本`);
@@ -996,7 +1040,7 @@ export async function createMockServer(options = {}) {
         reply = '收到你的想法了，我会记着。片子正在继续准备，想逐步调整时可以点“我来接手”。';
       } else if (['brief', 'direction'].includes(state.stage)) {
         const replacing = db.jobs.filter((job) => job.project_id === project.id && job.directionId && activeStatuses.has(job.status));
-        requireBudget(project, 3 * PRICES.preview, replacing.reduce((sum, job) => sum + jobCost(job), 0));
+        requireBudget(project, 9 * PRICES.preview, replacing.reduce((sum, job) => sum + jobCost(job), 0));
         tool = 'propose_directions';
         if (/换一组/.test(text)) project.directionRevision = (project.directionRevision || 0) + 1;
         else project.directionPreferences = [...(project.directionPreferences || []), text];

@@ -67,8 +67,8 @@ test('round nine validates project mode/style, preserves the brief, and exposes 
       assert.equal((await request(base, '/api/projects', token, { ...input, ...invalid })).status, 400);
     }
     const quote = (await request<{ estimate_points: number; breakdown: { label: string; points: number }[] }>(base, '/api/quotes/auto', token)).body;
-    assert.equal(quote.estimate_points, 48);
-    assert.deepEqual(quote.breakdown.map((item) => item.points), [15, 18, 15]);
+    assert.equal(quote.estimate_points, 78);
+    assert.deepEqual(quote.breakdown.map((item) => item.points), [45, 18, 15]);
     assert.equal(quote.breakdown.reduce((sum, item) => sum + item.points, 0), quote.estimate_points);
     const { body: project } = await request<Project>(base, '/api/projects', token, { ...input, style_tags: ['松弛通勤', '街头胶片'] });
     assert.equal(project.mode, 'guided');
@@ -265,12 +265,12 @@ test('round nine progress ignores replaced previews and failed image/video attem
     await send(base, project.id, token, { text: '先给我三个方向' });
     await send(base, project.id, token, { text: '换一组' });
     assert.equal((await progress()).status, 'generating');
-    assert.equal((await progress()).total, 3, 'superseded preview jobs are excluded from the current batch');
+    assert.equal((await progress()).total, 9, 'superseded preview jobs are excluded from the current batch');
     time += 21;
     let state = await getState();
     assert.equal((await progress()).status, 'waiting_you');
     assert.equal((await progress()).label, '等你挑个方向');
-    assert.equal((await progress()).total, 3);
+    assert.equal((await progress()).total, 9);
     await send(base, project.id, token, { action: { type: 'choose_direction', direction_id: state.directions[0].id } });
     await send(base, project.id, token, { action: { type: 'confirm_script' } });
     await rm(imageFixture);
