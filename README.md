@@ -31,7 +31,7 @@
 |---|---|
 | 代码基线 | main，见 `git log`（线上服务端与 main 同步部署，`cd server && ./deploy/deploy-ecs.sh`） |
 | 最新一次线上全链路 · 沉浸编导 | 2026-10-21 12:35–12:43（Asia/Shanghai），服务端与 App 均为最终版（含设计系统、素材库、3:4 竖版出图），`app/screenshots-live/run-4/`（evidence.json / http-evidence.json / sse-evidence.json），**13/13 通过**，真实模型（health `mock=false`），390×844 手机视口 Web。分析 56 s、出图 79 s、局部改 76 s、视频 190 s，项目 57 点。局部改"袖口放平"仍被核对判为未改到位，App 按规则沿用原版入稿 |
-| 最新一次线上全链路 · 一键出片 | 2026-10-21 12:45–12:49，注册 → 开拍 → 方向、脚本、出图、笔记、视频全自动到完成，App 端观察到全部六步，`app/screenshots-live/auto/run-4-evidence.json` 与 `run-4-*.png`，项目 45.9 点 |
+| 最新一次线上全链路 · 一键出片 | 2026-10-21 12:52–12:56（带录屏），注册 → 开拍 → 方向、脚本、出图、笔记、视频全自动到完成，App 端观察到全部六步，`app/screenshots-live/auto/run-5-evidence.json` 与 `run-5-*.png`，项目 45.9 点；前一轮 `run-4-*` 同样通过 |
 | 真实商品图试跑 | 一件鹅黄色拉链连帽卫衣的正反两张商品图走一键出片：5 张成片 + 笔记 + 视频，核对分 95–98，`app/screenshots-live/auto/run-2-*`（服务端完成，用例在"写笔记"步因页面刷新间隔误判，已修） |
 | 录屏 | `app/screenshots-live/走查视频/线上全链路-注册到视频-最终版-原速.mp4`（7 分 31 秒）与 3 倍速版；`线上一键出片-注册到视频-最终版-原速.mp4` 与 3 倍速版；更早几轮的录屏保留在同目录 |
 | 真机 | iPhone 17 Pro（iOS 26）Release 包：注册 → 上传相册照片 → 开拍 → 出图 → 查看成片已由本人走通；首次真机上传暴露了 React Native FormData 文件通道的问题，已改为系统原生上传（见开发记录） |

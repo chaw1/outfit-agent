@@ -59,6 +59,9 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li><a href="#10551110-合并后的线上回归两种模式各跑一遍">10:55–11:10 合并后的线上回归：两种模式各跑一遍</a></li>
 <li><a href="#11151130-用真实商品图试一键出片顺手修两处出片口径">11:15–11:30 用真实商品图试一键出片，顺手修两处出片口径</a></li>
 <li><a href="#1135-iphone-真机装上并打开">11:35 iPhone 真机装上并打开</a></li>
+<li><a href="#12001240-设计系统与素材库合入文档出-html-版账号页面按设计稿收口">12:00–12:40 设计系统与素材库合入，文档出 HTML 版，账号页面按设计稿收口</a></li>
+<li><a href="#12401250-真机第一次真实上传失败换原生上传通道">12:40–12:50 真机第一次真实上传失败：换原生上传通道</a></li>
+<li><a href="#12501310-真机体验收口图片分级预览查看器差异点文案">12:50–13:10 真机体验收口：图片分级预览、查看器、差异点文案</a></li>
 </ul>
 </li>
 </ul>
@@ -212,4 +215,27 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li>真机编译走的是 Xcode 命令行并带自动签名（<code>-allowProvisioningUpdates</code>），因为 Expo 的 <code>run:ios --device</code> 没带这个开关，个人 Apple ID 首次没有证书时会失败。</li>
 <li>个人开发团队不支持"推送通知"能力，而通知组件默认把它写进了 entitlements；App 只用本机通知，真机包去掉该能力后签名通过（仓库里的 entitlements 不改，这是打包时的处理）。</li>
 <li>手机端信任开发者后，App 打开到登录页，默认连接线上服务。</li>
+</ul>
+<h3 id="12001240-设计系统与素材库合入文档出-html-版账号页面按设计稿收口">12:00–12:40 设计系统与素材库合入，文档出 HTML 版，账号页面按设计稿收口<a class="headerlink" href="#12001240-设计系统与素材库合入文档出-html-版账号页面按设计稿收口" title="Permanent link">¶</a></h3>
+<ul>
+<li>设计系统（Codex 约 80 分钟）：99 个 DTCG token（<code>tokens.json</code> 生成 <code>theme.ts</code>，手改即校验失败）、20 个组件拆到 <code>components/ds/</code>（<code>ui.tsx</code> 保留为再导出层，所有页面渲染不变）、仅开发态画廊 <code>/__design</code>（正式导出产物里不含，有脚本证明）、四组视觉回归基线、裸色值与魔法间距 lint 规则零违规、<code>docs/设计系统.md</code>。合并到 main 无冲突，8 项校验与 23 条端到端全过。</li>
+<li>素材库服务端（Codex 约 20 分钟）：独立模块三个接口，1000 多行测试；复测时两条走真实 Mock API 的用例要求 API 与测试共用本机媒体目录，而 compose 栈的媒体目录在容器里，所以用独立的本机 API（18081）跑；中途发现端口被 Codex 留下的孤儿测试进程占用，清理后 562 项全过，已上线。</li>
+<li>素材库 App（Codex 约 50 分钟）：按要求新 UI 全放新文件，对现有页面只加入口；和设计系统合并时只有两处 import 顺序冲突。合并后 27 条端到端全过。路由类型文件（expo-router 生成）两次合并都需要手动刷新，这是本项目合并的固定动作。</li>
+<li>文档：<code>scripts/build-docs-html.py</code> 把 README 与 docs 下全部 Markdown 渲染成带目录、流程图和深浅模式的 HTML（<code>docs/html/</code>，<code>make docs</code>）。</li>
+<li>账号页面按 UI 设计稿 4.1 / 4.6 / 4.7 收口：隐私提示改 studio 并加两张成片拼贴，协议勾选与链接随主题取色，注册页去掉重复的协议入口；恢复码页保持 paper。用例因提示文案多了一句而失败，改回原文案。</li>
+<li>环境坑：在别的 worktree 里 <code>npm ci</code> 时顺着符号链接清空了主工程的 <code>node_modules</code>；Playwright 浏览器缓存也被并行的 Codex 清掉过。处理：主工程重装依赖、重新下载浏览器；下次给每个 worktree 独立的依赖目录。</li>
+</ul>
+<h3 id="12401250-真机第一次真实上传失败换原生上传通道">12:40–12:50 真机第一次真实上传失败：换原生上传通道<a class="headerlink" href="#12401250-真机第一次真实上传失败换原生上传通道" title="Permanent link">¶</a></h3>
+<ul>
+<li>真机从相册选图后立刻报"图片没传好"，服务器和 nginx 都没有收到请求，说明请求没出手机。排查：React Native 的 <code>FormData</code> 文件描述符（<code>{uri, name, type}</code>）在真机上对相册文件不稳定；Web 端用 <code>File</code> 对象没有这个问题，所以假服务端到端和 Web 线上回归都测不出来。</li>
+<li>修法：原生端改用 <code>expo-file-system/legacy</code> 的 <code>uploadAsync</code>（iOS 走 NSURLSession、Android 走 OkHttp，直接按文件 URI 做 multipart），Web 与 Node 测试保持 fetch + FormData；按平台文件后缀分开（<code>upload.ts</code> / <code>upload.native.ts</code>），客户端只依赖一个注入点。重新装机后由本人在真机验证。</li>
+<li>顺带发现服务端有全局模型花费上限（<code>MODEL_BUDGET_CNY</code>，线上原设 60 元），最终录像时一键出片被它拦下交回用户。这是演示前必须拿掉的护栏：演示期间把上限提到实际不可能触及的数值，由账户余额兜底。</li>
+</ul>
+<h3 id="12501310-真机体验收口图片分级预览查看器差异点文案">12:50–13:10 真机体验收口：图片分级预览、查看器、差异点文案<a class="headerlink" href="#12501310-真机体验收口图片分级预览查看器差异点文案" title="Permanent link">¶</a></h3>
+<ul>
+<li>真机反馈两条：成片点开"一直转圈"，加载时左上角关闭叉点不到。原因一是成片原图是 3–4 MB 的 PNG（1536×2048），手机网络下列表、缩略图、查看器都在拉原图，重开同一张也要等；原因二是查看器的加载层盖住了关闭按钮。</li>
+<li>修法：服务端 <code>/media/{id}</code> 增加 <code>w=360|720|1080</code>，按需生成并缓存 JPEG 预览（不放大、固定三档、签名与过期校验不变、非法宽度 422）；App 加 <code>previewUrl()</code> 一个入口，列表卡片和缩略图取 360，封面、成片卡和素材库取 720，查看器大图取 1080，视频封面 1080，原图只在需要时才拉。查看器加载层改为不拦截触控，关闭叉始终可点。服务端 3 项新测试、App 1 组新单测，8 项校验、209 条单测与 27 条端到端全过。</li>
+<li>差异点文案：还原检查输出的差异描述（如"整体还原度高""细节精度不足"）是给自动修图用的提示词，口吻是模型的，不该直接给博主看。成片说明里去掉"差异点"折叠块，只保留还原分徽章、"已自动修一版"和改图核对结论；契约（设计 §12 <code>fidelity.diffs</code>）注明只用于修图不展示。对应的端到端断言与截图同步删除。</li>
+<li>一键出片最终录屏补齐：<code>线上一键出片-注册到视频-最终版-原速.mp4</code>（4 分 15 秒）与 3 倍速版，证据在 <code>screenshots-live/auto/run-5-*</code>。</li>
+<li>上线节奏：线上有本人真机正在跑的生成任务时不重启服务，等队列清空再部署；真机重新编译安装后由本人复验。</li>
 </ul></main></div></body></html>

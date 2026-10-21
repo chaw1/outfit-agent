@@ -420,7 +420,7 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 <ul>
 <li><code>direction</code> 增加 <code>preview_url?</code>、<code>preview_status?</code>（<code>queued | running | succeeded | failed</code>）：每个方向一张灵感预览图，出方向后自动生成（低成本层，约 0.5 元/张；批量出图仍要确认脚本）。</li>
 <li><code>image</code> 增加：</li>
-<li><code>fidelity?: {score: 0-100, diffs: [string], auto_fixed: bool}</code>：生成后用看图模型对比原衣服打的"还原分"和差异点；低于 60 分自动修一版（每张最多一次），新版本 <code>instruction</code> 写明修了什么。</li>
+<li><code>fidelity?: {score: 0-100, diffs: [string], auto_fixed: bool}</code>：生成后用看图模型对比原衣服打的"还原分"和差异点；差异点只作为自动修图的提示词，App 只展示分数徽章，不把模型口吻的差异描述暴露给用户；低于 60 分自动修一版（每张最多一次），新版本 <code>instruction</code> 写明修了什么。</li>
 <li><code>script_version?</code>：这张图是按第几版脚本生成的。</li>
 <li><code>note</code> 增加 <code>cost_cny?</code>（这篇笔记累计花费估算）和 <code>ai_label</code>（AI 生成声明文案，App 在笔记预览里显示）。</li>
 <li><code>state</code> 增加：</li>
