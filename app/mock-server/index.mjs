@@ -926,6 +926,14 @@ export async function createMockServer(options = {}) {
         json(res, 200, { token: tokenFor(user), user: publicUser(user), ...(recovery_code ? { recovery_code } : {}) }); return;
       }
       const user = authenticate(req);
+      if (url.pathname === '/api/me/password' && req.method === 'POST') {
+        const body = await readJson(req);
+        if (typeof body.current_password !== 'string' || !bcrypt.compareSync(passwordInput(body.current_password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '当前密码不正确，请重新输入');
+        if (typeof body.new_password !== 'string' || body.new_password.length < 8) throw failure(400, 'INVALID_PASSWORD', '新密码需要至少 8 位');
+        setPassword(user, body.new_password);
+        await persist();
+        json(res, 200, { token: tokenFor(user), user: publicUser(user) }); return;
+      }
       if (url.pathname === '/api/me/recovery-code' && req.method === 'POST') {
         const body = await readJson(req);
         if (typeof body.password !== 'string' || !bcrypt.compareSync(passwordInput(body.password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '密码不正确，请重新输入');

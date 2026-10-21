@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from 'react-native';
 import { AnimatedEntry, Button, Field, IconButton, Notice, Page, StatePanel, colors, errorText, styles } from '../components/ui';
@@ -25,7 +25,9 @@ export default function Login() {
   const [nickname, setNickname] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  usePreventRemove(register && busy, () => setError('正在创建账号，请等待结果并保存恢复码。'));
   async function submit() {
+    if (busy) return;
     if (register && !agreed) return setError('请先阅读并同意用户协议与隐私政策。');
     if (username.trim().length < 3 || username.trim().length > 32) return setError('用户名用 3–32 个字符就好。');
     if (password.length < 8) return setError('密码至少 8 位，再多一点更安心。');

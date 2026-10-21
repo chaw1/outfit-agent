@@ -11,7 +11,7 @@ async function screenshot(page: Page, file: string) {
   await page.screenshot({ path: path.join(screenshots, file), animations: 'disabled' });
 }
 
-test('第十轮：隐私、注册恢复码与忘记密码完整闭环', async ({ page, request }) => {
+test('第十轮：隐私、注册、修改密码与恢复码完整闭环', async ({ page, request }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto('/');
@@ -58,6 +58,7 @@ test('第十轮：隐私、注册恢复码与忘记密码完整闭环', async ({
   await page.getByRole('button', { name: '注册', exact: true }).click();
   const username = `account_${Date.now()}`;
   const originalPassword = 'Local-account-2026';
+  const changedPassword = 'Local-changed-2026';
   const recoveredPassword = 'Local-recovered-2026';
   await page.getByLabel('用户名', { exact: true }).fill(username);
   await page.getByLabel('密码', { exact: true }).fill(originalPassword);
@@ -92,6 +93,46 @@ test('第十轮：隐私、注册恢复码与忘记密码完整闭环', async ({
   await expect(page.getByRole('button', { name: '新建品牌合作', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('outfit.session'))).toBe(registration.token);
 
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('button', { name: '账号与安全', exact: true }).click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByText('当前账号', { exact: true })).toBeVisible();
+  await expect(page.getByText(username, { exact: true })).toBeVisible();
+  await screenshot(page, '120-account-security.png');
+  await page.getByRole('button', { name: '修改密码', exact: true }).click();
+  await page.getByLabel('当前密码', { exact: true }).fill(originalPassword);
+  await page.getByLabel('新密码', { exact: true }).fill(changedPassword);
+  const passwordResponse = page.waitForResponse(value => value.request().method() === 'POST' && value.url() === `${apiBase}/me/password`);
+  await page.getByRole('button', { name: '保存新密码', exact: true }).click();
+  const passwordChanged = await passwordResponse;
+  expect(passwordChanged.ok()).toBe(true);
+  const passwordAuth = await passwordChanged.json() as { token: string };
+  await expect(page.getByText('密码已修改，其他设备需要重新登录。', { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('outfit.session'))).toBe(passwordAuth.token);
+  const invalidatedSession = await request.get(`${apiBase}/me`, { headers: { Authorization: `Bearer ${registration.token}` } });
+  expect(invalidatedSession.status()).toBe(401);
+  const originalLogin = await request.post(`${apiBase}/auth/login`, { data: { username, password: originalPassword } });
+  expect(originalLogin.status()).toBe(401);
+  const changedLogin = await request.post(`${apiBase}/auth/login`, { data: { username, password: changedPassword } });
+  expect(changedLogin.ok()).toBe(true);
+  await screenshot(page, '121-password-changed.png');
+  await page.getByRole('button', { name: '返回', exact: true }).click();
+  await page.getByRole('button', { name: '退出登录', exact: true }).click();
+  await expect(page.getByRole('button', { name: '登录，继续创作', exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: '用户名', exact: true }).fill(username);
+  const loginPassword = page.getByLabel('密码', { exact: true }).filter({ visible: true });
+  await loginPassword.fill(originalPassword);
+  const rejectedLoginResponse = page.waitForResponse(value => value.request().method() === 'POST' && value.url() === `${apiBase}/auth/login`);
+  await page.getByRole('button', { name: '登录，继续创作', exact: true }).click();
+  const rejectedLogin = await rejectedLoginResponse;
+  expect(rejectedLogin.status()).toBe(401);
+  const rejectedLoginError = await rejectedLogin.json() as { error: { message: string } };
+  await expect(page.getByText(rejectedLoginError.error.message, { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('outfit.session'))).toBeNull();
+  await loginPassword.fill(changedPassword);
+  await page.getByRole('button', { name: '登录，继续创作', exact: true }).click();
+  await expect(page.getByRole('button', { name: '新建品牌合作', exact: true })).toBeVisible();
+  await screenshot(page, '121-password-login-verified.png');
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button', { name: '退出登录', exact: true }).click();
   await expect(page.getByRole('button', { name: '登录，继续创作', exact: true })).toBeVisible();
@@ -130,5 +171,44 @@ test('第十轮：隐私、注册恢复码与忘记密码完整闭环', async ({
   expect(newLogin.ok()).toBe(true);
   const staleSession = await request.get(`${apiBase}/me`, { headers: { Authorization: `Bearer ${registration.token}` } });
   expect(staleSession.status()).toBe(401);
+
+  await page.getByRole('button', { name: '设置', exact: true }).click();
+  await page.getByRole('button', { name: '账号与安全', exact: true }).click();
+  await page.getByRole('button', { name: '重新生成恢复码', exact: true }).click();
+  await page.getByLabel('验证密码', { exact: true }).fill('Wrong-password-2026');
+  const wrongPasswordResponse = page.waitForResponse(value => value.request().method() === 'POST' && value.url() === `${apiBase}/me/recovery-code`);
+  await page.getByRole('button', { name: '生成新恢复码', exact: true }).click();
+  const wrongPassword = await wrongPasswordResponse;
+  expect(wrongPassword.ok()).toBe(false);
+  const wrongPasswordError = await wrongPassword.json() as { error: { message: string } };
+  await expect(page.getByText(wrongPasswordError.error.message, { exact: true })).toBeVisible();
+  await expect(recoveryCode).toHaveCount(0);
+  await screenshot(page, '122-recovery-code-password-check.png');
+  await page.getByLabel('验证密码', { exact: true }).fill(recoveredPassword);
+  let releaseGeneration = () => {};
+  const generationGate = new Promise<void>(resolve => { releaseGeneration = resolve; });
+  await page.route(`${apiBase}/me/recovery-code`, async route => {
+    await generationGate;
+    await route.continue();
+  });
+  const regeneratedResponse = page.waitForResponse(value => value.request().method() === 'POST' && value.url() === `${apiBase}/me/recovery-code`);
+  await page.getByRole('button', { name: '生成新恢复码', exact: true }).click();
+  try {
+    await page.goBack();
+    await expect(page).toHaveURL(/\/account$/);
+    await expect(page.getByText('正在更新账号，请等待结果后再返回。', { exact: true })).toBeVisible();
+  } finally { releaseGeneration(); }
+  const regenerated = await regeneratedResponse;
+  expect(regenerated.ok()).toBe(true);
+  const latestRecoveryCode = (await regenerated.json() as { recovery_code: string }).recovery_code;
+  expect(latestRecoveryCode).toMatch(/^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$/i);
+  expect(latestRecoveryCode).not.toBe(recovery.recovery_code);
+  await expect(recoveryCode).toContainText(latestRecoveryCode);
+  await screenshot(page, '123-regenerated-recovery-code.png');
+  await page.getByRole('button', { name: '我已保存', exact: true }).click();
+  await expect(page.getByRole('button', { name: '修改密码', exact: true })).toBeVisible();
+  const outdatedRecoveryCode = await request.post(`${apiBase}/auth/recover`, { data: { username, recovery_code: recovery.recovery_code, new_password: 'Do-not-apply-2026' } });
+  expect(outdatedRecoveryCode.ok()).toBe(false);
+  expect((await outdatedRecoveryCode.json()).error.code).toBe('RECOVERY_FAILED');
   expect(pageErrors).toEqual([]);
 });

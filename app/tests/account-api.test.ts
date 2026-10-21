@@ -13,11 +13,13 @@ test('account requests preserve contract fields and public recovery does not car
   await api.register({ username: 'account', password: 'password1', agreed_legal_version: '2026-10-21' });
   await api.recover({ username: 'account', recovery_code: 'abcd-1234-ef56', new_password: 'password2' });
   await api.regenerateRecoveryCode('password2');
+  await api.changePassword({ current_password: 'password2', new_password: 'password3' });
   assert.deepEqual(calls, [
     { path: '/api/legal', method: 'GET', body: undefined, auth: null },
     { path: '/api/legal/privacy', method: 'GET', body: undefined, auth: null },
     { path: '/api/auth/register', method: 'POST', body: { username: 'account', password: 'password1', agreed_legal_version: '2026-10-21' }, auth: null },
     { path: '/api/auth/recover', method: 'POST', body: { username: 'account', recovery_code: 'abcd-1234-ef56', new_password: 'password2' }, auth: null },
     { path: '/api/me/recovery-code', method: 'POST', body: { password: 'password2' }, auth: 'Bearer session' },
+    { path: '/api/me/password', method: 'POST', body: { current_password: 'password2', new_password: 'password3' }, auth: 'Bearer session' },
   ]);
 });

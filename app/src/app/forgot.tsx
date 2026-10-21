@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { usePreventRemove, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 import type { RecoveryAuthResponse } from '../api/types';
@@ -16,7 +16,9 @@ export default function ForgotPassword() {
   const [result, setResult] = useState<RecoveryAuthResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  usePreventRemove(busy, () => setError('正在重置密码，请等待结果并保存新的恢复码。'));
   async function recover() {
+    if (busy) return;
     if (username.trim().length < 3 || username.trim().length > 32) return setError('请填写 3–32 位用户名。');
     if (!isRecoveryCode(code)) return setError('恢复码需要 12 位字母或数字，格式为 xxxx-xxxx-xxxx。');
     if (password.length < 8) return setError('新密码至少 8 位。');

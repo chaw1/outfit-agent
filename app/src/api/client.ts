@@ -1,6 +1,6 @@
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
-  Asset, AssetKind, AuthResponse, CreateProjectInput, DoneData, ErrorData, HealthResponse,
+  Asset, AssetKind, AuthResponse, ChangePasswordInput, CreateProjectInput, DoneData, ErrorData, HealthResponse,
   Job, LegalDocument, LegalKind, LegalSummary, LoginInput, Message, Project, ProjectState, RecoverInput, RecoveryAuthResponse, RegisterInput, SendMessageInput, StreamEvent, UpdateMeInput, User,
 } from './types';
 
@@ -143,6 +143,9 @@ export class ApiClient {
 
   recover(input: RecoverInput): Promise<RecoveryAuthResponse> {
     return this.request('/auth/recover', { method: 'POST', body: JSON.stringify(input) }, false);
+  }
+  changePassword(input: ChangePasswordInput): Promise<AuthResponse> {
+    return this.request('/me/password', { method: 'POST', body: JSON.stringify(input) });
   }
   regenerateRecoveryCode(password: string): Promise<{ recovery_code: string }> {
     return this.request('/me/recovery-code', { method: 'POST', body: JSON.stringify({ password }) });
