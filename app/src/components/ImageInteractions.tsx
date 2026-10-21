@@ -26,7 +26,7 @@ type Interaction = {
 const ImageContext = createContext<Interaction>({ open: () => {}, menu: () => {}, selectedIds: [], setSelected: () => {}, confirmImage: async () => false, approve: async () => false });
 export const useImageInteractions = () => useContext(ImageContext);
 
-export function ImageInteractions({ images, editActions, busy, canEdit = true, stage, note, pendingAction, onAction, onReference, onVisibilityChange, children }: {
+export function ImageInteractions({ images, editActions, busy, canEdit = true, stage, note, pendingAction, onAction, onReference, onVisibilityChange, onStartNew, children }: {
   images: OutfitImage[];
   editActions?: Extract<Action, { type: 'edit_image' }>[];
   busy?: boolean;
@@ -37,6 +37,7 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, s
   onAction: (action: Action) => Promise<unknown> | void;
   onReference: (image: OutfitImage) => void;
   onVisibilityChange?: (visible: boolean) => void;
+  onStartNew?: () => void;
   children: ReactNode;
 }) {
   const [viewer, setViewer] = useState<{ id: string; mode: Mode }>();
@@ -121,7 +122,7 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, s
   return <ImageContext.Provider value={{ open, menu: id => { feedback(); setNotice(''); setMenuId(id); }, selectedIds, setSelected, confirmImage, approve }}>
     {children}
     {notice ? <Pressable testID="image-feedback" accessibilityRole="button" accessibilityLabel="关闭图片提示" onPress={() => setNotice('')} style={styles.toast}><Toast text={notice} tone={notice.startsWith('已') || notice === '图片已保存' ? 'success' : 'danger'} onDismiss={() => setNotice('')} /></Pressable> : null}
-    {viewer ? <ImageViewer images={images} editActions={editActions} initialImageId={viewer.id} initialMode={viewer.mode} busy={busy} canEdit={canEdit} stage={stage} pendingAction={pendingAction} adoptedImageIds={stage === 'note' ? note?.image_ids : selectedIds} onAdopt={canEdit && (stage === 'images' || stage === 'note' || !stage) ? adopt : undefined} confirmationOverlay={confirmationOverlay} onDismissConfirmation={() => finishConfirmation(false)} onClose={() => setViewer(undefined)} onAction={submitAction} onReference={reference} /> : null}
+    {viewer ? <ImageViewer images={images} editActions={editActions} initialImageId={viewer.id} initialMode={viewer.mode} busy={busy} canEdit={canEdit} stage={stage} pendingAction={pendingAction} onStartNew={onStartNew ? () => { setViewer(undefined); onStartNew(); } : undefined} adoptedImageIds={stage === 'note' ? note?.image_ids : selectedIds} onAdopt={canEdit && (stage === 'images' || stage === 'note' || !stage) ? adopt : undefined} confirmationOverlay={confirmationOverlay} onDismissConfirmation={() => finishConfirmation(false)} onClose={() => setViewer(undefined)} onAction={submitAction} onReference={reference} /> : null}
     <Modal transparent visible={Boolean(menuImage)} animationType="fade" onRequestClose={() => setMenuId(undefined)}>
       <View style={styles.shade}>
         <Pressable accessibilityRole="button" accessibilityLabel="关闭图片菜单" style={StyleSheet.absoluteFill} onPress={() => { if (!saving) setMenuId(undefined); }} />

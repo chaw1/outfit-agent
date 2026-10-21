@@ -33,6 +33,8 @@ export interface ImageViewerProps {
   confirmationOverlay?: ReactNode;
   onDismissConfirmation?: () => void;
   onClose: () => void;
+  /** 短片出完后图片定稿：给一条「用这件衣服再拍一组」的出路。 */
+  onStartNew?: () => void;
   onAction: (action: Action) => Promise<unknown> | void;
   onReference: (image: OutfitImage) => void;
 }
@@ -62,7 +64,7 @@ function TrackSlider({ value, min = 0, max = 1, label, testID, onChange }: { val
   </View></GestureDetector>;
 }
 
-export function ImageViewer({ images, editActions = [], initialImageId, initialMode = 'view', busy = false, canEdit = true, stage, pendingAction, adoptedImageIds = [], onAdopt, confirmationOverlay, onDismissConfirmation, onClose, onAction, onReference }: ImageViewerProps) {
+export function ImageViewer({ images, editActions = [], initialImageId, initialMode = 'view', busy = false, canEdit = true, stage, pendingAction, adoptedImageIds = [], onAdopt, confirmationOverlay, onDismissConfirmation, onClose, onStartNew, onAction, onReference }: ImageViewerProps) {
   const [currentId, setCurrentId] = useState(initialImageId);
   const [mode, setMode] = useState<ViewerMode>(canEdit ? initialMode : initialMode === 'local' || initialMode === 'whole' ? 'view' : initialMode);
   const [tool, setTool] = useState<DrawingTool>('brush');
@@ -472,7 +474,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
               </ScrollView>
               <View style={styles.inputRow}><TextInput ref={input} testID="edit-instruction" accessibilityLabel="改图要求" placeholder="说说这里想怎么改…" placeholderTextColor={colors.viewerMuted} value={instruction} onChangeText={setInstruction} style={styles.input} multiline maxLength={2000} editable={!generationBusy} /><Pressable testID="submit-edit" accessibilityRole="button" accessibilityLabel="提交改图" accessibilityState={{ disabled: generationBusy || !instruction.trim() || invalidSelection }} disabled={generationBusy || !instruction.trim() || invalidSelection} onPress={() => { void sendEdit(); }} style={({ pressed }) => [styles.submit, (generationBusy || !instruction.trim() || invalidSelection) && styles.disabled, pressed && styles.pressed]}>{generationBusy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={23} color={colors.white} />}</Pressable></View>
             </> : <View style={styles.mainActions}><ToolButton title="局部改" icon="brush-outline" testID="viewer-mode-local" disabled={!canEdit || generationBusy || !rect || failedUrl === current.url} onPress={() => changeMode('local')} /><ToolButton title="整张改" icon="color-wand-outline" testID="viewer-mode-whole" disabled={!canEdit || generationBusy || !current.url} onPress={() => changeMode('whole')} /><ToolButton title={comparing ? '结束对比' : '对比版本'} icon="git-compare-outline" testID="viewer-compare-toggle" disabled={!parent?.url} selected={comparing} onPress={() => changeMode(comparing ? 'view' : 'compare')} /></View>}
-            {!canEdit && !comparing && !localEditing ? <Text testID="viewer-locked-hint" style={[styles.hint, styles.lockedHint]}>视频已生成，这组图片已定稿；想继续改图，可以拍一组新片。</Text> : null}
+            {!canEdit && !comparing && !localEditing ? <View style={styles.locked}><Text testID="viewer-locked-hint" style={[styles.hint, styles.lockedHint]}>视频已生成，这组图片已定稿；想继续改图，用这件衣服再拍一组。</Text>{onStartNew ? <ToolButton title="用这件衣服再拍一组" icon="add-circle-outline" testID="viewer-start-new" onPress={onStartNew} /> : null}</View> : null}
             {pending && !editing ? <View testID="viewer-generation-status" style={styles.generationStatus}><ProgressStrip title="新版本生成中，完成后自动对比" /></View> : null}
           </Animated.View>
         </KeyboardAvoidingView>
@@ -491,6 +493,7 @@ const styles = StyleSheet.create({
   hint: { ...typography.caption, color: colors.viewerMuted },
   adoptionRow: { alignItems: 'center', paddingHorizontal: space.lg },
   lockedHint: { textAlign: 'center', paddingHorizontal: space.inset20, paddingBottom: space.sm },
+  locked: { alignItems: 'center', gap: space.xs },
   canvas: { flex: 1, minHeight: 140, overflow: 'hidden', backgroundColor: colors.viewerCanvas },
   loadError: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.lg },
   fidelity: { position: 'absolute', left: space.md, top: space.md },
