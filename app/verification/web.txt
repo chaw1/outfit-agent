@@ -1,7 +1,7 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-Web Bundled 617ms node_modules/expo-router/entry.js (1562 modules)
+Web Bundled 2379ms node_modules/expo-router/entry.js (1566 modules)
 
 › Assets (47):
 assets/inspiration/studio-01.57b9611f3aae3ec0937fd1cd44705582.jpg (126KB)
@@ -46,22 +46,23 @@ node_modules/expo-router/assets/react-navigation/elements/search-icon.286d67d3f7
 node_modules/expo-router/assets/sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png (465B)
 node_modules/expo-router/assets/unmatched.20e71bdf79e3a97bf55fd9e164041578.png (4.8KB)
 
-› web bundles (15):
-_expo/static/js/web/__common-bdb4e576c69d16025b74f7c120a5b272.js (1.8MB)
+› web bundles (16):
+_expo/static/js/web/__common-91abb95d0682f781dd995a5a9eb9a101.js (1.8MB)
 _expo/static/js/web/__expo-metro-runtime-8c088df87a31e4e6accd81c554ec290d.js (3.8KB)
-_expo/static/js/web/_layout-00f503d8eb829722f2eaade4f22e5d5d.js (15KB)
-_expo/static/js/web/[id]-3e82f17ca37a5d0b6f7ba06a78777a78.js (40KB)
-_expo/static/js/web/[id]-963c207696735e3f51659f1c676b95de.js (77KB)
-_expo/static/js/web/[kind]-0c6055f077fe8be8118d4beaca0b8246.js (2KB)
-_expo/static/js/web/about-bdbb5f2bf3404f8d71ce7b489cd8764a.js (4.2KB)
-_expo/static/js/web/account-54e594b8f8a9e4cbd25b5eadfa8a16f6.js (5.1KB)
-_expo/static/js/web/delete-42378befcd49c96f3f93b73c9bd5f768.js (2.4KB)
-_expo/static/js/web/entry-e2306b0f76496607b084fa5bb08ae2b3.js (1.1MB)
-_expo/static/js/web/forgot-68c11dc81f8a1adcc4643f0e7c1d077e.js (2.8KB)
-_expo/static/js/web/index-a4beaea6641c009caaed450b2b4ddc88.js (17KB)
-_expo/static/js/web/login-7714e354da53906cf14bfb5ac876fc8a.js (7.6KB)
-_expo/static/js/web/new-b022620265050292dbe3a651d0889827.js (20KB)
-_expo/static/js/web/settings-0a0645fd27ea0f46aa301fd2c6cf081b.js (12KB)
+_expo/static/js/web/_layout-8f9d7ff51933d933db21a6de0a8b8881.js (15KB)
+_expo/static/js/web/[id]-045e1c5e48311e771d9f92e74da47408.js (77KB)
+_expo/static/js/web/[id]-ac3c2f4192b7ce6ae0e333c5d5065cc0.js (40KB)
+_expo/static/js/web/[kind]-bb6851301b9260c449ce117b8691f7c5.js (2KB)
+_expo/static/js/web/about-33644122bdc26ccee3e64591c6f36b2f.js (4.2KB)
+_expo/static/js/web/account-7e2a83c7fa035e7f0f2a9b4ec0b26b23.js (5.1KB)
+_expo/static/js/web/assets-6e392dee5d18118e115d94ec52db1da2.js (451B)
+_expo/static/js/web/delete-27e3586664e3e5eddabe6cbbc5edf756.js (2.4KB)
+_expo/static/js/web/entry-6ca4baecd5ad8a263f6ff93123a49a19.js (1.1MB)
+_expo/static/js/web/forgot-c0ae2a0c0fbb34ff59848f3eb6fe35f9.js (2.8KB)
+_expo/static/js/web/index-c3ff0b7bcbe124f92cebc9868a496482.js (17KB)
+_expo/static/js/web/login-8f35d0f18596ed359951c6024e196ff3.js (7.6KB)
+_expo/static/js/web/new-5c54ffb690a76e414ce7ff5c5598872f.js (20KB)
+_expo/static/js/web/settings-2379928767c190deae2acef9e047b1d6.js (12KB)
 
 › Files (3):
 favicon.ico (15KB)

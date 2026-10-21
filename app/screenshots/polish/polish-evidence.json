@@ -1,6 +1,6 @@
 {
-  "completedAt": "2026-10-21T04:04:10.957Z",
-  "projectId": "project_ce546c0c-3161-45d4-ab05-5b4f58bded73",
+  "completedAt": "2026-10-21T04:22:53.097Z",
+  "projectId": "project_0c290055-acbe-44da-b253-ab4acca7ac6c",
   "viewport": {
     "width": 390,
     "height": 844
@@ -167,6 +167,14 @@
       "controls": [
         {
           "role": "button",
+          "name": "素材库",
+          "testID": null,
+          "width": 44,
+          "height": 44,
+          "disabled": false
+        },
+        {
+          "role": "button",
           "name": "设置",
           "testID": null,
           "width": 44,
@@ -207,14 +215,6 @@
         },
         {
           "role": "button",
-          "name": "查看灵感 6 · 咖啡馆午后",
-          "testID": "inspiration-06",
-          "width": 165,
-          "height": 248.7,
-          "disabled": false
-        },
-        {
-          "role": "button",
           "name": "拍一组新片",
           "testID": null,
           "width": 342,
@@ -229,7 +229,7 @@
       "file": "65-new-project-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 39
+        "adjustedTextNodes": 41
       },
       "viewport": {
         "width": 390,
@@ -334,7 +334,7 @@
       "file": "66-new-project-submit-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 39
+        "adjustedTextNodes": 41
       },
       "viewport": {
         "width": 390,
@@ -439,7 +439,7 @@
       "file": "67-settings-profile-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 37
+        "adjustedTextNodes": 38
       },
       "viewport": {
         "width": 390,
@@ -454,6 +454,14 @@
           "testID": null,
           "width": 44,
           "height": 44,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "素材库",
+          "testID": null,
+          "width": 342,
+          "height": 52,
           "disabled": false
         },
         {
@@ -488,7 +496,7 @@
       "file": "68-settings-service-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 37
+        "adjustedTextNodes": 38
       },
       "viewport": {
         "width": 390,
