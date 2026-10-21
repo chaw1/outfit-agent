@@ -148,3 +148,14 @@ def test_public_list_includes_progress(api, project_assets):
     listed = next(p for p in api.request("GET", "/api/projects") if p["id"] == created["id"])
     assert listed["progress"] == created["progress"]
     assert listed["progress"]["status"] == "idle"
+
+
+def test_three_preview_group_counts_latest_attempt_for_each_variant():
+    jobs = [job(i, "succeeded", purpose="preview", preview_group="current", preview_id=str(i))
+            for i in range(1, 10)]
+    jobs[4].status = "failed"
+    jobs.append(job(10, "running", purpose="preview", preview_group="current", preview_id="5"))
+    progress = project_progress(project("direction"), jobs)
+    assert (progress["status"], progress["running"], progress["total"]) == ("generating", 1, 9)
+    jobs[-1].status = "succeeded"
+    assert project_progress(project("direction"), jobs)["status"] == "waiting_you"

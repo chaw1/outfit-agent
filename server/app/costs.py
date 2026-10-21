@@ -10,6 +10,8 @@ IMAGE_ESTIMATE_CNY = Decimal("0.50")
 VIDEO_ESTIMATE_CNY = Decimal("1.50")
 AUTO_FIX_ALLOWANCE = Decimal("1.20")
 POINTS_PER_CNY = 10
+PREVIEWS_PER_DIRECTION = 3
+MAX_DIRECTIONS = 3
 
 
 def points(cny: Decimal | float | int) -> float:
@@ -48,7 +50,8 @@ def video_cost_cny() -> Decimal:
 
 def auto_quote() -> dict:
     breakdown = [
-        {"label": "方向预览 3 张", "points": points(image_cost_cny(3))},
+        {"label": "方向预览 9 张（每方向 3 张）",
+         "points": points(image_cost_cny(MAX_DIRECTIONS * PREVIEWS_PER_DIRECTION))},
         {"label": "正式出图 3 张（含 20% 自动修复预留）",
          "points": points(image_cost_cny(3) * AUTO_FIX_ALLOWANCE)},
         {"label": "5 秒视频 1 条", "points": points(video_cost_cny())},

@@ -6,7 +6,14 @@ from uuid import NAMESPACE_URL, uuid5
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from app.costs import AUTO_FIX_ALLOWANCE, image_cost_cny, video_cost_cny, with_points
+from app.costs import (
+    AUTO_FIX_ALLOWANCE,
+    MAX_DIRECTIONS,
+    PREVIEWS_PER_DIRECTION,
+    image_cost_cny,
+    video_cost_cny,
+    with_points,
+)
 from app.media import signed_url
 from app.models import Asset, Job, Message, Project, UsageLedger, User
 from app.progress import project_progress
@@ -122,7 +129,7 @@ def direction_items(session: Session, project_id: str, directions: list[dict]) -
         content = {
             key: value
             for key, value in original.items()
-            if key not in {"preview_url", "preview_status"}
+            if key not in {"preview_url", "preview_status", "previews"}
         }
         digest = hashlib.sha256(
             json.dumps(
@@ -133,20 +140,32 @@ def direction_items(session: Session, project_id: str, directions: list[dict]) -
             ).encode()
         ).hexdigest()
         expected_key = f"{project_id}:preview:{digest}"
-        exact = [job for job in previews if job.dedupe_key == expected_key]
-        # Compatibility for old imported preview jobs without a content key.
-        legacy = [
-            job
-            for job in previews
-            if job.payload.get("direction_id") == direction.get("id")
-            and not job.dedupe_key.startswith(f"{project_id}:preview:")
-        ]
-        job = (exact or legacy or [None])[-1]
-        if job:
-            direction.update(
-                preview_status=job.status,
-                preview_url=signed_url(job.result_asset_id) if job.result_asset_id else None,
-            )
+        variants = [job for job in previews if job.dedupe_key.startswith(expected_key + ":")]
+        if variants:
+            latest = {}
+            for job in variants:
+                preview_id = job.payload.get("preview_id", job.id)
+                latest[preview_id] = job
+            direction["previews"] = [
+                {"id": preview_id, "url": signed_url(job.result_asset_id)
+                 if job.result_asset_id else None, "status": job.status,
+                 "variant": job.payload.get("variant", "灵感预览")}
+                for preview_id, job in latest.items()
+            ]
+            first = direction["previews"][0]
+            direction.update(preview_status=first["status"], preview_url=first["url"])
+        else:
+            exact = [job for job in previews if job.dedupe_key == expected_key]
+            # Imported single-image jobs remain readable without creating paid work.
+            legacy = [job for job in previews
+                      if job.payload.get("direction_id") == direction.get("id")
+                      and not job.dedupe_key.startswith(f"{project_id}:preview:")]
+            job = (exact or legacy or [None])[-1]
+            if job:
+                url = signed_url(job.result_asset_id) if job.result_asset_id else None
+                direction.update(preview_status=job.status, preview_url=url)
+                direction["previews"] = [{"id": job.id, "url": url,
+                                           "status": job.status, "variant": "灵感预览"}]
         projected.append(direction)
     return projected
 
@@ -175,8 +194,10 @@ def refresh_cards(cards: list, session: Session, project_id: str) -> list:
             card["items"] = image_items(session, project_id)
         elif card.get("type") == "directions":
             card["options"] = direction_items(session, project_id, card.get("options", []))
-            # A fresh group may contain two or three previews; quote the upper count.
-            card["regenerate_estimate_cny"] = float(image_cost_cny(3))
+            # Quote the maximum of three directions with three previews each.
+            card["regenerate_estimate_cny"] = float(
+                image_cost_cny(MAX_DIRECTIONS * PREVIEWS_PER_DIRECTION)
+            )
         elif card.get("type") == "note":
             card["cost_cny"] = project_cost_cny(session, project_id)
             card["ai_label"] = "内容含 AI 生成图片，发布时请勾选平台的 AI 内容声明。"

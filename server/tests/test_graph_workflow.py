@@ -534,7 +534,7 @@ def test_garments_custom_event_arrives_before_direction_selection_finishes(flow,
     assert "garments_received" in phases
     assert phases.index("garments_received") < phases.index("select_finished")
     assert result["stage"] == "direction"
-    assert len(result["jobs"]) == 3
+    assert len(result["jobs"]) == 9
     assert all(card.get("preview_status") == "queued" for card in result["cards"][1]["options"])
 
 

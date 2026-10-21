@@ -130,6 +130,14 @@ class ProjectOutput(BaseModel):
 class ChooseDirection(StrictInput):
     type: Literal["choose_direction"]
     direction_id: str
+    preview_id: str | None = None
+
+
+class RetryPreview(StrictInput):
+    type: Literal["retry_preview"]
+    direction_id: str
+    preview_id: str
+    attempt: str = Field(min_length=1, max_length=64, pattern=r"^\S+$")
 
 
 class ConfirmScript(StrictInput):
@@ -245,7 +253,8 @@ class RegenerateReply(StrictInput):
 
 
 Action = Annotated[
-    ChooseDirection | ConfirmScript | EditImage | ApproveImages | ConfirmVideo | RestoreScript
+    ChooseDirection | RetryPreview | ConfirmScript | EditImage | ApproveImages | ConfirmVideo
+    | RestoreScript
     | RegenerateReply,
     Field(discriminator="type"),
 ]
@@ -357,6 +366,7 @@ class StateOutput(BaseModel):
     garments: list[dict]
     directions: list[dict]
     chosen_direction_id: str | None = None
+    chosen_preview_id: str | None = None
     script: dict | None = None
     images: list[dict]
     note: dict | None = None

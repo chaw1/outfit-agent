@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.costs import image_cost_cny, with_points
+from app.costs import MAX_DIRECTIONS, PREVIEWS_PER_DIRECTION, image_cost_cny, with_points
 from app.errors import AppError
 from app.local_edit import prepare_selection
 from app.media import asset_dict
@@ -20,7 +20,7 @@ from app.providers import ProviderHub
 from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
 from app.tracing import dialogue_trace
-from app.views import image_items, job_dict
+from app.views import direction_items, image_items, job_dict
 
 ALLOWED_TOOLS = {
     "brief": {"propose_directions", "chat"},
@@ -82,7 +82,9 @@ class Workflow:
 
     def _card(self, kind: str, content: dict) -> dict:
         if kind == "directions":
-            content = {**content, "regenerate_estimate_cny": float(image_cost_cny(3))}
+            content = {**content, "regenerate_estimate_cny": float(
+                image_cost_cny(MAX_DIRECTIONS * PREVIEWS_PER_DIRECTION)
+            )}
         return with_points({"id": f"{self.project.id}:{kind}", "type": kind, **content})
 
     def _asset(self, asset_id: str) -> Asset:
@@ -201,6 +203,12 @@ class Workflow:
             ),
             {},
         )
+        context["chosen_preview"] = self._selected_preview(state)
+        if context["chosen_preview"]:
+            context["cover_inspiration"] = (
+                "第一镜的构图与光线以所选灵感图为基调："
+                + context["chosen_preview"]["description"]
+            )
         # Image order, shot descriptions and edit instructions let the model resolve
         # references such as "the cafe one" without a second hard-coded router.
         shots = {shot["id"]: shot for shot in (state.get("script") or {}).get("shots", [])}
@@ -300,6 +308,7 @@ class Workflow:
         stage, kind = state.get("stage", "brief"), action["type"]
         required = {
             "choose_direction": "write_script",
+            "retry_preview": "propose_directions",
             "confirm_script": "generate_images",
             "edit_image": "edit_image",
             "approve_images": "write_note",
@@ -319,6 +328,20 @@ class Workflow:
         if kind == "choose_direction":
             if action.get("direction_id") not in [item["id"] for item in state["directions"]]:
                 raise AppError("direction_not_found", "请从当前方向卡里选择一个方向。")
+            direction = next(item for item in direction_items(
+                self.session, self.project.id, state["directions"]
+            ) if item["id"] == action["direction_id"])
+            if action.get("preview_id") and action["preview_id"] not in [
+                item["id"] for item in direction.get("previews", [])
+            ]:
+                raise AppError("preview_not_found", "请从这个方向的灵感图中选择。")
+            if action.get("preview_id") and not any(
+                item["id"] == action["preview_id"] and item["status"] == "succeeded"
+                for item in direction.get("previews", [])
+            ):
+                raise AppError("preview_not_ready", "请等这张灵感图生成完成后再确认。")
+        elif kind == "retry_preview":
+            self._preview_for_retry(state, action)
         elif kind == "confirm_script":
             if not state.get("script"):
                 raise AppError("script_not_ready", "先一起写好脚本，再确认生成。")
@@ -515,6 +538,10 @@ class Workflow:
             )
             + 1
         )
+        preview = self._selected_preview(state)
+        if preview:
+            script["preview_id"] = preview["id"]
+            clean_shots[0]["camera"] += "；构图与光线以灵感图为基调：" + preview["description"]
         script.update(status="draft", shots=clean_shots, version=state["script_revision"])
         script["video"] = {**script.get("video", {}), "duration": 5}
         return script
@@ -543,6 +570,7 @@ class Workflow:
         if action:
             handlers = {
                 "choose_direction": self._choose,
+                "retry_preview": self._retry_preview,
                 "confirm_script": self._generate_images,
                 "edit_image": self._edit_image,
                 "approve_images": self._approve_images,
@@ -631,6 +659,13 @@ class Workflow:
     def _choose(self, state: dict, action: dict, result: dict | None = None) -> dict:
         self._allow(state["stage"], "write_script")
         state["chosen_direction_id"] = action["direction_id"]
+        direction = next(item for item in direction_items(
+            self.session, self.project.id, state["directions"]
+        ) if item["id"] == action["direction_id"])
+        previews = direction.get("previews", [])
+        state["chosen_preview_id"] = action.get("preview_id") or (
+            previews[0]["id"] if previews else None
+        )
         result = result or self._text_tool("direction", "write_script", state)
         state.update(
             script=self._script(result, state),
@@ -738,34 +773,80 @@ class Workflow:
         jobs = []
         clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
         refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes
+        variants = (
+            ("全身街拍", "全身竖构图，街景三分留白，自然散射光"),
+            ("半身特写", "半身近景，偏心裁切，柔和窗边侧光"),
+            ("坐姿侧光", "坐姿侧面中景，前景遮挡，午后自然侧逆光"),
+        )
+        group = fingerprint([item["id"] for item in state["directions"]])
         for direction in state["directions"]:
-            photo_prompt = expand_photo_prompt(
-                {"scene": direction["scene"]}, self.project.style_tags or [],
-                state.get("references") or [],
-            )
-            prompt = (
-                f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
-                f"氛围：{direction['mood']}；配色：{direction['palette']}。"
-                + (f"搭配建议：{direction['styling']}。" if direction.get("styling") else "")
-                + self._garment_prompt(state, clothes)
-            )
-            prompt += photo_prompt
-            key = f"{self.project.id}:preview:{fingerprint(direction)}"
-            payload = {
-                "purpose": "preview",
-                "direction_id": direction["id"],
-                "preview_group": fingerprint([item["id"] for item in state["directions"]]),
-                "prompt": prompt,
-                "photo_prompt": photo_prompt,
-                "reference_asset_ids": refs,
-                "garment_asset_ids": clothes,
-            }
-            job = self._enqueue(state, "image", payload, key)
-            direction.update(preview_status=job.status)
-            if job.result_asset_id:
-                direction["preview_url"] = asset_dict(self._asset(job.result_asset_id))["url"]
-            jobs.append(job)
+            content = {key: value for key, value in direction.items()
+                       if key not in {"previews", "preview_url", "preview_status"}}
+            prefix = f"{self.project.id}:preview:{fingerprint(content)}"
+            for variant, composition in variants:
+                photo_prompt = expand_photo_prompt(
+                    {"scene": direction["scene"]}, self.project.style_tags or [],
+                    state.get("references") or [],
+                )
+                description = f"{variant}；{direction['scene']}；{direction['mood']}；{composition}"
+                prompt = (
+                    f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
+                    f"氛围：{direction['mood']}；配色：{direction['palette']}。"
+                    + (f"搭配建议：{direction['styling']}。" if direction.get("styling") else "")
+                    + self._garment_prompt(state, clothes) + photo_prompt
+                    + f"本张角度：{variant}；构图与光线采用：{composition}。同一方向保留穿搭。"
+                )
+                key = f"{prefix}:{variant}"
+                preview_id = str(uuid5(NAMESPACE_URL, key))
+                payload = {
+                    "purpose": "preview", "direction_id": direction["id"],
+                    "preview_id": preview_id, "variant": variant,
+                    "description": description, "preview_group": group,
+                    "prompt": prompt, "photo_prompt": photo_prompt,
+                    "reference_asset_ids": refs, "garment_asset_ids": clothes,
+                }
+                jobs.append(self._enqueue(state, "image", payload, key))
+        state["directions"] = direction_items(self.session, self.project.id, state["directions"])
         return jobs
+
+    def _selected_preview(self, state: dict) -> dict | None:
+        preview_id = (state.get("script") or {}).get("preview_id") or state.get("chosen_preview_id")
+        if not preview_id:
+            return None
+        jobs = self.session.scalars(select(Job).where(
+            Job.project_id == self.project.id, Job.kind == "image"
+        ).order_by(Job.created_at, Job.id)).all()
+        job = next((job for job in reversed(jobs)
+                    if job.payload.get("purpose") == "preview"
+                    and job.payload.get("preview_id", job.id) == preview_id), None)
+        if not job:
+            return None
+        return {"id": preview_id, "variant": job.payload.get("variant", "灵感预览"),
+                "description": job.payload.get("description", job.payload.get("prompt", "")),
+                "asset_id": job.result_asset_id if job.status == "succeeded" else None}
+
+    def _preview_for_retry(self, state: dict, action: dict) -> Job:
+        directions = direction_items(self.session, self.project.id, state.get("directions", []))
+        direction = next((item for item in directions if item["id"] == action["direction_id"]), {})
+        if action["preview_id"] not in [item["id"] for item in direction.get("previews", [])]:
+            raise AppError("preview_not_found", "请从当前方向卡里重试灵感图。")
+        jobs = self.session.scalars(select(Job).where(
+            Job.project_id == self.project.id, Job.kind == "image"
+        ).order_by(Job.created_at, Job.id)).all()
+        return next(job for job in reversed(jobs)
+                    if job.payload.get("preview_id", job.id) == action["preview_id"])
+
+    def _retry_preview(self, state: dict, action: dict) -> dict:
+        job = self._preview_for_retry(state, action)
+        prefix = job.dedupe_key.split(":retry:")[0]
+        key = f"{prefix}:retry:{action['attempt']}"
+        existing = self.session.scalar(select(Job).where(Job.dedupe_key == key))
+        if not existing and job.status != "failed":
+            raise AppError("preview_not_failed", "这张灵感图未失败，请等待生成完成。")
+        retried = self._enqueue(state, "image", dict(job.payload), key)
+        state["directions"] = direction_items(self.session, self.project.id, state["directions"])
+        return self._finish(state, "这张灵感图已重新排队，其他两张保留。",
+                            [self._card("directions", {"options": state["directions"]})], [retried])
 
     def _generate_images(self, state: dict, action: dict) -> dict:
         original_stage = state["stage"]
@@ -805,6 +886,15 @@ class Workflow:
                 # 博主在脚本里确认过的整套搭配：下装、鞋、配饰按这里画，不让模型随机配。
                 prompt += f"整套搭配（已确认）：{shot['styling']}。"
             prompt += photo_prompt
+            preview = self._selected_preview(state) if shot == script["shots"][0] else None
+            if preview:
+                prompt += "构图与光线以灵感图为基调：" + preview["description"] + "。"
+                references = list(shot["outfit_asset_ids"])
+                if preview["asset_id"]:
+                    references.append(preview["asset_id"])
+                if self.project.model_asset_id:
+                    references.append(self.project.model_asset_id)
+                references = list(dict.fromkeys(references))
             payload = {
                 "shot_id": shot["id"],
                 "photo_prompt": photo_prompt,

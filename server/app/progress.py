@@ -14,7 +14,8 @@ def _preview_group(jobs: list[Job]) -> list[Job]:
     latest = previews[-1]
     group = latest.payload.get("preview_group")
     if group:
-        return [job for job in previews if job.payload.get("preview_group") == group]
+        return list({job.payload.get("preview_id", job.id): job for job in previews
+                     if job.payload.get("preview_group") == group}.values())
     # Older payloads have no durable batch identity. Bound this fallback to the
     # latest three ungrouped previews (the existing maximum direction count).
     return [job for job in previews if not job.payload.get("preview_group")][-3:]

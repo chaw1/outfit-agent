@@ -451,6 +451,7 @@ def get_state(
         "garments": garments,
         "directions": directions,
         "chosen_direction_id": state.get("chosen_direction_id"),
+        "chosen_preview_id": state.get("chosen_preview_id"),
         "script": state.get("script"),
         "images": images,
         "note": note,
