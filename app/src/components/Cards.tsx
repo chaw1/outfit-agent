@@ -242,6 +242,19 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
   const selectedImageId = videoImageId && note.image_ids.includes(videoImageId) ? videoImageId : note.image_ids[0];
   // 已有短片时，只要服务端把确认挂起来（用户说“再做一条”），同样显示选图确认。
   const mayMakeVideo = state?.pending_action?.type === 'confirm_video' || (state?.mode !== 'auto' && !state?.video && (!state || (state.pending_action === undefined && state.stage === 'note')));
+  // 短片阶段以后，笔记只留一行入口：对话区不该被两张大卡长期占着，内容都在预览页。
+  const compact = (state?.stage === 'video' || state?.stage === 'done') && !mayMakeVideo;
+  if (compact) {
+    const cover = state?.images.find((item) => item.id === note.image_ids[0]);
+    return <View style={styles.card}>
+      <CardHeading icon="document-text-outline" title="笔记写好了" detail="READY TO POST" />
+      <Pressable accessibilityRole="button" accessibilityLabel="打开笔记预览" testID="preview-note" onPress={onPreview} style={({ pressed }) => [styles.videoCompact, pressed && styles.videoCompactPressed]}>
+        {cover?.url ? <FadeImage source={{ uri: previewUrl(cover.url, 360) }} style={styles.videoThumb} resizeMode="cover" /> : <View style={styles.videoThumb} />}
+        <View style={styles.videoCompactBody}><Text style={styles.videoCompactTitle} numberOfLines={1}>{note.title}</Text><Text style={styles.smallText} numberOfLines={2}>{note.image_ids.length} 张图 · 轻点打开预览，文案和顺序都能继续改。</Text></View>
+        <View style={styles.videoPlayIcon}><Icon name="open-outline" size={18} color={colors.white} /></View>
+      </Pressable>
+    </View>;
+  }
   return <View style={styles.card}>
     <CardHeading icon="document-text-outline" title="笔记写好了" detail="READY TO POST" />
     <Text style={styles.noteTitle}>{note.title}</Text>
