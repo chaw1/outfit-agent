@@ -82,6 +82,14 @@ def test_explicit_shot_request_overrides_auto_default(instruction, count):
     assert len(result["shots"]) == count
 
 
+@pytest.mark.parametrize("mode", [None, "guided"])
+def test_legacy_mock_requests_keep_four_shots_even_with_explicit_count(mode):
+    context = {"garment_asset_ids": ["garment"], "brief": "请拍五张照片"}
+    if mode is not None:
+        context["mode"] = mode
+    assert len(ProviderHub._mock_text("write_script", context, "")["shots"]) == 4
+
+
 def test_direction_recommendation_rejects_strings_instead_of_booleans():
     result = ProviderHub._mock_text("propose_directions", {}, "")
     result["options"][0]["recommended"] = "true"

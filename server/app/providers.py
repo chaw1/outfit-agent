@@ -1683,7 +1683,7 @@ class ProviderHub:
                 json.dumps(brief, ensure_ascii=False) if isinstance(brief, dict) else brief
             ) + "；" + instruction
             counts = re.findall(r"([3-6三四五六])\s*(?:个镜头|镜头|张(?:图|照片)?)", count_text)
-            if counts:
+            if context.get("mode") == "auto" and counts:
                 shot_count = dict(zip("三四五六", range(3, 7), strict=True)).get(counts[-1]) or int(
                     counts[-1]
                 )
