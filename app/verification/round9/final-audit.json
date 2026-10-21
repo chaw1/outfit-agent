@@ -1,0 +1,88 @@
+{
+  "baseline": "9e0268a",
+  "branch": "feat/app",
+  "node": "v22.23.1",
+  "verifyChecks": {
+    "typecheck": 0,
+    "lint": 0,
+    "tests": 0,
+    "ios": 0,
+    "android": 0
+  },
+  "unitTestsPassed": 160,
+  "browserCommand": "npx playwright test --output .tools/round9-playwright-results",
+  "browserStats": {
+    "startTime": "2026-10-21T02:32:48.709Z",
+    "duration": 402278.898,
+    "expected": 16,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "sourceFilesUnchanged": true,
+  "sourceSnapshotSha256": "45830f8e697be3bd3ae4c2ab2c514bb74a3417a30836d55e1303c8ec07a35584",
+  "protectedPathsChanged": [],
+  "liveTestsExecuted": false,
+  "screenshots": [
+    {
+      "file": "app/screenshots/90-studio-inspiration-wall.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "d49846e239da4d50697e4bfb510705df2a0bf1a93dd74355051b0d8692db425b"
+    },
+    {
+      "file": "app/screenshots/91-inspiration-large-view.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "5612e4045738ba6af8ee21358f7b10204ab3d8abf85d441554c75f38f96ec348"
+    },
+    {
+      "file": "app/screenshots/92-home-in-progress.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "5d9727e285036907fd9bae1abe1a53e1a78f1ccb3d22d17d3788806e92886f50"
+    },
+    {
+      "file": "app/screenshots/93-new-guided-mode.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "82e0f859e74788d959bbbe8c2556013435d9170bbe77c93c8b2444422364616d"
+    },
+    {
+      "file": "app/screenshots/94-new-auto-explanation.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "0fdb6bc3412fc8c9840cd9ac6a309a22abf1c1adfec14a9c4882afac735b78f9"
+    },
+    {
+      "file": "app/screenshots/95-style-batch-and-estimate.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "2fecf7f3389f86ec15a132a1a3277ef53a41fe7f45808a5ffbfccb6402c34981"
+    },
+    {
+      "file": "app/screenshots/96-auto-script-progress.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a09a6e422e49164b82e472dd112f18e2b882023415e8a39b2c18b8ca8e9a61ea"
+    },
+    {
+      "file": "app/screenshots/97-auto-finished-note-and-video.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "60f9fd3261093b0ff47f656dfdbecf4cfa0fd7d0073c7c620de955f02ca43d45"
+    },
+    {
+      "file": "app/screenshots/98-home-just-finished.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "f5c9d55e172b368ec4d837e5303e8f34c6041de396b56aac2527d58b5ed94811"
+    },
+    {
+      "file": "app/screenshots/99-takeover-script-confirmation.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "a6d1da470d28520c8936313f9e20dc1f5442b5d443ae90e7394c7a6e40179411"
+    }
+  ]
+}

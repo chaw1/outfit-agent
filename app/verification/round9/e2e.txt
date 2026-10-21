@@ -1,0 +1,27 @@
+[WebServer] (node:78966) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:78995) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 16 tests using 1 worker
+
+(node:79070) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 e2e/polish.spec.ts:69:5 › 视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据 (11.4s)
+  ✓   2 e2e/product.spec.ts:9:5 › 首次引导、形象档案和项目管理，以及旧服务的兼容 (10.8s)
+  ✓   3 e2e/round6.spec.ts:55:5 › 第六轮：每轮过程、同 id 换方向卡与付费前预估贯穿本地全流程 (36.3s)
+  ✓   4 e2e/round6.spec.ts:210:5 › 第六轮：旧字段缺失时隐藏过程与预估，出图和视频余额不足均禁止确认 (5.6s)
+  ✓   5 e2e/round6.spec.ts:265:5 › 第六轮：发帖表单的编辑、声明、图片顺序和草稿刷新恢复，发布使用编辑内容 (2.9s)
+  ✓   6 e2e/round7.spec.ts:89:7 › 第七轮：新建合作可带 0 张参考图，创建请求与卡片一致 (1.4s)
+  ✓   7 e2e/round7.spec.ts:89:7 › 第七轮：新建合作可带 1 张参考图，创建请求与卡片一致 (1.7s)
+  ✓   8 e2e/round7.spec.ts:89:7 › 第七轮：新建合作可带 2 张参考图，创建请求与卡片一致 (1.7s)
+  ✓   9 e2e/round7.spec.ts:137:5 › 第七轮：参考图上限、删除再加、人像与封面锚点贯穿生成和历史恢复，旧字段缺失时隐藏 (33.5s)
+  ✓  10 e2e/round8.spec.ts:105:5 › 第八轮：未通过改图手动采用、笔记换版、草稿冲突与明确的新尝试 (46.2s)
+  ✓  11 e2e/round8.spec.ts:276:5 › 第八轮：服务端发现未核对通过时，确认原因后携带 accept_unverified 重发 (21.7s)
+  ✓  12 e2e/round8.spec.ts:335:5 › 第八轮：复用标记只在恢复后的 pending_action 中到达，也停止等待新版本 (22.2s)
+  ✓  13 e2e/round9.spec.ts:111:5 › 第九轮：片场入口、两种模式、风格换批与全自动图文视频 (38.7s)
+  ✓  14 e2e/round9.spec.ts:223:5 › 第九轮：引导、登录、注册入口、设置和关于都只显示点数措辞 (909ms)
+  ✓  15 e2e/round9.spec.ts:245:5 › 第九轮：脚本接手恢复确认，出图接手保留已在跑的任务 (22.6s)
+  ✓  16 e2e/workflow.spec.ts:32:5 › 博主从注册、上传到笔记与视频的完整合作流程 (2.3m)
+
+  16 passed (6.7m)
