@@ -16,8 +16,21 @@
 | [docs/spike/](docs/spike/) | 模型实测素材（全部自生成） |
 | [docs/演示脚本.md](docs/演示脚本.md) | 5–8 分钟演示流程与追问答法 |
 | [docs/调研-Chiccify对照.md](docs/调研-Chiccify对照.md) | 对公司现有产品 Chiccify 的功能对照与取舍 |
-| [app/LIVE.md](app/LIVE.md) | App × 线上真实模型的联调报告，13 步耗时与截图（`app/screenshots-live/run-3/`） |
+| [app/LIVE.md](app/LIVE.md) | 10-21 凌晨第一批线上联调报告（历史；最终验收见下方索引） |
+| [docs/评审-独立评估.md](docs/评审-独立评估.md) | 交付前的独立评审（gpt-6.1-sol，只评不改）：六维评分、Top 10 问题、追问清单；第八轮按它修 |
 | [server/FINAL.md](server/FINAL.md) · [server/ADMIN.md](server/ADMIN.md) | 服务端各轮验收报告：局部改像素证据、接缝指标、管理端验收 |
+
+## 最终验收索引（唯一口径）
+
+| 项 | 值 |
+|---|---|
+| 代码基线 | main，见 `git log`（线上服务端与 main 同步部署，`cd server && ./deploy/deploy-ecs.sh`） |
+| 最新一次线上全链路 | 2026-10-21 07:41–07:46（Asia/Shanghai），`app/screenshots-live/run-1/`（evidence.json / http-evidence.json / sse-evidence.json），**13/13 通过**，真实模型（health `mock=false`），390×844 手机视口 Web |
+| 录屏 | `app/screenshots-live/走查视频/线上全链路-注册到视频-原速.mp4`（5 分 05 秒）与 3 倍速版；`walkthrough/线上项目回放.mp4` 是另一已完成项目的界面回看 |
+| 费用口径 | 该项目最终估价 ¥5.69（视频前快照 ¥4.16）；预算上限 100 元，截至 08:00 累计约 70 元 |
+| 已知未达标 | 局部改"袖口放平"两次线上均被还原检查判为未改到位（流程正确呈现失败，不算效果达标）；第八轮起未核对通过的版本不再默认入稿 |
+| 未验证 | iPhone 真机从登录到发布的闭环（模拟器已验证编译启动到登录页）；小红书平台实际发帖 |
+| 历史记录 | `app/LIVE.md`（10-21 00:19–01:01 三轮）、`app/screenshots-live/run-3/`、`app/screenshots-live/batch1/`（如有） |
 
 ## 架构一览
 
