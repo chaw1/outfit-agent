@@ -230,11 +230,20 @@ def tick_auto_project(project_id, graph, session_factory) -> bool:
 
 
 def tick_auto_projects(graph, session_factory) -> bool:
+    from app.graph import get_graph_state
+
     with session_factory() as session:
-        ids = list(session.scalars(select(Project.id).where(
-            Project.mode == "auto", Project.deleted_at.is_(None), Project.stage != "done",
+        candidates = list(session.execute(select(Project.id, Project.stage).where(
+            Project.mode == "auto", Project.deleted_at.is_(None),
         ).order_by(Project.updated_at)))
     changed = False
-    for project_id in ids:
+    for project_id, stage in candidates:
+        # A normal chat can observe a completed video and project stage=done
+        # before the automatic tail step is announced. SQL stage alone must not
+        # hide that unfinished checkpoint; finalized projects need no turn/repair.
+        if stage == "done" and (get_graph_state(graph, project_id).get("auto") or {}).get(
+            "step"
+        ) == "done":
+            continue
         changed = tick_auto_project(project_id, graph, session_factory) or changed
     return changed

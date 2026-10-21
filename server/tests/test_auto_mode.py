@@ -335,3 +335,22 @@ def test_chat_during_auto_does_not_expose_confirmation_or_duplicate_jobs(auto_fl
     assert project.mode == "auto" and state["pending_action"] is None
     assert {job.id for job in session.scalars(select(Job))} == before
     assert advance(session, project, graph)[0] is False
+
+
+def test_chat_that_observes_video_success_cannot_hide_unannounced_done_step(auto_flow):
+    session, project, _, graph = auto_flow
+    reach_images(session, project, graph)
+    complete_jobs(session, project)
+    advance(session, project, graph)
+    advance(session, project, graph)
+    complete_jobs(session, project)
+    run_turn(graph, project, "你好，聊聊", None)
+    session.commit()
+    state = get_graph_state(graph, project.id)
+    assert project.stage == state["stage"] == "done"
+    assert state["auto"]["step"] == "video"
+    factory = sessionmaker(session.get_bind(), expire_on_commit=False)
+    assert tick_auto_projects(graph, factory) is True
+    assert get_graph_state(graph, project.id)["auto"]["step"] == "done"
+    assert tick_auto_projects(graph, factory) is False
+    assert sum(m.text == "全套已出好。" for m in automatic_messages(session, project)) == 1
