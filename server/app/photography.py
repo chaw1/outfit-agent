@@ -34,12 +34,14 @@ DEFAULT_PHOTOGRAPHY = (
 NEGATIVES = "不要棚拍白底、不要对称居中、不要塑料感皮肤。"
 
 
-def expand_photo_prompt(shot: dict, style_tags: list[str], references: list[dict]) -> str:
+def expand_photo_prompt(
+    shot: dict, style_tags: list[str], references: list[dict],
+) -> dict[str, str]:
+    """Return independent photography fields; shot facts are assembled by prompting."""
     matched = [(tag, STYLE_PHOTOGRAPHY[tag]) for tag in style_tags if tag in STYLE_PHOTOGRAPHY]
     focal, light, composition, moment, texture = (
         matched[0][1] if matched else DEFAULT_PHOTOGRAPHY
     )
-    anchors = []
     # The first reference with each actual analysis field is the anchor; an
     # unspecified field may still use style language, rather than invent a fact.
     for field, label in (("lighting", "光线"), ("composition", "构图")):
@@ -47,26 +49,24 @@ def expand_photo_prompt(shot: dict, style_tags: list[str], references: list[dict
                           if item.get(field)), None)
         if reference:
             index, value = reference
-            anchors.append(f"参考图{index}{label}：{value}")
+            anchor = f"参考图{index}{label}：{value}（最高优先锚点，风格词不覆盖参考锚点）"
             if field == "lighting":
-                light = value
+                light = anchor
             else:
-                composition = value
-    anchor_text = (
-        "参考图的构图与光线为最高优先锚点：" + "；".join(anchors)
-        + "。风格词仅补充质感，不覆盖参考锚点。"
-        if anchors else ""
-    )
+                composition = anchor
     style_text = ""
     if matched:
-        style_text = f"主风格：{matched[0][0]}。"
+        style_text = f"主风格：{matched[0][0]}，"
         if len(matched) > 1:
-            style_text += "辅助风格仅补充质感：" + "；".join(
+            style_text += "辅助风格仅补充质感：" + "、".join(
                 f"{tag}（{language[4]}）" for tag, language in matched[1:]
-            ) + "。"
-    original = "；".join(str(shot[key]) for key in ("scene", "pose", "camera") if shot.get(key))
-    return (
-        f"摄影脚本：{anchor_text}{style_text}焦段：{focal}；光线：{light}；"
-        f"构图：{composition}；瞬间：{moment}；质感：{texture}、真实皮肤纹理、不磨皮。"
-        f"镜头原意：{original}。{NEGATIVES}"
-    )
+            ) + "，"
+    if "真实皮肤纹理" not in texture:
+        texture += "、真实皮肤纹理"
+    return {
+        "focal": focal,
+        "light": light,
+        "composition": composition,
+        "moment": moment,
+        "texture": f"{style_text}{texture}、不磨皮",
+    }

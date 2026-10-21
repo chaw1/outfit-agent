@@ -5,6 +5,7 @@ import test_anchor_worker
 
 from app import worker
 from app.models import Job, Project
+from app.prompting import COVER_ANCHOR, PROMPT_FIELDS
 
 anchor_db = test_anchor_worker.anchor_db
 
@@ -17,7 +18,7 @@ def test_photography_prompt_reaches_worker_without_losing_garments_or_cover(anch
         original_payloads = {job_id: dict(session.get(Job, job_id).payload) for job_id in ids}
         for payload in original_payloads.values():
             assert payload["photo_prompt"]
-            assert payload["photo_prompt"] in payload["prompt"]
+            assert all(value in payload["prompt"] for value in payload["photo_prompt"].values())
 
     assert worker.run_once(factory)
     assert calls[0]["job_id"] == ids[0]
@@ -36,10 +37,10 @@ def test_photography_prompt_reaches_worker_without_losing_garments_or_cover(anch
     assert "服装仍严格遵循原衣服参考图" in dependent["prompt"]
     assert inspections[-1]["anchor_asset"] == cover_asset_id
 
-    clothing_protection = "严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变。"
+    clothing_protection = "严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变"
     for call in calls:
         payload = original_payloads[call["job_id"]]
-        assert payload["photo_prompt"] in call["prompt"]
+        assert all(value in call["prompt"] for value in payload["photo_prompt"].values())
         assert "不要棚拍白底" in call["prompt"]
         assert clothing_protection in call["prompt"]
     with factory() as session:
@@ -49,3 +50,7 @@ def test_photography_prompt_reaches_worker_without_losing_garments_or_cover(anch
         assert job.payload["anchor_asset_id"] == cover_asset_id
         assert job.payload["garment_asset_ids"] == garment_ids
         assert job.payload["photo_prompt"] == original_payloads[job.id]["photo_prompt"]
+        assert COVER_ANCHOR in job.payload["prompt_fields"]["人物"]
+        for name in PROMPT_FIELDS:
+            assert f"{name}：{job.payload['prompt_fields'][name]}" in dependent["prompt"]
+        assert dependent["prompt"].count(COVER_ANCHOR) == 1

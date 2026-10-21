@@ -16,6 +16,7 @@ from app.local_edit import prepare_selection
 from app.media import asset_dict
 from app.models import Asset, Job, Project, User, utcnow
 from app.photography import expand_photo_prompt
+from app.prompting import COVER_ANCHOR, build_shot_fields, build_shot_prompt
 from app.providers import ProviderHub
 from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
@@ -729,9 +730,23 @@ class Workflow:
         return (
             "；".join(parts)
             + "。严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变。"
-            + "吊牌、价签、织标贴纸、衣架、包装袋不属于衣服，必须忽略并从成品画面去除。"
-            + self._reference_prompt(state)
         )
+
+    def _shot_prompt(self, state: dict, shot: dict, clothes: list[str], **kwargs) -> dict:
+        references = state.get("references") or []
+        photo = expand_photo_prompt(shot, self.project.style_tags or [], references)
+        profile = self.session.scalar(select(User.profile).where(User.id == self.project.user_id))
+        requirements = kwargs.pop("requirements", "")
+        fields = build_shot_fields(
+            shot=shot, garment_prompt=self._garment_prompt(state, clothes),
+            has_model_photo=bool(self.project.model_asset_id), profile=profile,
+            photo=photo, references=references, **kwargs,
+        )
+        return {
+            "prompt": build_shot_prompt(fields, photo=photo, requirements=requirements),
+            "prompt_fields": fields,
+            "photo_prompt": photo,
+        }
 
     def _preview_directions(self, state: dict) -> list[Job]:
         assert_generation_allowed(self.session, self.project.user_id)
@@ -739,24 +754,17 @@ class Workflow:
         clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
         refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes
         for direction in state["directions"]:
-            photo_prompt = expand_photo_prompt(
-                {"scene": direction["scene"]}, self.project.style_tags or [],
-                state.get("references") or [],
-            )
-            prompt = (
-                f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
-                f"氛围：{direction['mood']}；配色：{direction['palette']}。"
-                + (f"搭配建议：{direction['styling']}。" if direction.get("styling") else "")
-                + self._garment_prompt(state, clothes)
-            )
-            prompt += photo_prompt
+            shot = {
+                **direction,
+                "scene": (f"{direction['scene']}，穿搭方向灵感预览：{direction['name']}，"
+                          f"氛围：{direction['mood']}，配色：{direction['palette']}"),
+            }
             key = f"{self.project.id}:preview:{fingerprint(direction)}"
             payload = {
                 "purpose": "preview",
                 "direction_id": direction["id"],
                 "preview_group": fingerprint([item["id"] for item in state["directions"]]),
-                "prompt": prompt,
-                "photo_prompt": photo_prompt,
+                **self._shot_prompt(state, shot, clothes),
                 "reference_asset_ids": refs,
                 "garment_asset_ids": clothes,
             }
@@ -789,27 +797,12 @@ class Workflow:
         )
         cover_id = str(uuid5(NAMESPACE_URL, cover_key)) if cover_key else None
         for shot in script["shots"]:
-            photo_prompt = expand_photo_prompt(
-                shot, self.project.style_tags or [], state.get("references") or [],
-            )
             references = [self.project.model_asset_id] if self.project.model_asset_id else []
             references = list(dict.fromkeys(references + shot["outfit_asset_ids"]))
-            prompt = (
-                "小红书穿搭摄影，保持参考图中模特身份。"
-                if self.project.model_asset_id
-                else "小红书穿搭摄影，使用成年虚构模特：东亚面孔、小红书博主气质，自然妆容。"
-            )
-            prompt += self._garment_prompt(state, shot["outfit_asset_ids"])
-            prompt += f"场景：{shot['scene']}；动作：{shot['pose']}；镜头：{shot['camera']}。"
-            if shot.get("styling"):
-                # 博主在脚本里确认过的整套搭配：下装、鞋、配饰按这里画，不让模型随机配。
-                prompt += f"整套搭配（已确认）：{shot['styling']}。"
-            prompt += photo_prompt
             payload = {
                 "shot_id": shot["id"],
-                "photo_prompt": photo_prompt,
                 "version": 1,
-                "prompt": prompt,
+                **self._shot_prompt(state, shot, shot["outfit_asset_ids"]),
                 "reference_asset_ids": references,
                 "script_hash": script_hash,
                 "garment_asset_ids": shot["outfit_asset_ids"],
@@ -891,10 +884,12 @@ class Workflow:
             "parent_asset_id": parent.result_asset_id,
             "source_asset_id": parent.result_asset_id,
             "instruction": instruction,
-            "prompt": "保留模特身份和未提到的画面细节。"
-            + self._garment_prompt(state, clothes)
-            + "只做以下修改："
-            + instruction,
+            **self._shot_prompt(
+                state, parent.payload.get("shot", {}), clothes,
+                identity="保留模特身份和未提到的画面细节",
+                identity_anchor=COVER_ANCHOR if anchor_references else "",
+                requirements=f"修改指令优先于原镜头描述，只做以下修改：{instruction}",
+            ),
             "reference_asset_ids": list(dict.fromkeys([
                 parent.result_asset_id, *edit_clothes, *anchor_references,
             ])),

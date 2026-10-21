@@ -4,6 +4,7 @@ import csv
 import hashlib
 import hmac
 import io
+import json
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -372,6 +373,9 @@ def _job_output(job: Job, project: Project, user: User) -> dict:
         end = end.replace(tzinfo=UTC)
     if job.status in {"queued", "running"}:
         end = utcnow()
+    photo_prompt = job.payload.get("photo_prompt")
+    if isinstance(photo_prompt, dict):
+        photo_prompt = json.dumps(photo_prompt, ensure_ascii=False, indent=2)
     return {
         "id": job.id, "project_id": job.project_id, "project_title": project.title,
         "user_id": job.user_id, "username": user.username, "kind": job.kind,
@@ -381,7 +385,7 @@ def _job_output(job: Job, project: Project, user: User) -> dict:
         ),
         "created_at": job.created_at, "updated_at": job.updated_at,
         "cancelled": bool(job.result.get("admin_cancelled")),
-        "photo_prompt": job.payload.get("photo_prompt"),
+        "photo_prompt": photo_prompt,
     }
 
 

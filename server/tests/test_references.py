@@ -183,7 +183,6 @@ def test_no_reference_keeps_original_cards_context_and_garment_prompt(
     assert graph.workflow._reference_prompt(state) == ""
     assert graph.workflow._garment_prompt(state, ["garment"]) == (
         "原衣服1：白色待确认衬衫。严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变。"
-        "吊牌、价签、织标贴纸、衣架、包装袋不属于衣服，必须忽略并从成品画面去除。"
     )
 
 

@@ -7,13 +7,16 @@ from sqlalchemy import select
 from app.graph import run_turn
 from app.models import Job
 from app.photography import NEGATIVES, STYLE_PHOTOGRAPHY, expand_photo_prompt
+from app.prompting import HARD_REQUIREMENTS, PROMPT_FIELDS, build_shot_prompt
 
 flow = test_graph_workflow.flow
 
 
 @pytest.mark.parametrize("tag", [None, *STYLE_PHOTOGRAPHY])
 def test_photo_scripts_include_photography_language_and_explicit_negatives(tag):
-    prompt = expand_photo_prompt({"scene": "街角", "camera": "全身"}, [tag] if tag else [], [])
+    photo = expand_photo_prompt({"scene": "街角", "camera": "全身"}, [tag] if tag else [], [])
+    assert set(photo) == {"focal", "light", "composition", "moment", "texture"}
+    prompt = build_shot_prompt(shot={}, garment_prompt="原衣服", photo=photo)
     for category in ("焦段：", "光线：", "构图：", "瞬间：", "质感：", "mm",
                      "真实皮肤纹理", "不磨皮"):
         assert category in prompt
@@ -27,14 +30,16 @@ def test_photo_scripts_include_photography_language_and_explicit_negatives(tag):
 
 def test_all_twelve_shared_tags_have_distinct_photography_language():
     assert len(STYLE_PHOTOGRAPHY) == 12
-    assert len({expand_photo_prompt({}, [tag], []) for tag in STYLE_PHOTOGRAPHY}) == 12
+    assert len({tuple(expand_photo_prompt({}, [tag], []).values())
+                for tag in STYLE_PHOTOGRAPHY}) == 12
 
 
 def test_reference_light_and_composition_override_style_defaults_without_mutating_input():
     shot = {"scene": "霓虹街角", "pose": "走动", "camera": "全身"}
     refs = [{"lighting": "紫色霓虹侧逆光", "composition": "从路沿低角度斜拍，左侧留白"}]
     before = deepcopy((shot, refs))
-    prompt = expand_photo_prompt(shot, ["咖啡馆午后", "雨天街角"], refs)
+    photo = expand_photo_prompt(shot, ["咖啡馆午后", "雨天街角"], refs)
+    prompt = build_shot_prompt(shot=shot, garment_prompt="原衣服", photo=photo)
     assert "最高优先锚点" in prompt
     assert "光线：紫色霓虹侧逆光" in prompt
     assert "构图：从路沿低角度斜拍，左侧留白" in prompt
@@ -55,11 +60,10 @@ def test_previews_and_formal_shots_store_and_deliver_expansion_without_changing_
     assert any(job.payload.get("purpose") == "preview" for job in jobs)
     assert any(job.payload.get("shot_id") for job in jobs)
     for job in jobs:
-        assert job.payload["photo_prompt"] in job.payload["prompt"]
-        assert "主风格：街头胶片" in job.payload["photo_prompt"]
-        assert "严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变。" in job.payload[
+        assert list(job.payload["prompt_fields"]) == list(PROMPT_FIELDS)
+        assert all(value in job.payload["prompt"] for value in job.payload["photo_prompt"].values())
+        assert "主风格：街头胶片" in job.payload["photo_prompt"]["texture"]
+        assert "严格保持原衣服版型、颜色、面料、纽扣、口袋、logo，不得增删或改变" in job.payload[
             "prompt"
         ]
-        assert "吊牌、价签、织标贴纸、衣架、包装袋不属于衣服，必须忽略并从成品画面去除。" in (
-            job.payload["prompt"]
-        )
+        assert HARD_REQUIREMENTS in job.payload["prompt"]

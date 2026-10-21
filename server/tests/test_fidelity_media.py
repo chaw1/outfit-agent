@@ -143,6 +143,13 @@ def test_low_fidelity_gets_one_durable_repair_with_original_garment_references(
         assert fix.payload["parent_asset_id"] == original.result_asset_id
         assert fix.payload["version"] == 2 and fix.payload["script_version"] == 3
         assert "胸前口袋缺失" in fix.payload["instruction"]
+        assert list(fix.payload["prompt_fields"]) == [
+            "人物", "服装", "场景", "光线", "镜头", "构图", "姿势",
+        ]
+        for name, value in fix.payload["prompt_fields"].items():
+            assert f"{name}：{value}" in fix.payload["prompt"]
+        assert "参考图1为待修图" in fix.payload["prompt_fields"]["人物"]
+        assert "只做以下修改：自动还原修复：胸前口袋缺失" in fix.payload["prompt"]
         assert fix.payload["reference_asset_ids"] == [original.result_asset_id, *ids[2][:2]]
         assert len(fix.payload["reference_asset_ids"]) == 3
         assert session.scalars(select(Message)).all() == []

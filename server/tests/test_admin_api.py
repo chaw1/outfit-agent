@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -242,18 +243,22 @@ def test_job_retry_and_cancel_change_worker_queue(admin_api):
     assert len(jobs) == 1 and jobs[0]["id"] == cancel_id
 
 
-def test_admin_queue_exposes_photo_script_and_old_jobs_return_null(admin_api):
+@pytest.mark.parametrize("structured", [True, False])
+def test_admin_queue_exposes_photo_script_and_old_jobs_return_null(admin_api, structured):
     client, factory, user_id, project_id = admin_api
     prompt = '50mm，窗光，胶片颗粒\n<svg onload="alert(1)">不要居中 & 保留衣服细节'
+    if structured:
+        prompt = {"focal": "50mm", "texture": prompt}
+    expected = json.dumps(prompt, ensure_ascii=False, indent=2) if structured else prompt
     scripted_id = _job(factory, user_id, project_id, payload={"photo_prompt": prompt})
     legacy_id = _job(factory, user_id, project_id)
     response = client.get("/api/admin/jobs")
     assert response.status_code == 200
     rows = {row["id"]: row for row in response.json()}
-    assert rows[scripted_id]["photo_prompt"] == prompt
+    assert rows[scripted_id]["photo_prompt"] == expected
     assert rows[legacy_id]["photo_prompt"] is None
     retried = client.post(f"/api/admin/jobs/{scripted_id}/retry")
-    assert retried.status_code == 200 and retried.json()["photo_prompt"] == prompt
+    assert retried.status_code == 200 and retried.json()["photo_prompt"] == expected
 
 
 def test_admin_photo_script_markup_escapes_payload_and_keeps_line_breaks():
