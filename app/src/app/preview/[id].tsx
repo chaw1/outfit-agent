@@ -23,7 +23,7 @@ import { saveImages, saveVideo, shareNote } from '../../lib/media';
 import { noteText, preparePublish, savedImagesAreInOrder, videoKey, type PublishProgress } from '../../lib/publish';
 import { readPublishCheckpoint, writePublishCheckpoint } from '../../lib/publishCheckpoint';
 import { observeGeneration } from '../../lib/notificationRuntime';
-import { applyNoteDraft, cleanTag, draftFromNote, limitTitle, moveDraftImage, NOTE_TITLE_LIMIT, readNoteDraft, titleLength, writeNoteDraft, type NoteDraft } from '../../lib/noteDraft';
+import { applyNoteDraft, changeNoteDraft, cleanTag, draftFromNote, hasNoteDraftConflict, keepNoteDraft, limitTitle, moveDraftImage, NOTE_TITLE_LIMIT, readNoteDraft, readPreviousNoteDraft, reconcileNoteDraft, titleLength, writeNoteDraft, writePreviousNoteDraft, type NoteDraft } from '../../lib/noteDraft';
 import { localDraftStorage } from '../../lib/noteDraftStorage';
 
 function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url?: string; index: number; onRefresh: () => void; disabled?: boolean }) {
@@ -65,6 +65,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   const [saveFailed, setSaveFailed] = useState(false);
   const checkpointScope = `${api.baseUrl}|${user?.id ?? 'anonymous'}|${projectId ?? 'missing'}`;
   const [draft, setDraft] = useState<NoteDraft | null>(() => readNoteDraft(checkpointScope, localDraftStorage));
+  const [previousDraft, setPreviousDraft] = useState<NoteDraft | null>(() => readPreviousNoteDraft(checkpointScope, localDraftStorage));
   const [draftStatus, setDraftStatus] = useState(() => draft ? '已恢复本地草稿' : '');
   const [tagInput, setTagInput] = useState('');
   const carouselRef = useRef<ComponentRef<typeof ScrollView>>(null);
@@ -94,7 +95,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         const [next, history] = await Promise.all([api.state(projectId), api.messages(projectId)]);
         if (alive) {
           setState(next);
-          if (next.note) setDraft(current => current ?? draftFromNote(next.note!));
+          if (next.note) setDraft(current => reconcileNoteDraft(next.note!, current));
           setNotFound(false);
           observeGeneration(projectId, '合作项目', next);
           setEditActions(history.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : []));
@@ -118,18 +119,19 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   }, [api, projectId, retry]));
 
   const note = state?.note ? applyNoteDraft(state.note, draft) : undefined;
+  const draftConflict = state?.note ? hasNoteDraftConflict(state.note, draft) : false;
   const aiConfirmed = draft?.aiConfirmed ?? true;
   const titleCount = titleLength(note?.title ?? '');
   const titleValid = !!note?.title.trim() && titleCount <= NOTE_TITLE_LIMIT;
   const images = note?.image_ids.map(imageId => {
     const source = state?.images.find(image => image.id === imageId);
-    return { id: imageId, url: source?.url, status: source?.status, source };
+    return { id: imageId, url: source?.url, status: source?.status, source, manuallyAccepted: note.accepted_unverified_ids?.includes(imageId) ?? false };
   }) ?? [];
   const nickname = user?.nickname || user?.username || '我的穿搭日记';
 
   function updateDraft(changes: Partial<NoteDraft>) {
     if (!note || savingRef.current) return;
-    setDraft(current => ({ ...(current ?? draftFromNote(note)), ...changes }));
+    setDraft(current => changeNoteDraft(current ?? draftFromNote(note), changes));
     setDraftStatus('有未保存的编辑，离开前请保存');
     setCopied(false);
     setSaveFeedback('');
@@ -163,6 +165,40 @@ function PreviewPage({ projectId }: { projectId?: string }) {
       setDraftStatus('草稿未能保存，请重试');
       setActionError('本机存储暂时不可用，草稿未能保存。请重试或先复制文案。');
     }
+  }
+
+  function resolveDraft(keepLocal: boolean) {
+    if (!state?.note || savingRef.current) return;
+    const next = keepLocal && draft ? keepNoteDraft(state.note, draft) : draftFromNote(state.note);
+    if (!keepLocal && draft?.dirty) {
+      if (!writePreviousNoteDraft(checkpointScope, draft, localDraftStorage)) {
+        setActionError('本机存储暂时不可用，先保留你的修改，稍后再试。');
+        return;
+      }
+      setPreviousDraft(draft);
+    }
+    if (!writeNoteDraft(checkpointScope, next, localDraftStorage)) {
+      setActionError('本机存储暂时不可用，版本选择未保存，请重试。');
+      return;
+    }
+    setDraft(next);
+    setDraftStatus(keepLocal ? '已保留你的修改，草稿已保存到本机' : '已采用服务端最新笔记');
+    setActionError(''); setCopied(false); setSaveFeedback('');
+    setPage(0);
+    carouselRef.current?.scrollTo({ x: 0, animated: false });
+  }
+
+  function restorePreviousDraft() {
+    if (!previousDraft || savingRef.current) return;
+    if (!writeNoteDraft(checkpointScope, previousDraft, localDraftStorage)) {
+      setActionError('本机存储暂时不可用，草稿未能恢复，请重试。');
+      return;
+    }
+    setDraft(previousDraft);
+    setDraftStatus('已恢复你的上一份修改');
+    setActionError(''); setCopied(false); setSaveFeedback('');
+    setPage(0);
+    carouselRef.current?.scrollTo({ x: 0, animated: false });
   }
 
   function backToStudio() {
@@ -254,18 +290,28 @@ function PreviewPage({ projectId }: { projectId?: string }) {
   }
 
   async function editImage(action: Action) {
-    if (!projectId || editing) return;
+    if (!projectId || editing) return false;
     setEditing(true); setActionError('');
+    let reused: boolean | undefined;
     try {
-      await api.sendMessage(projectId, { action }, { onEvent: () => {} });
-      try { const next = await api.state(projectId); setState(next); observeGeneration(projectId, '合作项目', next); }
+      const result = await api.sendMessage(projectId, { action }, { onEvent: event => {
+        if ((event.type === 'job' || event.type === 'done') && typeof event.data.reused === 'boolean') reused = event.data.reused;
+      } });
+      if (typeof result.reused === 'boolean') reused = result.reused;
+      try {
+        const next = await api.state(projectId); setState(next);
+        if (next.pending_action?.type === 'edit_image' && typeof next.pending_action.reused === 'boolean') reused = next.pending_action.reused;
+        if (next.note) setDraft(current => reconcileNoteDraft(next.note!, current));
+        observeGeneration(projectId, '合作项目', next);
+      }
       catch (cause) { setActionError(`修改已提交，进度暂时没同步：${errorText(cause)}`); }
       setRetry(value => value + 1);
-    } catch (cause) { setActionError(errorText(cause)); throw cause; }
+      return { accepted: true, ...(typeof reused === 'boolean' ? { reused } : {}) };
+    } catch (cause) { if (!(cause instanceof ApiError) || cause.code !== 'unverified_image') setActionError(errorText(cause)); throw cause; }
     finally { setEditing(false); }
   }
 
-  return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note'].includes(state?.stage ?? '')} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
+  return <ImageInteractions images={state?.images ?? []} editActions={editActions} busy={editing} canEdit={['images', 'note'].includes(state?.stage ?? '')} stage={state?.stage} note={state?.note} pendingAction={state?.pending_action} onAction={editImage} onReference={image => { if (projectId) router.dismissTo({ pathname: '/projects/[id]', params: { id: projectId, refImage: image.id } }); }}><Page>
     <Header title="编辑笔记" subtitle="把灵感，穿进日常" onBack={backToStudio} />
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       {!!error && !!state && <View style={styles.notice}><Notice text={error} onRetry={() => setRetry((value) => value + 1)} /></View>}
@@ -276,6 +322,14 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         actionLabel={notFound ? '返回项目列表' : error ? '重试' : '返回工作台'}
         onAction={error && !notFound ? () => setRetry(value => value + 1) : backToStudio}
       /> : <>
+        {draftConflict ? <View style={styles.draftConflict} testID="note-draft-conflict" accessibilityRole="alert">
+          <Text style={styles.videoTitle}>笔记有新版本</Text>
+          <Text style={styles.checklistHint}>你的修改还在。选一下这次发布用哪一版。</Text>
+          <View style={styles.conflictButtons}>
+            <Button title="保留我的修改" variant="secondary" disabled={preparing || saving} onPress={() => resolveDraft(true)} testID="keep-note-draft" />
+            <Button title="采用新版本" disabled={preparing || saving} onPress={() => resolveDraft(false)} testID="adopt-server-note" />
+          </View>
+        </View> : null}
         <View onLayout={(event) => setCarouselWidth(event.nativeEvent.layout.width)} style={styles.carouselFrame}>
           <ScrollView
             ref={carouselRef}
@@ -290,6 +344,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             {images.map((image, index) => <View key={image.id} style={{ width: carouselWidth, aspectRatio: 3 / 4 }}>
               <PreviewImage id={image.id} url={image.url} index={index} disabled={preparing || saving} onRefresh={() => setRetry(value => value + 1)} />
               {image.source ? <View pointerEvents="none" style={{ position: 'absolute', top: space.xl + space.lg, left: space.sm, right: space.sm, bottom: 0 }}><FidelityBadge image={image.source} /></View> : null}
+              {image.manuallyAccepted ? <View pointerEvents="none" style={styles.manualBadge}><Badge label="手动采用" tone="brand" /></View> : null}
             </View>)}
           </ScrollView>
           {images.length > 0 ? <View style={styles.pageBadge}><Badge label={`${Math.min(page + 1, images.length)} / ${images.length}`} tone="inverse" /></View> : null}
@@ -319,12 +374,16 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Text style={styles.checklistHint}>第一张作为封面，保存和发布时按这个顺序。</Text>
             {images.map((image, index) => <View key={image.id} style={styles.orderRow} testID={`note-image-order-${image.id}`}>
               {image.url ? <FadeImage source={{ uri: image.url }} style={styles.orderThumbnail} /> : <View style={styles.orderThumbnail}><Ionicons name="image-outline" size={22} color={colors.muted} /></View>}
-              <Text style={styles.orderLabel}>图片 {index + 1}{index === 0 ? ' · 封面' : ''}</Text>
+              <Text style={styles.orderLabel}>图片 {index + 1}{index === 0 ? ' · 封面' : ''}{image.manuallyAccepted ? ' · 手动采用' : ''}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 前移`} accessibilityState={{ disabled: index === 0 || preparing || saving }} disabled={index === 0 || preparing || saving} onPress={() => reorderImage(index, -1)} testID={`move-note-image-${image.id}-earlier`} style={[styles.orderButton, (index === 0 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-up" size={18} color={colors.redText} /></Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 后移`} accessibilityState={{ disabled: index === images.length - 1 || preparing || saving }} disabled={index === images.length - 1 || preparing || saving} onPress={() => reorderImage(index, 1)} testID={`move-note-image-${image.id}-later`} style={[styles.orderButton, (index === images.length - 1 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-down" size={18} color={colors.redText} /></Pressable>
             </View>)}
           </View>
           <View style={styles.draftNotice}><Ionicons name="save-outline" size={16} color={colors.muted} /><View style={{ flex: 1, gap: space.xs }}><Text style={styles.checklistHint}>编辑会在本机覆盖发布文案，原始笔记保留在工作台。草稿保存在当前设备。</Text>{!!draftStatus && <Text testID="note-draft-status" accessibilityLiveRegion="polite" style={styles.draftStatus}>{draftStatus}</Text>}</View></View>
+          <View style={styles.draftActions}>
+            <Button title="恢复服务端版本" variant="ghost" icon="refresh-outline" disabled={preparing || saving} onPress={() => resolveDraft(false)} testID="restore-server-note" />
+            {previousDraft ? <Button title="恢复我的草稿" variant="ghost" disabled={preparing || saving} onPress={restorePreviousDraft} testID="restore-previous-note-draft" /> : null}
+          </View>
           <NoteDisclosure note={note} projectCost={state?.cost_cny} />
           <View style={styles.noteEnd}><View style={styles.endLine} /><Text style={styles.endLabel}>记录穿搭，也记录自己</Text><View style={styles.endLine} /></View>
           {state?.video?.url ? <View style={styles.videoSection}><View style={styles.videoHeading}><Ionicons name="videocam-outline" size={17} color={colors.red} /><Text style={styles.videoTitle}>你的 5 秒穿搭短片</Text></View><VideoPlayer uri={state.video.url} posterUrl={state.video.poster_url} testID="video-player" /></View> : state?.video && ['queued', 'running'].includes(state.video.status) ? <ProgressStrip title="短片正在制作" detail="好了会出现在这里，你可以继续查看笔记。" /> : state?.video?.status === 'failed' ? <View style={styles.videoSection}><Notice text="短片这次没能完成，图文笔记已经为你保留。" /><Button title="回工作台重试短片" variant="secondary" icon="refresh" onPress={backToStudio} testID="retry-video-in-studio" /></View> : null}
@@ -333,7 +392,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Text style={styles.checklistHint}>{images.length} 张图片，按以下顺序保存{Platform.OS === 'web' ? '到下载目录' : '到相册'}。图片已有 AI 角标。</Text>
             {!savedImagesAreInOrder(note.image_ids, publishProgress.savedImageIds) ? <Text accessibilityRole="alert" testID="publish-order-changed" style={styles.actionError}>图片顺序已调整。已保存的图片不会重复下载，请在发布平台按这份清单重新排列。</Text> : null}
             <Text testID="publish-copy" style={styles.checklistItem}>{publishProgress.copiedText === noteText(note) ? '✓ 文案已复制' : '○ 文案待复制'}</Text>
-            {images.map((image, index) => <Text key={image.id} testID={`publish-image-${image.id}`} style={styles.checklistItem}>{publishProgress.savedImageIds.includes(image.id) ? '✓' : '○'} 图片 {index + 1}{index === 0 ? ' · 封面' : ''} · {publishProgress.savedImageIds.includes(image.id) ? '已保存' : image.url && image.status === 'succeeded' ? '待保存' : '等待生成'}</Text>)}
+            {images.map((image, index) => <Text key={image.id} testID={`publish-image-${image.id}`} style={styles.checklistItem}>{publishProgress.savedImageIds.includes(image.id) ? '✓' : '○'} 图片 {index + 1}{index === 0 ? ' · 封面' : ''}{image.manuallyAccepted ? ' · 手动采用' : ''} · {publishProgress.savedImageIds.includes(image.id) ? '已保存' : image.url && image.status === 'succeeded' ? '待保存' : '等待生成'}</Text>)}
             <Text testID="publish-video" style={styles.checklistItem}>{state?.video?.status === 'succeeded'
               ? `${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '✓' : '○'} 视频 · ${publishProgress.savedVideoKeys.includes(videoKey(state.video) ?? '') ? '已保存' : '待保存'}`
               : state?.video && ['queued', 'running'].includes(state.video.status) ? '○ 视频 · 制作中，完成后继续' : state?.video?.status === 'failed' ? '— 视频未生成成功，本次仅发布图文' : '— 无视频，本次发布图文'}</Text>
@@ -373,6 +432,7 @@ const styles = StyleSheet.create({
   placeholderText: { ...type.caption, color: colors.muted },
   pageBadge: { position: 'absolute', right: space.lg, top: space.lg },
   coverBadge: { position: 'absolute', left: space.lg, top: space.lg },
+  manualBadge: { position: 'absolute', left: space.lg, bottom: space.lg },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: space.sm, marginTop: space.lg },
   dot: { height: space.xs, width: space.xs, borderRadius: radius.sm, backgroundColor: colors.border },
   dotActive: { width: space.lg, backgroundColor: colors.red },
@@ -399,6 +459,9 @@ const styles = StyleSheet.create({
   orderButton: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.blush, alignItems: 'center', justifyContent: 'center' },
   disabledControl: { opacity: 0.35 },
   draftNotice: { padding: space.md, backgroundColor: colors.paper, borderRadius: radius.sm, flexDirection: 'row', gap: space.sm },
+  draftConflict: { margin: space.lg, padding: space.lg, backgroundColor: colors.blush, borderRadius: radius.md, gap: space.md },
+  conflictButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  draftActions: { gap: space.xs },
   draftStatus: { ...type.caption, color: colors.green },
   noteEnd: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   endLine: { height: 1, backgroundColor: colors.border, flex: 1 },

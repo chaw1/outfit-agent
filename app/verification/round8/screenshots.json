@@ -1,0 +1,93 @@
+[
+  {
+    "file": "screenshots/77-directions-regenerate-estimate.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 65210,
+    "sha256": "8bdd14d5b0d2dbeaa285893bc1a680c680be5aa1607937ce546b66d1d87f97b0"
+  },
+  {
+    "file": "screenshots/78-unverified-does-not-replace-default.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 166688,
+    "sha256": "e74cb12ab60cc477e3ae50eaec325ef2dd4eea6e0b0674939828e61311cce6ff"
+  },
+  {
+    "file": "screenshots/79-unverified-adoption-confirmation.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 171788,
+    "sha256": "f0179e3d538df733583d79f9bf97a5d0c2b72ac98a615d60ecf69616cde2a8af"
+  },
+  {
+    "file": "screenshots/80-preview-manually-adopted-image.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 297171,
+    "sha256": "3ab4a06bae0600bfe3add4c8b44e8dcf8ec66f8a278dd0984a95e858b2ce5a5c"
+  },
+  {
+    "file": "screenshots/81-note-stage-adopt-new-version.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 221189,
+    "sha256": "417805c0caea2ffad12277d65f61a6a0c89ad48842dcd614b4246ab4961be024"
+  },
+  {
+    "file": "screenshots/82-draft-conflict-preserves-local-edits.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 269937,
+    "sha256": "cbf960777a2963e6d3a7cad4b680e863e4bd4f87a1666aef778b9860f90fb2a5"
+  },
+  {
+    "file": "screenshots/83-draft-conflict-keep-my-edits.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 89094,
+    "sha256": "512e5e1efcc4e188f5c0e03721a05ea03d1265aeb819d4639fe0272aceb2d5e8"
+  },
+  {
+    "file": "screenshots/84-draft-conflict-adopt-server-version.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 97255,
+    "sha256": "9076cc5102bb777927de90d2f9f76f39a591bb1bcc571ecd6ecd7bce41127144"
+  },
+  {
+    "file": "screenshots/85-reused-edit-stops-waiting.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 224029,
+    "sha256": "5b8c22ec14137276c506d903c3b55cb8f39cd0b9eb29cefdf82ee1732e036639"
+  },
+  {
+    "file": "screenshots/86-server-unverified-fallback-confirmation.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 77111,
+    "sha256": "00b66d6c404b24d4ecc961064bfd79b6123224ca0edda8414efbe328c1cfeece"
+  },
+  {
+    "file": "screenshots/87-server-confirmed-manual-image-preview.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 303665,
+    "sha256": "0640795c1a66d5cb87526dca291a8145b5a14d781d71cc669ae91d57657a79c8"
+  },
+  {
+    "file": "screenshots/88-note-reselection-keeps-shot-order.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 108776,
+    "sha256": "caa4d8623a5f8243a43f8d4fd1d28f29918cdb64ac4c8fc9e5876271bb483a0f"
+  },
+  {
+    "file": "screenshots/89-reused-from-recovered-pending-action.png",
+    "width": 390,
+    "height": 844,
+    "bytes": 289501,
+    "sha256": "b84e6ee6c6f8378b228a94572886714b1cf54d83fa0a4a1ab6281bc88bc0e3e4"
+  }
+]

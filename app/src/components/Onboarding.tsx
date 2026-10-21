@@ -8,7 +8,7 @@ import { colors, radius, space, type } from '../theme';
 const KEY = 'outfit.onboarding.v1';
 const slides = [
   { icon: 'sparkles-outline', title: '把品牌需求，穿成你的风格', body: '上传衣服图，聊灵感、定脚本、出图和改图，最后整理成图文笔记与短视频。' },
-  { icon: 'checkmark-circle-outline', title: '花钱前，由你来确认', body: '整理方向时会自动生成灵感预览并产生费用；正式批量出图和视频会单独请你确认，改图提交前也请检查。项目里可以看到累计估算费用。' },
+  { icon: 'checkmark-circle-outline', title: '正式出图和视频，由你确认', body: '整理方向时会自动生成灵感预览并产生费用；正式批量出图和视频会单独请你确认，改图提交前也请检查。项目里可以看到累计估算费用。' },
   { icon: 'document-text-outline', title: '创作有 AI，发布有声明', body: '图片带有生成标识。准备发布时核对文案与媒体，并在目标平台勾选 AI 内容声明。' },
 ] as const;
 export function Onboarding() {

@@ -87,3 +87,10 @@ test('reference cards and consistency metadata survive fragmented SSE unchanged'
   parser.finish();
   assert.deepEqual(events, cards.map(data => ({ type: 'card', data })));
 });
+
+test('edit reuse metadata is retained on both task and done responses without changing legacy done', () => {
+  assert.deepEqual(parseStreamEvent({ event: 'done', data: '{"message_id":"m1","reused":true}' }), { type: 'done', data: { message_id: 'm1', reused: true } });
+  assert.deepEqual(parseStreamEvent({ event: 'done', data: '{"message_id":"m2","reused":false}' }), { type: 'done', data: { message_id: 'm2', reused: false } });
+  const job = { id: 'old-task', status: 'succeeded', reused: true };
+  assert.deepEqual(parseStreamEvent({ event: 'job', data: JSON.stringify(job) }), { type: 'job', data: job });
+});

@@ -1,0 +1,31 @@
+第八轮交付摘要
+
+目录：/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app
+分支：feat/app；仅本地提交，不 push。
+唯一契约：docs/设计.md 第 13.1–13.6 节。App 与本地假服务的六项要求全部完成。
+
+做了什么
+1. 每镜头默认选最新成功且核对通过的版本；未通过图显示“未改到位”，不自动入选。查看器与选图提供原因确认，approve_images 携带 accept_unverified；收到 unverified_image 后确认再重发。预览和发布清单标“手动采用”，保留旧草稿时也保留这个标记。
+2. 改图使用 UUID attempt；同一次传输重试复用，明确“再试一次 / 换个说法”换新 attempt，保留原父图与选区。消费 job / done / pending_action.reused，显示“这次和上次一样，没有重新生成”，不再空等新 ID；首次状态读取失败、后续轮询才收到复用标记也覆盖。
+3. note 阶段支持查看器“采用此版本到笔记”和笔记卡“重新选图”。同镜头原位替换并保持封面、顺序，重新 approve_images；干净预览与发布清单跟随 note.image_ids。video/done 保持定稿，迟到的 note 卡不会解锁。
+4. 草稿保存 SHA-256 sourceFingerprint 与 dirty；干净草稿跟随服务端，冲突时提供“保留我的修改 / 采用新版本”，常驻“恢复服务端版本”。明确切换前备份本机修改，可恢复；兼容旧草稿。
+5. REST 用 AbortController 分类超时：读 20 秒、写 60 秒、上传 120 秒，响应体接收也计时，写入不自动重放；创建超时先刷新项目列表，再让用户判断。所有上传入口显示“第 n/N 张”。SSE 保持 120 秒。
+6. “换一组”旁显示服务返回的估价与“含 2–3 张预览”，轮询不丢估价；引导第二页标题已修改。新字段缺失时兼容旧服务。
+
+确认层放在查看器自身 Modal 内，避免 iOS 同级 Modal 无法可靠呈现；返回键先取消确认并保留查看器。沿用现有主题 token 与提示组件，没有重做原有查看器交互。
+假服务同步支持新字段、明确采用持久化、attempt 去重/复用、note 阶段重选与费用提示。app/README.md 已补“第八轮”。
+
+怎么验证
+- Node v22.23.1；npm run verify 全通过：typecheck、lint、137 项单测、iOS 导出、Android 导出。
+- 最终版本 npx playwright test：13/13 通过，约 5.7 分钟；此前一轮完整回归同样 13/13 通过。
+- 新增 e2e/round8.spec.ts 三条：可信闭环、服务端 unverified_image 兜底、状态读取失败后从 pending_action 恢复 reused。覆盖返回键/取消/确认、note 换版与重选顺序、草稿两个分支与恢复、真实丢响应后同 attempt 重放、明确重试换 attempt。
+- 新增单测覆盖默认选择、attempt 复用/更换、草稿指纹/冲突、超时分类与创建恢复；同时检查估价合并与定稿阶段不倒退。
+- screenshots/77–89 共 13 张，已目视检查关键画面；screenshots/round8-evidence.json 三个验证分支的 pageErrors 均为 0。
+- 完整日志、导出摘要、E2E JSON、截图哈希与范围自检：app/verification/round8/。
+- git diff --check 通过；server/、docs/设计.md、e2e/live.spec.ts、screenshots-live/ 均未改动。原有未跟踪 verification/fix5/、fix6/ 保留。
+
+没做什么
+- 未连接线上、未跑 npm run test:live、未调用付费模型、未访问前公司环境。
+- 未修改真实服务端；该部分仍由另一 worktree 按同一契约实现。
+- 未做 iOS/Android 真机安装、原生系统相册/分享或模拟器实测；本轮原生验证为双平台导出及确认层源码检查。
+- 无未完成的本轮 App 契约项；未 push。

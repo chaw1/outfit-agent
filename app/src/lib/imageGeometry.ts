@@ -99,7 +99,7 @@ export function imageVersionFamily<T extends VersionedImage>(images: readonly T[
 }
 
 /** Duplicate instructions can target different masks: pair submitted actions with result order. */
-export function editActionForResult<T extends { image_id: string; instruction: string }>(
+export function editActionForResult<T extends { image_id: string; instruction: string; attempt?: string }>(
   images: readonly (VersionedImage & { instruction?: string })[],
   actions: readonly T[],
   resultId: string,
@@ -107,6 +107,14 @@ export function editActionForResult<T extends { image_id: string; instruction: s
   const result = images.find(image => image.id === resultId);
   if (!result?.parent_id || !result.instruction) return undefined;
   const siblings = images.filter(image => image.parent_id === result.parent_id && image.instruction === result.instruction).sort((a, b) => a.version - b.version || a.id.localeCompare(b.id));
-  const matchingActions = actions.filter(action => action.image_id === result.parent_id && action.instruction === result.instruction);
+  const seen = new Set<string>();
+  const matchingActions = actions.filter(action => {
+    if (action.image_id !== result.parent_id || action.instruction !== result.instruction) return false;
+    if (!action.attempt) return true;
+    const key = JSON.stringify(action);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return matchingActions[siblings.findIndex(image => image.id === result.id)];
 }

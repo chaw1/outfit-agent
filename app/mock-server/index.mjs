@@ -197,7 +197,7 @@ export async function createMockServer(options = {}) {
   }
   function publicJob(job, base) {
     const { id, project_id, kind, status, result_asset_id, error, created_at, updated_at } = job;
-    return { id, project_id, kind, status, ...(result_asset_id ? { result_asset_id, url: mediaUrl(result_asset_id, base) } : {}), ...(error ? { error } : {}), created_at, updated_at };
+    return { id, project_id, kind, status, ...(job.reused !== undefined ? { reused: job.reused } : {}), ...(result_asset_id ? { result_asset_id, url: mediaUrl(result_asset_id, base) } : {}), ...(error ? { error } : {}), created_at, updated_at };
   }
   function publicProject(project, base) {
     const { id, title, brand, brief, stage, created_at, updated_at, coverAssetId } = project;
@@ -232,7 +232,7 @@ export async function createMockServer(options = {}) {
     const contents = {
       garments: { items: state.garments },
       references: { items: (project.references || []).map((item) => ({ ...item, url: mediaUrl(item.asset_id, base) })) },
-      directions: { options: state.directions },
+      directions: { options: state.directions, ...(!options.legacyProfile ? { regenerate_estimate_cny: money(3 * PRICES.preview) } : {}) },
       script: state.script,
       images: { items: state.images },
       note: state.note,
@@ -583,7 +583,7 @@ export async function createMockServer(options = {}) {
     return draft;
   }
   function normalizedAction(action) {
-    const fields = { choose_direction: ['direction_id'], confirm_script: [], edit_image: ['image_id', 'instruction'], approve_images: ['image_ids'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
+    const fields = { choose_direction: ['direction_id'], confirm_script: [], edit_image: ['image_id', 'instruction', 'attempt'], approve_images: ['image_ids', 'accept_unverified'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
     return { type: action.type, ...Object.fromEntries(fields[action.type].map((key) => [key, action[key]])), ...(action.type === 'edit_image' ? editSelection(action) : {}) };
   }
   function processMessage(project, body, base) {
@@ -607,6 +607,7 @@ export async function createMockServer(options = {}) {
     let types = [];
     let reply = '';
     let tool = 'chat';
+    let reused;
     if (action) {
       switch (action.type) {
         case 'choose_direction': {
@@ -660,8 +661,19 @@ export async function createMockServer(options = {}) {
           const instruction = typeof action.instruction === 'string' ? action.instruction.trim() : '';
           if (!original || !instruction) throw failure(400, 'INVALID_EDIT', '请选择一张已完成的图片，并写下修改想法');
           const selection = editSelection(action);
-          requireBudget(project, PRICES.edit);
+          if (action.attempt !== undefined && (typeof action.attempt !== 'string' || !action.attempt.length || action.attempt.length > 64)) throw failure(400, 'INVALID_ATTEMPT', '这次改图的尝试编号需要是 1–64 个字符');
           tool = 'edit_image';
+          const editKey = action.attempt === undefined ? undefined : createHash('sha256').update(JSON.stringify([original.id, instruction, selection, action.attempt])).digest('hex');
+          const existing = editKey && db.jobs.find((job) => job.project_id === project.id && job.editKey === editKey);
+          if (existing) {
+            reused = true;
+            jobs.push({ ...existing, reused });
+            types = ['images'];
+            reply = '这次和上次一样，没有重新生成。';
+            break;
+          }
+          requireBudget(project, PRICES.edit);
+          reused = false;
           const isLocal = Boolean(selection.region || selection.mask_strokes);
           const source = db.assets.find((item) => item.id === original.assetId);
           const region = selectionBounds(selection, source.width, source.height);
@@ -669,7 +681,7 @@ export async function createMockServer(options = {}) {
           if (isLocal) project.localEditCheckDemonstrated = true;
           const image = { id: newId('image'), shot_id: original.shot_id, status: 'queued', version: Math.max(...state.images.filter((item) => item.shot_id === original.shot_id).map((item) => item.version)) + 1, parent_id: original.id, instruction, script_version: original.script_version, ...(original.anchor_id ? { anchor_id: original.anchor_id } : {}), ...(region ? { region } : {}), editSelection: selection };
           state.images.push(image);
-          jobs.push(queueJob(project, 'edit', image, 0, { editCheckShouldFail }));
+          jobs.push({ ...queueJob(project, 'edit', image, 0, { editCheckShouldFail, ...(editKey ? { editKey } : {}) }), reused });
           types = ['images'];
           reply = `收到，我按“${instruction}”修改这张，原图会保留，你可以对比后再选。`;
           break;
@@ -678,11 +690,18 @@ export async function createMockServer(options = {}) {
           if (!['images', 'note', 'done'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '请先生成图片，再选择笔记用图');
           const ids = action.image_ids;
           if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length || ids.some((id) => !state.images.some((item) => item.id === id && item.status === 'succeeded'))) throw failure(400, 'INVALID_IMAGES', '请选择已生成完成的图片，每张只选一次');
+          const accepted = action.accept_unverified === undefined ? [] : action.accept_unverified;
+          if (!Array.isArray(accepted) || new Set(accepted).size !== accepted.length || accepted.some((id) => typeof id !== 'string' || !ids.includes(id))) throw failure(400, 'INVALID_ACCEPT_UNVERIFIED', '请只确认本次笔记中选择的图片，每张只确认一次');
+          const unverified = ids.map((id) => state.images.find((image) => image.id === id)).filter((image) => image.edit_check?.passed === false);
+          const missing = unverified.filter((image) => !accepted.includes(image.id));
+          if (missing.length) throw failure(409, 'unverified_image', missing.map((image) => `镜头 ${state.script.shots.findIndex((shot) => shot.id === image.shot_id) + 1}：${image.edit_check.reason}`).join('\n'));
           tool = 'write_note';
+          const confirmedChanges = ids.map((id) => state.images.find((image) => image.id === id)).filter((image) => image.instruction && (image.edit_check?.passed === true || accepted.includes(image.id))).map((image) => image.instruction);
           state.note = {
             title: state.script.title_ideas[0],
-            body: `最近喜欢把穿搭做减法，舒服自在就很好。\n\n这次和${project.brand}一起，把喜欢的单品穿进日常。干净的颜色、舒服的版型，随手一搭就能出门。\n\n${state.script.shots.map((shot) => shot.caption).join('。')}。\n\n你们更喜欢哪一张？欢迎一起聊聊今日穿搭。`,
+            body: `最近喜欢把穿搭做减法，舒服自在就很好。\n\n这次和${project.brand}一起，把喜欢的单品穿进日常。干净的颜色、舒服的版型，随手一搭就能出门。\n\n${state.script.shots.map((shot) => shot.caption).join('。')}。${confirmedChanges.length ? `\n\n画面调整：${confirmedChanges.join('；')}。` : ''}\n\n你们更喜欢哪一张？欢迎一起聊聊今日穿搭。`,
             tags: ['今日穿搭', '穿搭灵感', '日常穿搭', project.brand], image_ids: [...ids],
+            accepted_unverified_ids: unverified.map((image) => image.id),
             cost_cny: state.cost_cny || 0,
             ai_label: '本篇图片和视频含 AI 生成内容，发布时请勾选平台的 AI 内容声明。',
           };
@@ -758,7 +777,7 @@ export async function createMockServer(options = {}) {
     const userMessage = { id: newId('message'), role: 'user', text: typeof body.text === 'string' ? body.text.trim() : '', cards: [], ...(action ? { action: normalizedAction(action) } : {}), ...(refs !== undefined ? { refs: [...refs] } : {}), created_at: now() };
     const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: jobs.length === 0, created_at: now() };
     project.messages.push(userMessage, assistant);
-    return { reply, cards: types.map((type) => card(project, type, base)), jobs: jobs.map((job) => publicJob(job, base)), message_id: assistant.id, trace };
+    return { reply, cards: types.map((type) => card(project, type, base)), jobs: jobs.map((job) => publicJob(job, base)), message_id: assistant.id, trace, ...(reused === undefined ? {} : { reused }) };
   }
   async function readBody(req) {
     const chunks = [];
@@ -798,7 +817,7 @@ export async function createMockServer(options = {}) {
     for (const value of result.cards) event('card', value);
     for (const value of result.jobs) event('job', value);
     if (result.trace && !options.legacyProfile) event('trace', result.trace);
-    event('done', { message_id: result.message_id });
+    event('done', { message_id: result.message_id, ...(result.reused === undefined ? {} : { reused: result.reused }) });
     res.end();
   }
   function decodeId(value) {

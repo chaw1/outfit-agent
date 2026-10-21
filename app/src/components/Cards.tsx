@@ -17,6 +17,7 @@ import { useImageInteractions } from './ImageInteractions';
 import { feedback } from '../lib/haptics';
 import { confirmationCost, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
 import { CostEstimate } from './CostEstimate';
+import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
 
 type CardsProps = {
   cards: Card[];
@@ -119,14 +120,13 @@ function useImageVersions(items: OutfitImage[], state?: ProjectState) {
   }, [items, state?.images]);
 }
 
-function ImageGrid({ items, state, busy, onAction }: {
+function ImageGrid({ items, state, busy }: {
   items: OutfitImage[];
   state?: ProjectState;
   busy?: boolean;
   onAction: (action: Action) => void;
 }) {
   const images = useImageVersions(items, state);
-  const [selection, setSelection] = useState<string[] | null>(null);
   const interaction = useImageInteractions();
   const latest = new Map<string, OutfitImage>();
   for (const item of images) {
@@ -135,26 +135,28 @@ function ImageGrid({ items, state, busy, onAction }: {
   }
   const successful = images.filter((item) => item.status === 'succeeded' && item.url);
   const validIds = new Set(successful.map((item) => item.id));
-  const defaults = state?.note?.image_ids ?? [...latest.values()].filter((item) => item.status === 'succeeded' && item.url).map((item) => item.id);
-  const selected = (selection ?? defaults).filter((id) => validIds.has(id));
+  const selected = interaction.selectedIds.filter((id) => validIds.has(id));
   const isGenerating = images.some((item) => item.status === 'queued' || item.status === 'running');
-  const canEdit = !busy && (!state || state.stage === 'images' || state.stage === 'note' || state.stage === 'done');
-  const canApprove = !busy && !isGenerating && selected.length > 0 && (!state || state.stage === 'images');
+  const canEdit = !busy && (!state || state.stage === 'images' || state.stage === 'note');
+  const canApprove = !busy && !isGenerating && selected.length > 0 && (!state || state.stage === 'images' || state.stage === 'note');
   const shotIds = [...new Set(images.map((item) => item.shot_id))];
   const latestDone = [...latest.values()].filter((item) => item.status === 'succeeded').length;
 
-  const toggle = (id: string) => {
+  const toggle = async (id: string) => {
     feedback();
-    setSelection(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id]);
+    const image = images.find(item => item.id === id);
+    if (!selected.includes(id) && image && !await interaction.confirmImage(image)) return;
+    interaction.setSelected(selected.includes(id) ? selected.filter((value) => value !== id)
+      : image && state?.stage === 'note' ? replaceShotVersion(selected, image, images) : [...selected, id]);
   };
   const move = (id: string, offset: number) => {
     const index = selected.indexOf(id);
     const nextIndex = index + offset;
-    if (index < 0 || nextIndex < 0 || nextIndex >= selected.length) return;
+    if (!canEdit || index < 0 || nextIndex < 0 || nextIndex >= selected.length) return;
     feedback();
     const next = [...selected];
     [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-    setSelection(next);
+    interaction.setSelected(next);
   };
 
   return (
@@ -182,8 +184,8 @@ function ImageGrid({ items, state, busy, onAction }: {
                     {item.status === 'failed' ? <><Icon name="alert-circle-outline" color={colors.danger} size={26} /><Text style={styles.generatingTitle}>这张暂时没成功</Text><Text style={styles.generatingDetail}>{item.error ?? '在对话里告诉我，我们再试一次'}</Text></> : <ProgressStrip title={item.status === 'running' ? '画面生成中' : '等待生成'} detail={item.status === 'running' ? '好看的细节，值得等一等' : '马上就轮到这一张'} />}
                   </View>
                 )}
-                {item.status === 'succeeded' ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy} onPress={event => { event.stopPropagation(); toggle(item.id); }} hitSlop={8} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
-                <View style={styles.versionBadge}><Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} /></View>
+                {item.status === 'succeeded' ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={event => { event.stopPropagation(); void toggle(item.id); }} hitSlop={8} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
+                <View style={styles.versionBadge}><Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} />{isUnverified(item) ? <Badge label="未改到位" tone="danger" /> : null}</View>
                 {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
               </Pressable>
               <View style={styles.imageCaptionRow}>
@@ -212,12 +214,12 @@ function ImageGrid({ items, state, busy, onAction }: {
             <Text style={[styles.sortNumber, index === 0 && { color: colors.redText }]}>{String(index + 1).padStart(2, '0')}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="查看已选图片" onPress={() => interaction.open(item.id)} onLongPress={() => interaction.menu(item.id)}><FadeImage source={{ uri: item.url }} style={styles.sortThumbnail} /></Pressable>
             <Text style={styles.sortLabel}>{index === 0 ? '封面 · ' : ''}镜头 {shotIds.indexOf(item.shot_id) + 1} <Text style={styles.smallText}>v{item.version}</Text></Text>
-            <Pressable onPress={() => move(id, -1)} disabled={index === 0 || Boolean(busy)} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向前移`} testID={`move-up-${id}`} style={[styles.sortArrow, index === 0 && styles.dimmed]}><Icon name="arrow-up" size={15} color={colors.ink} /></Pressable>
-            <Pressable onPress={() => move(id, 1)} disabled={index === selected.length - 1 || Boolean(busy)} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向后移`} testID={`move-down-${id}`} style={[styles.sortArrow, index === selected.length - 1 && styles.dimmed]}><Icon name="arrow-down" size={15} color={colors.ink} /></Pressable>
+            <Pressable onPress={() => move(id, -1)} disabled={index === 0 || !canEdit} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向前移`} testID={`move-up-${id}`} style={[styles.sortArrow, index === 0 && styles.dimmed]}><Icon name="arrow-up" size={15} color={colors.ink} /></Pressable>
+            <Pressable onPress={() => move(id, 1)} disabled={index === selected.length - 1 || !canEdit} accessibilityRole="button" accessibilityLabel={`第 ${index + 1} 张向后移`} testID={`move-down-${id}`} style={[styles.sortArrow, index === selected.length - 1 && styles.dimmed]}><Icon name="arrow-down" size={15} color={colors.ink} /></Pressable>
           </View>;
         })}
       </View> : null}
-      <Button title={state && state.stage !== 'images' ? '图片已确认' : `选好了，生成笔记${selected.length ? `（${selected.length} 张）` : ''}`} icon="checkmark" onPress={() => onAction({ type: 'approve_images', image_ids: selected })} disabled={!canApprove} testID="approve-images" />
+      <Button title={state?.stage === 'note' ? '采用选图到笔记' : state && state.stage !== 'images' ? '图片已确认' : `选好了，生成笔记${selected.length ? `（${selected.length} 张）` : ''}`} icon="checkmark" onPress={() => { void interaction.approve(selected); }} disabled={!canApprove} testID="approve-images" />
     </View>
   );
 }
@@ -232,6 +234,7 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
   const note = state?.note ?? card;
   const interaction = useImageInteractions();
   const [videoImageId, setVideoImageId] = useState<string | null>(null);
+  const [reselecting, setReselecting] = useState(false);
   const selectedImageId = videoImageId && note.image_ids.includes(videoImageId) ? videoImageId : note.image_ids[0];
   const mayMakeVideo = !state?.video && (!state || state.pending_action?.type === 'confirm_video' || (state.pending_action === undefined && state.stage === 'note'));
   return <View style={styles.card}>
@@ -241,6 +244,10 @@ function NoteCard({ card, state, busy, onAction, onPreview }: {
     <View style={styles.tags}>{note.tags.map((tag) => <View key={tag} style={styles.noteTag}><Text style={styles.noteTagText}>#{tag.replace(/^#/, '')}</Text></View>)}</View>
     <NoteDisclosure note={note} projectCost={state?.cost_cny} testIDPrefix="card-note" />
     <Button title="打开笔记预览" onPress={onPreview} testID="preview-note" icon="open-outline" />
+    {state?.stage === 'note' ? <>
+      <Button title={reselecting ? '收起选图' : '重新选图'} secondary icon="images-outline" disabled={busy} testID="reselect-images" onPress={() => setReselecting(value => !value)} />
+      {reselecting ? <ImageGrid items={state.images} state={state} busy={busy} onAction={onAction} /> : null}
+    </> : null}
     {mayMakeVideo && note.image_ids.length > 0 ? <View style={styles.videoPrompt}>
       <View style={styles.rowBetween}><Text style={styles.sortTitle}>再让穿搭动起来？</Text><Text style={styles.optional}>可选 · 5 秒短视频</Text></View>
       <Text style={styles.intro}>选一张作为视频画面，确认后开始生成。</Text>
@@ -313,6 +320,7 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
         <Text style={styles.intro}>选一个最像你的，也可以在对话里聊聊想法。</Text>
         {card.options.map((option) => <DirectionOption key={option.id} direction={option} selected={state?.chosen_direction_id === option.id} enabled={enabled} onPress={() => onAction({ type: 'choose_direction', direction_id: option.id })} />)}
         <Button title="换一组" secondary icon="refresh-outline" disabled={!enabled} testID="regenerate-directions" onPress={() => onText(REGENERATE_DIRECTIONS_TEXT)} />
+        {typeof card.regenerate_estimate_cny === 'number' && Number.isFinite(card.regenerate_estimate_cny) && card.regenerate_estimate_cny >= 0 ? <Text testID="regenerate-estimate" style={styles.intro}>约 ¥{card.regenerate_estimate_cny.toFixed(2)} · 含 2–3 张预览</Text> : null}
       </View>;
     }
     if (card.type === 'script') {

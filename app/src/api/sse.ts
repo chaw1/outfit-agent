@@ -99,7 +99,7 @@ export function parseStreamEvent(raw: RawSSEEvent): StreamEvent | null {
       return { type: 'token', data: { delta: data.delta } };
     case 'done':
       if (typeof data.message_id !== 'string') throw new SSEProtocolError();
-      return { type: 'done', data: { message_id: data.message_id } };
+      return { type: 'done', data: { message_id: data.message_id, ...(typeof data.reused === 'boolean' ? { reused: data.reused } : {}) } };
     case 'error':
       if (typeof data.code !== 'string' || typeof data.message !== 'string') throw new SSEProtocolError();
       return { type: 'error', data: { code: data.code, message: data.message } };

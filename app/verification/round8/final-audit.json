@@ -1,0 +1,38 @@
+{
+  "completedAt": "2026-10-21T00:19:36.862873+00:00",
+  "branch": "feat/app",
+  "baseCommit": "b67f5e43ae0056877dece32e17996d4c74d11c6c",
+  "contract": "docs/设计.md 第 13.1–13.6 节",
+  "unitTestsPassed": 137,
+  "verifyChecks": {
+    "typecheck": 0,
+    "lint": 0,
+    "tests": 0,
+    "ios": 0,
+    "android": 0
+  },
+  "playwright": {
+    "startTime": "2026-10-21T00:13:08.264Z",
+    "duration": 339740.42100000003,
+    "expected": 13,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "round8E2ETestsPassed": 3,
+  "screenshots": {
+    "count": 13,
+    "first": 77,
+    "last": 89,
+    "manifest": "screenshots.json"
+  },
+  "protectedPathsChanged": [],
+  "liveTestsRun": false,
+  "onlineBackendAccessed": false,
+  "pushed": false,
+  "nativeDeviceTested": false,
+  "existingUntrackedDirectoriesPreserved": [
+    "app/verification/fix5/",
+    "app/verification/fix6/"
+  ]
+}

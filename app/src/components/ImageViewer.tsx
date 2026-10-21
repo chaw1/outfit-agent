@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Image, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type TextInputInstance } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeInDown, ReduceMotion, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle, ClipPath, Defs, G, Polyline, Rect } from 'react-native-svg';
-import type { Action, ImageRegion, OutfitImage } from '../api/types';
+import type { Action, ImageRegion, OutfitImage, PendingAction, Stage } from '../api/types';
+import { prepareEditSubmission, rejectedResult, reusedResult, type EditSubmission } from '../lib/editAttempt';
 import { feedback } from '../lib/haptics';
 import { clamp, constrainTransform, containRect, editActionForResult, IDENTITY_TRANSFORM, imageVersionFamily, regionFromPoints, screenToImage, zoomAtPoint, type ImageTransform, type Point, type Size } from '../lib/imageGeometry';
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
@@ -23,6 +24,12 @@ export interface ImageViewerProps {
   initialMode?: ViewerMode;
   busy?: boolean;
   canEdit?: boolean;
+  stage?: Stage;
+  pendingAction?: PendingAction | null;
+  adoptedImageIds?: string[];
+  onAdopt?: (image: OutfitImage) => Promise<unknown>;
+  confirmationOverlay?: ReactNode;
+  onDismissConfirmation?: () => void;
   onClose: () => void;
   onAction: (action: Action) => Promise<unknown> | void;
   onReference: (image: OutfitImage) => void;
@@ -53,7 +60,7 @@ function TrackSlider({ value, min = 0, max = 1, label, testID, onChange }: { val
   </View></GestureDetector>;
 }
 
-export function ImageViewer({ images, editActions = [], initialImageId, initialMode = 'view', busy = false, canEdit = true, onClose, onAction, onReference }: ImageViewerProps) {
+export function ImageViewer({ images, editActions = [], initialImageId, initialMode = 'view', busy = false, canEdit = true, stage, pendingAction, adoptedImageIds = [], onAdopt, confirmationOverlay, onDismissConfirmation, onClose, onAction, onReference }: ImageViewerProps) {
   const [currentId, setCurrentId] = useState(initialImageId);
   const [mode, setMode] = useState<ViewerMode>(canEdit ? initialMode : initialMode === 'local' || initialMode === 'whole' ? 'view' : initialMode);
   const [tool, setTool] = useState<DrawingTool>('brush');
@@ -69,6 +76,8 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
   const [error, setError] = useState<string>();
   const [failedUrl, setFailedUrl] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const [adopting, setAdopting] = useState(false);
+  const [reusedNotice, setReusedNotice] = useState('');
   const [keyboardVisible, setKeyboardVisible] = useState(() => Platform.OS !== 'web' && Keyboard.isVisible());
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -76,8 +85,9 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
     const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
     return () => { show.remove(); hide.remove(); };
   }, []);
-  const [pending, setPending] = useState<{ parentId: string; knownIds: Set<string>; action: EditAction } | null>(null);
+  const [pending, setPending] = useState<{ parentId: string; knownIds: Set<string>; action: EditAction; reuseSnapshot?: PendingAction | null } | null>(null);
   const resultActions = useRef(new Map<string, EditAction>());
+  const transportRetry = useRef<EditSubmission | undefined>(undefined);
   const input = useRef<TextInputInstance>(null);
   const versionsScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const versionLayouts = useRef(new Map<string, { x: number; width: number }>());
@@ -181,6 +191,11 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
 
   useEffect(() => {
     if (!pending) return;
+    if (!submitting && pendingAction !== pending.reuseSnapshot && pendingAction?.reused === true) {
+      setPending(null);
+      setReusedNotice('这次和上次一样，没有重新生成');
+      return;
+    }
     const candidates = images.filter(image => image.parent_id === pending.parentId && !pending.knownIds.has(image.id));
     const completed = candidates.find(image => image.status === 'succeeded' && image.url);
     if (completed) {
@@ -194,7 +209,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
       setError(candidates.find(image => image.status === 'failed')?.error || '这一版没生成成功，请重试。');
       setPending(null);
     }
-  }, [images, pending, resetForImage]);
+  }, [images, pending, pendingAction, submitting, resetForImage]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /* eslint-disable react-hooks/refs -- Gesture builders register these callbacks; they run only after user input. */
@@ -317,15 +332,24 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
       if (localEditing && selectionTool === 'rectangle' && region) payload.region = { ...region };
       else if (localEditing) payload.mask_strokes = { brush, strokes: strokes.map(stroke => stroke.map(point => ({ ...point }))) };
     }
+    const submission = prepareEditSubmission(payload, transportRetry.current, Boolean(action));
+    payload = submission.action;
+    transportRetry.current = submission;
     setSubmitting(true);
+    setReusedNotice('');
     setError(undefined);
     const previousMode = mode;
     setMode('view');
-    setPending({ parentId: payload.image_id, knownIds: new Set(images.map(image => image.id)), action: payload });
+    setPending({ parentId: payload.image_id, knownIds: new Set(images.map(image => image.id)), action: payload, reuseSnapshot: pendingAction });
     feedback();
     try {
       const accepted = await onAction(payload);
-      if (accepted === false) throw new Error('还没确认服务是否收到，请先刷新项目后再重试。');
+      if (rejectedResult(accepted)) throw new Error('还没确认服务是否收到，请先刷新项目后再重试。');
+      transportRetry.current = undefined;
+      if (reusedResult(accepted)) {
+        setPending(null);
+        setReusedNotice('这次和上次一样，没有重新生成');
+      }
     } catch (failure) {
       setPending(null);
       setMode(previousMode);
@@ -342,6 +366,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
   }
 
   function rephrase() {
+    transportRetry.current = undefined;
     const previousAction = retryAction();
     const previous = images.find(image => image.id === current?.parent_id);
     if (previous?.url) resetForImage(previous.id, previousAction);
@@ -363,10 +388,10 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
   const regionText = selectionTool === 'rectangle' ? region && region.w > .002 && region.h > .002 ? `已框选 ${Math.round(region.w * 100)}% × ${Math.round(region.h * 100)}%` : '未框选 · 0 个区域' : `已涂抹 ${strokes.length} 笔`;
   const check = current.edit_check;
   const invalidSelection = localEditing && (selectionTool === 'rectangle' ? !region || region.w < .002 || region.h < .002 : strokes.length === 0);
-  return <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
+  return <Modal visible animationType="fade" presentationStyle="fullScreen" onRequestClose={confirmationOverlay ? onDismissConfirmation : onClose}>
     <GestureHandlerRootView style={styles.root}>
       <StatusBar style="light" />
-      <SafeAreaView style={styles.root} testID="image-viewer" edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.root} testID="image-viewer" edges={['top', 'bottom']} accessibilityElementsHidden={Boolean(confirmationOverlay)} importantForAccessibility={confirmationOverlay ? 'no-hide-descendants' : 'auto'}>
         <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <Animated.View entering={FadeIn.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.header}>
             <Pressable testID="viewer-close" accessibilityRole="button" accessibilityLabel="关闭图片查看器" onPress={() => { feedback(); onClose(); }} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><Ionicons name="close" size={24} color={colors.white} /></Pressable>
@@ -415,12 +440,18 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
             }} onPress={() => selectImage(image.id)} style={({ pressed }) => [styles.version, image.id === current.id && styles.versionSelected, pressed && styles.pressed]}>
               {image.url ? <FadeImage source={{ uri: image.url }} style={styles.versionImage} /> : <View style={styles.versionPlaceholder}>{image.status === 'failed' ? <Ionicons name="alert-circle-outline" color={colors.red} size={20} /> : <ActivityIndicator size="small" color={colors.red} />}</View>}
               <Badge tone={image.id === current.id ? 'brand' : 'inverse'} label={`v${image.version}${image.status === 'succeeded' ? '' : image.status === 'failed' ? ' · 失败' : ' · 生成中'}`} />
+              {image.edit_check?.passed === false ? <Badge tone="danger" label="未改到位" /> : null}
             </Pressable>)}
             {pending && !pendingImage ? <View testID="viewer-pending-version" style={styles.version}><View style={styles.versionPlaceholder}><ActivityIndicator size="small" color={colors.red} /></View><Badge tone="inverse" label="新版本 · 排队中" /></View> : null}
           </ScrollView> : null}
 
           {!compactKeyboard ? (check ? <View testID={`viewer-edit-check-${current.id}`} style={[styles.check, !check.passed && styles.checkFailed]}><Text style={[styles.checkText, !check.passed && styles.checkFailedText]}>{check.passed ? '✓ 已按要求改好' : '可能没改到位'}：{check.reason}</Text>{!check.passed ? <View style={styles.checkActions}><Pressable accessibilityRole="button" testID="viewer-retry-edit" accessibilityLabel="再试一次" disabled={generationBusy || !canEdit || !current.parent_id || !current.instruction} onPress={() => { void sendEdit(retryAction()); }} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>再试一次</Text></Pressable><Pressable accessibilityRole="button" testID="viewer-rephrase-edit" accessibilityLabel="换个说法" disabled={generationBusy || !canEdit} onPress={rephrase} style={({ pressed }) => [styles.retryButton, (generationBusy || !canEdit) && styles.disabled, pressed && styles.pressed]}><Text style={styles.retryText}>换个说法</Text></Pressable></View> : null}</View> : current.instruction ? <Text numberOfLines={2} style={styles.instructionCaption}>{current.instruction}</Text> : null) : null}
           {error ? <Text testID="viewer-error" accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+          {reusedNotice ? <Text testID="viewer-reused" accessibilityRole="status" style={styles.instructionCaption}>{reusedNotice}</Text> : null}
+          {!editing && onAdopt ? <View style={styles.adoptionRow}><ToolButton title={adoptedImageIds.includes(current.id) ? stage === 'note' ? '笔记正在用这版' : '已选这版' : stage === 'note' ? '采用此版本到笔记' : check?.passed === false ? '仍然采用' : '选用此版本'} testID="viewer-adopt-version" disabled={generationBusy || adopting || adoptedImageIds.includes(current.id)} onPress={() => {
+            setAdopting(true);
+            void onAdopt(current).catch(failure => setError(failure instanceof Error ? failure.message : '采用失败，请重试。')).finally(() => setAdopting(false));
+          }} /></View> : null}
 
           <Animated.View key={editing ? 'editing' : 'viewing'} entering={FadeInDown.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.bottom}>
             {editing ? <>
@@ -441,6 +472,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
           </Animated.View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      {confirmationOverlay}
     </GestureHandlerRootView>
   </Modal>;
 }
@@ -452,6 +484,7 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, gap: space.xs },
   title: { ...typography.body, color: colors.white, fontWeight: '700' },
   hint: { ...typography.caption, color: colors.viewerMuted },
+  adoptionRow: { alignItems: 'center', paddingHorizontal: space.lg },
   lockedHint: { textAlign: 'center', paddingHorizontal: 20, paddingBottom: 8 },
   canvas: { flex: 1, minHeight: 140, overflow: 'hidden', backgroundColor: colors.viewerCanvas },
   loadError: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', gap: space.md, padding: space.lg },
