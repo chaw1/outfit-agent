@@ -83,6 +83,7 @@ function DirectionOption({ direction, selected, enabled, onPress }: {
       <Text style={styles.directionScene}>{direction.scene} · {direction.mood}</Text>
       <Text style={styles.directionWhy}>{direction.why}</Text>
       {palette ? <View style={styles.palette}><Icon name="color-palette-outline" size={12} /><Text style={styles.paletteText}>{palette}</Text></View> : null}
+      {direction.styling ? <View style={styles.palette}><Icon name="shirt-outline" size={12} /><Text style={styles.paletteText} testID={`direction-styling-${direction.id}`}>搭配：{direction.styling}</Text></View> : null}
       {direction.sample_title ? <Text style={styles.sampleTitle}>“{direction.sample_title}”</Text> : null}
       <Text style={[styles.directionAction, selected && { color: colors.green }]}>
         {selected ? '已选这个方向' : enabled ? '就选这个方向  ↗' : '方向已确认'}
@@ -383,7 +384,7 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
         {card.title_ideas.map((title, index) => <Text key={`${index}-${title}`} style={styles.scriptTitle}><Text style={styles.scriptNumber}>{String(index + 1).padStart(2, '0')}  </Text>{title}</Text>)}
         <View style={styles.coverBrief}><Text style={styles.coverHeading}>封面计划</Text><Text style={styles.coverBody}>{card.cover.scene} · {card.cover.pose}</Text>{card.cover.text_overlay ? <Text style={styles.coverOverlay}>封面字：{card.cover.text_overlay}</Text> : null}</View>
         <Text style={styles.sectionLabel}>分镜与画面</Text>
-        {card.shots.map((shot, index) => <View key={shot.id} style={styles.shotRow}><View style={styles.shotNumber}><Text style={styles.shotNumberText}>{String(index + 1).padStart(2, '0')}</Text></View><View style={styles.shotContent}><Text style={styles.shotScene}>{shot.scene}</Text><Text style={styles.shotDetail}>{shot.pose} · {shot.camera}</Text><Text style={styles.shotCaption}>{shot.caption}</Text></View></View>)}
+        {card.shots.map((shot, index) => <View key={shot.id} style={styles.shotRow}><View style={styles.shotNumber}><Text style={styles.shotNumberText}>{String(index + 1).padStart(2, '0')}</Text></View><View style={styles.shotContent}><Text style={styles.shotScene}>{shot.scene}</Text><Text style={styles.shotDetail}>{shot.pose} · {shot.camera}</Text>{shot.styling ? <Text style={styles.shotStyling} testID={`shot-styling-${shot.id}`}>搭配：{shot.styling}</Text> : null}<Text style={styles.shotCaption}>{shot.caption}</Text></View></View>)}
         {card.video?.prompt ? <View style={styles.scriptVideo}><Icon name="videocam-outline" size={14} color={colors.muted} /><View style={styles.shotContent}><Text style={styles.coverHeading}>{card.video.duration} 秒短片灵感</Text><Text style={styles.shotDetail}>{card.video.prompt}</Text></View></View> : null}
         <View style={styles.scriptFooter}><Icon name="information-circle-outline" size={14} /><Text style={styles.smallText}>{confirmed ? '脚本已确认，画面正在按计划制作。' : state?.mode === 'auto' ? '脚本写好后会接着出图，整套好了会通知你。' : '确认后开始生成图片，想调整也可以继续聊。'}</Text></View>
         {state?.mode !== 'auto' && !confirmed ? <CostEstimate state={state} action="confirm_script" /> : null}
@@ -441,6 +442,7 @@ const styles = StyleSheet.create({
   shotContent: { flex: 1 },
   shotScene: { ...typography.body, fontWeight: '600', color: colors.ink, marginBottom: space.xs },
   shotDetail: { ...typography.caption, color: colors.muted },
+  shotStyling: { ...typography.caption, color: colors.ink, marginTop: space.xs },
   shotCaption: { ...typography.caption, color: colors.muted, marginTop: space.sm, paddingLeft: space.sm, borderLeftWidth: 2, borderLeftColor: colors.border },
   scriptFooter: { flexDirection: 'row', gap: space.sm, marginBottom: space.lg, alignItems: 'center' },
   scriptVideo: { flexDirection: 'row', gap: space.sm, backgroundColor: colors.paper, padding: space.md, borderRadius: radius.sm, marginBottom: space.lg },

@@ -662,9 +662,9 @@ export async function createMockServer(options = {}) {
   }
   function makeDirections(project, revision = '') {
     const result = [
-      { id: 'direction_city', name: '周末城市漫步', scene: '街角咖啡馆、梧桐树下的安静街道', mood: '自然、松弛、有日常感', palette: '奶白 / 浅卡其 / 牛仔蓝', why: `把${project.brand}的单品穿进真实生活，边走边拍也很出片。`, sample_title: '周末不赶时间，穿得舒服也很有风格' },
-      { id: 'direction_work', name: '轻松通勤日', scene: '明亮办公楼外、窗边咖啡桌', mood: '利落、干净、轻盈', palette: '白 / 灰 / 深蓝', why: '用简洁搭配突出衣服质感，上班和下班见朋友都合适。', sample_title: '早八也能轻松出门的质感穿搭' },
-      { id: 'direction_nature', name: '出走去公园', scene: '公园长椅、开阔草地和树影', mood: '清新、温柔、随性', palette: '米白 / 草绿 / 浅棕', why: '自然光让衣服颜色和面料更清楚，适合分享舒服的周末状态。', sample_title: '把周末交给阳光和舒服的衣服' },
+      { id: 'direction_city', name: '周末城市漫步', scene: '街角咖啡馆、梧桐树下的安静街道', mood: '自然、松弛、有日常感', palette: '奶白 / 浅卡其 / 牛仔蓝', why: `把${project.brand}的单品穿进真实生活，边走边拍也很出片。`, sample_title: '周末不赶时间，穿得舒服也很有风格', styling: '上身松松塞一角，配浅色直筒牛仔裤、白色板鞋，细银饰点一下' },
+      { id: 'direction_work', name: '轻松通勤日', scene: '明亮办公楼外、窗边咖啡桌', mood: '利落、干净、轻盈', palette: '白 / 灰 / 深蓝', why: '用简洁搭配突出衣服质感，上班和下班见朋友都合适。', sample_title: '早八也能轻松出门的质感穿搭', styling: '配藏蓝直筒西裤和米白乐福鞋，加一只黑色小方包' },
+      { id: 'direction_nature', name: '出走去公园', scene: '公园长椅、开阔草地和树影', mood: '清新、温柔、随性', palette: '米白 / 草绿 / 浅棕', why: '自然光让衣服颜色和面料更清楚，适合分享舒服的周末状态。', sample_title: '把周末交给阳光和舒服的衣服', styling: '配浅绿半身长裙和白色帆布鞋，草编包更出片' },
     ];
     const request = `${project.brief} ${project.styleNotes || ''} ${(project.style_tags || []).join(' ')} ${(project.directionPreferences || []).join(' ')} ${revision}`;
     const preferred = /通勤|上班|办公室/.test(request) ? 'direction_work' : /公园|户外|露营/.test(request) ? 'direction_nature' : 'direction_city';
@@ -699,13 +699,16 @@ export async function createMockServer(options = {}) {
   }
   function makeScript(project, revision = '') {
     const direction = project.state.directions.find((item) => item.id === project.state.chosen_direction_id);
+    const previous = project.state.script?.shots?.find((shot) => shot.styling)?.styling;
+    let styling = previous || direction.styling || '原衣服自然穿着，配浅色直筒裤与平底鞋';
+    if (revision && /鞋|裤|裙|配饰|包|帽|项链|耳环|腰带|外套|搭/.test(revision)) styling = `${styling}；按你的要求：${revision.trim()}`;
     const result = {
       status: 'draft', title_ideas: [direction.sample_title, `和${project.brand}一起，把日常穿得更好看`, '今天这套，被朋友问了好几次'],
       cover: { scene: direction.scene, pose: '侧身自然站立，回头看向镜头', text_overlay: '今日份松弛感穿搭' },
       shots: [
-        { id: 'shot_1', scene: direction.scene.split('、')[0], outfit_asset_ids: project.garmentAssetIds, pose: '自然走向镜头，轻轻整理衣角', camera: '全身竖构图，平视，自然光', caption: '舒服又有精神，出门不需要想太多' },
-        { id: 'shot_2', scene: '明亮的窗边', outfit_asset_ids: project.garmentAssetIds, pose: '坐在窗边，手里拿一杯咖啡', camera: '半身近景，柔和侧光，突出衣服纹理', caption: '喜欢这种不费力的日常质感' },
-        { id: 'shot_3', scene: '有树影的街道', outfit_asset_ids: project.garmentAssetIds, pose: '侧身回头微笑，展示整体搭配', camera: '全身竖构图，稍远景，干净背景', caption: '好穿的单品，会想一直重复穿' },
+        { id: 'shot_1', styling, scene: direction.scene.split('、')[0], outfit_asset_ids: project.garmentAssetIds, pose: '自然走向镜头，轻轻整理衣角', camera: '全身竖构图，平视，自然光', caption: '舒服又有精神，出门不需要想太多' },
+        { id: 'shot_2', styling, scene: '明亮的窗边', outfit_asset_ids: project.garmentAssetIds, pose: '坐在窗边，手里拿一杯咖啡', camera: '半身近景，柔和侧光，突出衣服纹理', caption: '喜欢这种不费力的日常质感' },
+        { id: 'shot_3', styling, scene: '有树影的街道', outfit_asset_ids: project.garmentAssetIds, pose: '侧身回头微笑，展示整体搭配', camera: '全身竖构图，稍远景，干净背景', caption: '好穿的单品，会想一直重复穿' },
       ],
       video: { prompt: '模特在自然光中缓缓走动，镜头轻轻推进，衣服细节清晰，保持人物与穿搭一致', duration: 5 },
     };
@@ -871,7 +874,7 @@ export async function createMockServer(options = {}) {
           const confirmedChanges = ids.map((id) => state.images.find((image) => image.id === id)).filter((image) => image.instruction && (image.edit_check?.passed === true || accepted.includes(image.id))).map((image) => image.instruction);
           state.note = {
             title: state.script.title_ideas[0],
-            body: `最近喜欢把穿搭做减法，舒服自在就很好。\n\n这次和${project.brand}一起，把喜欢的单品穿进日常。干净的颜色、舒服的版型，随手一搭就能出门。\n\n${state.script.shots.map((shot) => shot.caption).join('。')}。${confirmedChanges.length ? `\n\n画面调整：${confirmedChanges.join('；')}。` : ''}\n\n你们更喜欢哪一张？欢迎一起聊聊今日穿搭。`,
+            body: `最近喜欢把穿搭做减法，舒服自在就很好。\n\n这次和${project.brand}一起，把喜欢的单品穿进日常。${state.script.shots[0]?.styling ? `这次的搭配：${state.script.shots[0].styling}。` : ''}干净的颜色、舒服的版型，随手一搭就能出门。\n\n${state.script.shots.map((shot) => shot.caption).join('。')}。${confirmedChanges.length ? `\n\n画面调整：${confirmedChanges.join('；')}。` : ''}\n\n你们更喜欢哪一张？欢迎一起聊聊今日穿搭。`,
             tags: ['今日穿搭', '穿搭灵感', '日常穿搭', project.brand], image_ids: [...ids],
             accepted_unverified_ids: unverified.map((image) => image.id),
             cost_cny: state.cost_cny || 0,

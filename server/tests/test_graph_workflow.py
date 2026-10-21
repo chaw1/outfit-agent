@@ -911,3 +911,32 @@ def test_failed_video_can_be_retried_with_a_fresh_job(flow):
     assert retried["jobs"][0]["id"] != first_id
     assert session.get(Job, retried["jobs"][0]["id"]).status == "queued"
     assert retried["stage"] == "video"
+
+
+def test_styling_is_discussed_in_script_confirmed_into_images_and_written_into_note(flow):
+    """博主只给一件单品：搭配建议在方向与脚本里出现，对话里改，确认后进出图提示词与笔记。"""
+    session, project, _, graph = flow
+    initial = run_turn(graph, project, "夏季新品，想要松弛感", None)
+    directions = next(card for card in initial["cards"] if card["type"] == "directions")
+    assert all(option.get("styling") for option in directions["options"])
+
+    chosen = run_turn(graph, project, None, {
+        "type": "choose_direction", "direction_id": directions["options"][0]["id"],
+    })
+    script = next(card for card in chosen["cards"] if card["type"] == "script")
+    assert all(shot.get("styling") for shot in script["shots"])
+
+    revised = run_turn(graph, project, "鞋换成乐福鞋", None)
+    script = next(card for card in revised["cards"] if card["type"] == "script")
+    assert all("乐福鞋" in shot["styling"] for shot in script["shots"])
+
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    for job in generated["jobs"]:
+        payload = session.get(Job, job["id"]).payload
+        assert "整套搭配（已确认）" in payload["prompt"] and "乐福鞋" in payload["prompt"]
+
+    image_ids = [job["id"] for job in generated["jobs"]][:2]
+    succeed_images(session, project)
+    note = run_turn(graph, project, None, {"type": "approve_images", "image_ids": image_ids})
+    body = next(card for card in note["cards"] if card["type"] == "note")["body"]
+    assert "搭配" in body and "乐福鞋" in body

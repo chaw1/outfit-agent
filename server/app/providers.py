@@ -93,8 +93,11 @@ DIRECTION = _obj(
     why=STR,
     sample_title=STR,
     recommended={"type": "boolean"},
+    styling=STR,
 )
-SHOT = _obj(id=STR, scene=STR, outfit_asset_ids=STRINGS, pose=STR, camera=STR, caption=STR)
+SHOT = _obj(
+    id=STR, scene=STR, outfit_asset_ids=STRINGS, pose=STR, camera=STR, caption=STR, styling=STR,
+)
 SCRIPT = _obj(
     status={"type": "string", "enum": ["draft"]},
     title_ideas=STRINGS,
@@ -174,6 +177,12 @@ edit_image仅在用户明确圈选或提供坐标时传region或mask_strokes，�
 改发布正文、标题、标签用write_note；改生成照片的画面用edit_image，二者不要混淆。
 write_note中的image_ids保持已有选择，除非用户明确重新选图；首次选图从已完成图解析。
 方向给 2–3 个，场景、氛围、配色各不相同，id 使用 direction-1 这样的稳定短标识。
+博主给的往往只是一件单品：每个方向的 styling 用一句话给出整套搭配建议，
+只有上装就建议下装、鞋和配饰（写清颜色与版型），只有下装就建议上装与配饰，
+要和场景、配色一致；建议补的单品称为“建议搭配”，不能说成品牌提供或博主已有。
+脚本每个镜头的 styling 写这一镜头的完整穿着：原衣服怎么穿 + 搭配的下装 / 鞋 / 配饰；
+用户在对话里改搭配（“鞋换成乐福鞋”“裤子换浅色直筒”）时用 revise_script 逐镜头落实，
+并同步改 cover 与 video 描述；搭配以用户确认脚本时的版本为准，之后出图与笔记都照它来。
 context.style_tags 是本次风格词，结合 context.brief 原始需求落实在方向和拍摄脚本中，
 不得改写 brief 原文；propose_directions 每项都填写 recommended 布尔值，
 结合 style_tags 与 brief 恰好推荐一项 recommended=true，其余为 false；无偏好时推荐第一个。
@@ -206,6 +215,8 @@ edit_check 缺失也不代表改图请求已完成，不能把 requested_change 
 没有用户明确提供的亲身体验，禁止杜撰“我穿了一整天”“坐一天也舒服”“肩颈不勒”
 “透气不闷”“亲肤”等试穿感受或功能结论；自然口吻不等于编造经历。
 围绕衣服分析和已选图片可确认的配色、版型、衣摆处理与搭配建议来写，
+context.script 里各镜头 styling 是博主确认过的整套搭配，正文要自然写进去
+（下装、鞋、配饰各是什么，怎么配的），这是用户讨论多轮后的结论，不能漏；
 无法确认的面料、性能、身体感受和生活经历直接省略。视频 5 秒，保持人物和衣服一致。
 所有字段填完整，工具参数中不要放额外解释。"""
 
@@ -1633,6 +1644,7 @@ class ProviderHub:
                             "mood": mood,
                             "palette": palette,
                             "why": "换一个场景继续探索衣服的日常搭配" + preference_suffix,
+                            "styling": "配浅色直筒裤与平底鞋，配饰点到为止",
                             "sample_title": f"{title}，今天这样穿",
                         }
                         for index, ((title, scene, mood), palette) in enumerate(
@@ -1646,6 +1658,7 @@ class ProviderHub:
                     {
                         "id": "direction-1",
                         "name": "周末慢下来",
+                        "styling": "上身松松塞一角，配浅色直筒牛仔裤、白色板鞋，细银饰点一下",
                         "scene": "午后街角咖啡店",
                         "mood": "自然松弛",
                         "palette": ["奶油白", "浅蓝", "木色"],
@@ -1655,6 +1668,7 @@ class ProviderHub:
                     {
                         "id": "direction-2",
                         "name": "清爽通勤",
+                        "styling": "配藏蓝直筒西裤和米白乐福鞋，加一只黑色小方包",
                         "scene": "城市写字楼和树荫人行道",
                         "mood": "利落轻盈",
                         "palette": ["白色", "藏蓝", "银灰"],
@@ -1664,6 +1678,7 @@ class ProviderHub:
                     {
                         "id": "direction-3",
                         "name": "公园透口气",
+                        "styling": "配浅绿半身长裙和白色帆布鞋，草编包更出片",
                         "scene": "草坪与湖边步道",
                         "mood": "明亮自在",
                         "palette": ["浅绿", "米白", "天空蓝"],
@@ -1682,6 +1697,17 @@ class ProviderHub:
             ))
             scene = "写字楼外的树荫步道" if commute else "阳光洒进来的街角咖啡店"
             shot_count = 3 if context.get("mode") == "auto" else 4
+            previous_styling = next((
+                shot.get("styling") for shot in (context.get("script") or {}).get("shots", [])
+                if shot.get("styling")
+            ), None)
+            styling = previous_styling or (
+                "原衣服自然穿着，配藏蓝直筒西裤、米白乐福鞋与黑色小方包" if commute
+                else "原衣服松松塞一角，配浅色直筒牛仔裤、白色板鞋与细银饰"
+            )
+            styling_words = r"鞋|裤|裙|配饰|包|帽|项链|耳环|腰带|外套|搭"
+            if instruction and re.search(styling_words, instruction):
+                styling = f"{styling}；按你的要求：{instruction.strip()}"
             brief = context.get("brief") or ""
             count_text = (
                 json.dumps(brief, ensure_ascii=False) if isinstance(brief, dict) else brief
@@ -1708,6 +1734,7 @@ class ProviderHub:
                         "camera": "竖版，真实自然光，全身" if i < 2 else "竖版中近景",
                         "caption": caption + preference_suffix
                         + (f" · {instruction}" if instruction else ""),
+                        "styling": styling,
                     }
                     for i, (pose, caption) in enumerate(
                         [
@@ -1749,8 +1776,13 @@ class ProviderHub:
             and image["requested_change"] not in image.get("confirmed_visual_facts", [])
         ]
         visual_description = "；".join(visual_facts)
+        confirmed_styling = next((
+            shot.get("styling") for shot in (context.get("script") or {}).get("shots", [])
+            if shot.get("styling")
+        ), "")
         body = (
             "最近很喜欢这种不费力的搭配 ☁️\n\n"
+            + (f"这次的搭配：{confirmed_styling}。\n\n" if confirmed_styling else "")
             + (visual_description + "。\n\n" if visual_description else "")
             + "日常搭配，也留一点小细节给自己 🌿\n\n品牌合作分享，穿搭感受因人而异。"
         )

@@ -10,9 +10,9 @@ export function quickPrompts(state: Pick<ProjectState, 'stage' | 'mode' | 'video
   switch (state.stage) {
     case 'brief':
     case 'direction':
-      return ['换一组方向', '想要更日常的通勤感', '光线再柔和一些'];
+      return ['换一组方向', '搭配想再简单一点', '想要更日常的通勤感'];
     case 'script':
-      return ['镜头少一点，留三个', '文案口吻更俏皮', '第一张换成户外场景'];
+      return ['下装配浅色直筒裤', '鞋换成乐福鞋', '镜头少一点，留三个'];
     case 'images':
       return ['整体再松弛一点', '帮我挑最适合封面的一张', '想换一种氛围'];
     case 'note':

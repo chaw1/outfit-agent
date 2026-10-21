@@ -126,6 +126,8 @@ export interface Direction {
   palette: string | string[];
   why: string;
   sample_title: string;
+  /** 整套搭配建议：博主只给一件单品时，配什么下装、鞋和配饰。 */
+  styling?: string;
   preview_url?: string;
   preview_status?: JobStatus;
   recommended?: boolean;
@@ -138,6 +140,8 @@ export interface ScriptShot {
   pose: string;
   camera: string;
   caption: string;
+  /** 这一镜头的完整穿着：原衣服怎么穿 + 搭配的下装 / 鞋 / 配饰，在对话里改，确认脚本时定稿。 */
+  styling?: string;
 }
 
 export interface ScriptData {

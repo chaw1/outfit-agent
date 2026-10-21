@@ -744,6 +744,7 @@ class Workflow:
             prompt = (
                 f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
                 f"氛围：{direction['mood']}；配色：{direction['palette']}。"
+                + (f"搭配建议：{direction['styling']}。" if direction.get("styling") else "")
                 + self._garment_prompt(state, clothes)
             )
             prompt += photo_prompt
@@ -798,6 +799,9 @@ class Workflow:
             )
             prompt += self._garment_prompt(state, shot["outfit_asset_ids"])
             prompt += f"场景：{shot['scene']}；动作：{shot['pose']}；镜头：{shot['camera']}。"
+            if shot.get("styling"):
+                # 博主在脚本里确认过的整套搭配：下装、鞋、配饰按这里画，不让模型随机配。
+                prompt += f"整套搭配（已确认）：{shot['styling']}。"
             prompt += photo_prompt
             payload = {
                 "shot_id": shot["id"],
@@ -933,6 +937,7 @@ class Workflow:
             context,
             "按已选图片顺序写小红书笔记：标题不超过20字；正文120到250字，最多5个短段，"
             "每段一两句，表情点到为止，不写长文；5到8个标签。用户要求更短或更长时以用户为准。"
+            "正文要写进脚本各镜头 styling 里确认过的整套搭配（下装、鞋、配饰怎么配）。"
             + ("保留原笔记未要求更改的内容，落实以下修改：" + instruction if instruction else ""),
         )
         note = {key: value for key, value in result.items() if key != "reply"}
