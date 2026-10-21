@@ -52,11 +52,11 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li><a href="#可观测与安全">可观测与安全</a></li>
 <li><a href="#adr-索引">ADR 索引</a></li>
 <li><a href="#规则与债务">规则与债务</a></li>
-<li><a href="#质量快照">质量快照</a></li>
+<li><a href="#初次落地质量快照历史">初次落地质量快照（历史）</a></li>
 </ul>
 </div>
 </nav><main><h1 id="工程规范">工程规范<a class="headerlink" href="#工程规范" title="Permanent link">¶</a></h1>
-<p>本规范落实 <a href="设计.html">设计第 17 节</a>，与 <a href="CONTRIBUTING.html">贡献指南</a> 配套。接口契约仍只有 <code>docs/设计.md</code>。下文区分已有实现、门禁要求和待治理债务；设计记录不等于功能已上线。</p>
+<p>本规范落实 <a href="设计.html">设计第 17 节</a>，与 <a href="CONTRIBUTING.html">贡献指南</a> 配套。接口契约仍只有 <code>docs/设计.md</code>。当前规则按 2026-10-21 主工作区实现校对；文末保留工程规范初次落地时的质量快照，历史测试数量和分支状态不代表当前版本。</p>
 <h2 id="目录与分层">目录与分层<a class="headerlink" href="#目录与分层" title="Permanent link">¶</a></h2>
 <table>
 <thead>
@@ -71,8 +71,16 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <td>Expo Router 页面，组合组件和 Hook，路由不直接实现供应商调用</td>
 </tr>
 <tr>
-<td><code>app/src/components/</code>、<code>app/src/theme.ts</code></td>
-<td>共享交互组件、颜色/间距/字体/动效 token；<code>ui.tsx</code> 提供 Page、Button、Field 等基础组件</td>
+<td><code>app/design/tokens.json</code>、<code>app/src/theme.ts</code></td>
+<td>DTCG token 源文件与生成的主题；颜色、间距、字体、动效和布局约定</td>
+</tr>
+<tr>
+<td><code>app/src/components/ds/</code>、<code>app/src/components/ui.tsx</code></td>
+<td>共享基础组件及统一再导出入口；业务组件组合基础组件，不复制基础交互</td>
+</tr>
+<tr>
+<td><code>server/app/admin_static/</code></td>
+<td>管理端 HTML；<code>tokens.css</code> 从同一份 App token 生成，页面通过 CSS 语义别名复用</td>
 </tr>
 <tr>
 <td><code>app/src/hooks/</code>、<code>app/src/context/</code></td>
@@ -125,7 +133,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <p>Python 函数/变量/模块 snake_case、类 CapWords、常量 UPPER_SNAKE_CASE；ruff 的 I 规则检查导入排序，E/F/UP/B 检查语法习惯与常见错误。<code>server/pyproject.toml</code> 设定行宽 100，实际启用规则以该配置为准。边界层补类型，复用 Pydantic schema；不运行全仓格式化改变无关代码。</p>
 <p>App 业务失败使用 <code>app/src/api/client.ts</code> 的 <code>ApiError</code>（code/message/status），展示可恢复的中文提示；普通 REST 读/写/上传分别限时 20/60/120 秒，写入不自动重放。服务端使用 <code>app/errors.py</code> 的 <code>AppError</code>，<code>main.py</code> 统一输出 <code>{error: {code, message}}</code>，未知异常回通用中文信息；SSE 错误由事件传达。</p>
 <p>新增网络调用必须指定超时，沿用 App 客户端及服务端 <code>providers.py</code> 的 httpx 访问方式；不能无限等待。供应商请求超时或结果未知时，不为通过检查盲目重复付费调用。重试次数、稳定去重键、attempt 和重放语义必须一起评审。</p>
-<p>UI 新增颜色从 <code>app/src/theme.ts</code> 取，禁止在组件中新增硬编码色值。当前主题集中管理，但设计第 16 节的 JSON token 生成、组件拆分及其专属 ESLint 规则由设计系统轮实施，本轮不声称已有这些文件或命令。不得提交明文凭证、私钥、生产 <code>.env</code>，也不能在日志输出凭证或完整媒体签名 URL。</p>
+<p>App 新增颜色、间距从 <code>app/src/theme.ts</code> 取，主题与管理端 <code>tokens.css</code> 均由 <code>app/design/tokens.json</code> 生成。新增或修改 token 后运行 <code>npm run tokens</code>；<code>npm run tokens:check</code> 检查 App 主题、管理端 CSS 和文档表是否漂移。<code>components/ds/</code> 已提供 20 个公共组件，<code>ui.tsx</code> 保留为统一再导出层；App 业务代码的裸颜色和魔法间距由专属 ESLint 规则阻断，管理端使用生成 CSS 变量，详见 <a href="设计系统.html">设计系统</a>。不得提交明文凭证、私钥、生产 <code>.env</code>，也不能在日志输出凭证或完整媒体签名 URL。</p>
 <h2 id="测试金字塔与命令">测试金字塔与命令<a class="headerlink" href="#测试金字塔与命令" title="Permanent link">¶</a></h2>
 <table>
 <thead>
@@ -138,23 +146,23 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <tbody>
 <tr>
 <td>App 静态</td>
-<td><code>npm run typecheck</code>、<code>npm run lint</code></td>
-<td>strict 类型与 ESLint</td>
+<td><code>npm run tokens:check</code>、<code>npm run typecheck</code>、<code>npm run lint</code></td>
+<td>token 生成一致性、strict 类型与 ESLint</td>
 </tr>
 <tr>
 <td>App 单元</td>
 <td><code>npm test</code></td>
-<td><code>tests/*.test.ts</code>，API/SSE、选图、草稿、发布等</td>
+<td><code>tests/*.test.ts</code>、<code>tests/*.test.cjs</code>，API/SSE、选图、草稿、发布及 token 规则等</td>
 </tr>
 <tr>
 <td>App 完整校验</td>
 <td><code>npm run verify</code></td>
-<td>类型、lint、单测、iOS/Android Expo 导出，输出 <code>app/verification/</code></td>
+<td>token、类型、lint、单测、iOS/Android/Web 导出、正式产物排除设计画廊共八项，输出 <code>app/verification/</code></td>
 </tr>
 <tr>
 <td>App 浏览器</td>
 <td><code>PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers" npm run test:e2e</code></td>
-<td>默认排除 <code>live.spec.ts</code>，配置启动 :19301 假服务和 :19300 Web，390×844 视口</td>
+<td>排除所有 <code>live*.spec.ts</code>；默认 :19421 假服务、:19420 正式 Web、:19422 开发画廊，业务默认 390×844 视口</td>
 </tr>
 <tr>
 <td>服务端静态</td>
@@ -195,11 +203,11 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 <tr>
 <td><code>app</code></td>
-<td>Node 22 + npm ci，typecheck、lint、Node 单测</td>
+<td>Node 22 + npm ci，tokens:check、typecheck、lint、Node 单测</td>
 </tr>
 <tr>
 <td><code>app-playwright</code></td>
-<td>app 任务通过后，安装 Chromium，用默认配置启动本地假服务和 Web，CI 拒绝复用已有端口进程，关闭 Expo 联网及遥测；始终尝试归档 test-results 报告与失败轨迹 7 天</td>
+<td>app 任务通过后，安装 Chromium，用默认配置启动本地假服务、正式 Web 与开发画廊；Expo 服务不复用已有进程，假服务允许复用；关闭 Expo 联网及遥测，归档 test-results 报告与失败轨迹 7 天</td>
 </tr>
 <tr>
 <td><code>docker</code></td>
@@ -207,7 +215,8 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 </tbody>
 </table>
-<p><code>tokens:check</code> 尚不存在于本分支，由第 16 节设计系统轮创建脚本和命令后接入 CI；这里不使用可选跳过命令冒充门禁。</p>
+<p><code>tokens:check</code> 已接入 CI。画廊像素基线使用 macOS 系统字体，Ubuntu CI 执行结构、状态、触控、字号和正式路由检查并留存截图，不执行 macOS 像素基线比对。新增平台的像素覆盖须在固定字体与浏览器环境单独建立基线。</p>
+<p>类型检查必须能在干净 checkout 中运行。<code>.expo/types/</code> 是本地生成文件，不应成为页面代码通过 <code>tsc</code> 的隐含前置条件；路由判断不依赖只有本地缓存才存在的元组长度。</p>
 <h2 id="发布健康与回滚">发布、健康与回滚<a class="headerlink" href="#发布健康与回滚" title="Permanent link">¶</a></h2>
 <p>发布前先运行本地检查，核对迁移链及新旧 schema/数据兼容，保留数据库与媒体卷备份和上一个镜像 SHA。不得用容器删除或卷删除代替升级。</p>
 <p>现有入口为 <code>cd server &amp;&amp; ./deploy/deploy-ecs.sh</code>：本机构建 linux/amd64 镜像，以短提交 SHA 和 latest 标记，上传到配置的 ECS，再运行 Compose。它会连接远端，只有目标环境已明确授权才可执行；本轮仅检查脚本，不部署。</p>
@@ -218,7 +227,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <p>请求计数持久化到 request_events，最近 24 小时 HTTP ≥400 或 SSE error 每请求计一次。管理端默认 <code>ADMIN_TOKEN</code> 为空而关闭，启用后使用独立会话；详见 <code>server/app/admin.py</code>、<code>runtime_settings.py</code>。观测数据和限流记录目前没有自动保留期，不能声称已有归档任务。</p>
 <p>所有资产/项目/任务必须校验当前用户归属；媒体签名 URL 是可读凭证，备份、日志和截图都避免泄露签名。保留 <code>rate_limits.py</code> 的共享限流、上传类型/大小/像素上限和 <code>security.py</code> 的签名/鉴权。生产环境变量由部署环境注入，不从历史资料恢复或提交密钥。</p>
 <h2 id="adr-索引">ADR 索引<a class="headerlink" href="#adr-索引" title="Permanent link">¶</a></h2>
-<p>决策正文保存在唯一契约，不另复制一套 ADR。第 14–16 节是已记录、由并行轮次负责的设计，本轮基线不代表它们已实现或上线；第 17 节由本轮落实。</p>
+<p>决策正文保存在唯一契约，不另复制一套 ADR。第 14–17 节已有对应代码与工程入口；实现范围和验证边界分别以当前代码、设计系统文档和开发记录为准，不用设计条目代替部署证据。</p>
 <table>
 <thead>
 <tr>
@@ -294,7 +303,8 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tbody>
 </table>
 <h2 id="规则与债务">规则与债务<a class="headerlink" href="#规则与债务" title="Permanent link">¶</a></h2>
-<p>ESLint 在 Expo flat 预设上新增 <code>@typescript-eslint/no-explicit-any</code>（仅 TS/TSX）、<code>react-hooks/exhaustive-deps</code>、<code>eqeqeq</code>（保留 Expo 的 smart 选项）、<code>no-var</code>、<code>prefer-const</code> 为 error，现有代码这五项零违规。<code>import/order</code> 为 warn，现有 19 处；检查仍输出警告，不用大范围禁用规则掩盖问题。</p>
+<p>当前 ESLint 在 Expo flat 预设上启用 <code>@typescript-eslint/no-explicit-any</code>（仅 TS/TSX）、<code>react-hooks/exhaustive-deps</code>、<code>eqeqeq</code>、<code>no-var</code>、<code>prefer-const</code> 为 error。<code>import/order</code> 的规则级别仍为 warn，但 <code>npm run lint</code> 设置 <code>--max-warnings=0</code>，任何告警都会阻断检查。业务源码另有裸色值和魔法间距两条 error 规则。</p>
+<p>下表保留工程规范初次落地时发现的 19 处导入排序告警，属于历史扫描记录；设计系统合入时已清理，不能作为当前遗留数量。当前待治理项应以实际检查结果为准。</p>
 <table>
 <thead>
 <tr>
@@ -416,9 +426,9 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 </tbody>
 </table>
-<p>这些文件级例外也可能放过同文件同规则的新问题，评审须主动检查；消债后删除对应例外，不扩大豁免。<code>import/order</code> 修复后再升 error。硬编码色值的自动化治理由设计系统轮负责，本轮新增代码仍按 token 约定评审。</p>
+<p>这些文件级例外也可能放过同文件同规则的新问题，评审须主动检查；消债后删除对应例外，不扩大豁免。<code>import/order</code> 由零告警门禁阻断；硬编码色值和魔法间距已由设计系统规则治理，基础组件目录的规则豁免仍需人工评审。</p>
 <p>现有超时债务：<code>app/src/lib/media.ts:14</code> 的 Web 媒体下载直接使用 fetch，缺显式超时。本轮只记录，后续在业务轮次补可取消下载和错误反馈；新增代码仍遵守显式超时要求。</p>
-<h2 id="质量快照">质量快照<a class="headerlink" href="#质量快照" title="Permanent link">¶</a></h2>
+<h2 id="初次落地质量快照历史">初次落地质量快照（历史）<a class="headerlink" href="#初次落地质量快照历史" title="Permanent link">¶</a></h2>
 <p>日期：2026-10-21（Asia/Shanghai）。本轮在 <code>feat/engineering</code> 本地验证，数字只代表该分支，不引用历史 README 的测试数。</p>
 <table>
 <thead>

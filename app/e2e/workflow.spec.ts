@@ -110,6 +110,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
     await route.fulfill({ status: 200, contentType: 'text/event-stream', body: `event: error\ndata: ${JSON.stringify({ code: 'INVALID_PROVIDER_RESPONSE', message: providerError })}\n\n` });
   });
   await direction.click();
+  await page.getByTestId('confirm-direction').click();
   const providerAlert = page.getByRole('alert');
   await expect(providerAlert).toContainText(providerError);
   await expect(page.getByText('就选这个方向。', { exact: true })).toHaveCount(0);
@@ -124,6 +125,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await shot(page, '35-provider-error-visible.png');
   await page.unroute('**/api/projects/*/messages');
   await direction.click();
+  await page.getByTestId('confirm-direction').click();
   await expect(page.getByTestId('confirm-script')).toBeEnabled();
   await expect(providerAlert).toHaveCount(0);
   await page.getByTestId('chat-input').fill('把第二张场景换成办公室，做一版通勤脚本。');

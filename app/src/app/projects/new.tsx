@@ -15,6 +15,8 @@ import { GarmentPicker, ModelSourceLabel } from '../../components/AssetLibrary';
 import { useLibraryModels } from '../../lib/assets';
 import { previewUrl } from '../../lib/previewUrl';
 
+const MAX_GARMENTS = 10;
+
 export default function NewProject() {
   const { api, user, photos } = useSession();
   const router = useRouter();
@@ -29,7 +31,7 @@ export default function NewProject() {
   const [brand, setBrand] = useState('');
   const [brief, setBrief] = useState('');
   const [garments, setGarments] = useState<Asset[]>([]);
-  const selectGarment = useCallback((item: Asset) => setGarments(previous => previous.some(asset => asset.id === item.id) ? previous : [...previous, item]), []);
+  const selectGarment = useCallback((item: Asset) => setGarments(previous => previous.length >= MAX_GARMENTS || previous.some(asset => asset.id === item.id) ? previous : [...previous, item]), []);
   const [references, setReferences] = useState<Asset[]>([]);
   const [model, setModel] = useState<Asset | null>(null);
   const [modelChoice, setModelChoice] = useState<string | null | undefined>(undefined);
@@ -44,7 +46,7 @@ export default function NewProject() {
   const [error, setError] = useState('');
   const [creationRecovery, setCreationRecovery] = useState<ProjectCreationRecovery | null>(null);
   async function pick(kind: AssetKind) {
-    if (picking.current || busy || (kind === 'reference' && references.length >= 3)) return;
+    if (picking.current || busy || (kind === 'reference' && references.length >= 3) || (kind === 'garment' && garments.length >= MAX_GARMENTS)) return;
     picking.current = true;
     setUploading(kind);
     setError('');
@@ -53,7 +55,7 @@ export default function NewProject() {
         const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!result.granted) { setError('需要允许访问选中的照片，才能上传图片。你也可以到系统设置中开启。'); return; }
       }
-      const limit = kind === 'reference' ? 3 - references.length : kind === 'garment' ? 9 : 1;
+      const limit = kind === 'reference' ? 3 - references.length : kind === 'garment' ? Math.min(9, MAX_GARMENTS - garments.length) : 1;
       const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: kind !== 'model', selectionLimit: limit, quality: 0.9 });
       if (result.canceled) return;
       const items = result.assets.slice(0, limit);
@@ -64,7 +66,7 @@ export default function NewProject() {
         const asset = await api.uploadAsset(file, kind);
         if (kind === 'model') { setModel(asset); setModelChoice(asset.id); }
         else if (kind === 'reference') setReferences(previous => [...previous, asset].slice(0, 3));
-        else setGarments(previous => [...previous, asset]);
+        else setGarments(previous => [...previous, asset].slice(0, MAX_GARMENTS));
       }
     } catch (e) { setError(`图片没传好：${errorText(e)}`); } finally { picking.current = false; setUploading(null); setUploadProgress(null); }
   }
@@ -103,17 +105,17 @@ export default function NewProject() {
         </View>
         <View style={styles.row}><Text testID="mode-description" style={[localStyles.caption, { flex: 1 }]}>{descriptions[mode]}</Text><Pressable accessibilityRole="button" accessibilityLabel={mode === 'auto' ? '了解一键出片' : '了解沉浸编导'} onPress={() => setHelp(mode)} style={localStyles.help}><Ionicons name="help-circle-outline" size={23} color={studio.muted} /></Pressable></View>
         <View style={localStyles.section}>
-          <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}><Text style={localStyles.sectionTitle}>衣服（必填）</Text><Badge label="至少 1 张 · 支持多选" /></View>
+          <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}><Text style={localStyles.sectionTitle}>衣服（必填）</Text><Badge label={`至少 1 张 · 最多 ${MAX_GARMENTS} 张`} /></View>
           {!!garments.length && <View style={localStyles.thumbnails}>{garments.map((item, index) => <View key={item.id} style={localStyles.garment}>
             <FadeImage source={{ uri: previewUrl(item.url, 360) }} style={localStyles.garmentImage} />
             <Pressable accessibilityRole="button" accessibilityLabel={`移除衣服图 ${index + 1}`} disabled={!!uploading || busy} onPress={() => setGarments(previous => previous.filter(asset => asset.id !== item.id))} style={({ pressed }) => [localStyles.removeImage, pressed && localStyles.pressed]}><View style={localStyles.removeGlyph}><Ionicons name="close" size={16} color={studio.ink} /></View></Pressable>
           </View>)}</View>}
-          <Pressable accessibilityRole="button" accessibilityLabel="上传衣服图" testID="upload-garments" disabled={!!uploading || busy} onPress={() => void pick('garment')} style={({ pressed }) => [localStyles.uploadArea, pressed && localStyles.uploadPressed, (!!uploading || busy) && { opacity: 0.6 }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="上传衣服图" accessibilityState={{ disabled: !!uploading || busy || garments.length >= MAX_GARMENTS }} testID="upload-garments" disabled={!!uploading || busy || garments.length >= MAX_GARMENTS} onPress={() => void pick('garment')} style={({ pressed }) => [localStyles.uploadArea, pressed && localStyles.uploadPressed, (!!uploading || busy || garments.length >= MAX_GARMENTS) && { opacity: 0.6 }]}>
             <View style={localStyles.uploadIcon}><Ionicons name="add" size={24} color={studio.accent} /></View>
-            <Text style={localStyles.uploadTitle}>{uploading === 'garment' ? '正在上传衣服图…' : '添加衣服图'}</Text>
-            <Text style={localStyles.caption}>平铺、挂拍或商品图都可以</Text>
+            <Text style={localStyles.uploadTitle}>{uploading === 'garment' ? '正在上传衣服图…' : garments.length >= MAX_GARMENTS ? `已添加 ${MAX_GARMENTS} 张衣服图` : '添加衣服图'}</Text>
+            <Text testID="garment-count" style={localStyles.caption}>{garments.length ? `已选 ${garments.length}/${MAX_GARMENTS} 张 · 可移除后重新选择` : '平铺、挂拍或商品图都可以'}</Text>
           </Pressable>
-          <GarmentPicker selectedIds={garments.map(item => item.id)} onSelect={selectGarment} disabled={!!uploading || busy} />
+          <GarmentPicker selectedIds={garments.map(item => item.id)} onSelect={selectGarment} disabled={!!uploading || busy || garments.length >= MAX_GARMENTS} />
         </View>
         <View style={localStyles.section}>
           <View style={styles.row}><Text style={localStyles.sectionTitle}>出镜的人</Text><Badge label="选填" /></View>
@@ -146,14 +148,13 @@ export default function NewProject() {
         </View>
         {!!quoteError && mode === 'auto' && <Notice text={quoteError} onRetry={() => { void api.autoQuote().then(value => { if (!Number.isFinite(value.estimate_points) || value.estimate_points < 0) throw new Error('invalid quote'); setQuote(value); setQuoteError(''); }).catch(() => setQuoteError('估点暂时没取到，可稍后再试。')); }} />}
         {!!uploading && <ProgressStrip title={uploading === 'garment' ? '正在上传衣服图…' : uploading === 'reference' ? '正在上传参考图…' : '正在上传本人照片…'} detail={uploadProgress ? `第 ${uploadProgress.current}/${uploadProgress.total} 张` : '正在选择图片'} />}
-        {!!error && <Notice text={error} />}
         {creationRecovery && <View style={{ gap: space.md }}>
           <Notice text={projectCreationRecoveryText(creationRecovery)} />
           {creationRecovery.projects?.map(project => <Button key={project.id} title={`打开项目：${project.title}`} variant="secondary" disabled={busy} onPress={() => router.replace({ pathname: '/projects/[id]', params: { id: project.id } })} />)}
           {creationRecovery.projects !== null && <Button title="确认重新新建" variant="secondary" disabled={busy || !!uploading} onPress={() => void submit(true)} />}
         </View>}
       </ScrollView>
-      <View style={localStyles.footer}><Button title={creationRecovery ? '再查一次项目' : mode === 'guided' ? '开拍，先聊灵感' : quote ? `开拍，全自动 · 约 ${formatPoints(quote.estimate_points)}` : '正在估点…'} testID="start-shooting" icon="arrow-forward" loading={busy} disabled={!!uploading || (mode === 'auto' && !quote)} onPress={() => void submit()} /></View>
+      <View style={localStyles.footer}>{!!error && <Notice text={error} />}<Button title={creationRecovery ? '再查一次项目' : mode === 'guided' ? '开拍，先聊灵感' : quote ? `开拍，全自动 · 约 ${formatPoints(quote.estimate_points)}` : '正在估点…'} testID="start-shooting" icon="arrow-forward" loading={busy} disabled={!!uploading || (mode === 'auto' && !quote)} onPress={() => void submit()} /></View>
     </KeyboardAvoidingView>
     <Modal visible={help !== null} transparent animationType="fade" onRequestClose={() => setHelp(null)}><View style={localStyles.helpOverlay}><View accessibilityViewIsModal style={localStyles.helpCard}><Text style={localStyles.sectionTitle}>{help === 'auto' ? '一键出片' : '沉浸编导'}</Text><Text style={localStyles.subtitle}>{help ? descriptions[help] : ''}</Text><Button title="知道了" onPress={() => setHelp(null)} /></View></View></Modal>
   </Page>;
@@ -170,7 +171,7 @@ const localStyles = StyleSheet.create({
   help: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   helpOverlay: { flex: 1, backgroundColor: studio.helpOverlay, justifyContent: 'center', padding: space.xl },
   helpCard: { alignSelf: 'center', width: '100%', maxWidth: 440, backgroundColor: studio.surface, borderColor: studio.line, borderWidth: 1, padding: space.xl, borderRadius: radius.lg, gap: space.xl },
-  footer: { borderTopWidth: 1, borderColor: studio.line, backgroundColor: studio.bg, padding: space.lg },
+  footer: { borderTopWidth: 1, borderColor: studio.line, backgroundColor: studio.bg, padding: space.lg, gap: space.md },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   tag: { minHeight: 44, paddingHorizontal: space.md, paddingVertical: space.md, borderRadius: radius.sm, borderWidth: 1, borderColor: studio.line, backgroundColor: studio.canvas, justifyContent: 'center' },
   tagSelected: { backgroundColor: studio.softAccent, borderColor: studio.accent },

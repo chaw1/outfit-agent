@@ -1,9 +1,10 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = new URL('../', import.meta.url);
 const source = JSON.parse(readFileSync(new URL('design/tokens.json', root), 'utf8'));
 const output = new URL('src/theme.ts', root);
+const adminOutput = new URL('../server/app/admin_static/tokens.css', root);
 const quote = value => `'${value.replaceAll("'", "\\'")}'`;
 
 function lookup(path) {
@@ -66,12 +67,26 @@ const generated = `// 由 tokens.json 生成，勿手改。运行 npm run tokens
   ['radius', source.radius], ['type', source.type], ['motion', source.motion], ['layout', source.layout],
 ].map(([name, node]) => `export const ${name} = ${group(node)} ${name === 'type' ? 'satisfies Record<string, TextStyle>' : 'as const'};\n`).join('\n');
 
-if (process.argv.includes('--check')) {
-  if (readFileSync(output, 'utf8') !== generated) {
-    console.error('theme.ts 与 tokens.json 不一致，请运行 npm run tokens。');
-    process.exitCode = 1;
-  } else console.log('Token 生成结果一致。');
-} else {
-  writeFileSync(output, generated);
-  console.log(`已生成 ${fileURLToPath(output)}`);
+function cssTokens(node, path = []) {
+  if ('$value' in node) {
+    if (node.$type === 'fontFamily') return [];
+    const name = path.join('-').replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+    const value = valueOf(node).replace(/^'|'$/g, '');
+    const unit = node.$type === 'dimension' ? 'px' : node.$type === 'duration' ? 'ms' : '';
+    return [`  --${name}: ${value}${unit};`];
+  }
+  return Object.entries(node).filter(([key]) => !key.startsWith('$')).flatMap(([key, child]) => cssTokens(child, [...path, key]));
+}
+
+const adminCss = `/* 由 app/design/tokens.json 生成，勿手改。运行 npm run tokens 更新。 */\n:root {\n${cssTokens(source).join('\n')}\n}\n`;
+for (const [target, content] of [[output, generated], [adminOutput, adminCss]]) {
+  if (process.argv.includes('--check')) {
+    if (!existsSync(target) || readFileSync(target, 'utf8') !== content) {
+      console.error(`${fileURLToPath(target)} 与 tokens.json 不一致，请运行 npm run tokens。`);
+      process.exitCode = 1;
+    } else console.log(`Token 生成结果一致：${fileURLToPath(target)}`);
+  } else {
+    writeFileSync(target, content);
+    console.log(`已生成 ${fileURLToPath(target)}`);
+  }
 }

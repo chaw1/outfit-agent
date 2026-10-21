@@ -46,6 +46,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
   }
 
   async function save() {
+    if (busy) return;
     setError(''); setSaved(false);
     try {
       if (!nickname.trim()) throw new Error('给自己起一个昵称吧。');
@@ -65,7 +66,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
       <View style={localStyles.headingIcon}><Ionicons name="person-outline" size={24} color={colors.redText} /></View>
       <View style={{ flex: 1, gap: space.xs }}><Text style={styles.section}>我的形象</Text><Text style={styles.subtitle}>保存你的照片和偏好，下次拍片从熟悉的你开始。</Text></View>
     </View>
-    <Field label="昵称" value={nickname} maxLength={40} onChangeText={value => { setNickname(value); changed(); }} />
+    <Field label="昵称" value={nickname} maxLength={40} disabled={busy} onChangeText={value => { setNickname(value); changed(); }} />
     <View style={{ gap: space.md }}><Text style={styles.label}>本人照片 · 第一张为默认</Text>
       <View style={localStyles.photoGrid}>{profilePhotos(ids, photos).map((photo, index) => <View key={photo.id} style={localStyles.photoCard}>
         <View>
@@ -82,9 +83,9 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
     </View>
     <View style={localStyles.preferences}>
       <Text style={styles.section}>你的穿搭偏好</Text>
-      <Field label="身高（厘米）" placeholder="选填，例如 168" keyboardType="decimal-pad" value={height} maxLength={5} onChangeText={value => { setHeight(value); changed(); }} />
-      <Field label="体型描述" placeholder="例如：肩宽、梨形，想突出腰线" value={body} maxLength={500} multiline onChangeText={value => { setBody(value); changed(); }} />
-      <Field label="风格偏好" placeholder="例如：喜欢松弛感，不穿高跟鞋" value={style} maxLength={1000} multiline onChangeText={value => { setStyle(value); changed(); }} />
+      <Field label="身高（厘米）" placeholder="选填，例如 168" keyboardType="decimal-pad" value={height} maxLength={5} disabled={busy} onChangeText={value => { setHeight(value); changed(); }} />
+      <Field label="体型描述" placeholder="例如：肩宽、梨形，想突出腰线" value={body} maxLength={500} multiline disabled={busy} onChangeText={value => { setBody(value); changed(); }} />
+      <Field label="风格偏好" placeholder="例如：喜欢松弛感，不穿高跟鞋" value={style} maxLength={1000} multiline disabled={busy} onChangeText={value => { setStyle(value); changed(); }} />
     </View>
     {!!error && <Notice text={error} />}
     {saved && <Toast text="形象已保存，拍新片会默认带上你的照片。" tone="success" onDismiss={() => setSaved(false)} />}

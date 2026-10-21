@@ -6,14 +6,16 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 async function withTokens(check: (directory: string) => Promise<void>) {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'outfit-tokens-'));
+  const workspace = await mkdtemp(path.join(os.tmpdir(), 'outfit-tokens-'));
+  const directory = path.join(workspace, 'app');
   try {
-    for (const folder of ['scripts', 'design', 'src']) await mkdir(path.join(directory, folder));
+    for (const folder of ['scripts', 'design', 'src', '../server/app/admin_static']) await mkdir(path.join(directory, folder), { recursive: true });
     for (const file of ['scripts/build-tokens.mjs', 'design/tokens.json', 'src/theme.ts']) {
       await copyFile(new URL(`../${file}`, import.meta.url), path.join(directory, file));
     }
+    await copyFile(new URL('../../server/app/admin_static/tokens.css', import.meta.url), path.join(workspace, 'server/app/admin_static/tokens.css'));
     await check(directory);
-  } finally { await rm(directory, { recursive: true, force: true }); }
+  } finally { await rm(workspace, { recursive: true, force: true }); }
 }
 
 function build(directory: string, ...args: string[]) {
@@ -40,6 +42,19 @@ test('DTCG color components drive aliases and generated values', async () => {
     await writeFile(file, JSON.stringify(tokens));
     assert.equal(build(directory).status, 0);
     assert.match(await readFile(path.join(directory, 'src/theme.ts'), 'utf8'), /action: '#000000'/);
+    assert.match(await readFile(path.join(directory, '../server/app/admin_static/tokens.css'), 'utf8'), /--color-paper-action: #000000/);
+  });
+});
+
+test('token check catches admin CSS drift without rewriting it', async () => {
+  await withTokens(async directory => {
+    const file = path.join(directory, '../server/app/admin_static/tokens.css');
+    const edited = `${await readFile(file, 'utf8')}\n:root { --color-paper-action: black; }\n`;
+    await writeFile(file, edited);
+    assert.equal(build(directory, '--check').status, 1);
+    assert.equal(await readFile(file, 'utf8'), edited);
+    assert.equal(build(directory).status, 0);
+    assert.equal(build(directory, '--check').status, 0);
   });
 });
 

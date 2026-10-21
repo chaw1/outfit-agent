@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { Job, ProjectState } from '../src/api/types';
-import { appendRecentCompletions, checkGeneration, completedGroups, createGenerationRuntime, deliverCompletion, notificationOwner, notificationProject, parseSavedGenerations, trackState, type Completion, type NotificationSession } from '../src/lib/completionTracker';
+import { appendRecentCompletions, checkGeneration, completedGroups, createGenerationRuntime, deliverCompletion, notificationOwner, notificationProject, parseSavedGenerations, sameCompletionResult, trackState, type Completion, type NotificationSession } from '../src/lib/completionTracker';
 
 const job = (id: string, kind: Job['kind'] = 'image', status: Job['status'] = 'running'): Job => ({ id, project_id: 'project_1', kind, status, created_at: '2026-10-21T01:00:00Z', updated_at: '2026-10-21T01:00:00Z', url: 'https://local.invalid/media?sig=private' });
 const state = (jobs: Job[] = [], patch: Partial<ProjectState> = {}): ProjectState => ({ stage: 'images', garments: [], directions: [], images: jobs.filter(item => item.kind === 'image').map(item => ({ id: `image_${item.id}`, shot_id: item.id, version: 1, status: item.status })), active_jobs: jobs, ...patch });
@@ -28,16 +28,126 @@ test('recent completions keep the latest five projects, with the newest incoming
   assert.deepEqual(incoming.map(completion => completion.projectId), ['p6', 'p7', 'p6']);
 });
 
+test('replayed completion results retain read state while new jobs or kinds become unread', () => {
+  const previous = [{ ...example, jobIds: ['one', 'two'], read: true }];
+  const replay = { ...example, jobIds: ['two', 'one'], body: '重试后的文案' };
+  assert.equal(sameCompletionResult(previous[0], replay), true);
+  assert.equal(appendRecentCompletions(previous, [replay])[0].read, true);
+  assert.equal(appendRecentCompletions(previous, [{ ...replay, jobIds: ['new'] }])[0].read, undefined);
+  assert.equal(appendRecentCompletions(previous, [{ ...replay, kind: 'video' }])[0].read, undefined);
+  assert.equal(sameCompletionResult(previous[0], { ...replay, projectId: 'another' }), false);
+});
+
 test('saved generations accept older progress and validate optional recent completion records', () => {
   const saved = { owner: 'owner', baseUrl: 'http://local.invalid', projects: [] };
   assert.equal(parseSavedGenerations(JSON.stringify(saved))?.recent, undefined);
   assert.deepEqual(parseSavedGenerations(JSON.stringify({ ...saved, recent: [example] }))?.recent, [example]);
-  for (const recent of [null, {}, 'bad', [null], [{}], [{ ...example, projectId: 7 }], [{ ...example, title: null }], [{ ...example, kind: 'preview' }], [{ ...example, jobIds: 'job' }], [{ ...example, jobIds: [7] }], [{ ...example, body: null }]]) {
+  for (const recent of [null, {}, 'bad', [null], [{}], [{ ...example, projectId: 7 }], [{ ...example, title: null }], [{ ...example, kind: 'preview' }], [{ ...example, jobIds: 'job' }], [{ ...example, jobIds: [7] }], [{ ...example, body: null }], [{ ...example, read: 'yes' }], [{ ...example, read: null }]]) {
     assert.equal(parseSavedGenerations(JSON.stringify({ ...saved, recent })), undefined);
   }
   const restored = parseSavedGenerations(JSON.stringify({ ...saved, recent: [{ ...example, url: 'private-signed-address' }, example] }));
   assert.deepEqual(restored?.recent, [example]);
   assert.ok(!JSON.stringify(restored).includes('private-signed-address'));
+  assert.deepEqual(parseSavedGenerations(JSON.stringify({ ...saved, recent: [{ ...example, read: true }] }))?.recent, [{ ...example, read: true }]);
+  assert.deepEqual(parseSavedGenerations(JSON.stringify({ ...saved, recent: [{ ...example, read: false }] }))?.recent, [example]);
+});
+
+test('marking a completion read persists once and survives a runtime restart without notifying again', async () => {
+  const session = fixtureSession({ state: async () => state(), job: async id => job(id, 'image', 'succeeded') });
+  let stored: string | null = JSON.stringify({ owner: notificationOwner(session), baseUrl: session.baseUrl, projects: [], recent: [example] });
+  let saves = 0, deliveries = 0;
+  const feeds: (readonly Completion[])[] = [];
+  const dependencies = {
+    load: async () => stored,
+    save: async (value: string | null) => { stored = value; saves++; },
+    deliver: async () => { deliveries++; },
+    onCompletions: (_scope: string, values: readonly Completion[]) => { feeds.push(values); },
+  };
+  const runtime = createGenerationRuntime(dependencies);
+  await runtime.configure(session);
+  await runtime.markRead(example.projectId, example.jobIds);
+  assert.deepEqual(parseSavedGenerations(stored)?.recent, [{ ...example, read: true }]);
+  assert.equal(feeds.at(-1)?.[0].read, true);
+  const savedCount = saves, publishedCount = feeds.length;
+  await runtime.markRead(example.projectId, example.jobIds);
+  await runtime.markRead('missing');
+  assert.equal(saves, savedCount);
+  assert.equal(feeds.length, publishedCount);
+  const restored = createGenerationRuntime(dependencies);
+  await restored.configure(session);
+  await restored.poll();
+  assert.equal(feeds.at(-1)?.[0].read, true);
+  assert.equal(deliveries, 0);
+});
+
+test('a failed read-state save can be retried and publishes only after persistence succeeds', async () => {
+  const session = fixtureSession({ state: async () => state(), job: async id => job(id, 'image', 'succeeded') });
+  let stored: string | null = JSON.stringify({ owner: notificationOwner(session), baseUrl: session.baseUrl, projects: [], recent: [example] });
+  let failNextSave = false;
+  const feeds: (readonly Completion[])[] = [];
+  const runtime = createGenerationRuntime({
+    load: async () => stored,
+    save: async value => { if (failNextSave) { failNextSave = false; throw new Error('storage unavailable'); } stored = value; },
+    deliver: async () => undefined,
+    onCompletions: (_scope, values) => { feeds.push(values); },
+  });
+  await runtime.configure(session);
+  const publications = feeds.length;
+  failNextSave = true;
+  await assert.rejects(runtime.markRead(example.projectId, example.jobIds), /storage unavailable/);
+  assert.equal(parseSavedGenerations(stored)?.recent?.[0].read, undefined);
+  assert.equal(feeds.length, publications);
+  await runtime.markRead(example.projectId, example.jobIds);
+  assert.equal(parseSavedGenerations(stored)?.recent?.[0].read, true);
+  assert.equal(feeds.at(-1)?.[0].read, true);
+  assert.equal(feeds.length, publications + 1);
+});
+
+test('a new result becomes unread and a stale click cannot mark its replacement read', async () => {
+  const session = fixtureSession({ state: async () => state(), job: async id => job(id, 'image', 'succeeded') });
+  let stored: string | null = JSON.stringify({ owner: notificationOwner(session), baseUrl: session.baseUrl, projects: [], recent: [{ ...example, read: true }] });
+  let saves = 0;
+  const feeds: (readonly Completion[])[] = [];
+  const runtime = createGenerationRuntime({ load: async () => stored, save: async value => { stored = value; saves++; }, deliver: async () => undefined, onCompletions: (_scope, values) => { feeds.push(values); } });
+  await runtime.configure(session);
+  await runtime.observe(example.projectId, example.title, state([job('new-result')]));
+  await runtime.poll();
+  assert.deepEqual(feeds.at(-1)?.[0].jobIds, ['new-result']);
+  assert.equal(feeds.at(-1)?.[0].read, undefined);
+  const savedCount = saves, publishedCount = feeds.length;
+  await runtime.markRead(example.projectId, example.jobIds);
+  assert.equal(saves, savedCount);
+  assert.equal(feeds.length, publishedCount);
+  assert.equal(parseSavedGenerations(stored)?.recent?.[0].read, undefined);
+  await runtime.markRead(example.projectId);
+  assert.equal(parseSavedGenerations(stored)?.recent?.[0].read, true);
+});
+
+test('queued read updates cannot cross an account change', async () => {
+  const api: NotificationSession['api'] = { state: async () => state(), job: async id => job(id, 'image', 'succeeded') };
+  const alice = fixtureSession(api, 'alice'), bob = fixtureSession(api, 'bob');
+  const loading = deferred<string | null>();
+  const entered = deferred<void>();
+  let stored: string | null = JSON.stringify({ owner: notificationOwner(bob), baseUrl: bob.baseUrl, projects: [], recent: [example] });
+  let loads = 0;
+  const feeds: { scope: string; values: readonly Completion[] }[] = [];
+  const runtime = createGenerationRuntime({
+    load: async () => { if (++loads === 1) { entered.resolve(); return loading.promise; } return stored; },
+    save: async value => { stored = value; }, deliver: async () => undefined,
+    onCompletions: (scope, values) => { feeds.push({ scope, values }); },
+  });
+  const initial = runtime.configure(alice);
+  await entered.promise;
+  const pendingRead = runtime.markRead(example.projectId, example.jobIds);
+  const switched = runtime.configure(bob);
+  loading.resolve(null);
+  await Promise.all([initial, pendingRead, switched]);
+  assert.equal(parseSavedGenerations(stored)?.owner, notificationOwner(bob));
+  assert.deepEqual(parseSavedGenerations(stored)?.recent, [example]);
+  assert.deepEqual(feeds, [{ scope: notificationOwner(bob), values: [example] }]);
+  await runtime.configure(null);
+  await runtime.markRead(example.projectId);
+  assert.equal(stored, null);
 });
 
 test('cold-start recent completion restoration populates its owner feed without repeating any delivery', async () => {

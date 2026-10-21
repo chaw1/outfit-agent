@@ -7,13 +7,16 @@ import { WorkspaceHistorySync } from '../api/workspaceSync';
 import { ApiError } from '../api/client';
 import { errorText } from '../components/ui';
 import { useSession } from '../context/Session';
-import { observeGeneration } from '../lib/notificationRuntime';
+import { markGenerationRead, observeGeneration } from '../lib/notificationRuntime';
+import { recentCompletions } from '../lib/completionFeed';
+import { notificationOwner } from '../lib/completionTracker';
 import { canRephrase, persistedRetry, type FailedMessage } from '../lib/conversation';
 
 const active = (job: Job) => job.status === 'queued' || job.status === 'running';
 
 export function useWorkspace(id: string) {
-  const { api, token } = useSession();
+  const { api, token, baseUrl, user } = useSession();
+  const notificationScope = notificationOwner({ baseUrl, userId: user?.id ?? '' });
   const owner = useMemo(() => ({ api, token, id }), [api, token, id]);
   const latestOwner = useRef(owner);
   const [project, setProject] = useState<Project>();
@@ -57,6 +60,7 @@ export function useWorkspace(id: string) {
     const request = ++stateRequest.current;
     const conversation = conversationVersion.current;
     const data = dataVersion.current;
+    const completion = recentCompletions(notificationScope).find(item => item.projectId === id);
     const [fresh, details] = await Promise.all([
       api.state(id),
       withHistory ? api.project(id) : Promise.resolve(undefined),
@@ -79,6 +83,9 @@ export function useWorkspace(id: string) {
     if (request === stateRequest.current) {
       setMissing(false);
       observeGeneration(id, details?.title || '这组片', fresh);
+      if (data === dataVersion.current && (!appStatus.current || appStatus.current === 'active') && completion && !completion.read && !fresh.active_jobs.some(job => completion.jobIds.includes(job.id))) {
+        markGenerationRead(id, completion.jobIds, notificationScope);
+      }
     }
     if (historySync.current.needsHistory(Boolean(stream.current?.streaming), withHistory)) {
       const history = ++historyRequest.current;
@@ -99,7 +106,7 @@ export function useWorkspace(id: string) {
       }
     }
     return fresh;
-  }, [api, id, token, owner, isCurrent]);
+  }, [api, id, token, owner, isCurrent, notificationScope]);
 
   const send = useCallback(async (input: SendMessageInput, retryId?: string) => {
     const epoch = focusEpoch.current;

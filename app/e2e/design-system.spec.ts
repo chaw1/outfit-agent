@@ -4,7 +4,7 @@ import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 const designBase = process.env.E2E_DESIGN_BASE || 'http://localhost:19422';
-const screenshots = path.resolve('screenshots/ds');
+const screenshots = path.resolve(process.env.E2E_DESIGN_SCREENSHOTS_DIR || 'screenshots/ds');
 
 async function openGallery(page: Page, tone: 'paper' | 'studio', width: number) {
   await page.emulateMedia({ reducedMotion: 'reduce' });

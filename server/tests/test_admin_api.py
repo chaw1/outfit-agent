@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -78,10 +79,26 @@ def test_admin_requires_separate_expiring_session(admin_api, monkeypatch):
     assert client.get("/api/admin/overview").status_code == 401
 
 
+def test_admin_serves_shared_design_tokens(admin_api):
+    client, _, _, _ = admin_api
+    page = client.get("/admin")
+    assert 'href="/admin/tokens.css"' in page.text
+    response = client.get("/admin/tokens.css")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/css")
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert "--color-paper-action:" in response.text
+    assert "--layout-touch: 44px;" in response.text
+
+
 def test_empty_admin_token_closes_every_admin_surface(admin_api, monkeypatch):
     client, _, _, _ = admin_api
     monkeypatch.setattr(settings, "admin_token", "")
-    for path in ("/admin", "/admin/assets/app.js", "/api/admin/overview", "/api/admin/settings"):
+    for path in (
+        "/admin", "/admin/tokens.css", "/admin/assets/app.js",
+        "/api/admin/overview", "/api/admin/settings",
+    ):
         assert client.get(path).status_code == 404
     assert client.post("/api/admin/login", json={"token": "anything"}).status_code == 404
     assert client.post("/api/admin/login", content="broken-json").status_code == 404
@@ -241,14 +258,14 @@ def test_admin_queue_exposes_photo_script_and_old_jobs_return_null(admin_api):
 
 def test_admin_photo_script_markup_escapes_payload_and_keeps_line_breaks():
     source = (Path(__file__).resolve().parents[1] / "app/admin_static/index.html").read_text()
-    start = source.index('${j.photo_prompt?`')
-    end = source.index("</details>`:''}", start) + len("</details>")
+    start = source.index('<details class="job-photo-prompt"')
+    end = source.index("</details>", start) + len("</details>")
     markup = source[start:end]
     assert '<details class="job-photo-prompt" data-job="${esc(j.id)}"' in markup
     assert "<summary>摄影脚本</summary>" in markup
     assert '<pre>${esc(j.photo_prompt)}</pre>' in markup
     assert '${j.photo_prompt}' not in markup
-    assert ".job-photo-prompt pre{white-space:pre-wrap;" in source
+    assert re.search(r"\.job-photo-prompt pre\s*\{\s*white-space:\s*pre-wrap;", source)
 
 
 def test_retry_respects_disabled_user_budget_and_unknown_paid_result(admin_api):

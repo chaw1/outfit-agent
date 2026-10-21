@@ -17,6 +17,7 @@ import { AnimatedEntry, Badge, Button as ActionButton, FadeImage, ProgressStrip,
 import { VideoPlayer } from './VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationInfo';
 import { ScriptHistory } from './ScriptHistory';
+import { Chip } from './ds';
 import { useImageInteractions } from './ImageInteractions';
 import { CostEstimate } from './CostEstimate';
 import { SaveAsModel } from './SaveAsModel';
@@ -28,6 +29,7 @@ type CardsProps = {
   onAction: (action: Action) => void;
   onText: (text: string) => void;
   onPreview: () => void;
+  onDraft?: (text: string) => void;
 };
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -56,9 +58,10 @@ function Button({ title, onPress, disabled, testID, secondary = false, icon }: {
   return <ActionButton title={title} onPress={onPress} disabled={disabled} testID={testID} variant={secondary ? 'secondary' : 'primary'} icon={icon} />;
 }
 
-function DirectionOption({ direction, selected, enabled, onPress }: {
+function DirectionOption({ direction, selected, picked, enabled, onPress }: {
   direction: Direction;
   selected: boolean;
+  picked: boolean;
   enabled: boolean;
   onPress: () => void;
 }) {
@@ -69,15 +72,15 @@ function DirectionOption({ direction, selected, enabled, onPress }: {
       disabled={!enabled}
       accessibilityRole="button"
       accessibilityLabel={`选择方向：${direction.name}`}
-      accessibilityState={{ selected, disabled: !enabled }}
+      accessibilityState={{ selected: selected || picked, disabled: !enabled }}
       testID={`direction-${direction.id}`}
-      style={({ pressed }) => [styles.direction, selected && styles.directionSelected, pressed && enabled && styles.pressed]}
+      style={({ pressed }) => [styles.direction, (selected || picked) && styles.directionSelected, pressed && enabled && styles.pressed]}
     >
       <DirectionPreview direction={direction} />
       <View style={styles.rowBetween}>
         <Text style={styles.directionName}>{direction.name}</Text>
-        <View style={[styles.radio, selected && styles.radioSelected]}>
-          {selected ? <Icon name="checkmark" size={12} color={colors.white} /> : null}
+        <View style={[styles.radio, (selected || picked) && styles.radioSelected]}>
+          {selected || picked ? <Icon name="checkmark" size={12} color={colors.white} /> : null}
         </View>
       </View>
       <Text style={styles.directionScene}>{direction.scene} · {direction.mood}</Text>
@@ -86,7 +89,7 @@ function DirectionOption({ direction, selected, enabled, onPress }: {
       {direction.styling ? <View style={styles.palette}><Icon name="shirt-outline" size={12} /><Text style={styles.paletteText} testID={`direction-styling-${direction.id}`}>搭配：{direction.styling}</Text></View> : null}
       {direction.sample_title ? <Text style={styles.sampleTitle}>“{direction.sample_title}”</Text> : null}
       <Text style={[styles.directionAction, selected && { color: colors.green }]}>
-        {selected ? '已选这个方向' : enabled ? '就选这个方向  ↗' : '方向已确认'}
+        {selected ? '已选这个方向' : picked ? '已选中 · 在下方确认' : enabled ? '点一下选中' : '方向已确认'}
       </Text>
     </Pressable>
   );
@@ -173,25 +176,27 @@ function ImageGrid({ items, state, busy }: {
           const isLatest = latest.get(item.shot_id)?.id === item.id;
           return (
             <View key={item.id} style={styles.imageTile}>
-              <Pressable
-                onPress={() => interaction.open(item.id)}
-                onLongPress={automatic ? undefined : () => interaction.menu(item.id)}
-                delayLongPress={400}
-                disabled={item.status !== 'succeeded' || !item.url}
-                accessibilityRole="button"
-                accessibilityLabel={`查看镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`}
-                testID={`image-select-${item.id}`}
-                style={({ pressed }) => [styles.imageFrame, selectedIndex >= 0 && styles.imageFrameSelected, pressed && styles.pressed]}
-              >
-                {item.url && item.status === 'succeeded' ? <FadeImage source={{ uri: previewUrl(item.url) }} style={styles.generatedImage} resizeMode="cover" accessibilityLabel={`穿搭镜头 ${shotIds.indexOf(item.shot_id) + 1}`} /> : (
-                  <View style={styles.generating}>
-                    {item.status === 'failed' ? <><Icon name="alert-circle-outline" color={colors.danger} size={26} /><Text style={styles.generatingTitle}>这张暂时没成功</Text><Text style={styles.generatingDetail}>{item.error ?? '在对话里告诉我，我们再试一次'}</Text></> : <ProgressStrip title={item.status === 'running' ? '画面生成中' : '等待生成'} detail={item.status === 'running' ? '好看的细节，值得等一等' : '马上就轮到这一张'} />}
-                  </View>
-                )}
-                {item.status === 'succeeded' && !automatic ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={event => { event.stopPropagation(); void toggle(item.id); }} hitSlop={space.sm} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
-                <View style={styles.versionBadge}><Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} />{isUnverified(item) ? <Badge label="未改到位" tone="danger" /> : null}</View>
-                {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
-              </Pressable>
+              <View style={[styles.imageFrame, selectedIndex >= 0 && styles.imageFrameSelected]}>
+                <Pressable
+                  onPress={() => interaction.open(item.id)}
+                  onLongPress={automatic ? undefined : () => interaction.menu(item.id)}
+                  delayLongPress={400}
+                  disabled={item.status !== 'succeeded' || !item.url}
+                  accessibilityRole="button"
+                  accessibilityLabel={`查看镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`}
+                  testID={`image-select-${item.id}`}
+                  style={({ pressed }) => [styles.generatedImage, pressed && styles.pressed]}
+                >
+                  {item.url && item.status === 'succeeded' ? <FadeImage source={{ uri: previewUrl(item.url) }} style={styles.generatedImage} resizeMode="cover" accessibilityLabel={`穿搭镜头 ${shotIds.indexOf(item.shot_id) + 1}`} /> : (
+                    <View style={styles.generating}>
+                      {item.status === 'failed' ? <><Icon name="alert-circle-outline" color={colors.danger} size={26} /><Text style={styles.generatingTitle}>这张暂时没成功</Text><Text style={styles.generatingDetail}>{item.error ?? '在对话里告诉我，我们再试一次'}</Text></> : <ProgressStrip title={item.status === 'running' ? '画面生成中' : '等待生成'} detail={item.status === 'running' ? '好看的细节，值得等一等' : '马上就轮到这一张'} />}
+                    </View>
+                  )}
+                  <View style={styles.versionBadge}><Badge label={isLatest ? `v${item.version}${item.version > 1 ? ' 新版' : ''}` : `v${item.version} 原版`} />{isUnverified(item) ? <Badge label="未改到位" tone="danger" /> : null}</View>
+                  {item.status === 'succeeded' ? <FidelityBadge image={item} /> : null}
+                </Pressable>
+                {item.status === 'succeeded' && !automatic ? <Pressable accessibilityRole="button" accessibilityLabel={`选择镜头 ${shotIds.indexOf(item.shot_id) + 1} 第 ${item.version} 版`} accessibilityState={{ selected: selectedIndex >= 0 }} testID={`image-toggle-${item.id}`} disabled={busy || !canEdit} onPress={() => { void toggle(item.id); }} hitSlop={space.sm} style={[styles.selectionBadge, selectedIndex >= 0 && styles.selectionBadgeSelected]}><Text style={styles.selectionBadgeText}>{selectedIndex >= 0 ? selectedIndex + 1 : ''}</Text></Pressable> : null}
+              </View>
               <View style={styles.imageCaptionRow}>
                 <Text style={styles.imageCaption}>镜头 {String(shotIds.indexOf(item.shot_id) + 1).padStart(2, '0')}{item.script_version ? ` · 脚本 ${item.script_version}` : ''}</Text>
                 {item.status === 'succeeded' && canEdit ? <Pressable
@@ -344,7 +349,87 @@ function VideoCard({ card, state, busy, onAction }: {
   </View>;
 }
 
-export function Cards({ cards, state, busy, onAction, onText, onPreview }: CardsProps) {
+function DirectionsCard({ card, state, busy, onAction, onText }: {
+  card: Extract<Card, { type: 'directions' }>;
+  state?: ProjectState;
+  busy?: boolean;
+  onAction: (action: Action) => void;
+  onText: (text: string) => void;
+}) {
+  // 两步选方向：先点卡片选中（本地高亮），再点确认按钮才真的发出去，误触不会直接进下一步。
+  const [picked, setPicked] = useState<string | null>(null);
+  const regeneratePoints = pointsValue(card.regenerate_estimate_points, card.regenerate_estimate_cny);
+  const automatic = state?.mode === 'auto';
+  const enabled = !automatic && !busy && (!state || (!state.chosen_direction_id && (state.pending_action?.type === 'choose_direction' || (state.pending_action === undefined && state.stage === 'direction'))));
+  const chosen = state?.chosen_direction_id;
+  const current = enabled && picked ? card.options.find(option => option.id === picked) : undefined;
+  return <View style={styles.card}>
+    <CardHeading icon="compass-outline" title="找一个心动的方向" detail={`${card.options.length} 个提案`} />
+    <Text style={styles.intro}>{automatic ? '正在为这组片选出最合适的方向，也可以在对话里聊聊想法。' : '先点一个选中，确认后才开始写脚本；也可以在对话里聊聊想法。'}</Text>
+    {card.options.map((option) => <DirectionOption key={option.id} direction={option} selected={chosen === option.id} picked={!chosen && picked === option.id} enabled={enabled} onPress={() => { feedback(); setPicked(previous => previous === option.id ? null : option.id); }} />)}
+    {current ? <View testID="direction-confirm-bar" style={styles.directionConfirm}>
+      <Text style={styles.directionConfirmText}>已选中「{current.name}」，确认后开始写脚本。</Text>
+      <Button title={`就选「${current.name}」`} icon="checkmark" testID="confirm-direction" onPress={() => { setPicked(null); onAction({ type: 'choose_direction', direction_id: current.id }); }} />
+    </View> : null}
+    {!automatic ? <Button title="换一组" secondary icon="refresh-outline" disabled={!enabled} testID="regenerate-directions" onPress={() => onText(REGENERATE_DIRECTIONS_TEXT)} /> : null}
+    {regeneratePoints !== undefined ? <Text testID="regenerate-estimate" style={styles.intro}>约 {formatPoints(regeneratePoints)} · 含 2–3 张预览</Text> : null}
+  </View>;
+}
+
+const SHOT_EDITS: { label: string; text: (n: number) => string; minShots?: number }[] = [
+  { label: '换个场景', text: n => `第 ${n} 镜换一个场景，其他镜头保持不变。` },
+  { label: '换个动作', text: n => `第 ${n} 镜换一个动作和镜头角度，其他镜头保持不变。` },
+  { label: '换搭配', text: n => `第 ${n} 镜的搭配换一换，其他镜头保持不变。` },
+  { label: '删掉这一镜', text: n => `删掉第 ${n} 镜，其他镜头保持不变。`, minShots: 4 },
+];
+
+function ScriptCard({ card, state, busy, onAction, onText, onDraft }: {
+  card: Extract<Card, { type: 'script' }>;
+  state?: ProjectState;
+  busy?: boolean;
+  onAction: (action: Action) => void;
+  onText: (text: string) => void;
+  onDraft?: (text: string) => void;
+}) {
+  // 每一镜都能单独改：点「改这一镜」展开几种常见改法，一点即发；想细说就把"第 N 镜："填进输入框。
+  const [editing, setEditing] = useState<string | null>(null);
+  const automatic = state?.mode === 'auto';
+  const confirmed = state?.script?.status === 'confirmed' || card.status === 'confirmed';
+  const editable = !automatic && !confirmed && !busy && (!state || state.pending_action?.type === 'confirm_script' || (state.pending_action === undefined && state.stage === 'script'));
+  const canConfirm = !busy && !confirmed && !confirmationCost(state, 'confirm_script')?.insufficient && (!state || state.pending_action?.type === 'confirm_script' || (state.pending_action === undefined && state.stage === 'script'));
+  return <View style={styles.card}>
+    <CardHeading icon="reader-outline" title="这次，我们这样拍" detail={confirmed ? '已确认' : '脚本草稿'} />
+    {!automatic ? <ScriptHistory versions={state?.script_versions} busy={busy} generating={Boolean(state?.active_jobs.length)} onAction={onAction} /> : null}
+    <Text style={styles.sectionLabel}>标题灵感</Text>
+    {card.title_ideas.map((title, index) => <Text key={`${index}-${title}`} style={styles.scriptTitle}><Text style={styles.scriptNumber}>{String(index + 1).padStart(2, '0')}  </Text>{title}</Text>)}
+    <View style={styles.coverBrief}><Text style={styles.coverHeading}>封面计划</Text><Text style={styles.coverBody}>{card.cover.scene} · {card.cover.pose}</Text>{card.cover.text_overlay ? <Text style={styles.coverOverlay}>封面字：{card.cover.text_overlay}</Text> : null}</View>
+    <Text style={styles.sectionLabel}>分镜与画面{editable ? <Text style={styles.sectionHint}>  · 每一镜都能单独改</Text> : null}</Text>
+    {card.shots.map((shot, index) => {
+      const number = index + 1;
+      const open = editing === shot.id;
+      return <View key={shot.id} style={[styles.shotRow, open && styles.shotRowEditing]}>
+        <View style={styles.shotNumber}><Text style={styles.shotNumberText}>{String(number).padStart(2, '0')}</Text></View>
+        <View style={styles.shotContent}>
+          <Text style={styles.shotScene}>{shot.scene}</Text>
+          <Text style={styles.shotDetail}>{shot.pose} · {shot.camera}</Text>
+          {shot.styling ? <Text style={styles.shotStyling} testID={`shot-styling-${shot.id}`}>搭配：{shot.styling}</Text> : null}
+          <Text style={styles.shotCaption}>{shot.caption}</Text>
+          {editable ? <Pressable accessibilityRole="button" accessibilityLabel={`修改第 ${number} 镜`} accessibilityState={{ expanded: open }} testID={`edit-shot-${shot.id}`} hitSlop={space.sm} onPress={() => { feedback(); setEditing(open ? null : shot.id); }} style={styles.shotEdit}><Icon name={open ? 'chevron-up' : 'create-outline'} size={14} color={colors.redText} /><Text style={styles.shotEditText}>{open ? '收起' : '改这一镜'}</Text></Pressable> : null}
+          {editable && open ? <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={styles.shotTools} testID={`shot-tools-${shot.id}`}>
+            {SHOT_EDITS.filter(item => card.shots.length >= (item.minShots ?? 0)).map(item => <Chip key={item.label} label={item.label} onPress={() => { setEditing(null); onText(item.text(number)); }} />)}
+            {onDraft ? <Chip label="自己说…" onPress={() => { setEditing(null); onDraft(`第 ${number} 镜：`); }} /> : null}
+          </ScrollView> : null}
+        </View>
+      </View>;
+    })}
+    {card.video?.prompt ? <View style={styles.scriptVideo}><Icon name="videocam-outline" size={14} color={colors.muted} /><View style={styles.shotContent}><Text style={styles.coverHeading}>{card.video.duration} 秒短片灵感</Text><Text style={styles.shotDetail}>{card.video.prompt}</Text></View></View> : null}
+    <View style={styles.scriptFooter}><Icon name="information-circle-outline" size={14} /><Text style={styles.smallText}>{confirmed ? '脚本已确认，画面正在按计划制作。' : automatic ? '脚本写好后会接着出图，整套好了会通知你。' : '确认后开始生成图片，想调整也可以继续聊。'}</Text></View>
+    {!automatic && !confirmed ? <CostEstimate state={state} action="confirm_script" /> : null}
+    {!automatic ? <Button title={confirmed ? '脚本已确认' : '确认脚本，开始出图'} icon="checkmark" onPress={() => onAction({ type: 'confirm_script' })} disabled={!canConfirm} testID="confirm-script" /> : null}
+  </View>;
+}
+
+export function Cards({ cards, state, busy, onAction, onText, onPreview, onDraft }: CardsProps) {
   return <View style={styles.cards}>{cards.map((card) => {
     if (card.type === 'images') return <ImageGrid key={card.id} items={card.items} state={state} busy={busy} onAction={onAction} />;
     if (card.type === 'note') return <NoteCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onPreview={onPreview} />;
@@ -363,34 +448,8 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
         <View style={styles.garmentInfo}><Text style={styles.garmentTitle}>{item.color} · {item.category}</Text><Text style={styles.garmentMaterial}>{item.material}</Text><View style={styles.tags}>{item.style_tags.map((tag) => <View key={tag} style={styles.garmentTag}><Text style={styles.garmentTagText}>{tag}</Text></View>)}</View></View>
       </View>)}
     </View>;
-    if (card.type === 'directions') {
-      const regeneratePoints = pointsValue(card.regenerate_estimate_points, card.regenerate_estimate_cny);
-      const enabled = state?.mode !== 'auto' && !busy && (!state || (!state.chosen_direction_id && (state.pending_action?.type === 'choose_direction' || (state.pending_action === undefined && state.stage === 'direction'))));
-      return <View key={card.id} style={styles.card}>
-        <CardHeading icon="compass-outline" title="找一个心动的方向" detail={`${card.options.length} 个提案`} />
-        <Text style={styles.intro}>{state?.mode === 'auto' ? '正在为这组片选出最合适的方向，也可以在对话里聊聊想法。' : '选一个最像你的，也可以在对话里聊聊想法。'}</Text>
-        {card.options.map((option) => <DirectionOption key={option.id} direction={option} selected={state?.chosen_direction_id === option.id} enabled={enabled} onPress={() => onAction({ type: 'choose_direction', direction_id: option.id })} />)}
-        {state?.mode !== 'auto' ? <Button title="换一组" secondary icon="refresh-outline" disabled={!enabled} testID="regenerate-directions" onPress={() => onText(REGENERATE_DIRECTIONS_TEXT)} /> : null}
-        {regeneratePoints !== undefined ? <Text testID="regenerate-estimate" style={styles.intro}>约 {formatPoints(regeneratePoints)} · 含 2–3 张预览</Text> : null}
-      </View>;
-    }
-    if (card.type === 'script') {
-      const confirmed = state?.script?.status === 'confirmed' || card.status === 'confirmed';
-      const canConfirm = !busy && !confirmed && !confirmationCost(state, 'confirm_script')?.insufficient && (!state || state.pending_action?.type === 'confirm_script' || (state.pending_action === undefined && state.stage === 'script'));
-      return <View key={card.id} style={styles.card}>
-        <CardHeading icon="reader-outline" title="这次，我们这样拍" detail={confirmed ? '已确认' : '脚本草稿'} />
-        {state?.mode !== 'auto' ? <ScriptHistory versions={state?.script_versions} busy={busy} generating={Boolean(state?.active_jobs.length)} onAction={onAction} /> : null}
-        <Text style={styles.sectionLabel}>标题灵感</Text>
-        {card.title_ideas.map((title, index) => <Text key={`${index}-${title}`} style={styles.scriptTitle}><Text style={styles.scriptNumber}>{String(index + 1).padStart(2, '0')}  </Text>{title}</Text>)}
-        <View style={styles.coverBrief}><Text style={styles.coverHeading}>封面计划</Text><Text style={styles.coverBody}>{card.cover.scene} · {card.cover.pose}</Text>{card.cover.text_overlay ? <Text style={styles.coverOverlay}>封面字：{card.cover.text_overlay}</Text> : null}</View>
-        <Text style={styles.sectionLabel}>分镜与画面</Text>
-        {card.shots.map((shot, index) => <View key={shot.id} style={styles.shotRow}><View style={styles.shotNumber}><Text style={styles.shotNumberText}>{String(index + 1).padStart(2, '0')}</Text></View><View style={styles.shotContent}><Text style={styles.shotScene}>{shot.scene}</Text><Text style={styles.shotDetail}>{shot.pose} · {shot.camera}</Text>{shot.styling ? <Text style={styles.shotStyling} testID={`shot-styling-${shot.id}`}>搭配：{shot.styling}</Text> : null}<Text style={styles.shotCaption}>{shot.caption}</Text></View></View>)}
-        {card.video?.prompt ? <View style={styles.scriptVideo}><Icon name="videocam-outline" size={14} color={colors.muted} /><View style={styles.shotContent}><Text style={styles.coverHeading}>{card.video.duration} 秒短片灵感</Text><Text style={styles.shotDetail}>{card.video.prompt}</Text></View></View> : null}
-        <View style={styles.scriptFooter}><Icon name="information-circle-outline" size={14} /><Text style={styles.smallText}>{confirmed ? '脚本已确认，画面正在按计划制作。' : state?.mode === 'auto' ? '脚本写好后会接着出图，整套好了会通知你。' : '确认后开始生成图片，想调整也可以继续聊。'}</Text></View>
-        {state?.mode !== 'auto' && !confirmed ? <CostEstimate state={state} action="confirm_script" /> : null}
-        {state?.mode !== 'auto' ? <Button title={confirmed ? '脚本已确认' : '确认脚本，开始出图'} icon="checkmark" onPress={() => onAction({ type: 'confirm_script' })} disabled={!canConfirm} testID="confirm-script" /> : null}
-      </View>;
-    }
+    if (card.type === 'directions') return <DirectionsCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onText={onText} />;
+    if (card.type === 'script') return <ScriptCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} onText={onText} onDraft={onDraft} />;
     if (card.type === 'video') return <VideoCard key={card.id} card={card} state={state} busy={busy} onAction={onAction} />;
     return null;
   }).map((content, index) => content ? <AnimatedEntry key={cards[index].id} delay={index * 50}><View testID={`card-${cards[index].id}`}>{content}</View></AnimatedEntry> : null)}</View>;
@@ -415,6 +474,13 @@ const styles = StyleSheet.create({
   garmentTagText: { ...typography.badge, color: colors.muted },
   direction: { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: space.md, borderRadius: radius.md, marginBottom: space.md },
   directionSelected: { borderColor: colors.red, backgroundColor: colors.blush },
+  directionConfirm: { gap: space.sm, padding: space.md, borderRadius: radius.md, backgroundColor: colors.blush, marginBottom: space.md },
+  directionConfirmText: { ...typography.caption, color: colors.redText, fontWeight: '600' },
+  sectionHint: { ...typography.caption, color: colors.muted, fontWeight: '400' },
+  shotRowEditing: { backgroundColor: colors.blush, borderRadius: radius.md },
+  shotEdit: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start', marginTop: space.sm, minHeight: layout.touch },
+  shotEditText: { ...typography.caption, color: colors.redText, fontWeight: '600' },
+  shotTools: { flexDirection: 'row', gap: space.sm, paddingVertical: space.xs },
   directionPreview: { aspectRatio: 1.7, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.imagePlaceholder, marginBottom: space.md },
   previewImage: { width: '100%', height: '100%' },
   previewPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: space.md, gap: space.sm },

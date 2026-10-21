@@ -11,6 +11,7 @@
     "lint": "eslint . --max-warnings=0",
     "test": "tsx --test tests/*.test.ts tests/*.test.cjs",
     "test:e2e": "playwright test",
+    "test:admin": "playwright test --config playwright.admin.config.ts",
     "test:live": "playwright test --config playwright.live.config.ts",
     "verify": "node scripts/verify.mjs",
     "export:ios": "expo export --platform ios",

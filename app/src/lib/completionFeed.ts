@@ -1,4 +1,4 @@
-import type { Completion } from './completionTracker';
+import { appendRecentCompletions, type Completion } from './completionTracker';
 
 const empty: readonly Completion[] = [];
 const values = new Map<string, readonly Completion[]>();
@@ -14,7 +14,7 @@ export function setRecentCompletions(scope: string, incoming: readonly Completio
   listeners.get(scope)?.forEach(listener => listener());
 }
 export function publishCompletion(scope: string, completion: Completion): void {
-  setRecentCompletions(scope, [completion, ...recentCompletions(scope).filter(value => value.projectId !== completion.projectId)]);
+  setRecentCompletions(scope, appendRecentCompletions(recentCompletions(scope), [completion]));
 }
 export function subscribeCompletions(scope: string, listener: () => void): () => void {
   const subscribers = listeners.get(scope) ?? new Set<() => void>();

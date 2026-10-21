@@ -235,7 +235,7 @@ function GallerySurface({ tone, width, scale, onTone, onWidth, onScale }: Galler
 
         <Section number="11" title="AnimatedEntry / FadeImage" summary="内容渐入 / 本地图片淡入；入场与加载动效遵循系统减少动态效果设置">
           <AnimatedEntry><Card><GalleryText kind="subtitle">AnimatedEntry</GalleryText><GalleryText kind="caption" tone="muted">用轻量入场表达内容已准备好。</GalleryText></Card></AnimatedEntry>
-          <FadeImage source={require('../../assets/inspiration/studio-01.jpg')} accessibilityLabel="松弛通勤本地灵感样片" resizeMode="cover" testID="design-local-image" style={{ width: '100%', height: 216, borderRadius: radius.md, backgroundColor: palette.placeholder }} />
+          <FadeImage source={require('./fixtures/fade-image.jpg')} accessibilityLabel="松弛通勤本地灵感样片" resizeMode="cover" testID="design-local-image" style={{ width: '100%', height: 216, borderRadius: radius.md, backgroundColor: palette.placeholder }} />
           <GalleryText kind="caption" tone="muted">FadeImage · 使用仓库内的静态样片，无远程图片请求。</GalleryText>
         </Section>
 

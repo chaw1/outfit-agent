@@ -130,6 +130,7 @@ app.include_router(assets_library_router)
 @app.middleware("http")
 async def admin_switch(request, call_next):
     if (request.url.path.rstrip("/") == "/admin" or
+            request.url.path.startswith("/admin/") or
             request.url.path.startswith("/api/admin")) and not settings.admin_token:
         return JSONResponse(
             {"error": {"code": "NOT_FOUND", "message": "管理端未启用"}}, 404
@@ -148,6 +149,17 @@ def admin_page():
     return FileResponse(
         Path(__file__).parent / "admin_static" / "index.html",
         headers={"Cache-Control": "no-store", "X-Frame-Options": "DENY"},
+    )
+
+
+@app.get("/admin/tokens.css", include_in_schema=False)
+def admin_tokens():
+    if not settings.admin_token:
+        raise AppError("NOT_FOUND", "管理端未启用", 404)
+    return FileResponse(
+        Path(__file__).parent / "admin_static" / "tokens.css",
+        media_type="text/css",
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
     )
 
 

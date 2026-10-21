@@ -111,6 +111,7 @@ test('第八轮：未通过改图手动采用、笔记换版、草稿冲突与�
   await screenshot(page, '77-directions-regenerate-estimate.png', page.getByTestId('regenerate-estimate'));
   const initial = await context.state();
   await page.getByTestId(`direction-${initial.directions[0].id}`).click();
+  await page.getByTestId('confirm-direction').click();
   await expect(page.getByTestId('confirm-script')).toBeEnabled();
   await page.getByTestId('confirm-script').click();
   const generated = await context.generated();

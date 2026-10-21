@@ -9,10 +9,11 @@ import { AutoProgress } from '../../components/AutoProgress';
 import { formatPoints, pointsValue } from '../../lib/transparency';
 import { Cards } from '../../components/Cards';
 import { ScriptHistory } from '../../components/ScriptHistory';
+import { ScriptViewer } from '../../components/ScriptViewer';
 import { AnimatedEntry, Header, IconButton, LoadingSkeleton, Notice, Page, ProgressStrip, StatePanel, Toast, stageNames } from '../../components/ui';
 import { colors, space, radius, motion, layout, type as typography } from '../../theme';
 import { useWorkspace } from '../../hooks/useWorkspace';
-import type { Message, OutfitImage, ProjectState } from '../../api/types';
+import type { Action, Message, OutfitImage, ProjectState } from '../../api/types';
 import { ImageInteractions, useImageInteractions } from '../../components/ImageInteractions';
 import { feedback } from '../../lib/haptics';
 import { canRephrase } from '../../lib/conversation';
@@ -71,6 +72,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
   const [text, setText] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<Message>();
   const [copyStatus, setCopyStatus] = useState('');
+  const [notice, setNotice] = useState<{ text: string; tone: 'info' | 'success' }>();
   const [refs, setRefs] = useState<string[]>([]);
   const overlay = useRef(false);
   const keyboardOpen = useRef(false);
@@ -100,6 +102,12 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
     const value = text.trim(); feedback(); setText(''); setRefs([]);
     void send({ text: value, ...(refs.length ? { refs } : {}) });
   }
+  function act(action: Action) {
+    if (action.type !== 'choose_direction') { void send({ action }); return; }
+    const name = state?.directions.find(item => item.id === action.direction_id)?.name ?? '这个方向';
+    setNotice({ text: `正在确认「${name}」，为你准备脚本…`, tone: 'info' });
+    void send({ action }).then(result => setNotice(result && result.accepted ? { text: `已选「${name}」，脚本已准备好。`, tone: 'success' } : undefined));
+  }
   const automatic = (state?.mode ?? project?.mode) === 'auto';
   const prompts = quickPrompts(state);
   const projectPoints = pointsValue(state?.cost_points, state?.cost_cny);
@@ -117,14 +125,19 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
     return true;
   });
   if (missing) return <Page><Header title="项目已不可用" onBack={() => router.replace('/')} /><View style={styles.empty}><StatePanel icon="folder-open-outline" title="这组片已不在这里" description="项目已删除或不存在，返回列表继续创作。" actionLabel="返回项目列表" onAction={() => router.replace('/')} /></View></Page>;
+  // 短片阶段以后，笔记和短片是成果而不是待办：放到对话上方当成果栏，底部留给聊天，新消息不会被卡片顶住。
+  const resultsFirst = Boolean(state && ['video', 'done'].includes(state.stage));
+  const cardsNode = <Cards cards={visibleCards} state={state} busy={busy} onAction={act} onText={value => { void send({ text: value }); }} onPreview={preview} onDraft={value => { setText(value); setTimeout(() => input.current?.focus(), 50); }} />;
   return <ImageInteractions images={state?.images ?? []} editActions={messages.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : [])} busy={busy} stage={state?.stage} note={state?.note} pendingAction={state?.pending_action} canEdit={!automatic && ['images', 'note'].includes(state?.stage ?? '')} onAction={action => send({ action })} onReference={addReference} onVisibilityChange={overlayChanged}><Page>
     <Header title={project?.title || '编导间'} subtitle={project?.brand || '把灵感，一起聊出来'} onBack={() => router.replace('/')} right={state?.note ? <IconButton name="document-text-outline" label="笔记预览" onPress={preview} /> : <IconButton name="refresh-outline" label="刷新项目" onPress={retry} />} />
     {state?.auto && automatic ? <AutoProgress auto={state.auto} active={state.auto.active} busy={busy} onTakeover={() => { void takeOver(); }} /> : <View style={styles.steps}>{stageOrder.map((stage, index) => <StageStep key={stage} stage={stage} index={index} active={index === activeIndex} completed={index < activeIndex || finished} />)}</View>}
+    {state?.script && state.stage !== 'script' ? <ScriptViewer script={state.script} version={state.script_versions?.find(version => version.current)?.version} /> : null}
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}>
       <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={styles.conversation} onLayout={() => { if (keyboardOpen.current && !overlay.current) scroll.current?.scrollToEnd({ animated: true }); }} onScroll={({ nativeEvent }) => { atBottom.current = nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >= nativeEvent.contentSize.height - space.xxl; }} scrollEventThrottle={16} onContentSizeChange={() => { const newMessages = messages.length !== previousCount.current; previousCount.current = messages.length; if ((newMessages || atBottom.current) && !overlay.current) scroll.current?.scrollToEnd({ animated: true }); }}>
         {loading ? <LoadingSkeleton kind="workspace" /> : null}
         {project && <AnimatedEntry><View style={styles.brief}><View style={styles.briefHeading}><Ionicons name="briefcase-outline" size={15} color={colors.muted} /><Text style={styles.eyebrow}>THE BRIEF / 这次想拍什么</Text></View><Text style={styles.briefText}>{project.brief}</Text></View></AnimatedEntry>}
         {projectPoints !== undefined ? <View style={styles.costRow}><Ionicons name="wallet-outline" size={13} color={colors.muted} /><Text testID="project-cost" style={styles.cost}>这组片已用 {formatPoints(projectPoints)}</Text></View> : null}
+        {resultsFirst ? cardsNode : null}
         {messages.map((message, index) => <AnimatedEntry key={message.id} delay={Math.min(index * 30, 120)} style={[styles.message, message.role === 'user' ? styles.userMessage : styles.assistantMessage]}>
           {message.role === 'assistant' && <View style={styles.assistantIdentity}><View style={styles.assistantIcon}><Ionicons name="sparkles-outline" size={13} color={colors.redText} /></View><Text style={styles.identityText}>衣序 · 你的穿搭搭子</Text></View>}
           {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={({ pressed }) => [styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble, pressed && styles.pressed]}><Text selectable style={styles.messageText}>{messageText(message, state)}</Text></Pressable> : busy && message.role === 'assistant' ? <ProgressStrip title="正在整理你的灵感…" /> : null}
@@ -137,7 +150,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         </AnimatedEntry>)}
         {failedMessages.map(message => <AnimatedEntry key={message.id} style={styles.failedMessage}><View testID={`failed-${message.id}`} style={styles.failedBubble}><Pressable accessibilityRole="button" accessibilityLabel={`消息：${message.text}`} onLongPress={() => setSelectedMessage({ id: message.id, role: 'user', text: message.text, cards: [], refs: message.input.refs, created_at: message.createdAt })} style={styles.failedTextButton}><Text style={styles.messageText}>{message.input.action ? `操作未完成：${message.text}` : message.text}</Text></Pressable><View style={styles.failureLabel}><Ionicons name="alert-circle-outline" size={14} color={colors.danger} /><Text style={styles.failureText}>{message.certain ? '发送失败' : '发送状态待确认'}</Text></View><Pressable testID={message.certain ? 'retry-failed-message' : 'check-uncertain-message'} accessibilityRole="button" accessibilityLabel={message.certain ? '重发消息' : '核对发送状态'} disabled={busy} onPress={() => { void retryMessage(message); }} style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}><Text style={styles.textActionLabel}>{message.certain ? '重发消息' : '核对发送状态'}</Text></Pressable></View></AnimatedEntry>)}
         {state?.active_jobs.length ? <ProgressStrip title="正在生成，完成后会自动出现在这里" detail="可以继续聊灵感，我们会为你保留每个版本。" /> : null}
-        <Cards cards={visibleCards} state={state} busy={busy} onAction={action => { void send({ action }); }} onText={value => { void send({ text: value }); }} onPreview={preview} />
+        {!resultsFirst ? cardsNode : null}
         {!automatic && state?.script && state.stage !== 'script' ? <ScriptHistory versions={state.script_versions} busy={busy} generating={Boolean(state.active_jobs.length)} onAction={action => { void send({ action }); }} /> : null}
         {!loading && !messages.length && !busy && <StatePanel icon="chatbubbles-outline" title="从一个灵感开始" description="说说这组片的想法，我们一起开始。" actionLabel="说说拍摄想法" onAction={() => input.current?.focus()} />}
       </ScrollView>
@@ -157,6 +170,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
       </View>
     </KeyboardAvoidingView>
     {!!copyStatus && <Toast text={copyStatus} tone={copyStatus.startsWith('复制未') ? 'danger' : 'success'} onDismiss={() => setCopyStatus('')} />}
+    {notice && <Toast text={notice.text} tone={notice.tone} onDismiss={() => setNotice(undefined)} />}
     <Modal visible={!!selectedMessage} transparent animationType="fade" onRequestClose={() => setSelectedMessage(undefined)}><View style={styles.modalShade}><Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="关闭消息操作" onPress={() => setSelectedMessage(undefined)} /><Animated.View entering={SlideInDown.duration(motion.normal)} style={[styles.messageSheet, { paddingBottom: space.xl + insets.bottom }]} accessibilityViewIsModal><View style={styles.sheetHandle} /><Text style={styles.sheetTitle}>消息操作</Text><Pressable accessibilityRole="button" accessibilityLabel="复制消息文本" testID="copy-message" style={({ pressed }) => [styles.sheetAction, pressed && styles.pressed]} onPress={() => {
       const value = selectedMessage ? messageText(selectedMessage, state) : '';
       void Clipboard.setStringAsync(value || '').then(() => { setCopyStatus('消息文本已复制'); setSelectedMessage(undefined); }).catch(() => { setCopyStatus('复制未完成，请长按文本选择复制。'); setSelectedMessage(undefined); });

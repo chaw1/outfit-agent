@@ -24,7 +24,7 @@ function Routes() {
     if (!token && !isPublic) router.replace(signOutReason === 'deleted' ? { pathname: '/login', params: { deleted: '1' } } : expired ? { pathname: '/login', params: { expired: '1' } } : '/login');
     else if (token && segments[0] === 'login') router.replace('/');
   }, [ready, token, signOutReason, segments, router]);
-  const dark = segments[0] === 'login' || segments[0] === 'assets' || !segments[0] || (segments[0] === 'projects' && segments[1] === 'new');
+  const dark = segments[0] === 'login' || segments[0] === 'assets' || !segments[0] || segments.join('/') === 'projects/new';
   return <View style={{ flex: 1, backgroundColor: dark ? studio.bg : colors.paper }}>
     <StatusBar style={dark ? "light" : "dark"} />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper }, animation: 'slide_from_right' }} />

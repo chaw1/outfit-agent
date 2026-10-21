@@ -91,6 +91,7 @@ test('第六轮：每轮过程、同 id 换方向卡与付费前预估贯穿本�
   await expect.poll(async () => (await state()).active_jobs.length).toBe(0);
   await screenshot(page, '54-regenerated-directions-preview.png', page.getByTestId(`direction-${changedDirection.id}`));
   await page.getByTestId(`direction-${changedDirection.id}`).click();
+  await page.getByTestId('confirm-direction').click();
   const confirmScript = page.getByTestId('confirm-script');
   await expect(confirmScript).toBeEnabled();
   const scriptState = await state();

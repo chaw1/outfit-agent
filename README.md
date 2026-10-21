@@ -39,19 +39,38 @@ App（Expo / React Native / TypeScript）──HTTPS：REST + SSE──▶ FastA
 |---|---|
 | 服务端 | Python · FastAPI · LangGraph 1.x · SQLAlchemy / Alembic · PostgreSQL 16 · Pillow · ffmpeg · Docker Compose · nginx + TLS |
 | App | Expo SDK 58 · React Native 0.88 · expo-router · 自建设计系统（DTCG token，lint 禁止裸色值） · Playwright 端到端 |
-| 管理端 | 服务端托管的单文件页面，无外部依赖，内联 SVG 图表 |
-| 工程 | GitHub Actions · pre-commit 钩子 · Makefile · ruff / ESLint · 覆盖率 91% |
+| 管理端 | 服务端托管的轻量 HTML 页面，与 App 共用设计 token，无前端运行时依赖，独立交互回归 |
+| 工程 | GitHub Actions · pre-commit 钩子 · Makefile · ruff / ESLint；服务端历史覆盖率 91.09%，口径见[工程规范快照](docs/工程规范.md#初次落地质量快照历史) |
 
 ## 怎么跑
 
+需要 Node 22.13 或以上。以下每组命令均从仓库根目录执行，长期运行的进程分别使用不同终端。
+
 ```bash
-# 服务端（本机 Mock 模型，不花钱走完整条链路）
-cd server && docker compose up -d --build      # 详见 server/README.md
+# 终端一：App 假服务（不需要启动 Python 服务端）
+cd app
+npm ci
+npm run mock
+```
 
-# App（连本机假服务）
-cd app && npm ci && npm run mock & npm run start   # 详见 app/README.md
+```bash
+# 终端二：Web App，显式连接本机假服务
+cd app
+EXPO_PUBLIC_API_BASE=http://localhost:19301 npm run web
+```
 
-# 全部检查
+App 如果已在设置里保存其他服务地址，需同步改为 `http://localhost:19301`；手机连接方式见 [App README](app/README.md#本地启动)。
+
+```bash
+# 可选：运行真实服务端链路，模型仍使用 Mock
+cd server
+MOCK_PROVIDERS=1 docker compose up -d --build
+```
+
+服务端地址与环境准备见 [服务端 README](server/README.md#本地启动)；连接该服务端时相应调整 App 服务地址。
+
+```bash
+# 仓库根目录：检查与文档生成
 make check        # 服务端 ruff + pytest，App 八项校验
 make docs         # 重新生成 docs/html
 ```

@@ -55,7 +55,10 @@ export async function imageInteractions(page: Page, state: () => ProjectState | 
     return (await request).postDataJSON() as EditMessage;
   };
 
-  await page.getByTestId(`image-select-${firstId}`).click();
+  const preview = page.getByTestId(`image-select-${firstId}`);
+  await expect(preview.locator('button,[role="button"]')).toHaveCount(0);
+  await expect(page.getByTestId(`image-toggle-${firstId}`)).toBeVisible();
+  await preview.click();
   await expect(page.getByTestId('image-viewer')).toBeVisible();
   await expect(page.getByText('AI生成', { exact: true })).toHaveCount(0);
   await expect(canvas).toBeVisible();

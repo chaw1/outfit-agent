@@ -268,7 +268,7 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
       if (!state!.script) {
         if (process.env.LIVE_DIRECTION_MODE === 'text') {
           await text('choose-direction-text', `我选“${state!.directions[0].name}”这个方向，请写出三张照片的笔记脚本，等我确认后再生成图片。`);
-        } else await once('choose-direction', async () => { const direction = state!.directions[0]; await expect(page.getByTestId(`direction-${direction.id}`)).toBeEnabled(); await page.getByTestId(`direction-${direction.id}`).click(); });
+        } else await once('choose-direction', async () => { const direction = state!.directions[0]; await expect(page.getByTestId(`direction-${direction.id}`)).toBeEnabled(); await page.getByTestId(`direction-${direction.id}`).click(); await page.getByTestId('confirm-direction').click(); });
       }
       await waitState(value => Boolean(value.script?.shots.length) && value.pending_action?.type === 'confirm_script');
       await expect(page.getByTestId('confirm-script')).toBeEnabled();

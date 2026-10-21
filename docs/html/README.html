@@ -123,22 +123,35 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 <tr>
 <td>管理端</td>
-<td>服务端托管的单文件页面，无外部依赖，内联 SVG 图表</td>
+<td>服务端托管的轻量 HTML 页面，与 App 共用设计 token，无前端运行时依赖，独立交互回归</td>
 </tr>
 <tr>
 <td>工程</td>
-<td>GitHub Actions · pre-commit 钩子 · Makefile · ruff / ESLint · 覆盖率 91%</td>
+<td>GitHub Actions · pre-commit 钩子 · Makefile · ruff / ESLint；服务端历史覆盖率 91.09%，口径见<a href="工程规范.html#初次落地质量快照历史">工程规范快照</a></td>
 </tr>
 </tbody>
 </table>
 <h2 id="怎么跑">怎么跑<a class="headerlink" href="#怎么跑" title="Permanent link">¶</a></h2>
-<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #60A0B0; font-style: italic"># 服务端（本机 Mock 模型，不花钱走完整条链路）</span>
-<span style="color: #007020">cd</span><span style="color: #BBB"> </span>server<span style="color: #BBB"> </span><span style="color: #666">&amp;&amp;</span><span style="color: #BBB"> </span>docker<span style="color: #BBB"> </span>compose<span style="color: #BBB"> </span>up<span style="color: #BBB"> </span>-d<span style="color: #BBB"> </span>--build<span style="color: #BBB">      </span><span style="color: #60A0B0; font-style: italic"># 详见 server/README.md</span>
+<p>需要 Node 22.13 或以上。以下每组命令均从仓库根目录执行，长期运行的进程分别使用不同终端。</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #60A0B0; font-style: italic"># 终端一：App 假服务（不需要启动 Python 服务端）</span>
+<span style="color: #007020">cd</span><span style="color: #BBB"> </span>app
+npm<span style="color: #BBB"> </span>ci
+npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>mock
+</code></pre></div>
 
-<span style="color: #60A0B0; font-style: italic"># App（连本机假服务）</span>
-<span style="color: #007020">cd</span><span style="color: #BBB"> </span>app<span style="color: #BBB"> </span><span style="color: #666">&amp;&amp;</span><span style="color: #BBB"> </span>npm<span style="color: #BBB"> </span>ci<span style="color: #BBB"> </span><span style="color: #666">&amp;&amp;</span><span style="color: #BBB"> </span>npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>mock<span style="color: #BBB"> </span>&amp;<span style="color: #BBB"> </span>npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>start<span style="color: #BBB">   </span><span style="color: #60A0B0; font-style: italic"># 详见 app/README.md</span>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #60A0B0; font-style: italic"># 终端二：Web App，显式连接本机假服务</span>
+<span style="color: #007020">cd</span><span style="color: #BBB"> </span>app
+<span style="color: #BB60D5">EXPO_PUBLIC_API_BASE</span><span style="color: #666">=</span>http://localhost:19301<span style="color: #BBB"> </span>npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>web
+</code></pre></div>
 
-<span style="color: #60A0B0; font-style: italic"># 全部检查</span>
+<p>App 如果已在设置里保存其他服务地址，需同步改为 <code>http://localhost:19301</code>；手机连接方式见 <a href="app-README.html#本地启动">App README</a>。</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #60A0B0; font-style: italic"># 可选：运行真实服务端链路，模型仍使用 Mock</span>
+<span style="color: #007020">cd</span><span style="color: #BBB"> </span>server
+<span style="color: #BB60D5">MOCK_PROVIDERS</span><span style="color: #666">=</span><span style="color: #40A070">1</span><span style="color: #BBB"> </span>docker<span style="color: #BBB"> </span>compose<span style="color: #BBB"> </span>up<span style="color: #BBB"> </span>-d<span style="color: #BBB"> </span>--build
+</code></pre></div>
+
+<p>服务端地址与环境准备见 <a href="server-README.html#本地启动">服务端 README</a>；连接该服务端时相应调整 App 服务地址。</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #60A0B0; font-style: italic"># 仓库根目录：检查与文档生成</span>
 make<span style="color: #BBB"> </span>check<span style="color: #BBB">        </span><span style="color: #60A0B0; font-style: italic"># 服务端 ruff + pytest，App 八项校验</span>
 make<span style="color: #BBB"> </span>docs<span style="color: #BBB">         </span><span style="color: #60A0B0; font-style: italic"># 重新生成 docs/html</span>
 </code></pre></div>

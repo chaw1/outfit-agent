@@ -137,6 +137,10 @@ export function observeGeneration(id: string, title: string, state: ProjectState
   }).catch(() => undefined);
 }
 export const pollGenerations = runtime.poll;
+export function markGenerationRead(id: string, jobIds: readonly string[], scope: string): void {
+  if (runtime.currentOwner() !== scope) return;
+  void runtime.markRead(id, jobIds).catch(() => undefined);
+}
 
 export function listenNotificationTap(callback: (id: string) => void): () => void {
   let alive = true;

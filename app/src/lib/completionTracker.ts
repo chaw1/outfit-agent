@@ -1,7 +1,7 @@
 import type { Job, ProjectState } from '../api/types';
 
 export interface WatchedProject { id: string; title: string; jobs: Job[]; announced: string[]; ignoredJobIds?: string[]; autoActive?: boolean }
-export interface Completion { projectId: string; title: string; kind: Job['kind']; jobIds: string[]; body: string }
+export interface Completion { projectId: string; title: string; kind: Job['kind']; jobIds: string[]; body: string; read?: boolean }
 export interface GenerationApi { state(id: string): Promise<ProjectState>; job(id: string): Promise<Job> }
 export interface NotificationSession { api: GenerationApi; token: string; baseUrl: string; userId: string }
 export interface SavedGenerations { owner: string; baseUrl: string; projects: WatchedProject[]; recent?: Completion[] }
@@ -11,6 +11,12 @@ export const needsGenerationCheck = (project: WatchedProject) => Boolean(project
 export const notificationOwner = (value: Pick<NotificationSession, 'baseUrl' | 'userId'>) => JSON.stringify([value.baseUrl.replace(/\/+$/, ''), value.userId]);
 const progressJob = ({ id, project_id, kind, status, created_at, updated_at }: Job): Job => ({ id, project_id, kind, status, created_at, updated_at });
 
+const sameJobIds = (left: readonly string[], right: readonly string[]) => {
+  const leftIds = new Set(left), rightIds = new Set(right);
+  return leftIds.size === rightIds.size && [...leftIds].every(id => rightIds.has(id));
+};
+export const sameCompletionResult = (left: Completion, right: Completion): boolean => left.projectId === right.projectId && left.kind === right.kind && sameJobIds(left.jobIds, right.jobIds);
+
 /** Incoming events are chronological; retain the newest completion per project. */
 export function appendRecentCompletions(previous: readonly Completion[], incoming: readonly Completion[]): Completion[] {
   const seen = new Set<string>();
@@ -18,7 +24,7 @@ export function appendRecentCompletions(previous: readonly Completion[], incomin
     if (seen.has(completion.projectId)) return false;
     seen.add(completion.projectId);
     return true;
-  }).slice(0, 5);
+  }).slice(0, 5).map(completion => previous.some(value => value.read === true && sameCompletionResult(value, completion)) && completion.read !== true ? { ...completion, read: true } : completion);
 }
 
 /** Persist only progress, never credentials or signed media addresses. */
@@ -78,9 +84,10 @@ export function parseSavedGenerations(raw: string | null): SavedGenerations | un
     if (saved.projects.some(project => typeof project.id !== 'string' || typeof project.title !== 'string' || !Array.isArray(project.jobs) || !Array.isArray(project.announced) || project.jobs.some(job => typeof job.id !== 'string' || !['image', 'edit', 'video'].includes(job.kind) || !['queued', 'running', 'succeeded', 'failed'].includes(job.status)))) return undefined;
     if (saved.recent !== undefined && (!Array.isArray(saved.recent) || saved.recent.some(completion => !completion || typeof completion !== 'object' ||
       typeof completion.projectId !== 'string' || typeof completion.title !== 'string' || typeof completion.body !== 'string' ||
-      !['image', 'edit', 'video'].includes(completion.kind) || !Array.isArray(completion.jobIds) || !completion.jobIds.every(id => typeof id === 'string')))) return undefined;
+      !['image', 'edit', 'video'].includes(completion.kind) || !Array.isArray(completion.jobIds) || !completion.jobIds.every(id => typeof id === 'string') ||
+      (completion.read !== undefined && typeof completion.read !== 'boolean')))) return undefined;
     return { ...saved, projects: saved.projects.map(project => ({ ...project, jobs: project.jobs.map(progressJob) })),
-      ...(saved.recent !== undefined ? { recent: appendRecentCompletions(saved.recent, []).map(({ projectId, title, kind, jobIds, body }) => ({ projectId, title, kind, jobIds: [...jobIds], body })) } : {}) };
+      ...(saved.recent !== undefined ? { recent: appendRecentCompletions(saved.recent, []).map(({ projectId, title, kind, jobIds, body, read }) => ({ projectId, title, kind, jobIds: [...jobIds], body, ...(read === true ? { read: true } : {}) })) } : {}) };
   } catch { return undefined; }
 }
 
@@ -170,6 +177,25 @@ export function createGenerationRuntime(dependencies: {
         if (epoch !== revision) return;
         watched.set(id, trackState(watched.get(id), id, title, state));
         await persist(current, epoch);
+      });
+    },
+    markRead(id: string, jobIds?: readonly string[]): Promise<void> {
+      const current = session;
+      const epoch = revision;
+      const expectedJobIds = jobIds ? [...jobIds] : undefined;
+      if (!current) return Promise.resolve();
+      return serialize(async () => {
+        if (epoch !== revision) return;
+        const index = recent.findIndex(completion => completion.projectId === id && (!expectedJobIds || sameJobIds(completion.jobIds, expectedJobIds)));
+        if (index < 0 || recent[index].read === true) return;
+        const previous = recent;
+        recent = recent.map((completion, itemIndex) => itemIndex === index ? { ...completion, read: true } : completion);
+        try { await persist(current, epoch); }
+        catch (error) {
+          if (epoch === revision) recent = previous;
+          throw error;
+        }
+        publishRecent(current, epoch);
       });
     },
     async poll(): Promise<void> {

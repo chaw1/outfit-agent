@@ -181,6 +181,7 @@ test('第七轮：参考图上限、删除再加、人像与封面锚点贯穿�
   await screenshot(page, '68-references-style-card.png', referenceCardLocator);
   const initial = await context.state(project.id);
   await page.getByTestId(`direction-${initial.directions[0].id}`).click();
+  await page.getByTestId('confirm-direction').click();
   await expect(page.getByTestId('confirm-script')).toBeEnabled();
   await page.getByTestId('confirm-script').click();
   await expect.poll(async () => {
