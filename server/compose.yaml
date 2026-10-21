@@ -10,6 +10,7 @@ x-common: &common
     MOCK_PROVIDERS: ${MOCK_PROVIDERS:-1}
     DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
     DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    ARK_API_KEY: ${ARK_API_KEY:-}
     TEXT_MODEL: ${TEXT_MODEL:-deepseek-flash}
     VISION_MODEL: ${VISION_MODEL:-qwen3-vl-plus}
     IMAGE_MODEL: ${IMAGE_MODEL:-wan2.7-image-pro}

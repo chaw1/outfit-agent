@@ -23,7 +23,7 @@ BUDGET_LOCK_ID = 708827141
 MODEL_CANDIDATES = {
     "text": ["deepseek-flash", "deepseek-chat"],
     "vision": ["qwen3-vl-plus", "qwen-vl-plus"],
-    "image": ["wan2.7-image-pro", "wan2.6-image"],
+    "image": ["wan2.7-image-pro", "doubao-seedream-5-0-pro-260628", "wan2.6-image"],
     "video": ["wan2.6-i2v-flash", "wan2.6-i2v"],
 }
 

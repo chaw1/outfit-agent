@@ -55,7 +55,8 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li><a href="#21-试衣-换场景链路里最关键最贵的一步">2.1 试衣 + 换场景（链路里最关键、最贵的一步）</a></li>
 <li><a href="#22-图生视频">2.2 图生视频</a></li>
 <li><a href="#23-文本与看图">2.3 文本与看图</a></li>
-<li><a href="#24-成本估算单篇笔记">2.4 成本估算（单篇笔记）</a></li>
+<li><a href="#24-真实感复评豆包-seedream-50-pro火山方舟">2.4 真实感复评：豆包 Seedream 5.0 pro（火山方舟）</a></li>
+<li><a href="#25-成本估算单篇笔记">2.5 成本估算（单篇笔记）</a></li>
 </ul>
 </li>
 <li><a href="#3-智能体框架选型">3. 智能体框架选型</a><ul>
@@ -250,7 +251,35 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 </tbody>
 </table>
-<h3 id="24-成本估算单篇笔记">2.4 成本估算（单篇笔记）<a class="headerlink" href="#24-成本估算单篇笔记" title="Permanent link">¶</a></h3>
+<h3 id="24-真实感复评豆包-seedream-50-pro火山方舟">2.4 真实感复评：豆包 Seedream 5.0 pro（火山方舟）<a class="headerlink" href="#24-真实感复评豆包-seedream-50-pro火山方舟" title="Permanent link">¶</a></h3>
+<p>真机走查后对成片真实感不满意（皮肤偏"塑料"、光线平），把百炼之外的候选拿进来同题对比。拿线上一张真实镜头的全部输入（同一套提示词、同一张模特照与两件衣服）各出一张：</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>结果</th>
+<th>耗时</th>
+<th>价格（官方，北京）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>wan2.7-image-pro（现用）</td>
+<td>衣服还原准确；皮肤与光线偏平，人像略有"合成感"；吊牌已按规则去除</td>
+<td>14 秒</td>
+<td>0.50 元/张</td>
+</tr>
+<tr>
+<td><strong>doubao-seedream-5-0-pro-260628</strong></td>
+<td>同样的衣服还原，皮肤质感、自然光与姿态明显更像真人抓拍，背景景深与窗光层次更好；吊牌同样去除；最多 10 张参考图</td>
+<td>42 秒</td>
+<td>2K 档 0.60 元/张 + 参考图 0.02 元/张（首张免费）</td>
+</tr>
+</tbody>
+</table>
+<p>并排对比见 <code>docs/model-compare/wan27-vs-seedream50-shot1.jpg</code>（左 wan2.7，中 Seedream 5.0 pro，右为三张输入）。</p>
+<p>结论：出图默认切到 Seedream 5.0 pro，wan2.7 保留为可在管理端一键切回的备选；视频、看图、对话不变。接入方式是同一个 <code>image()</code> 入口按模型名分流到方舟 <code>images/generations</code>（固定 1536×2048、不加平台水印，标识仍由服务端统一盖），对工作流零改动。Seedream 5.0 pro 是字节 2026 年中发布的旗舰出图模型，国内第一梯队；横向看与 GPT-Image 2、Nano Banana Pro 同档，文字渲染略逊、价格约为前者四分之一。它不支持组图和流式，这两项我们不用。</p>
+<h3 id="25-成本估算单篇笔记">2.5 成本估算（单篇笔记）<a class="headerlink" href="#25-成本估算单篇笔记" title="Permanent link">¶</a></h3>
 <p>按 6 张图 + 2 次改图 + 1 条 5 秒视频 + 对话和看图估算，单篇约 <strong>8–9 元</strong>：</p>
 <table>
 <thead>

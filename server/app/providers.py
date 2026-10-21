@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.config import settings
-from app.costs import image_cost_cny, video_cost_cny
+from app.costs import image_cost_cny, seedream_image_cost_cny, video_cost_cny
 from app.errors import AppError
 from app.media import erase_label
 from app.models import Asset, Project, UsageLedger
@@ -1160,7 +1160,9 @@ class ProviderHub:
     def image(self, prompt: str, reference_assets: list[Asset]) -> GeneratedMedia:
         # Wan 2.7 supports up to nine inputs; 2.6 supports four. Keep every
         # garment plus the separate person and cover references in the request.
-        limit = 9 if self._model("image").startswith("wan2.7-") else 4
+        model = self._model("image")
+        seedream = model.startswith("doubao-seedream")
+        limit = 10 if seedream else 9 if model.startswith("wan2.7-") else 4
         if len(reference_assets) > limit:
             raise ProviderError(f"当前图片模型最多支持 {limit} 张参考素材，请拆分穿搭。")
         prompt = GARMENT_ACCESSORY_RULE + "\n" + prompt
@@ -1182,6 +1184,8 @@ class ProviderHub:
                     {"images": 1},
                     Decimal(0),
                 )
+            if seedream:
+                return self._seedream_image(model, prompt, reference_assets)
             content = [{"image": self._data_url(asset)} for asset in reference_assets]
             content.append({"text": prompt})
             with self._client() as client:
@@ -1209,6 +1213,36 @@ class ProviderHub:
             return media, {"images": 1, "request_id": response.get("request_id")}, image_cost_cny()
 
         return self._call("image", str(image_cost_cny()), operation)
+
+    def _seedream_image(self, model: str, prompt: str, reference_assets: list[Asset]):
+        """火山方舟 Seedream：同一套提示词与参考图，走 images/generations。"""
+        with self._client() as client:
+            response = self._json(
+                client.post(
+                    f"{settings.ark_base_url.rstrip('/')}/images/generations",
+                    headers=self._headers(settings.ark_api_key),
+                    json={
+                        "model": model,
+                        "prompt": prompt,
+                        **({"image": [self._data_url(asset) for asset in reference_assets]}
+                           if reference_assets else {}),
+                        # 固定 3:4 竖图；像素数在 Seedream 允许区间内（92 万–462 万）。
+                        "size": "1536x2048",
+                        "output_format": "png",
+                        "response_format": "url",
+                        "watermark": False,
+                    },
+                )
+            )
+            urls = [item.get("url") for item in response.get("data", []) if item.get("url")]
+            if not urls:
+                raise ProviderError("生图模型没有返回图片。")
+            try:
+                media = self._download(client, urls[0], "image/png", model)
+            except ProviderError:
+                raise ProviderError("图片已生成但转存失败，为避免重复计费已停止。") from None
+        usage = {"images": 1, "request_id": response.get("id") or response.get("request_id")}
+        return media, usage, seedream_image_cost_cny(len(reference_assets))
 
     def video(
         self,

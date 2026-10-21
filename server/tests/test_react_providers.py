@@ -467,3 +467,37 @@ def test_fidelity_ignores_source_tag_text_but_reports_tags_in_finished_image(
             "diffs": [],
             "auto_fixed": False,
         }
+
+
+def test_seedream_image_request_uses_ark_generations_with_references(
+    provider_database, monkeypatch
+):
+    """切到豆包 Seedream 时：同一套提示词与参考图走方舟 images/generations，3:4、无水印。"""
+    factory, asset_id = provider_database
+    monkeypatch.setattr(settings, "ark_api_key", "ark-test-key")
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        seen["auth"] = request.headers.get("authorization")
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"id": "req-1", "data": [{"url": "https://media.invalid/a"}]})
+
+    intercept(monkeypatch, handler)
+    monkeypatch.setattr(
+        ProviderHub,
+        "_download",
+        staticmethod(lambda *args: GeneratedMedia(b"image", "image/png", "test")),
+    )
+    with factory() as session:
+        hub = ProviderHub(session)
+        hub._active_models = {**hub._active_models, "image": "doubao-seedream-5-0-pro-260628"}
+        assert hub.image("生成全身穿搭图", [session.get(Asset, asset_id)]).data == b"image"
+    assert seen["url"].endswith("/api/v3/images/generations")
+    assert seen["auth"] == "Bearer ark-test-key"
+    body = seen["body"]
+    assert body["model"] == "doubao-seedream-5-0-pro-260628"
+    assert body["size"] == "1536x2048" and body["watermark"] is False
+    assert body["output_format"] == "png" and body["response_format"] == "url"
+    assert len(body["image"]) == 1 and body["image"][0].startswith("data:image/jpeg;base64,")
+    assert "吊牌" in body["prompt"] and "生成全身穿搭图" in body["prompt"]

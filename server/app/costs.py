@@ -29,8 +29,17 @@ def with_points(value):
     return result
 
 
+# 火山方舟 Seedream 5.0 pro：2K 档 0.60 元/张，参考图每张 0.02 元（首张免费）。
+SEEDREAM_IMAGE_CNY = Decimal("0.60")
+SEEDREAM_REFERENCE_CNY = Decimal("0.02")
+
+
 def image_cost_cny(images: int = 1) -> Decimal:
     return IMAGE_ESTIMATE_CNY * images
+
+
+def seedream_image_cost_cny(references: int) -> Decimal:
+    return SEEDREAM_IMAGE_CNY + SEEDREAM_REFERENCE_CNY * max(0, references - 1)
 
 
 def video_cost_cny() -> Decimal:

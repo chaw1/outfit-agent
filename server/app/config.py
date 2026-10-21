@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     dashscope_base_url: str = "https://dashscope.aliyuncs.com/api/v1"
     dashscope_compatible_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     deepseek_base_url: str = "https://api.deepseek.com"
+    # 火山方舟（豆包 Seedream 出图）：只在选用 doubao-seedream 系列时需要。
+    ark_api_key: str = ""
+    ark_base_url: str = "https://ark.cn-beijing.volces.com/api/v3"
     text_model: str = "deepseek-flash"
     vision_model: str = "qwen3-vl-plus"
     image_model: str = "wan2.7-image-pro"
