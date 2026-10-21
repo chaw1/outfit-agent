@@ -10,6 +10,7 @@ const directory = new URL('../verification/', import.meta.url);
 mkdirSync(directory, { recursive: true });
 const summary = { startedAt: new Date().toISOString(), node: process.version, sdk: '58', checks: [] };
 const steps = [
+  ['tokens', 'npm', ['run', 'tokens:check']],
   ['typecheck', 'npx', ['tsc', '--noEmit']],
   ['lint', 'npm', ['run', 'lint']],
   ['tests', 'npm', ['test']],

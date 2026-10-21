@@ -1,8 +1,10 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import path from 'node:path';
+
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import type { Asset, AuthResponse, CreateProjectInput, Message, Project, ProjectState } from '../src/api/types';
+import { LEGAL_VERSION, PRIVACY_CONSENT_KEY } from '../src/lib/legalConsent';
 
 const shots = path.resolve('screenshots');
 const fixture = path.resolve('../docs/spike/inputs.jpg');
@@ -79,11 +81,12 @@ async function setup(page: Page, request: APIRequestContext, label: string) {
   const garment = await uploaded.json() as Asset;
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.addInitScript(({ token, baseUrl }) => {
+  await page.addInitScript(({ token, baseUrl, legalVersion, privacyKey }) => {
     sessionStorage.setItem('outfit.session', token);
     localStorage.setItem('outfit.server', baseUrl);
     localStorage.setItem('outfit.onboarding.v1', 'done');
-  }, { token: auth.token, baseUrl: base });
+    localStorage.setItem(privacyKey, legalVersion);
+  }, { token: auth.token, baseUrl: base, legalVersion: LEGAL_VERSION, privacyKey: PRIVACY_CONSENT_KEY });
   const input: CreateProjectInput = { title: '离开也继续的片场', brand: '自由创作', brief: '自然通勤，保留衣服原来的细节。', garment_asset_ids: [garment.id] };
   async function create(overrides: Partial<CreateProjectInput> = {}) {
     const response = await request.post(`${base}/api/projects`, { headers, data: { ...input, ...overrides } });
@@ -221,7 +224,10 @@ test('第九轮：片场入口、两种模式、风格换批与全自动图文�
 });
 
 test('第九轮：引导、登录、注册入口、设置和关于都只显示点数措辞', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('outfit.server', 'http://localhost:19301'));
+  await page.addInitScript(({ base, privacyKey, legalVersion }) => {
+    localStorage.setItem('outfit.server', base);
+    localStorage.setItem(privacyKey, legalVersion);
+  }, { base: process.env.E2E_MOCK_BASE || 'http://localhost:19301', privacyKey: PRIVACY_CONSENT_KEY, legalVersion: LEGAL_VERSION });
   await page.goto('/');
   const titles = ['一件衣服，一组大片', '一键出片，或者一步步来', '正式出图和视频会扣点，由你确认'];
   for (let index = 0; index < titles.length; index += 1) {

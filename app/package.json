@@ -14,7 +14,9 @@
     "test:live": "playwright test --config playwright.live.config.ts",
     "verify": "node scripts/verify.mjs",
     "export:ios": "expo export --platform ios",
-    "export:android": "expo export --platform android"
+    "export:android": "expo export --platform android",
+    "tokens": "node scripts/build-tokens.mjs",
+    "tokens:check": "node scripts/build-tokens.mjs --check"
   },
   "engines": {
     "node": ">=22.13.0"
