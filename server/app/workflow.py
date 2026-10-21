@@ -541,7 +541,8 @@ class Workflow:
         preview = self._selected_preview(state)
         if preview:
             script["preview_id"] = preview["id"]
-            clean_shots[0]["camera"] += "；构图与光线以灵感图为基调：" + preview["description"]
+            if preview["description"] not in clean_shots[0]["camera"]:
+                clean_shots[0]["camera"] += "；构图与光线以灵感图为基调：" + preview["description"]
         script.update(status="draft", shots=clean_shots, version=state["script_revision"])
         script["video"] = {**script.get("video", {}), "duration": 5}
         return script
@@ -892,8 +893,13 @@ class Workflow:
                 references = list(shot["outfit_asset_ids"])
                 if preview["asset_id"]:
                     references.append(preview["asset_id"])
+                    prompt += (
+                        f"第{len(references)}张参考图为灵感图，只借鉴构图与光线，"
+                        "不作为服装或人物身份依据。"
+                    )
                 if self.project.model_asset_id:
                     references.append(self.project.model_asset_id)
+                    prompt += "最后一张参考图为本人照片，人物身份以本人照片为准。"
                 references = list(dict.fromkeys(references))
             payload = {
                 "shot_id": shot["id"],

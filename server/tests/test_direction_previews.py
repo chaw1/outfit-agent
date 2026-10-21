@@ -102,6 +102,8 @@ def test_selected_preview_survives_checkpoint_and_reaches_script_context_and_cov
     ]
     assert "构图与光线以灵感图为基调" in cover.payload["prompt"]
     assert preview["variant"] in cover.payload["prompt"]
+    assert "不作为服装或人物身份依据" in cover.payload["prompt"]
+    assert "最后一张参考图为本人照片" in cover.payload["prompt"]
     for item in result["jobs"][1:]:
         assert asset_id not in session.get(Job, item["id"]).payload["reference_asset_ids"]
 
