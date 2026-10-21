@@ -169,6 +169,7 @@ class AdminJob(BaseModel):
     created_at: datetime
     updated_at: datetime
     cancelled: bool
+    photo_prompt: str | None = None
 
 
 class AdminUser(BaseModel):
@@ -349,6 +350,7 @@ def _job_output(job: Job, project: Project, user: User) -> dict:
         ),
         "created_at": job.created_at, "updated_at": job.updated_at,
         "cancelled": bool(job.result.get("admin_cancelled")),
+        "photo_prompt": job.payload.get("photo_prompt"),
     }
 
 

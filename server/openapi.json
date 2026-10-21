@@ -2985,6 +2985,17 @@
           "cancelled": {
             "type": "boolean",
             "title": "Cancelled"
+          },
+          "photo_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Prompt"
           }
         },
         "type": "object",

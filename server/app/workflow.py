@@ -15,6 +15,7 @@ from app.errors import AppError
 from app.local_edit import prepare_selection
 from app.media import asset_dict
 from app.models import Asset, Job, Project, User, utcnow
+from app.photography import expand_photo_prompt
 from app.providers import ProviderHub
 from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
@@ -714,17 +715,23 @@ class Workflow:
         clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
         refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes
         for direction in state["directions"]:
+            photo_prompt = expand_photo_prompt(
+                {"scene": direction["scene"]}, self.project.style_tags or [],
+                state.get("references") or [],
+            )
             prompt = (
                 f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
                 f"氛围：{direction['mood']}；配色：{direction['palette']}。"
                 + self._garment_prompt(state, clothes)
             )
+            prompt += photo_prompt
             key = f"{self.project.id}:preview:{fingerprint(direction)}"
             payload = {
                 "purpose": "preview",
                 "direction_id": direction["id"],
                 "preview_group": fingerprint([item["id"] for item in state["directions"]]),
                 "prompt": prompt,
+                "photo_prompt": photo_prompt,
                 "reference_asset_ids": refs,
                 "garment_asset_ids": clothes,
             }
@@ -757,6 +764,9 @@ class Workflow:
         )
         cover_id = str(uuid5(NAMESPACE_URL, cover_key)) if cover_key else None
         for shot in script["shots"]:
+            photo_prompt = expand_photo_prompt(
+                shot, self.project.style_tags or [], state.get("references") or [],
+            )
             references = [self.project.model_asset_id] if self.project.model_asset_id else []
             references = list(dict.fromkeys(references + shot["outfit_asset_ids"]))
             prompt = (
@@ -766,8 +776,10 @@ class Workflow:
             )
             prompt += self._garment_prompt(state, shot["outfit_asset_ids"])
             prompt += f"场景：{shot['scene']}；动作：{shot['pose']}；镜头：{shot['camera']}。"
+            prompt += photo_prompt
             payload = {
                 "shot_id": shot["id"],
+                "photo_prompt": photo_prompt,
                 "version": 1,
                 "prompt": prompt,
                 "reference_asset_ids": references,
