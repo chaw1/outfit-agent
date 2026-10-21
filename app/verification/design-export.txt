@@ -1,0 +1,1 @@
+已检查 dist/ios / dist/android / dist/web 的 176 个文件（含 Hermes 二进制），无画廊路由或页面标记。

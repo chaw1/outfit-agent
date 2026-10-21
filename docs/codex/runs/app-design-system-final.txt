@@ -1,0 +1,12 @@
+已按顺序完成 6 项，分支 `feat/app`，HEAD `dcaff24`；6 次本地提交，未 push。
+
+- 交付：99 个 DTCG token、20 个组件、开发画廊、四组视觉基线、样式 lint 和设计系统文档。
+- 验证：每阶段均运行 verify 和完整 Playwright。最终 verify 8/8、Node 测试 202/202、Playwright 23/23，ESLint 零错误、零告警。
+- 来源检查：重复生成字节一致，漂移检测有效；三平台 176 个产物文件无画廊标记。
+- 文档：[设计系统](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/docs/设计系统.md)、[画廊截图](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/app/screenshots/ds/)、[交付摘要](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app/docs/codex/runs/app-design-system-final.txt)。README 与演示脚本已更新。
+
+提交：`b23fe71` → `913c69c` → `608689b` → `e8fad3d` → `f1aa245` → `dcaff24`。
+
+限制：像素基线仅验证本机 macOS；Linux、真机及读屏未实测。Web 字段错误关联与 lint 分析边界已在文档说明。
+
+未访问线上服务，未改受保护路径或凭证。摘要留本地，源码及指定基线已提交。

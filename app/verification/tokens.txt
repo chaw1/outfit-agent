@@ -1,0 +1,6 @@
+
+> outfit-notes@1.0.0 tokens:check
+> node scripts/build-tokens.mjs --check && node scripts/build-token-docs.mjs --check
+
+Token 生成结果一致。
+Token 文档生成结果一致。
