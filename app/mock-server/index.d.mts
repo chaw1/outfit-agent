@@ -13,6 +13,10 @@ export interface MockServerOptions {
   videoDelayMs?: number;
   runningDelayMs?: number;
   tokenDelayMs?: number;
+  /** Minimum observable pause for each automatic shoot step. */
+  autoStepDelayMs?: number;
+  /** Autonomous worker tick; no frontend polling is required for automatic shoots. */
+  workerIntervalMs?: number;
   /** Exercise App fallback against a missing /me route or a pre-profile user shape. */
   legacyProfile?: 'missing' | 'old-fields';
 }

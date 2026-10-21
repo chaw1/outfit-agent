@@ -250,3 +250,8 @@ test('disposed transport throwing on abort cannot leave completion or cancellati
   controller.abort();
   await assert.rejects(cancelled, { name: 'AbortError' });
 });
+
+test('legacy budget errors use the points message without changing other provider errors', () => {
+  assert.equal(new ApiError('BUDGET_EXCEEDED', '今日预算不足 ¥2 元').message, '今日点数不够了，明天 00:00 恢复');
+  assert.equal(new ApiError('PROVIDER_ERROR', '请重新选择图片').message, '请重新选择图片');
+});

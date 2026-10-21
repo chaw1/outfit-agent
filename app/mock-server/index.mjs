@@ -13,8 +13,11 @@ const DAY = 86_400;
 const activeStatuses = new Set(['queued', 'running']);
 const newId = (prefix) => `${prefix}_${randomUUID()}`;
 const failure = (status, code, message) => Object.assign(new Error(message), { status, code });
-const PRICES = { preview: 0.5, image: 1.2, edit: 1.2, video: 1.5 };
+const PRICES = { preview: 0.5, image: 0.5, edit: 0.5, video: 1.5 };
 const money = (value) => Math.round(value * 100) / 100;
+const points = (value) => Math.round(value * 100) / 10;
+const AUTO_LABELS = { directions: '正在找拍摄方向', script: '正在写拍摄脚本', images: '正在出图', note: '正在整理图文', video: '正在生成视频', done: '全套已出好' };
+const autoQuote = () => ({ estimate_points: points(money(3 * PRICES.preview + 3 * PRICES.image * 1.2 + PRICES.video)), breakdown: [{ label: '方向预览 3 张', points: points(3 * PRICES.preview) }, { label: '正式出图 3 张，含自动修一版预留', points: points(3 * PRICES.image * 1.2) }, { label: '视频 1 条', points: points(PRICES.video) }] });
 
 function dimensions(bytes, mime) {
   if (mime === 'image/png' && bytes.length >= 24) return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
@@ -69,6 +72,7 @@ export async function createMockServer(options = {}) {
   const now = () => new Date(clock()).toISOString();
   const timings = { preview: options.previewDelayMs ?? 2_200, image: options.imageDelayMs ?? 7_000, edit: options.editDelayMs ?? 5_000, video: options.videoDelayMs ?? 7_000 };
   const runningDelay = options.runningDelayMs ?? 800;
+  const autoStepDelay = options.autoStepDelayMs ?? 1_000;
   await mkdir(path.join(dataDir, 'uploads'), { recursive: true });
   let db;
   try { db = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')); }
@@ -79,6 +83,8 @@ export async function createMockServer(options = {}) {
   // Keep first-round local projects readable when the fake service is restarted.
   for (const project of db.projects) {
     project.state.cost_cny ??= 0;
+    project.mode ??= 'guided';
+    project.style_tags ??= [];
     project.scriptHistory ??= [];
     project.notifiedGroups ??= [];
     if (project.state.script && !project.scriptHistory.length) {
@@ -98,17 +104,23 @@ export async function createMockServer(options = {}) {
   }
   await persist();
 
+  function withPoints(value) {
+    if (options.legacyProfile || value == null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(withPoints);
+    return Object.fromEntries(Object.entries(value).flatMap(([key, item]) => [[key, withPoints(item)], ...(key.endsWith('_cny') && typeof item === 'number' ? [[`${key.slice(0, -4)}_points`, points(item)]] : [])]));
+  }
+
   const passwordInput = (password) => Buffer.byteLength(password) > 72 ? createHash('sha256').update(password).digest('base64') : password;
   const sign = (value) => createHmac('sha256', db.secret).update(value).digest('base64url');
   function publicUser(user) {
     const { id, username, nickname, created_at } = user;
     const result = { id, username, nickname, created_at };
     if (options.legacyProfile) return result;
-    return {
+    return withPoints({
       ...result, tier: user.tier || 'free', daily_budget_cny: user.daily_budget_cny ?? 20,
       today_cost_cny: user.todayUsage?.date === now().slice(0, 10) ? user.todayUsage.cost_cny : 0,
       profile: structuredClone(user.profile || { model_asset_ids: [] }),
-    };
+    });
   }
   function budgetFor(project) {
     const owner = db.users.find((user) => user.id === project.ownerId);
@@ -116,20 +128,20 @@ export async function createMockServer(options = {}) {
     const daily = owner.daily_budget_cny ?? 20;
     const today = owner.todayUsage?.date === now().slice(0, 10) ? owner.todayUsage.cost_cny : 0;
     const reserved = db.jobs.filter((job) => job.ownerId === project.ownerId && activeStatuses.has(job.status)).reduce((sum, job) => sum + jobCost(job), 0);
-    return { tier: user.tier || 'free', daily_budget_cny: daily, today_cost_cny: today, remaining_cny: Math.max(0, money(daily - today - reserved)) };
+    return withPoints({ tier: user.tier || 'free', daily_budget_cny: daily, today_cost_cny: today, remaining_cny: Math.max(0, money(daily - today - reserved)) });
   }
   const jobCost = (job) => PRICES[job.directionId ? 'preview' : job.kind];
   function availableBudget(project) {
     return budgetFor(project).remaining_cny;
   }
   function requireBudget(project, cost, released = 0) {
-    if (money(availableBudget(project) + released) < cost) throw failure(409, 'BUDGET_EXCEEDED', '今日余额不足，请等待明天额度恢复后再生成');
+    if (money(availableBudget(project) + released) < cost) throw failure(409, 'BUDGET_EXCEEDED', '今日点数不够了，明天 00:00 恢复');
   }
   const scriptEstimate = (project) => money((project.state.script?.shots.length || 0) * PRICES.image * 1.2);
   function makeTrace(tool, refs = [], detail = {}) {
     const labels = { chat: '整理回复', propose_directions: '给出方向', write_script: '写脚本', revise_script: '修改脚本', edit_image: '提交改图', write_note: '写笔记', generate_images: '提交出图', generate_video: '提交视频', restore_script: '恢复脚本' };
     const duration_ms = detail.duration_ms ?? (['write_script', 'revise_script'].includes(tool) ? 4800 : tool === 'propose_directions' ? 3100 : 1200);
-    return { tool, model: detail.model || 'local-mock', duration_ms, cost_cny: detail.cost_cny ?? 0, refs: [...refs], steps: detail.steps || [{ label: labels[tool], duration_ms }] };
+    return withPoints({ tool, model: detail.model || 'local-mock', duration_ms, cost_cny: detail.cost_cny ?? 0, refs: [...refs], steps: detail.steps || [{ label: labels[tool], duration_ms }] });
   }
   function patchedProfile(user, body) {
     if (body.nickname !== undefined && (typeof body.nickname !== 'string' || !body.nickname.trim() || body.nickname.trim().length > 64)) throw failure(400, 'INVALID_NICKNAME', '昵称需要 1–64 个字符');
@@ -201,7 +213,23 @@ export async function createMockServer(options = {}) {
   }
   function publicProject(project, base) {
     const { id, title, brand, brief, stage, created_at, updated_at, coverAssetId } = project;
-    return { id, title, brand, brief: project.analyzedBrief || brief, stage, ...(project.referenceAssetIds ? { reference_asset_ids: [...project.referenceAssetIds] } : {}), ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
+    return { id, title, brand, brief: project.analyzedBrief || brief, stage, mode: project.mode, style_tags: [...project.style_tags], progress: projectProgress(project), ...(project.referenceAssetIds ? { reference_asset_ids: [...project.referenceAssetIds] } : {}), ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
+  }
+  function projectProgress(project) {
+    const state = project.state;
+    const jobs = db.jobs.filter((job) => job.project_id === project.id);
+    const active = jobs.filter((job) => activeStatuses.has(job.status));
+    const current = jobs.filter((job) => state.stage === 'video' || state.stage === 'done' ? job.kind === 'video' : state.stage === 'direction' ? Boolean(job.directionId) : !job.directionId && job.kind !== 'video');
+    const result = (status, label) => ({ status, label, running: active.length, total: current.length, updated_at: project.updated_at });
+    if (active.length) return result('generating', active.some((job) => job.kind === 'video') ? '视频生成中' : active.every((job) => job.kind === 'edit') ? '改图中' : active.every((job) => job.directionId) ? '方向预览生成中' : `出图中 ${current.filter((job) => job.status === 'succeeded').length}/${current.length}`);
+    if (current.some((job) => job.status === 'failed') || state.video?.status === 'failed') return result('failed', '出图失败，点开看看');
+    if (state.stage === 'done') return result('done', '全套已出好');
+    if (project.mode === 'auto' && state.auto?.active) return result('generating', state.auto.label);
+    if (state.pending_action?.type === 'confirm_script') return result('waiting_you', '等你确认脚本');
+    if (state.pending_action?.type === 'choose_direction') return result('waiting_you', '等你挑个方向');
+    if (state.note) return result('ready', '笔记已就绪，等你看');
+    if (state.images.some((image) => image.status === 'succeeded')) return result('waiting_you', '等你挑选图片');
+    return result('idle', '随时开拍');
   }
   function publicVideo(project, base) {
     if (!project.state.video) return undefined;
@@ -210,8 +238,11 @@ export async function createMockServer(options = {}) {
   }
   function publicState(project, base) {
     const { stage, directions, chosen_direction_id, script, note, pending_action } = project.state;
-    return {
+    return withPoints({
       stage,
+      mode: project.mode,
+      style_tags: [...project.style_tags],
+      ...(project.state.auto ? { auto: { ...project.state.auto } } : {}),
       garments: project.state.garments.map((item) => ({ ...item, url: mediaUrl(item.asset_id, base) })),
       directions: directions.map((item) => publicDirection(item, base)),
       ...(chosen_direction_id ? { chosen_direction_id } : {}),
@@ -220,12 +251,12 @@ export async function createMockServer(options = {}) {
       ...(note ? { note } : {}),
       ...(project.state.video ? { video: publicVideo(project, base) } : {}),
       active_jobs: db.jobs.filter((job) => job.project_id === project.id && activeStatuses.has(job.status)).map((job) => publicJob(job, base)),
-      pending_action: pending_action ? { ...pending_action, ...(!options.legacyProfile && ['confirm_script', 'confirm_video'].includes(pending_action.type) ? { estimated_cost_cny: pending_action.type === 'confirm_script' ? scriptEstimate(project) : PRICES.video } : {}) } : null,
+      pending_action: project.mode === 'auto' && project.state.auto?.active ? null : pending_action ? { ...pending_action, ...(!options.legacyProfile && ['confirm_script', 'confirm_video'].includes(pending_action.type) ? { estimated_cost_cny: pending_action.type === 'confirm_script' ? scriptEstimate(project) : PRICES.video } : {}) } : null,
       cost_cny: project.state.cost_cny || 0,
       last_message_id: project.messages.at(-1)?.id || null,
       script_versions: (project.scriptHistory || []).map(({ version, checkpoint_id, created_at, summary }) => ({ version, checkpoint_id, created_at, summary, current: version === project.currentScriptVersion })),
       ...(!options.legacyProfile ? { budget: budgetFor(project) } : {}),
-    };
+    });
   }
   function card(project, type, base) {
     const state = publicState(project, base);
@@ -238,7 +269,7 @@ export async function createMockServer(options = {}) {
       note: state.note,
       video: state.video,
     };
-    return { id: `${project.id}_${type}`, type, ...contents[type] };
+    return withPoints({ id: `${project.id}_${type}`, type, ...contents[type] });
   }
   function refreshedMediaUrl(value, base) {
     if (!value) return value;
@@ -248,7 +279,7 @@ export async function createMockServer(options = {}) {
     } catch { return value; }
   }
   function publicMessages(project, base) {
-    return project.messages.map((message, index) => ({
+    return withPoints(project.messages.map((message, index) => ({
       ...Object.fromEntries(Object.entries(message).filter(([key]) => !['originalText', 'regenerateCount', ...(options.legacyProfile ? ['trace'] : [])].includes(key))),
       ...(message.role === 'assistant' ? { can_regenerate: index === project.messages.length - 1 && message.can_regenerate === true && !options.legacyProfile } : {}),
       cards: message.cards.map((item) => {
@@ -258,7 +289,7 @@ export async function createMockServer(options = {}) {
         }
         return card(project, item.type, base);
       }),
-    }));
+    })));
   }
   function getProject(id, user) {
     const project = db.projects.find((item) => item.id === id && item.ownerId === user.id);
@@ -274,6 +305,83 @@ export async function createMockServer(options = {}) {
   }
   function announce(project, text, types, base, trace) {
     project.messages.push({ id: newId('message'), role: 'assistant', text, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: false, created_at: now() });
+  }
+  function setAutoStep(project, step) {
+    project.state.auto = { active: step !== 'done', step, label: AUTO_LABELS[step], started_at: project.state.auto?.started_at || now(), estimate_points: autoQuote().estimate_points };
+    project.autoStepDueAt = clock() + autoStepDelay;
+    project.state.pending_action = null;
+    touch(project);
+  }
+  function automaticMessage(project, body, base, text) {
+    processMessage(project, body, base, true);
+    const message = project.messages.at(-1);
+    message.text = text;
+    message.can_regenerate = false;
+    project.state.pending_action = null;
+  }
+  function humanCheckpoint(project) {
+    if (project.state.stage === 'direction') return { type: 'choose_direction', prompt: '选一个喜欢的方向，也可以继续告诉我你的想法' };
+    if (project.state.stage === 'script') return { type: 'confirm_script', prompt: '看看这份拍摄脚本，确认后就开始出图' };
+    if (project.state.stage === 'images') return { type: 'approve_images', prompt: '图片已经出好了，挑选这组片要用的图吧' };
+    if (project.state.stage === 'note') return { type: 'confirm_video', prompt: '图文已经准备好了，要不要再做一条 5 秒短视频？' };
+    return null;
+  }
+  function stopAuto(project, base, reason) {
+    project.mode = 'guided';
+    project.state.auto.active = false;
+    project.autoTakeoverPending = true;
+    project.state.pending_action = humanCheckpoint(project);
+    announce(project, `一键出片停在“${project.state.auto.label}”：${reason}。已切到沉浸编导，点开当前步骤检查后可以继续。`, [], base, makeTrace('chat'));
+    touch(project);
+  }
+  function startAuto(project, base) {
+    setAutoStep(project, 'directions');
+    try { automaticMessage(project, { text: project.brief }, base, '开拍了，先按你的风格找三个拍摄方向，再帮你选出最合适的一个。'); }
+    catch (error) { stopAuto(project, base, error.message); }
+  }
+  function advanceAutomaticProjects(base) {
+    let changed = false;
+    for (const project of db.projects) {
+      const active = db.jobs.filter((job) => job.project_id === project.id && activeStatuses.has(job.status));
+      if (project.autoTakeoverPending && !active.length) {
+        project.state.pending_action = humanCheckpoint(project);
+        project.autoTakeoverPending = false;
+        touch(project);
+        changed = true;
+      }
+      if (project.mode !== 'auto' || !project.state.auto?.active) continue;
+      const step = project.state.auto.step;
+      const failed = step === 'directions' ? project.state.directions.some((direction) => direction.preview_status === 'failed') : step === 'images' ? project.state.images.some((image) => image.script_version === project.currentScriptVersion && image.status === 'failed') : step === 'video' && project.state.video?.status === 'failed';
+      if (failed) { stopAuto(project, base, '有生成任务没有完成，请检查后重试'); changed = true; continue; }
+      if (active.length || clock() < project.autoStepDueAt) continue;
+      try {
+        if (step === 'directions') {
+          const direction = project.state.directions.find((item) => item.recommended) || project.state.directions[0];
+          if (!direction) throw new Error('还没有找到可用的拍摄方向');
+          setAutoStep(project, 'script');
+          automaticMessage(project, { action: { type: 'choose_direction', direction_id: direction.id } }, base, `我选了“${direction.name}”，正在把封面、镜头和配文整理成拍摄脚本。`);
+        } else if (step === 'script') {
+          setAutoStep(project, 'images');
+          automaticMessage(project, { action: { type: 'confirm_script' } }, base, '拍摄脚本准备好了，现在开始正式出图，衣服细节也会一起核对。');
+        } else if (step === 'images') {
+          const originals = project.state.images.filter((image) => image.version === 1 && image.status === 'succeeded' && image.edit_check?.passed !== false);
+          const cover = originals.find((image) => image.shot_id === project.state.script?.shots[0]?.id);
+          const selected = [...(cover ? [cover] : []), ...originals.filter((image) => image !== cover)];
+          if (!selected.length) throw new Error('没有通过核对的首版图片，请重新出图或手动挑选');
+          setAutoStep(project, 'note');
+          automaticMessage(project, { action: { type: 'approve_images', image_ids: selected.map((image) => image.id) } }, base, '图片已经准备好了，我按封面和镜头顺序排好，正在整理标题、正文和话题。');
+        } else if (step === 'note') {
+          const cover = project.state.note?.image_ids[0];
+          setAutoStep(project, 'video');
+          automaticMessage(project, { action: { type: 'confirm_video', image_id: cover } }, base, '图文已经排好了，接着把封面做成一条 5 秒短视频。');
+        } else if (step === 'video' && project.state.video?.status === 'succeeded') {
+          setAutoStep(project, 'done');
+          announce(project, '这组片全套出好了，图文和视频都在预览里，随时回来看看。', ['note', 'video'], base, makeTrace('chat'));
+        } else continue;
+        changed = true;
+      } catch (error) { stopAuto(project, base, error.message); changed = true; }
+    }
+    return changed;
   }
   const assetPath = (asset) => asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
   function generationPrompt(project, job, image) {
@@ -469,7 +577,7 @@ export async function createMockServer(options = {}) {
         announce(project, text, [type], base, makeTrace(tool, jobs.map((job) => job.imageId || job.result_asset_id).filter(Boolean), { duration_ms, cost_cny: money(successful.reduce((sum, job) => sum + jobCost(job), 0)), model: 'local-fixture', steps }));
       }
     }
-    return changed;
+    return advanceAutomaticProjects(base) || changed;
   }
   function queueJob(project, kind, image, delayOffset = 0, details = {}) {
     const created_at = now();
@@ -501,9 +609,11 @@ export async function createMockServer(options = {}) {
       { id: 'direction_work', name: '轻松通勤日', scene: '明亮办公楼外、窗边咖啡桌', mood: '利落、干净、轻盈', palette: '白 / 灰 / 深蓝', why: '用简洁搭配突出衣服质感，上班和下班见朋友都合适。', sample_title: '早八也能轻松出门的质感穿搭' },
       { id: 'direction_nature', name: '出走去公园', scene: '公园长椅、开阔草地和树影', mood: '清新、温柔、随性', palette: '米白 / 草绿 / 浅棕', why: '自然光让衣服颜色和面料更清楚，适合分享舒服的周末状态。', sample_title: '把周末交给阳光和舒服的衣服' },
     ];
-    const request = `${project.brief} ${project.styleNotes || ''} ${(project.directionPreferences || []).join(' ')} ${revision}`;
+    const request = `${project.brief} ${project.styleNotes || ''} ${(project.style_tags || []).join(' ')} ${(project.directionPreferences || []).join(' ')} ${revision}`;
     const preferred = /通勤|上班|办公室/.test(request) ? 'direction_work' : /公园|户外|露营/.test(request) ? 'direction_nature' : 'direction_city';
     result.sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
+    result[0].recommended = true;
+    if (project.style_tags?.length) for (const option of result) option.why += ` 拍摄风格：${project.style_tags.join('、')}。`;
     if (project.styleNotes) for (const option of result) option.why += ` 博主风格偏好：${project.styleNotes}。`;
     if (project.referenceStyleSummary) for (const option of result) {
       option.why += ` 参考图风格：${project.referenceStyleSummary}。`;
@@ -554,6 +664,11 @@ export async function createMockServer(options = {}) {
       for (const shot of result.shots) shot.pose += `；遵循博主偏好：${project.styleNotes}`;
       result.video.prompt += `；遵循博主偏好：${project.styleNotes}`;
     }
+    if (project.style_tags?.length) {
+      result.cover.pose += `；拍摄风格：${project.style_tags.join('、')}`;
+      for (const shot of result.shots) shot.camera += `；拍摄风格：${project.style_tags.join('、')}`;
+      result.video.prompt += `；拍摄风格：${project.style_tags.join('、')}`;
+    }
     if (project.referenceStyleSummary) {
       result.cover.scene += `；参考图风格：${project.referenceStyleSummary}`;
       for (const shot of result.shots) shot.camera += `；参考图风格：${project.referenceStyleSummary}`;
@@ -586,7 +701,7 @@ export async function createMockServer(options = {}) {
     const fields = { choose_direction: ['direction_id'], confirm_script: [], edit_image: ['image_id', 'instruction', 'attempt'], approve_images: ['image_ids', 'accept_unverified'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
     return { type: action.type, ...Object.fromEntries(fields[action.type].map((key) => [key, action[key]])), ...(action.type === 'edit_image' ? editSelection(action) : {}) };
   }
-  function processMessage(project, body, base) {
+  function processMessage(project, body, base, automatic = false) {
     const action = body.action;
     if ((body.text !== undefined && typeof body.text !== 'string') || (action != null && (typeof action !== 'object' || Array.isArray(action)))) throw failure(400, 'INVALID_MESSAGE', '消息内容需要是文字或有效操作');
     const state = project.state;
@@ -732,7 +847,9 @@ export async function createMockServer(options = {}) {
     } else {
       const text = typeof body.text === 'string' ? body.text.trim() : '';
       if (!text) throw failure(400, 'EMPTY_MESSAGE', '写一句你的想法再发送吧');
-      if (['brief', 'direction'].includes(state.stage)) {
+      if (!automatic && project.mode === 'auto' && state.auto?.active) {
+        reply = '收到你的想法了，我会记着。片子正在继续准备，想逐步调整时可以点“我来接手”。';
+      } else if (['brief', 'direction'].includes(state.stage)) {
         const replacing = db.jobs.filter((job) => job.project_id === project.id && job.directionId && activeStatuses.has(job.status));
         requireBudget(project, 3 * PRICES.preview, replacing.reduce((sum, job) => sum + jobCost(job), 0));
         tool = 'propose_directions';
@@ -776,7 +893,7 @@ export async function createMockServer(options = {}) {
     const trace = makeTrace(tool, refs || (tool === 'propose_directions' ? project.garmentAssetIds : []), tool === 'propose_directions' ? { steps: [{ label: `看图 ${project.garmentAssetIds.length} 件`, duration_ms: 1800 }, { label: '给出 3 个方向', duration_ms: 1300 }] } : {});
     const userMessage = { id: newId('message'), role: 'user', text: typeof body.text === 'string' ? body.text.trim() : '', cards: [], ...(action ? { action: normalizedAction(action) } : {}), ...(refs !== undefined ? { refs: [...refs] } : {}), created_at: now() };
     const assistant = { id: newId('message'), role: 'assistant', text: reply, cards: types.map((type) => card(project, type, base)), trace, can_regenerate: jobs.length === 0, created_at: now() };
-    project.messages.push(userMessage, assistant);
+    project.messages.push(...(automatic ? [] : [userMessage]), assistant);
     return { reply, cards: types.map((type) => card(project, type, base)), jobs: jobs.map((job) => publicJob(job, base)), message_id: assistant.id, trace, ...(reused === undefined ? {} : { reused }) };
   }
   async function readBody(req) {
@@ -876,6 +993,7 @@ export async function createMockServer(options = {}) {
         json(res, 200, { token: tokenFor(user), user: publicUser(user) }); return;
       }
       const user = authenticate(req);
+      if (url.pathname === '/api/quotes/auto' && req.method === 'GET') { json(res, 200, autoQuote()); return; }
       if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: 'mock-1.0.0', providers: { text: 'local-mock', vision: 'local-mock', image: 'local-fixture', video: 'local-fixture', mock: true } }); return; }
       if (url.pathname === '/api/me' && ['GET', 'PATCH'].includes(req.method)) {
         if (options.legacyProfile === 'missing' || (options.legacyProfile && req.method === 'PATCH')) throw failure(404, 'NOT_FOUND', '当前服务未开通我的形象');
@@ -911,6 +1029,10 @@ export async function createMockServer(options = {}) {
         const brand = typeof body.brand === 'string' ? body.brand.trim() : '';
         const brief = typeof body.brief === 'string' ? body.brief.trim() : '';
         const ids = body.garment_asset_ids;
+        const mode = body.mode === undefined ? 'guided' : body.mode;
+        const styleTags = body.style_tags === undefined ? [] : body.style_tags;
+        if (!['guided', 'auto'].includes(mode)) throw failure(400, 'INVALID_MODE', '请选择一键出片或沉浸编导');
+        if (!Array.isArray(styleTags) || styleTags.length > 6 || styleTags.some((tag) => typeof tag !== 'string' || !tag.trim() || [...tag].length > 12)) throw failure(400, 'INVALID_STYLE_TAGS', '风格最多选 6 个，每个不超过 12 个字');
         if (!title || !brand || !brief || !Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) throw failure(400, 'INVALID_PROJECT', '请填写标题、品牌和需求，并上传至少一张衣服图');
         const referenceIds = body.reference_asset_ids === undefined ? [] : body.reference_asset_ids;
         if (!Array.isArray(referenceIds) || referenceIds.length > 3 || new Set(referenceIds).size !== referenceIds.length || referenceIds.some((id) => typeof id !== 'string' || !db.assets.some((asset) => asset.id === id && asset.ownerId === user.id && asset.kind === 'reference' && asset.source === 'upload'))) throw failure(400, 'INVALID_REFERENCE_ASSETS', '参考图最多 3 张，必须是当前账号上传的参考图，每张只选一次');
@@ -921,10 +1043,11 @@ export async function createMockServer(options = {}) {
         const created_at = now();
         const referenceStyleTags = ['街角咖啡馆', '柔和自然光', '竖构图', '松弛日常', '奶白·浅卡其配色'];
         const referenceStyleSummary = referenceIds.length ? referenceStyleTags.join('、') : undefined;
-        const project = { id: newId('project'), title, brand, brief, stage: 'brief', ownerId: user.id, garmentAssetIds: ids, referenceAssetIds: [...referenceIds], ...(referenceStyleSummary ? { references: referenceIds.map((asset_id) => ({ asset_id, style_tags: [...referenceStyleTags] })), referenceStyleSummary, analyzedBrief: `${brief}\n参考图整理要点（场景 / 光线 / 构图 / 氛围 / 配色）：${referenceStyleSummary}` } : {}), ...(model ? { modelAssetId: model.id } : {}), ...(!options.legacyProfile && user.profile?.style_notes ? { styleNotes: user.profile.style_notes } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
+        const project = { id: newId('project'), title, brand, brief, mode, style_tags: [...styleTags], stage: 'brief', ownerId: user.id, garmentAssetIds: ids, referenceAssetIds: [...referenceIds], ...(referenceStyleSummary ? { references: referenceIds.map((asset_id) => ({ asset_id, style_tags: [...referenceStyleTags] })), referenceStyleSummary, analyzedBrief: `${brief}\n参考图整理要点（场景 / 光线 / 构图 / 氛围 / 配色）：${referenceStyleSummary}` } : {}), ...(model ? { modelAssetId: model.id } : {}), ...(!options.legacyProfile && user.profile?.style_notes ? { styleNotes: user.profile.style_notes } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
+        if (mode === 'auto') startAuto(project, base);
         db.projects.push(project); await persist(); json(res, 200, publicProject(project, base)); return;
       }
-      const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)(?:\/(state|messages))?$/);
+      const projectMatch = url.pathname.match(/^\/api\/projects\/([^/]+)(?:\/(state|messages|mode))?$/);
       if (projectMatch) {
         const project = getProject(decodeId(projectMatch[1]), user);
         if (!projectMatch[2] && req.method === 'GET') { json(res, 200, publicProject(project, base)); return; }
@@ -945,6 +1068,21 @@ export async function createMockServer(options = {}) {
         }
         if (projectMatch[2] === 'state' && req.method === 'GET') { json(res, 200, publicState(project, base)); return; }
         if (projectMatch[2] === 'messages' && req.method === 'GET') { json(res, 200, publicMessages(project, base)); return; }
+        if (projectMatch[2] === 'mode' && req.method === 'POST') {
+          const body = await readJson(req);
+          if (body.mode !== 'guided') throw failure(400, 'INVALID_MODE', '现在可以切换到沉浸编导接手');
+          if (project.mode === 'auto') {
+            project.mode = 'guided';
+            if (project.state.auto) project.state.auto.active = false;
+            const running = db.jobs.some((job) => job.project_id === project.id && activeStatuses.has(job.status));
+            project.autoTakeoverPending = running;
+            project.state.pending_action = running ? null : humanCheckpoint(project);
+            announce(project, running ? '交给你来编导了，当前任务会继续，完成后在下一步等你。' : '交给你来编导了，接下来每一步由你确认。', [], base, makeTrace('chat'));
+            touch(project);
+            await persist();
+          }
+          json(res, 200, publicState(project, base)); return;
+        }
         if (projectMatch[2] === 'messages' && req.method === 'POST') {
           const body = await readJson(req);
           let result;
@@ -965,6 +1103,19 @@ export async function createMockServer(options = {}) {
       else res.end();
     }
   });
+  // Automatic shoots continue while the App is closed, with no state-poll request required.
+  let workerTimer;
+  server.on('listening', () => {
+    workerTimer = setInterval(() => {
+      if (!db.projects.some((project) => project.state.auto?.active || project.autoTakeoverPending)) return;
+      const address = server.address();
+      if (!address || typeof address === 'string') return;
+      const base = options.publicBase || `http://127.0.0.1:${address.port}`;
+      void advanceJobs(base).then((changed) => changed ? persist() : undefined).catch(() => {});
+    }, options.workerIntervalMs ?? 100);
+    workerTimer.unref();
+  });
+  server.on('close', () => clearInterval(workerTimer));
   return server;
 }
 

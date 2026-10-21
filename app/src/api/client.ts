@@ -1,3 +1,4 @@
+import { INSUFFICIENT_POINTS_TEXT } from '../lib/transparency';
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
   Asset, AssetKind, AuthResponse, AutoQuote, CreateProjectInput, DoneData, ErrorData, HealthResponse,
@@ -6,7 +7,7 @@ import type {
 
 export class ApiError extends Error {
   constructor(readonly code: string, message: string, readonly status?: number) {
-    super(message);
+    super(code === 'BUDGET_EXCEEDED' ? INSUFFICIENT_POINTS_TEXT : message);
     this.name = 'ApiError';
   }
 }
