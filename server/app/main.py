@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException
 
+from app.account import router as account_router
 from app.admin import router as admin_router
 from app.config import settings
 from app.db import SessionLocal
@@ -119,6 +120,7 @@ app.add_middleware(
     expose_headers=["X-Request-Id"],
 )
 app.include_router(admin_router)
+app.include_router(account_router)
 
 
 @app.middleware("http")
