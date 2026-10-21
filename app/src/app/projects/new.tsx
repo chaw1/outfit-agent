@@ -23,7 +23,8 @@ export default function NewProject() {
   const [mode, setMode] = useState<ProjectMode>('guided');
   const [help, setHelp] = useState<ProjectMode | null>(null);
   // 从灵感墙进来时带着风格与氛围描述，直接作为初始值。
-  const params = useLocalSearchParams<{ style?: string | string[]; brief?: string | string[] }>();
+  const params = useLocalSearchParams<{ style?: string | string[]; brief?: string | string[]; from?: string | string[] }>();
+  const presetFrom = Array.isArray(params.from) ? params.from[0] : params.from;
   const presetStyle = Array.isArray(params.style) ? params.style[0] : params.style;
   const presetBrief = Array.isArray(params.brief) ? params.brief[0] : params.brief;
   const presetIndex = presetStyle ? (STYLE_TAGS as readonly string[]).indexOf(presetStyle) : -1;
@@ -145,6 +146,7 @@ export default function NewProject() {
         </View>
         <View style={localStyles.section}>
           <Text style={localStyles.sectionTitle}>描述你的风格</Text>
+          {presetFrom ? <Text testID="preset-from" style={localStyles.presetFrom}>来自灵感墙 · {presetFrom}。风格和描述已经带进来，随便改。</Text> : null}
           <Field label="这次想拍什么" placeholder="想穿去哪里？喜欢什么光线、氛围？" value={brief} onChangeText={setBrief} multiline />
           <View style={localStyles.tags} testID="style-tags">{styleBatch(batch).map(tag => <Pressable key={tag} accessibilityRole="button" accessibilityLabel={`风格：${tag}`} accessibilityState={{ selected: tags.includes(tag), disabled: tags.length >= 6 && !tags.includes(tag) }} aria-selected={tags.includes(tag)} testID={`style-tag-${tag}`} disabled={tags.length >= 6 && !tags.includes(tag)} onPress={() => setTags(previous => toggleStyleTag(previous, tag))} style={[localStyles.tag, tags.includes(tag) && localStyles.tagSelected]}><Text style={[localStyles.caption, tags.includes(tag) && { color: studio.ink }]}>{tag}</Text></Pressable>)}</View>
           <View style={[styles.row, { justifyContent: 'space-between' }]}><Text testID="selected-style-tags" style={[localStyles.caption, { flex: 1 }]}>{tags.length ? `已选 ${tags.length}/6 · ${tags.join('、')}` : '最多选 6 个，也可以只写想法'}</Text><Button title="换一批" testID="shuffle-style-tags" variant="ghost" icon="shuffle-outline" onPress={() => setBatch(value => value + 1)} /></View>
@@ -178,6 +180,7 @@ const localStyles = StyleSheet.create({
   helpCard: { alignSelf: 'center', width: '100%', maxWidth: 440, backgroundColor: studio.surface, borderColor: studio.line, borderWidth: 1, padding: space.xl, borderRadius: radius.lg, gap: space.xl },
   footer: { borderTopWidth: 1, borderColor: studio.line, backgroundColor: studio.bg, padding: space.lg, gap: space.md },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
+  presetFrom: { ...type.caption, color: studio.accent },
   tag: { minHeight: 44, paddingHorizontal: space.md, paddingVertical: space.md, borderRadius: radius.sm, borderWidth: 1, borderColor: studio.line, backgroundColor: studio.canvas, justifyContent: 'center' },
   tagSelected: { backgroundColor: studio.softAccent, borderColor: studio.accent },
   intro: { gap: space.sm, paddingVertical: space.sm },

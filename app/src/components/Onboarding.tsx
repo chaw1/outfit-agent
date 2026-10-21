@@ -3,13 +3,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { radius, space, studio, type } from '../theme';
-import { AnimatedEntry, Button, Page } from './ui';
+import { AnimatedEntry, Button, FadeImage, Page } from './ui';
 
 const KEY = 'outfit.onboarding.v1';
+// 每屏放三张灵感墙的成片，让人第一眼看到的是产品能出什么，而不是图标。
 const slides = [
-  { icon: 'sparkles-outline', title: '一件衣服，一组大片', body: '带上一件喜欢的衣服，从穿搭图、图文笔记到短视频，把灵感拍成你的表达。' },
-  { icon: 'film-outline', title: '一键出片，或者一步步来', body: '一键出片，全套图文和视频一次出好，中途可以接手。沉浸编导，聊灵感、定脚本、挑图改图，每一步你说了算。' },
-  { icon: 'checkmark-circle-outline', title: '正式出图和视频会扣点，由你确认', body: '开拍前会显示预估点数。一键出片由你在开拍时确认，沉浸编导会在每次正式生成前请你确认。图片带有生成标识，发布时记得勾选内容声明。' },
+  { icon: 'sparkles-outline', images: [require('../../assets/inspiration/studio-01.jpg'), require('../../assets/inspiration/studio-03.jpg'), require('../../assets/inspiration/studio-07.jpg')], title: '一件衣服，一组大片', body: '带上一件喜欢的衣服，从穿搭图、图文笔记到短视频，把灵感拍成你的表达。' },
+  { icon: 'film-outline', images: [require('../../assets/inspiration/studio-02.jpg'), require('../../assets/inspiration/studio-05.jpg'), require('../../assets/inspiration/studio-09.jpg')], title: '一键出片，或者一步步来', body: '一键出片，全套图文和视频一次出好，中途可以接手。沉浸编导，聊灵感、定脚本、挑图改图，每一步你说了算。' },
+  { icon: 'checkmark-circle-outline', images: [require('../../assets/inspiration/studio-04.jpg'), require('../../assets/inspiration/studio-08.jpg'), require('../../assets/inspiration/studio-10.jpg')], title: '正式出图和视频会扣点，由你确认', body: '开拍前会显示预估点数。一键出片由你在开拍时确认，沉浸编导会在每次正式生成前请你确认。图片带有生成标识，发布时记得勾选内容声明。' },
 ] as const;
 export function Onboarding() {
   const [visible, setVisible] = useState(false);
@@ -27,8 +28,8 @@ export function Onboarding() {
           <View testID={`onboarding-${index + 1}`} style={localStyles.slide}>
             <View style={localStyles.heading}><Text style={localStyles.eyebrow}>欢迎来到衣序</Text><Text style={localStyles.counter}>0{index + 1} / 03</Text></View>
             <View style={localStyles.illustration}>
-              <View style={localStyles.illustrationInset}><Ionicons name={slide.icon} size={64} color={studio.ink} /></View>
-              <View style={localStyles.sparkle}><Ionicons name="sparkles" size={18} color={studio.accent} /></View>
+              {slide.images.map((source, n) => <View key={n} style={[localStyles.still, n === 1 && localStyles.stillRaised]}><FadeImage source={source} resizeMode="cover" accessibilityLabel={`成片示例 ${n + 1}`} style={{ width: '100%', height: '100%' }} /></View>)}
+              <View style={localStyles.sparkle}><Ionicons name={slide.icon} size={18} color={studio.accent} /></View>
             </View>
             <Text style={{ ...type.display, color: studio.ink }}>{slide.title}</Text>
             <Text style={localStyles.body}>{slide.body}</Text>
@@ -49,8 +50,9 @@ const localStyles = StyleSheet.create({
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   eyebrow: { ...type.caption, color: studio.muted, fontWeight: '500', letterSpacing: 2 },
   counter: { ...type.badge, color: studio.muted, letterSpacing: 1 },
-  illustration: { height: 184, backgroundColor: studio.glass, borderWidth: 1, borderColor: studio.line, borderRadius: radius.lg, justifyContent: 'center', alignItems: 'center', marginVertical: space.sm },
-  illustrationInset: { width: 112, height: 112, borderRadius: radius.lg, borderWidth: 1, borderColor: studio.line, alignItems: 'center', justifyContent: 'center', backgroundColor: studio.canvas, transform: [{ rotate: '-7deg' }] },
+  illustration: { height: 232, flexDirection: 'row', alignItems: 'flex-end', gap: space.sm, marginVertical: space.sm },
+  still: { flex: 1, height: 200, borderRadius: radius.md, overflow: 'hidden', backgroundColor: studio.canvas, borderWidth: 1, borderColor: studio.line },
+  stillRaised: { height: 232 },
   sparkle: { position: 'absolute', top: space.xl, right: space.xl },
   body: { ...type.reading, color: studio.muted },
   footer: { paddingHorizontal: space.xxl, paddingBottom: space.xl, paddingTop: space.sm, gap: space.xl, backgroundColor: studio.bg },

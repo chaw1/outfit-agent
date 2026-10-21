@@ -34,7 +34,7 @@ export function InspirationWall() {
     if (!current) return;
     const tag = 'tag' in current ? current.tag : current.label;
     setSelected(null);
-    router.push({ pathname: '/projects/new', params: { style: tag, brief: `想拍「${current.label}」这种感觉：${current.note}。` } });
+    router.push({ pathname: '/projects/new', params: { style: tag, brief: `想拍「${current.label}」这种感觉：${current.note}。`, from: current.label } });
   }
   return <>
     <View testID="inspiration-wall" style={local.wall}>
