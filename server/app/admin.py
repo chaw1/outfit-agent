@@ -169,6 +169,7 @@ class AdminJob(BaseModel):
     created_at: datetime
     updated_at: datetime
     cancelled: bool
+    photo_prompt: str | None = None
 
 
 class AdminUser(BaseModel):
@@ -180,6 +181,7 @@ class AdminUser(BaseModel):
     cost_cny: float
     tier: str
     disabled: bool
+    deleted_at: datetime | None = None
 
 
 class UserPatch(BaseModel):
@@ -349,6 +351,7 @@ def _job_output(job: Job, project: Project, user: User) -> dict:
         ),
         "created_at": job.created_at, "updated_at": job.updated_at,
         "cancelled": bool(job.result.get("admin_cancelled")),
+        "photo_prompt": job.payload.get("photo_prompt"),
     }
 
 
@@ -431,7 +434,7 @@ def _user_output(user: User, project_count: int, cost_cny) -> dict:
     return {
         "id": user.id, "username": user.username, "nickname": user.nickname,
         "created_at": user.created_at, "project_count": project_count, "cost_cny": float(cost_cny),
-        "tier": user.tier, "disabled": user.disabled,
+        "tier": user.tier, "disabled": user.disabled, "deleted_at": user.deleted_at,
     }
 
 

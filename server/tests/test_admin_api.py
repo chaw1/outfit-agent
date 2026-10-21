@@ -2,6 +2,7 @@ import csv
 import io
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 
 import jwt
 import pytest
@@ -84,6 +85,30 @@ def test_empty_admin_token_closes_every_admin_surface(admin_api, monkeypatch):
         assert client.get(path).status_code == 404
     assert client.post("/api/admin/login", json={"token": "anything"}).status_code == 404
     assert client.post("/api/admin/login", content="broken-json").status_code == 404
+
+
+def test_deleted_user_status_is_visible_and_enabling_cannot_restore_login(
+    admin_api, tmp_path, monkeypatch,
+):
+    client, factory, user_id, _ = admin_api
+    monkeypatch.setattr(settings, "media_dir", tmp_path / "media")
+    token = issue_token(user_id)
+    user_headers = {"Authorization": "Bearer " + token}
+    deleted = client.request("DELETE", "/api/me", headers=user_headers, json={
+        "password": "test-password-123",
+    })
+    assert deleted.status_code == 204
+    row = next(user for user in client.get("/api/admin/users").json() if user["id"] == user_id)
+    assert row["deleted_at"] and row["username"] == "deleted-" + user_id[:8]
+    assert row["project_count"] == 0
+    assert "已注销" in client.get("/admin").text
+    assert client.patch("/api/admin/users/" + user_id, json={"disabled": False}).status_code == 200
+    assert client.get("/api/me", headers=user_headers).status_code == 401
+    assert client.post("/api/auth/login", json={
+        "username": row["username"], "password": "test-password-123",
+    }).status_code == 401
+    with factory() as session:
+        assert session.get(User, user_id).deleted_at is not None
 
 
 def test_overview_usage_filter_dates_and_safe_csv(admin_api):
@@ -198,6 +223,31 @@ def test_job_retry_and_cancel_change_worker_queue(admin_api):
     assert client.post("/api/admin/jobs/missing/retry").status_code == 404
     jobs = client.get("/api/admin/jobs?status=failed&limit=1").json()
     assert len(jobs) == 1 and jobs[0]["id"] == cancel_id
+
+
+def test_admin_queue_exposes_photo_script_and_old_jobs_return_null(admin_api):
+    client, factory, user_id, project_id = admin_api
+    prompt = '50mm，窗光，胶片颗粒\n<svg onload="alert(1)">不要居中 & 保留衣服细节'
+    scripted_id = _job(factory, user_id, project_id, payload={"photo_prompt": prompt})
+    legacy_id = _job(factory, user_id, project_id)
+    response = client.get("/api/admin/jobs")
+    assert response.status_code == 200
+    rows = {row["id"]: row for row in response.json()}
+    assert rows[scripted_id]["photo_prompt"] == prompt
+    assert rows[legacy_id]["photo_prompt"] is None
+    retried = client.post(f"/api/admin/jobs/{scripted_id}/retry")
+    assert retried.status_code == 200 and retried.json()["photo_prompt"] == prompt
+
+
+def test_admin_photo_script_markup_escapes_payload_and_keeps_line_breaks():
+    source = (Path(__file__).resolve().parents[1] / "app/admin_static/index.html").read_text()
+    start = source.index('${j.photo_prompt?`')
+    end = source.index("</details>`:''}", start) + len("</details>")
+    markup = source[start:end]
+    assert '<details class="job-photo-prompt"><summary>摄影脚本</summary>' in markup
+    assert '<pre>${esc(j.photo_prompt)}</pre>' in markup
+    assert '${j.photo_prompt}' not in markup
+    assert ".job-photo-prompt pre{white-space:pre-wrap;" in source
 
 
 def test_retry_respects_disabled_user_budget_and_unknown_paid_result(admin_api):

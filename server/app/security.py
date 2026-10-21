@@ -1,11 +1,13 @@
 import hashlib
 import hmac
+import math
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
 import jwt
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -39,7 +41,10 @@ def verify_password(password: str, hashed: str) -> bool:
 def issue_token(user_id: str) -> str:
     now = datetime.now(UTC)
     return jwt.encode(
-        {"sub": user_id, "iat": now, "exp": now + timedelta(days=settings.jwt_days)},
+        {
+            "sub": user_id, "iat": now.timestamp(),
+            "exp": (now + timedelta(days=settings.jwt_days)).timestamp(),
+        },
         settings.jwt_secret,
         algorithm="HS256",
     )
@@ -54,11 +59,22 @@ def current_user(
         raise AppError("UNAUTHORIZED", "请先登录", 401)
     try:
         payload = jwt.decode(credentials.credentials, settings.jwt_secret, algorithms=["HS256"])
-        user = session.get(User, payload["sub"])
-    except (jwt.PyJWTError, KeyError, TypeError) as exc:
+        issued_at = float(payload.get("iat", 0))
+        statement = select(User).where(User.id == payload["sub"])
+        if request.method not in {"GET", "HEAD", "OPTIONS"}:
+            # Serialize writes with password changes/deletion without blocking FK readers.
+            statement = statement.with_for_update(key_share=True)
+        user = session.scalar(statement.execution_options(populate_existing=True))
+    except (jwt.PyJWTError, KeyError, TypeError, ValueError) as exc:
         raise AppError("UNAUTHORIZED", "登录已失效，请重新登录", 401) from exc
-    if user is None:
+    if user is None or user.deleted_at or not math.isfinite(issued_at):
         raise AppError("UNAUTHORIZED", "登录已失效，请重新登录", 401)
+    if user.password_updated_at:
+        cutoff = user.password_updated_at
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=UTC)
+        if issued_at < cutoff.timestamp():
+            raise AppError("UNAUTHORIZED", "登录已失效，请重新登录", 401)
     from app.observability import bind_user
 
     bind_user(request, user.id, session)

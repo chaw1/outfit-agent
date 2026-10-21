@@ -46,6 +46,9 @@ def test_direction_refresh_traces_and_safe_regeneration(api, project_assets):
     me = api.request("GET", "/api/me")
     assert state["budget"] == {
         "tier": me["tier"], "daily_budget_cny": me["daily_budget_cny"],
+        "daily_budget_points": me["daily_budget_points"],
+        "today_cost_points": me["today_cost_points"],
+        "remaining_points": round(max(0, me["daily_budget_cny"] - me["today_cost_cny"]) * 10, 1),
         "today_cost_cny": me["today_cost_cny"],
         "remaining_cny": max(0, me["daily_budget_cny"] - me["today_cost_cny"]),
     }

@@ -92,6 +92,7 @@ DIRECTION = _obj(
     palette=STRINGS,
     why=STR,
     sample_title=STR,
+    recommended={"type": "boolean"},
 )
 SHOT = _obj(id=STR, scene=STR, outfit_asset_ids=STRINGS, pose=STR, camera=STR, caption=STR)
 SCRIPT = _obj(
@@ -171,13 +172,17 @@ edit_image仅在用户明确圈选或提供坐标时传region或mask_strokes，�
 改发布正文、标题、标签用write_note；改生成照片的画面用edit_image，二者不要混淆。
 write_note中的image_ids保持已有选择，除非用户明确重新选图；首次选图从已完成图解析。
 方向给 2–3 个，场景、氛围、配色各不相同，id 使用 direction-1 这样的稳定短标识。
+context.style_tags 是本次风格词，结合 context.brief 原始需求落实在方向和拍摄脚本中，
+不得改写 brief 原文；propose_directions 每项都填写 recommended 布尔值，
+结合 style_tags 与 brief 恰好推荐一项 recommended=true，其余为 false；无偏好时推荐第一个。
 方向阶段用户说“换一组方向，保留我刚才说的偏好”“再来一组”等时，
 必须选propose_directions，给出区别于context.directions的2–3个新方向和新场景，
 不能只改旧方向的名称，也不要选write_script或仅chat。
 保留context.recent_messages中用户已明确说过的场景、风格、搭配限制以及档案偏好，
 例如之前说“要通勤”，本轮只说“换一组”也要继续给通勤方向；
 用户本轮明确改变某项偏好时才更新它，不能把“换一组”当作清空历史偏好。
-脚本 3–6 个镜头（品牌需求指定了张数就按需求，否则 4–5 个），id 为 shot-1 等，
+脚本 3–6 个镜头（品牌需求指定了张数就按需求；context.mode=auto 默认 3 个，
+guided 或未提供 mode 时仍默认 4–5 个），id 为 shot-1 等，
 outfit_asset_ids 必须引用上下文的衣服资产 ID，
 每个镜头引用衣服数量不得超过 context.max_outfit_assets_per_shot，衣服多时分镜分开搭配。
 保持已存在镜头的 id，覆盖封面、全身、细节和生活场景。修改时逐条落实用户指令，
@@ -816,6 +821,13 @@ class ProviderHub:
 
     @staticmethod
     def _validate_text(name: str, result: dict, context: dict, *, selection: bool = False) -> None:
+        if name == "propose_directions" and isinstance(result, dict):
+            options = result.get("options")
+            if isinstance(options, list):
+                for option in options:
+                    if isinstance(option, dict):
+                        option.setdefault("recommended", False)
+
         def check(schema, value, path="结果"):
             kind = schema["type"]
             if kind == "object":
@@ -842,6 +854,8 @@ class ProviderHub:
                     check(schema["items"], item, path)
             elif kind == "string" and not isinstance(value, str):
                 raise ProviderError("对话模型返回文本格式有误。")
+            elif kind == "boolean" and not isinstance(value, bool):
+                raise ProviderError("对话模型返回布尔格式有误。")
             elif kind == "integer" and (not isinstance(value, int) or isinstance(value, bool)):
                 raise ProviderError("对话模型返回数字格式有误。")
             elif kind == "number":
@@ -1500,6 +1514,34 @@ class ProviderHub:
                     shot["camera"] += "；" + str(reference.get("composition") or "")
                     shot["camera"] += "；" + str(reference.get("lighting") or "")
                 result["video"]["prompt"] += f"；参考风格：{reference_summary}"
+        style_tags = context.get("style_tags") or []
+        if name == "propose_directions":
+            brief = context.get("brief") or ""
+            brief_text = json.dumps(brief, ensure_ascii=False) if isinstance(brief, dict) else brief
+            preferences = "；".join([*style_tags, brief_text])
+            groups = (
+                ("通勤", "写字楼", "办公", "城市早班"),
+                ("咖啡", "午后", "慵懒"),
+                ("户外", "野餐", "公园", "草坪", "湖边"),
+                ("美术馆", "看展", "文艺"),
+                ("街头", "街角", "街区", "胶片", "港风"),
+            )
+            matches = [group for group in groups if any(word in preferences for word in group)]
+            options = result["options"]
+            chosen = max(range(len(options)), key=lambda index: sum(
+                any(word in "；".join(
+                    str(options[index][field]) for field in ("name", "scene", "mood")
+                ) for word in group) for group in matches
+            ))
+            for index, option in enumerate(options):
+                option["recommended"] = index == chosen
+                if style_tags:
+                    option["why"] += "；本次风格：" + "、".join(style_tags)
+                    option["mood"] += " · " + "、".join(style_tags)
+        elif style_tags and name in {"write_script", "revise_script"}:
+            for shot in result["shots"]:
+                shot["caption"] += "；本次风格：" + "、".join(style_tags)
+            result["video"]["prompt"] += "；本次风格：" + "、".join(style_tags)
         brief = context.get("brief")
         subject = context.get("brand") or (
             brief.get("summary", "这组穿搭") if isinstance(brief, dict) else brief or "这组穿搭"
@@ -1532,7 +1574,7 @@ class ProviderHub:
         if name == "chat":
             return {"text": "懂你～我们可以继续微调，等你确认后再开始生成。"}
         if name == "propose_directions":
-            user_preferences = [style_notes]
+            user_preferences = [style_notes, *(context.get("style_tags") or [])]
             brief = context.get("brief") or {}
             if isinstance(brief, dict):
                 user_preferences.extend([brief.get("original", ""), brief.get("additional", "")])
@@ -1631,8 +1673,20 @@ class ProviderHub:
                 item["asset_id"] for item in context.get("garments", [])
             ]
             direction = context.get("chosen_direction") or context.get("direction") or {}
-            commute = "通勤" in instruction or "通勤" in str(direction)
+            commute = any("通勤" in str(value) for value in (
+                instruction, direction, context.get("style_tags") or [],
+            ))
             scene = "写字楼外的树荫步道" if commute else "阳光洒进来的街角咖啡店"
+            shot_count = 3 if context.get("mode") == "auto" else 4
+            brief = context.get("brief") or ""
+            count_text = (
+                json.dumps(brief, ensure_ascii=False) if isinstance(brief, dict) else brief
+            ) + "；" + instruction
+            counts = re.findall(r"([3-6三四五六])\s*(?:个镜头|镜头|张(?:图|照片)?)", count_text)
+            if context.get("mode") == "auto" and counts:
+                shot_count = dict(zip("三四五六", range(3, 7), strict=True)).get(counts[-1]) or int(
+                    counts[-1]
+                )
             return {
                 "status": "draft",
                 "title_ideas": ["今天穿得轻松一点", "清爽出门刚刚好"],
@@ -1660,7 +1714,9 @@ class ProviderHub:
                             ("侧身回头，展示衣服版型", "喜欢这份刚刚好的利落"),
                             ("近景整理袖口与衣摆", "细节让日常穿搭更耐看"),
                             ("坐下喝水，自然看向窗外", "舒服自在，就是今天的状态"),
-                        ]
+                            ("随意靠在墙边，整理肩上的包带", "把衣服穿进真实日常"),
+                            ("转身走进光里，衣摆轻轻摆动", "留住自然的一瞬"),
+                        ][:shot_count]
                     )
                 ],
                 "video": {

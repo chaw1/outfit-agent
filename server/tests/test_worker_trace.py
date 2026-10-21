@@ -51,7 +51,7 @@ def test_message_projection_preserves_trace_and_regeneration_flag(local_db):
         session.add(message)
         session.commit()
         projected = MessageOutput.model_validate(message_dict(message, session)).model_dump()
-        assert projected["trace"] == trace
+        assert projected["trace"] == {**trace, "cost_points": 0.0}
         assert projected["can_regenerate"] is True
 
 

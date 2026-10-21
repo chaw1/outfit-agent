@@ -14,14 +14,20 @@ from decimal import Decimal
 from uuid import NAMESPACE_URL, uuid5
 
 import httpx
+from langgraph.checkpoint.postgres import PostgresSaver
 from PIL import Image
+from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.orm import Session, aliased
 
+from app.auto_mode import tick_auto_projects
 from app.config import settings
+from app.costs import points
 from app.db import SessionLocal
 from app.edit_guidance import local_edit_prompt
 from app.errors import AppError
+from app.graph import build_graph
 from app.local_edit import (
     compose_local_edit,
     crop_reference,
@@ -494,6 +500,7 @@ def _worker_trace(session: Session, jobs: list[Job]) -> dict:
         "model": " / ".join(models),
         "duration_ms": duration_ms,
         "cost_cny": float(sum((row.estimated_cny for row in rows), Decimal(0))),
+        "cost_points": points(sum((row.estimated_cny for row in rows), Decimal(0))),
         "refs": refs,
         "steps": steps,
     }
@@ -903,13 +910,23 @@ def main() -> None:
     signal.signal(signal.SIGTERM, lambda *_: stopped.set())
     signal.signal(signal.SIGINT, lambda *_: stopped.set())
     logger.info("生成 Worker 启动，mock=%s", settings.mock_providers)
-    while not stopped.is_set():
-        try:
-            if not run_once():
-                stopped.wait(settings.worker_poll_seconds)
-        except Exception as exc:
-            log_exception(logger, "队列暂时不可用，稍后重连", exc)
-            stopped.wait(max(settings.worker_poll_seconds, 2))
+    with ConnectionPool(
+        settings.checkpoint_url, min_size=1, max_size=4,
+        kwargs={"autocommit": True, "row_factory": dict_row, "prepare_threshold": 0},
+    ) as pool:
+        pool.wait(timeout=30)
+        saver = PostgresSaver(pool)
+        saver.setup()
+        graph = build_graph(saver)
+        while not stopped.is_set():
+            try:
+                worked = run_once()
+                advanced = tick_auto_projects(graph, SessionLocal)
+                if not worked and not advanced:
+                    stopped.wait(settings.worker_poll_seconds)
+            except Exception as exc:
+                log_exception(logger, "队列暂时不可用，稍后重连", exc)
+                stopped.wait(max(settings.worker_poll_seconds, 2))
 
 
 if __name__ == "__main__":

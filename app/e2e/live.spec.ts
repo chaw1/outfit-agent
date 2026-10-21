@@ -212,6 +212,8 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
     }, { apiBase: base, session: checkpoint.session });
     await page.goto(checkpoint.projectId ? `/projects/${checkpoint.projectId}` : '/');
     await phase('01-register', async () => {
+      const privacy = page.getByRole('button', { name: '同意并继续', exact: true });
+      if (await privacy.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false)) await privacy.click();
       if (checkpoint.registered && checkpoint.session) return;
       const onboarding = await page.getByTestId('onboarding-1').waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
       if (onboarding) {
@@ -225,7 +227,9 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
       await page.getByLabel('怎么称呼你', { exact: true }).fill('小序');
       await page.getByLabel('用户名', { exact: true }).fill(checkpoint.username);
       await page.getByLabel('密码', { exact: true }).fill(checkpoint.password);
+      await page.getByRole('checkbox', { name: '我已阅读并同意《用户协议》和《隐私政策》' }).check();
       await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
+      await page.getByRole('button', { name: '我已保存', exact: true }).click();
       await expect(page.getByRole('button', { name: '拍一组新片', exact: true })).toBeVisible();
       checkpoint.registered = true; checkpoint.session = await page.evaluate(() => sessionStorage.getItem('outfit.session') ?? undefined);
     });

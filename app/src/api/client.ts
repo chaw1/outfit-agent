@@ -1,8 +1,8 @@
 import { INSUFFICIENT_POINTS_TEXT } from '../lib/transparency';
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
-  Asset, AssetKind, AuthResponse, AutoQuote, CreateProjectInput, DoneData, ErrorData, HealthResponse,
-  Job, LoginInput, Message, Project, ProjectState, RegisterInput, SendMessageInput, StreamEvent, UpdateMeInput, User,
+  Asset, AssetKind, AuthResponse, AutoQuote, ChangePasswordInput, CreateProjectInput, DoneData, ErrorData, HealthResponse,
+  Job, LegalDocument, LegalKind, LegalSummary, LoginInput, Message, Project, ProjectState, RecoverInput, RecoveryAuthResponse, RegisterInput, SendMessageInput, StreamEvent, UpdateMeInput, User,
 } from './types';
 
 export class ApiError extends Error {
@@ -137,6 +137,22 @@ export class ApiClient {
 
   login(input: LoginInput): Promise<AuthResponse> {
     return this.request('/auth/login', { method: 'POST', body: JSON.stringify(input) }, false);
+  }
+
+  legal(): Promise<LegalSummary[]> { return this.request('/legal', {}, false); }
+  legalDocument(kind: LegalKind): Promise<LegalDocument> { return this.request(`/legal/${kind}`, {}, false); }
+
+  recover(input: RecoverInput): Promise<RecoveryAuthResponse> {
+    return this.request('/auth/recover', { method: 'POST', body: JSON.stringify(input) }, false);
+  }
+  changePassword(input: ChangePasswordInput): Promise<AuthResponse> {
+    return this.request('/me/password', { method: 'POST', body: JSON.stringify(input) });
+  }
+  deleteAccount(password: string): Promise<void> {
+    return this.request('/me', { method: 'DELETE', body: JSON.stringify({ password }) });
+  }
+  regenerateRecoveryCode(password: string): Promise<{ recovery_code: string }> {
+    return this.request('/me/recovery-code', { method: 'POST', body: JSON.stringify({ password }) });
   }
 
   me(): Promise<User> { return this.request('/me'); }

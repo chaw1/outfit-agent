@@ -223,3 +223,20 @@ TestFlight 需要付费 Apple Developer Program，与前面的免费本机安装
 REST 读取、写入、上传分别在 20 / 60 / 120 秒超时，写入不自动重放；创建超时先刷新项目列表再提供人工判断入口，上传显示“第 n/N 张”。方向卡按服务返回的 `regenerate_estimate_cny` 显示“约 ¥x · 含 2–3 张预览”，缺字段时兼容旧服务。首次引导第二页标题改为“正式出图和视频，由你确认”。
 
 本轮验证使用本地假服务：`npm run verify`、`npx playwright test`；新增 `e2e/round8.spec.ts`，截图从 `screenshots/77-` 接续。单测覆盖默认选图、明确采用、新旧 attempt、草稿冲突与超时分类；假服务同时覆盖新字段和任务复用。未运行线上付费用例，`e2e/live.spec.ts` 保持原语义和文件内容。
+
+## 第十轮：账号闭环
+
+按设计第 15 节新增用户协议、隐私政策和 AI 内容免责声明（版本 `2026-10-21`），登录页、设置页、关于页和账号安全页可打开全文。首次启动先显示隐私提示，拒绝时停留在门控内；同意版本保存在本机后才展示原有引导。注册须单独勾选协议，并发送 `agreed_legal_version`。
+
+注册和忘记密码成功后整页展示 12 位恢复码，提供复制，点击“我已保存”后才登录。恢复码仅在页面内存中保留，返回和请求处理期间有导航保护。设置 → 账号与安全支持修改密码、验证密码后重新生成恢复码，以及进入注销确认页。改密和找回使旧登录失效；重生成使旧恢复码失效。注销须再次输入密码，会清理账号项目与媒体，回登录页显示“账号已注销”。
+
+本地假服务实现 `/api/legal`、`/api/legal/{kind}`、`/api/auth/recover`、`/api/me/password`、`/api/me/recovery-code` 和 `DELETE /api/me`；恢复码只存 hash，找回按用户名限流，注销隔离清理用户数据并释放用户名。未传协议版本的旧注册请求继续兼容。当前不提供手机、短信或邮箱验证码；后续接入短信通道时，可按契约在 `recover` 增加 `phone + sms_code` 分支。
+
+本轮使用 Node 22 和已有依赖，逐项运行 `npm run verify`。本地浏览器验收可与其他 worktree 隔离端口：
+
+```sh
+export PATH="$HOME/.local/share/mise/installs/node/22.23.1/bin:$PATH"
+PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers" E2E_WEB_PORT=19400 E2E_MOCK_PORT=19401 npx playwright test
+```
+
+新增 `e2e/round10.spec.ts` 和恢复码、同意存储、首次门控、账号接口及假服务单测；截图从 `screenshots/110-` 起，逐项验证记录在 `verification/round10/`。`e2e/live.spec.ts` 仅调整注册阶段以接受隐私、勾选协议和确认恢复码；本轮未运行 live 或调用线上模型。

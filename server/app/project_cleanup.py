@@ -83,12 +83,13 @@ def drain_media_cleanup(session: Session, *, project_id: str | None = None) -> N
     session.commit()
 
 
-def cleanup_project(session: Session, project: Project) -> None:
+def cleanup_project(session: Session, project: Project, *, commit: bool = True) -> None:
     """Delete project data atomically, then clean files after the commit.
 
     The API must check ownership and hold its conversation advisory lock first.
     A row lock shared with Worker publication fences every in-flight result.
     A project tombstone and its cost ledger intentionally remain for accounting.
+    Account deletion passes commit=False to include every project in one transaction.
     """
     project = session.scalar(
         select(Project)
@@ -139,5 +140,8 @@ def cleanup_project(session: Session, project: Project) -> None:
             session.add(AppSetting(key=key, value={"paths": paths}))
         else:
             outbox.value = {"paths": list(dict.fromkeys([*outbox.value.get("paths", []), *paths]))}
-    session.commit()
-    drain_media_cleanup(session, project_id=project.id)
+    if commit:
+        session.commit()
+        drain_media_cleanup(session, project_id=project.id)
+    else:
+        session.flush()

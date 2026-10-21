@@ -10,11 +10,12 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.costs import image_cost_cny
+from app.costs import image_cost_cny, with_points
 from app.errors import AppError
 from app.local_edit import prepare_selection
 from app.media import asset_dict
 from app.models import Asset, Job, Project, User, utcnow
+from app.photography import expand_photo_prompt
 from app.providers import ProviderHub
 from app.runtime_settings import assert_generation_allowed
 from app.schemas import EditImage
@@ -70,7 +71,7 @@ class Workflow:
     def _card(self, kind: str, content: dict) -> dict:
         if kind == "directions":
             content = {**content, "regenerate_estimate_cny": float(image_cost_cny(3))}
-        return {"id": f"{self.project.id}:{kind}", "type": kind, **content}
+        return with_points({"id": f"{self.project.id}:{kind}", "type": kind, **content})
 
     def _asset(self, asset_id: str) -> Asset:
         asset = self.session.get(Asset, asset_id)
@@ -166,6 +167,8 @@ class Workflow:
             context["reference_style_summary"] = self._reference_prompt(state)
         context.update(
             brand=self.project.brand,
+            mode=self.project.mode,
+            style_tags=list(self.project.style_tags or []),
             stage=state.get("stage", "brief"),
             max_outfit_assets_per_shot=2 if self.project.model_asset_id else 3,
             script_versions=self.script_versions,
@@ -419,9 +422,13 @@ class Workflow:
         }
         if references:
             state["references"] = references
-        name, result = self.providers.select_tool(
-            sorted(ALLOWED_TOOLS["brief"]), self._context(state), event.get("text", "")
-        )
+        if self.project.mode == "auto":
+            name = "propose_directions"
+            result = self._text_tool("brief", name, state, event.get("text", ""))
+        else:
+            name, result = self.providers.select_tool(
+                sorted(ALLOWED_TOOLS["brief"]), self._context(state), event.get("text", "")
+            )
         self._allow("brief", name)
         if name == "chat":
             if result.get("blocked_tool"):
@@ -449,6 +456,10 @@ class Workflow:
             directions
         ):
             raise AppError("provider_invalid_response", "方向生成没有完成，请再试一次。", 502)
+        recommended = next((i for i, item in enumerate(directions)
+                            if item.get("recommended") is True), 0)
+        directions = [dict(item, recommended=index == recommended)
+                      for index, item in enumerate(directions)]
         if not fresh:
             return directions
         turn_id = self.providers.trace_context.get("turn_id", "")
@@ -704,16 +715,23 @@ class Workflow:
         clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
         refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes
         for direction in state["directions"]:
+            photo_prompt = expand_photo_prompt(
+                {"scene": direction["scene"]}, self.project.style_tags or [],
+                state.get("references") or [],
+            )
             prompt = (
                 f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
                 f"氛围：{direction['mood']}；配色：{direction['palette']}。"
                 + self._garment_prompt(state, clothes)
             )
+            prompt += photo_prompt
             key = f"{self.project.id}:preview:{fingerprint(direction)}"
             payload = {
                 "purpose": "preview",
                 "direction_id": direction["id"],
+                "preview_group": fingerprint([item["id"] for item in state["directions"]]),
                 "prompt": prompt,
+                "photo_prompt": photo_prompt,
                 "reference_asset_ids": refs,
                 "garment_asset_ids": clothes,
             }
@@ -746,6 +764,9 @@ class Workflow:
         )
         cover_id = str(uuid5(NAMESPACE_URL, cover_key)) if cover_key else None
         for shot in script["shots"]:
+            photo_prompt = expand_photo_prompt(
+                shot, self.project.style_tags or [], state.get("references") or [],
+            )
             references = [self.project.model_asset_id] if self.project.model_asset_id else []
             references = list(dict.fromkeys(references + shot["outfit_asset_ids"]))
             prompt = (
@@ -755,8 +776,10 @@ class Workflow:
             )
             prompt += self._garment_prompt(state, shot["outfit_asset_ids"])
             prompt += f"场景：{shot['scene']}；动作：{shot['pose']}；镜头：{shot['camera']}。"
+            prompt += photo_prompt
             payload = {
                 "shot_id": shot["id"],
+                "photo_prompt": photo_prompt,
                 "version": 1,
                 "prompt": prompt,
                 "reference_asset_ids": references,
@@ -949,6 +972,9 @@ class Workflow:
         self, state: dict, text: str, cards: list, jobs: list | None = None,
         *, reused: bool | None = None,
     ) -> dict:
+        state.update(mode=self.project.mode, style_tags=list(self.project.style_tags or []))
+        if self.project.mode == "auto":
+            state["pending_action"] = None
         self.project.stage = state["stage"]
         self.project.updated_at = utcnow()
         state["images"] = image_items(self.session, self.project.id)

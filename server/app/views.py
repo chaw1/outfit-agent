@@ -1,12 +1,15 @@
 import hashlib
 import json
+from datetime import datetime
+from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from app.costs import AUTO_FIX_ALLOWANCE, image_cost_cny, video_cost_cny
+from app.costs import AUTO_FIX_ALLOWANCE, image_cost_cny, video_cost_cny, with_points
 from app.media import signed_url
 from app.models import Asset, Job, Message, Project, UsageLedger, User
+from app.progress import project_progress
 from app.runtime_settings import user_budget
 from app.schemas import Profile
 
@@ -14,7 +17,7 @@ from app.schemas import Profile
 def user_dict(user: User, session: Session | None = None) -> dict:
     session = session if session is not None else object_session(user)
     budget = user_budget(user, session)
-    return {
+    return with_points({
         "id": user.id,
         "username": user.username,
         "nickname": user.nickname,
@@ -23,7 +26,7 @@ def user_dict(user: User, session: Session | None = None) -> dict:
         "daily_budget_cny": budget["daily_budget_cny"],
         "today_cost_cny": budget["today_cost_cny"],
         "profile": Profile.model_validate(user.profile or {}).model_dump(exclude_none=True),
-    }
+    })
 
 
 def pending_action_dict(state: dict) -> dict | None:
@@ -37,24 +40,27 @@ def pending_action_dict(state: dict) -> dict | None:
         result["estimated_cost_cny"] = float(image_cost_cny(len(shots)) * AUTO_FIX_ALLOWANCE)
     elif pending["type"] == "confirm_video":
         result["estimated_cost_cny"] = float(video_cost_cny())
-    return result
+    return with_points(result)
 
 
 def project_dict(project: Project, session: Session) -> dict:
-    covers = session.scalars(
+    jobs = session.scalars(
         select(Job)
-        .where(
-            Job.project_id == project.id, Job.status == "succeeded", Job.kind.in_(["image", "edit"])
-        )
+        .where(Job.project_id == project.id)
         .order_by(Job.created_at)
     ).all()
-    cover = next((job for job in covers if job.payload.get("purpose") != "preview"), None)
+    cover = next((job for job in jobs if job.status == "succeeded"
+                  and job.kind in {"image", "edit"}
+                  and job.payload.get("purpose") != "preview"), None)
     return {
         "id": project.id,
         "title": project.title,
         "brand": project.brand,
         "brief": project.brief,
         "stage": project.stage,
+        "mode": project.mode,
+        "style_tags": list(project.style_tags or []),
+        "progress": project_progress(project, jobs),
         "reference_asset_ids": list(project.reference_asset_ids or []),
         "cover_url": signed_url(cover.result_asset_id) if cover and cover.result_asset_id else None,
         "created_at": project.created_at.isoformat(),
@@ -184,7 +190,7 @@ def refresh_cards(cards: list, session: Session, project_id: str) -> list:
                 source = job.payload.get("image_asset_id")
                 if source and session.get(Asset, source):
                     card["poster_url"] = signed_url(source)
-        refreshed.append(card)
+        refreshed.append(with_points(card))
     return refreshed
 
 
@@ -196,7 +202,52 @@ def message_dict(message: Message, session: Session) -> dict:
         "cards": refresh_cards(message.cards, session, message.project_id),
         "action": message.action,
         "refs": message.refs or [],
-        "trace": message.trace,
+        "trace": with_points(message.trace),
         "can_regenerate": message.can_regenerate,
         "created_at": message.created_at.isoformat(),
     }
+
+
+def restore_messages(session: Session, project_id: str, state: dict) -> str | None:
+    """Checkpoint messages are the durable source; business rows are a projection."""
+    latest_assistant_id = None
+    existing_ids = set(session.scalars(select(Message.id).where(Message.project_id == project_id)))
+    for message in state.get("messages", []):
+        metadata = getattr(message, "additional_kwargs", {}).get("display")
+        if not metadata or not getattr(message, "id", None):
+            continue
+        role = {"human": "user", "ai": "assistant"}.get(message.type)
+        if not role:
+            continue
+        message_id = str(uuid5(NAMESPACE_URL, message.id))
+        if role == "assistant":
+            latest_assistant_id = message_id
+        existing = session.get(Message, message_id) if message_id in existing_ids else None
+        content = metadata.get("text", message.content)
+        if "text" not in metadata and role == "user" and metadata.get("action"):
+            if content == json.dumps(metadata["action"], ensure_ascii=False):
+                content = ""
+        if existing:
+            # Same-id rewrites live in checkpoints too, including crash recovery.
+            if role == "assistant":
+                existing.text = content
+                existing.trace = metadata.get("trace")
+                existing.can_regenerate = metadata.get("can_regenerate", False)
+            continue
+        session.add(
+            Message(
+                id=message_id,
+                project_id=project_id,
+                role=role,
+                text=content,
+                cards=metadata.get("cards", []),
+                action=metadata.get("action"),
+                refs=metadata.get("refs", []),
+                trace=metadata.get("trace"),
+                can_regenerate=metadata.get("can_regenerate", False),
+                created_at=datetime.fromisoformat(metadata["created_at"]),
+            )
+        )
+        existing_ids.add(message_id)
+    session.flush()
+    return latest_assistant_id

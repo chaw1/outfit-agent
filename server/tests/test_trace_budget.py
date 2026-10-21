@@ -41,7 +41,8 @@ def test_script_quote_includes_twenty_percent_auto_fix_without_mutating_state(sh
     pending = {"type": "confirm_script", "prompt": "请确认脚本。"}
     state = {"pending_action": pending, "script": {"shots": [{"id": i} for i in range(shots)]}}
     result = pending_action_dict(state)
-    assert result == {**pending, "estimated_cost_cny": expected}
+    assert result == {**pending, "estimated_cost_cny": expected,
+                      "estimated_cost_points": round(expected * 10, 1)}
     assert Decimal(str(result["estimated_cost_cny"])) == image_cost_cny(shots) * AUTO_FIX_ALLOWANCE
     assert "estimated_cost_cny" not in pending
 
@@ -114,5 +115,6 @@ def test_state_exposes_live_budget_and_current_confirmation_quote(budget_session
     assert validated["pending_action"]["estimated_cost_cny"] == 1.2
     assert validated["budget"] == {
         "tier": "pro", "daily_budget_cny": 5, "today_cost_cny": 0.75, "remaining_cny": 4.25,
+        "daily_budget_points": 50, "today_cost_points": 7.5, "remaining_points": 42.5,
     }
     assert "estimated_cost_cny" not in state["pending_action"]

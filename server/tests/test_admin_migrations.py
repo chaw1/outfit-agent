@@ -56,7 +56,11 @@ def test_admin_upgrade_preserves_existing_rows_and_backfills_user(isolated_datab
             "旧项目", [],
         )
         assert connection.execute("SELECT value FROM app_settings").fetchall() == []
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0009",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0011",)
+        assert connection.execute(
+            "SELECT legal_version,legal_agreed_at,recovery_code_hash,password_updated_at,"
+            "deleted_at FROM users",
+        ).fetchone() == (None, None, None, None, None)
         assert connection.execute(
             "SELECT text,cards,refs,trace,can_regenerate FROM messages WHERE id='legacy-message'"
         ).fetchone() == (

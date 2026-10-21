@@ -48,6 +48,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.exposeFunction('recordShare', (payload: { title: string; text: string }) => shares.push(payload));
   await page.addInitScript(() => Object.defineProperty(navigator, 'share', { configurable: true, value: (payload: { title: string; text: string }) => (window as unknown as { recordShare: (payload: unknown) => Promise<void> }).recordShare(payload) }));
   await page.goto('/');
+  await page.getByRole('button', { name: '同意并继续', exact: true }).click();
   await expect(page.getByTestId('onboarding-1')).toBeVisible();
   await page.getByRole('button', { name: '下一步', exact: true }).click();
   await page.getByRole('button', { name: '下一步', exact: true }).click();
@@ -58,7 +59,9 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByLabel('用户名', { exact: true }).fill(username);
   await page.getByLabel('密码', { exact: true }).fill('Demo-only-2026');
   await shot(page, '01-register.png');
+  await page.getByRole('checkbox', { name: '我已阅读并同意《用户协议》和《隐私政策》' }).check();
   await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
+  await page.getByRole('button', { name: '我已保存', exact: true }).click();
   await expect(page.getByText('小序的片场')).toBeVisible();
   await shot(page, '02-projects-empty.png');
   await page.getByRole('button', { name: '拍一组新片', exact: true }).click();

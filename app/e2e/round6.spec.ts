@@ -4,7 +4,7 @@ import path from 'node:path';
 import { formatPoints, pointsValue } from '../src/lib/transparency';
 import type { Asset, AuthResponse, Message, Project, ProjectState } from '../src/api/types';
 
-const apiBase = 'http://localhost:19301/api';
+const apiBase = process.env.E2E_API_BASE || 'http://localhost:19301/api';
 const shots = path.resolve('screenshots');
 const corsHeaders = { 'Access-Control-Allow-Origin': '*' };
 const evidence: Record<string, unknown> = {};
@@ -36,9 +36,9 @@ async function setup(page: Page, request: APIRequestContext, label: string) {
   const project = await created.json() as Project;
   await page.addInitScript(({ token, base }) => {
     sessionStorage.setItem('outfit.session', token);
-    localStorage.setItem('outfit.server', base);
+    localStorage.setItem('outfit.server', base); localStorage.setItem('outfit.privacy-consent', '2026-10-21');
     localStorage.setItem('outfit.onboarding.v1', 'done');
-  }, { token: auth.token, base: 'http://localhost:19301' });
+  }, { token: auth.token, base: process.env.E2E_MOCK_BASE || 'http://localhost:19301' });
   async function state(): Promise<ProjectState> {
     const response = await request.get(`${apiBase}/projects/${project.id}/state`, { headers });
     expect(response.ok()).toBe(true);
