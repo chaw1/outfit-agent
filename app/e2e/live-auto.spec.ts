@@ -1,7 +1,7 @@
-import { expect, test, type Request } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { expect, test, type Request } from '@playwright/test';
 import sharp from 'sharp';
 import type { AuthResponse, Project, ProjectState } from '../src/api/types';
 import { normalizeLiveBase, performLiveOnce, sanitizeLiveEvidence, saveLiveCheckpoint, selectLiveRun, type LiveCheckpoint } from './live-support';

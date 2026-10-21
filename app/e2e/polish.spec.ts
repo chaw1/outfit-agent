@@ -1,6 +1,6 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { Asset, AuthResponse, Project, ProjectState } from '../src/api/types';
 
 const shots = path.resolve(process.env.E2E_SCREENSHOTS_DIR || 'screenshots/polish');
@@ -82,7 +82,9 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
 
   async function capture(file: string, label: string, focus?: Locator) {
     const scaling = await enlargeWebText(page);
-    if (focus) await focus.scrollIntoViewIfNeeded();
+    if (focus) await expect(async () => {
+      await focus.scrollIntoViewIfNeeded({ timeout: 2000 });
+    }).toPass({ timeout: 10000, intervals: [100, 250, 500] });
     await page.evaluate(async () => {
       await Promise.all(Array.from(document.images).filter(image => {
         const rect = image.getBoundingClientRect();

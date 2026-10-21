@@ -3,9 +3,9 @@ import { useRouter, useSegments } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Modal, Text, View } from 'react-native';
 import { canEnterApp, hasPrivacyConsent, savePrivacyConsent, type PrivacyState } from '../lib/legalConsent';
+import { colors, space } from '../theme';
 import { LegalLinks } from './LegalLinks';
 import { Button, LoadingSkeleton, Notice, Page, errorText, styles } from './ui';
-import { colors, space } from '../theme';
 
 export function PrivacyGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<PrivacyState>('loading');

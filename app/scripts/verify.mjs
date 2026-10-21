@@ -10,11 +10,14 @@ const directory = new URL('../verification/', import.meta.url);
 mkdirSync(directory, { recursive: true });
 const summary = { startedAt: new Date().toISOString(), node: process.version, sdk: '58', checks: [] };
 const steps = [
+  ['tokens', 'npm', ['run', 'tokens:check']],
   ['typecheck', 'npx', ['tsc', '--noEmit']],
   ['lint', 'npm', ['run', 'lint']],
   ['tests', 'npm', ['test']],
   ['ios', 'npx', ['expo', 'export', '--platform', 'ios', '--output-dir', 'dist/ios']],
   ['android', 'npx', ['expo', 'export', '--platform', 'android', '--output-dir', 'dist/android']],
+  ['web', 'npx', ['expo', 'export', '--platform', 'web', '--output-dir', 'dist/web']],
+  ['design-export', 'node', ['scripts/check-design-export.mjs', 'dist/ios', 'dist/android', 'dist/web']],
 ];
 for (const [name, command, args] of steps) {
   const start = Date.now();

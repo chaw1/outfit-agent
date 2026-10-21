@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { expect, test, type APIRequestContext, type Locator, type Page, type Request } from '@playwright/test';
 import type { Action, Asset, AuthResponse, Message, OutfitImage, Project, ProjectState } from '../src/api/types';
 
 const server = process.env.E2E_MOCK_BASE || 'http://localhost:19301';

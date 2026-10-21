@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FadeImage, IconButton } from './ui';
 import { radius, space, studio, type } from '../theme';
+import { FadeImage, IconButton } from './ui';
 
 const inspiration = [
   { source: require('../../assets/inspiration/studio-01.jpg'), label: '松弛通勤' },

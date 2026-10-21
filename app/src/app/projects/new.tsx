@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { profilePhotos } from '../../lib/profile';
 import { checkProjectCreation, createProjectWithRecovery, projectCreationRecoveryText, type ProjectCreationRecovery } from '../../lib/projectCreation';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Asset, AssetKind, AutoQuote, ProjectMode } from '../../api/types';
 import { AnimatedEntry, Badge, Button, FadeImage, Field, Header, Notice, Page, ProgressStrip, errorText, styles } from '../../components/ui';
 import { studio, radius, space, type } from '../../theme';
@@ -161,7 +161,7 @@ const localStyles = StyleSheet.create({
   modeActive: { backgroundColor: studio.glass, borderWidth: 1, borderColor: studio.line },
   modeTitle: { ...type.subtitle, color: studio.ink },
   help: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  helpOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: space.xl },
+  helpOverlay: { flex: 1, backgroundColor: studio.helpOverlay, justifyContent: 'center', padding: space.xl },
   helpCard: { alignSelf: 'center', width: '100%', maxWidth: 440, backgroundColor: studio.surface, borderColor: studio.line, borderWidth: 1, padding: space.xl, borderRadius: radius.lg, gap: space.xl },
   footer: { borderTopWidth: 1, borderColor: studio.line, backgroundColor: studio.bg, padding: space.lg },
   tags: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },

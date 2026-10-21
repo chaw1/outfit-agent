@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
-import type { NoteData, OutfitImage } from '../api/types';
 import { Ionicons } from '@expo/vector-icons';
+import type { NoteData, OutfitImage } from '../api/types';
 import { colors, layout, radius, space, type as typography } from '../theme';
-import { Badge } from './ui';
 import { formatPoints, pointsValue } from '../lib/transparency';
+import { Badge } from './ui';
 
 export function FidelityBadge({ image, style, testIDPrefix = '' }: { image: OutfitImage; style?: StyleProp<ViewStyle>; testIDPrefix?: string }) {
   const score = image.fidelity?.score;

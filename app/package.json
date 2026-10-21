@@ -8,13 +8,15 @@
     "web": "expo start --web --port 19300",
     "mock": "node mock-server/index.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "tsx --test tests/*.test.ts",
+    "lint": "eslint . --max-warnings=0",
+    "test": "tsx --test tests/*.test.ts tests/*.test.cjs",
     "test:e2e": "playwright test",
     "test:live": "playwright test --config playwright.live.config.ts",
     "verify": "node scripts/verify.mjs",
     "export:ios": "expo export --platform ios",
-    "export:android": "expo export --platform android"
+    "export:android": "expo export --platform android",
+    "tokens": "node scripts/build-tokens.mjs && node scripts/build-token-docs.mjs",
+    "tokens:check": "node scripts/build-tokens.mjs --check && node scripts/build-token-docs.mjs --check"
   },
   "engines": {
     "node": ">=22.13.0"
