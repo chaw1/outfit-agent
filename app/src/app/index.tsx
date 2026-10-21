@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore }
 import { AppState, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Project } from '../api/types';
 import { InspirationWall } from '../components/InspirationWall';
+import { AssetLibraryEntry } from '../components/AssetLibrary';
 import { AnimatedEntry, Badge, Button, FadeImage, Field, IconButton, LoadingSkeleton, Page, StatePanel, Toast, errorText, stageNames, styles } from '../components/ui';
 import { useSession } from '../context/Session';
 import { notificationOwner } from '../lib/completionTracker';
@@ -89,6 +90,7 @@ export default function Projects() {
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingTop: space.lg }]} refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} tintColor={studio.ink} />}>
       <View style={[styles.row, { justifyContent: 'space-between', gap: space.md }]}>
         <View style={{ flex: 1, gap: space.sm }}><Text style={local.eyebrow}>衣序 / OUTFIT STUDIO</Text><Text style={{ ...type.display, color: studio.ink }}>{user?.nickname ? `${user.nickname}的片场` : '我的片场'}</Text></View>
+        <AssetLibraryEntry compact />
         <IconButton name="options-outline" label="设置" onPress={() => router.push('/settings')} />
       </View>
       {!!completions.length && <View testID="recent-completions" style={{ gap: space.md }}><Text style={local.section}>刚刚出好</Text>{completions.map(item => <Pressable key={`${item.projectId}-${item.jobIds.join('-')}`} accessibilityRole="button" accessibilityLabel={`查看刚刚出好 ${item.title}`} onPress={() => openProject(item.projectId)} style={local.recent}><Ionicons name="sparkles-outline" size={20} color={studio.accent} /><View style={{ flex: 1, gap: space.xs }}><Text style={{ ...type.label, color: studio.ink }}>{item.title}</Text><Text style={{ ...type.caption, color: studio.muted }}>{item.body}</Text></View><Ionicons name="arrow-forward" size={18} color={studio.ink} /></Pressable>)}</View>}

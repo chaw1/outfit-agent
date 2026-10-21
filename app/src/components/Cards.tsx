@@ -18,6 +18,7 @@ import { feedback } from '../lib/haptics';
 import { confirmationCost, formatPoints, pointsValue, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
 import { CostEstimate } from './CostEstimate';
 import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
+import { SaveAsModel } from './SaveAsModel';
 
 type CardsProps = {
   cards: Card[];
@@ -201,6 +202,7 @@ function ImageGrid({ items, state, busy }: {
                 ><Icon name="create-outline" size={13} color={colors.red} /><Text style={styles.editText}>改一改</Text></Pressable> : null}
               </View>
               <ImageRevisionInfo image={item} />
+              <SaveAsModel image={item} />
             </View>
           );
         })}

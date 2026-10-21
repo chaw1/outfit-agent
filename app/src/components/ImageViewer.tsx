@@ -13,6 +13,7 @@ import { clamp, constrainTransform, containRect, editActionForResult, IDENTITY_T
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
 import { FidelityBadge } from './GenerationInfo';
 import { Badge, FadeImage, ProgressStrip } from './ui';
+import { SaveAsModel } from './SaveAsModel';
 
 export type ViewerMode = 'view' | 'local' | 'whole' | 'compare';
 type DrawingTool = 'brush' | 'rectangle' | 'pan';
@@ -453,6 +454,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
             void onAdopt(current).catch(failure => setError(failure instanceof Error ? failure.message : '采用失败，请重试。')).finally(() => setAdopting(false));
           }} /></View> : null}
 
+          {!editing && <SaveAsModel key={current.id} image={current} />}
           <Animated.View key={editing ? 'editing' : 'viewing'} entering={FadeInDown.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.bottom}>
             {editing ? <>
               <View style={styles.editHeading}><Text style={styles.title}>{localEditing ? '圈出想改的地方' : '整张图片怎么改'}</Text><ToolButton title="取消" testID="viewer-cancel-edit" onPress={() => changeMode('view')} /></View>

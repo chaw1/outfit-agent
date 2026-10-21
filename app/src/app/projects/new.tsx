@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { profilePhotos } from '../../lib/profile';
 import { checkProjectCreation, createProjectWithRecovery, projectCreationRecoveryText, type ProjectCreationRecovery } from '../../lib/projectCreation';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,6 +11,8 @@ import { studio, radius, space, type } from '../../theme';
 import { formatPoints } from '../../lib/transparency';
 import { STYLE_TAGS, styleBatch, toggleStyleTag } from '../../lib/styleTags';
 import { useSession } from '../../context/Session';
+import { GarmentPicker, ModelSourceLabel } from '../../components/AssetLibrary';
+import { useLibraryModels } from '../../lib/assets';
 
 export default function NewProject() {
   const { api, user, photos } = useSession();
@@ -26,10 +28,12 @@ export default function NewProject() {
   const [brand, setBrand] = useState('');
   const [brief, setBrief] = useState('');
   const [garments, setGarments] = useState<Asset[]>([]);
+  const selectGarment = useCallback((item: Asset) => setGarments(previous => previous.some(asset => asset.id === item.id) ? previous : [...previous, item]), []);
   const [references, setReferences] = useState<Asset[]>([]);
   const [model, setModel] = useState<Asset | null>(null);
   const [modelChoice, setModelChoice] = useState<string | null | undefined>(undefined);
-  const savedPhotos = profilePhotos(user?.profile?.model_asset_ids || [], photos);
+  const library = useLibraryModels();
+  const savedPhotos = profilePhotos(user?.profile?.model_asset_ids || [], [...photos, ...(library.models || [])]);
   const selectedModelId = modelChoice === undefined ? savedPhotos[0]?.id : modelChoice;
   const selectedModel = model?.id === selectedModelId ? model : savedPhotos.find(photo => photo.id === selectedModelId);
   const [uploading, setUploading] = useState<AssetKind | null>(null);
@@ -108,6 +112,7 @@ export default function NewProject() {
             <Text style={localStyles.uploadTitle}>{uploading === 'garment' ? '正在上传衣服图…' : '添加衣服图'}</Text>
             <Text style={localStyles.caption}>平铺、挂拍或商品图都可以</Text>
           </Pressable>
+          <GarmentPicker selectedIds={garments.map(item => item.id)} onSelect={selectGarment} disabled={!!uploading || busy} />
         </View>
         <View style={localStyles.section}>
           <View style={styles.row}><Text style={localStyles.sectionTitle}>出镜的人</Text><Badge label="选填" /></View>
@@ -115,8 +120,9 @@ export default function NewProject() {
           {!!savedPhotos.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.md }}>{savedPhotos.map((photo, index) => <Pressable key={photo.id} accessibilityRole="button" accessibilityLabel={`选择档案照片 ${index + 1}`} accessibilityState={{ selected: selectedModelId === photo.id }} aria-selected={selectedModelId === photo.id} onPress={() => setModelChoice(photo.id)} style={({ pressed }) => [localStyles.profilePhoto, selectedModelId === photo.id && localStyles.profileSelected, pressed && localStyles.pressed]}>
             {photo.url ? <FadeImage source={{ uri: photo.url }} style={localStyles.profileImage} /> : <View style={[localStyles.profileImage, localStyles.profilePlaceholder]}><Ionicons name="person-outline" size={24} color={studio.muted} /></View>}
             <Text style={[localStyles.caption, { textAlign: 'center', color: selectedModelId === photo.id ? studio.accent : studio.muted }]}>{index === 0 ? '档案默认' : `照片 ${index + 1}`}{selectedModelId === photo.id ? ' ✓' : ''}</Text>
+            <ModelSourceLabel id={photo.id} />
           </Pressable>)}</ScrollView>}
-          {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={[styles.row, { flexWrap: 'wrap' }]}>{selectedModel.url && <FadeImage source={{ uri: selectedModel.url }} style={localStyles.profileImage} />}<Text style={localStyles.subtitle}>这组片的本人照片</Text><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
+          {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={[styles.row, { flexWrap: 'wrap' }]}>{selectedModel.url && <FadeImage source={{ uri: selectedModel.url }} style={localStyles.profileImage} />}<Text style={localStyles.subtitle}>这组片的本人照片</Text><ModelSourceLabel source={model?.source} /><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
           <Button title={uploading === 'model' ? '正在上传…' : selectedModelId ? '更换我的照片' : '上传我的照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} />
         </View>
         <View style={localStyles.section}>
