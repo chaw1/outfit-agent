@@ -11,7 +11,8 @@ const directory = path.resolve('screenshots-live/auto');
 const requiredSteps = ['directions', 'script', 'images', 'note', 'video', 'done'] as const;
 
 // 线上账号只通过下方带遮罩的截图留证。
-test.use({ screenshot: 'off', video: 'off' });
+// 与沉浸编导用例一致：显式 LIVE_VIDEO=1 才录屏。
+test.use({ screenshot: 'off', video: process.env.LIVE_VIDEO === '1' ? { mode: 'on', size: { width: 390, height: 844 } } : 'off' });
 
 test('真实服务一键出片：注册、开拍、自动推进到全套完成（断点续跑）', async ({ page }) => {
   test.skip(!process.env.LIVE_API_BASE, '只有显式设置 LIVE_API_BASE 才运行；不会使用 App 默认地址或旧凭证。');

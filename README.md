@@ -30,12 +30,15 @@
 | 项 | 值 |
 |---|---|
 | 代码基线 | main，见 `git log`（线上服务端与 main 同步部署，`cd server && ./deploy/deploy-ecs.sh`） |
-| 最新一次线上全链路 | 2026-10-21 08:27–08:32（Asia/Shanghai），服务端与 App 均为第八轮，`app/screenshots-live/run-2/`（evidence.json / http-evidence.json / sse-evidence.json），**13/13 通过**，真实模型（health `mock=false`），390×844 手机视口 Web。本次局部改仍被核对判为未改到位，App 按新规则默认沿用原版入稿（approve 请求里是 v1），改图请求带 `attempt` |
-| 录屏 | `app/screenshots-live/走查视频/线上全链路-注册到视频-第八轮-原速.mp4`（5 分 29 秒）与 3 倍速版（第七轮的两段也保留）；`walkthrough/线上项目回放.mp4` 是另一已完成项目的界面回看 |
-| 费用口径 | 每个完整项目约 ¥5.7（视频前快照约 ¥4.2）；预算上限 100 元，截至 08:50 累计约 76 元 |
-| 已知未达标 | 局部改"袖口放平"两次线上均被还原检查判为未改到位（流程正确呈现失败，不算效果达标）；第八轮起未核对通过的版本不再默认入稿 |
-| 未验证 | iPhone 真机从登录到发布的闭环（模拟器已验证编译启动到登录页）；小红书平台实际发帖 |
-| 历史记录 | `app/screenshots-live/run-1/`（07:41，第七轮 App）、`app/LIVE.md` 与 `run-3/`（10-21 00:19–01:01 三轮） |
+| 最新一次线上全链路 · 沉浸编导 | 2026-10-21 12:35–12:43（Asia/Shanghai），服务端与 App 均为最终版（含设计系统、素材库、3:4 竖版出图），`app/screenshots-live/run-4/`（evidence.json / http-evidence.json / sse-evidence.json），**13/13 通过**，真实模型（health `mock=false`），390×844 手机视口 Web。分析 56 s、出图 79 s、局部改 76 s、视频 190 s，项目 57 点。局部改"袖口放平"仍被核对判为未改到位，App 按规则沿用原版入稿 |
+| 最新一次线上全链路 · 一键出片 | 2026-10-21 12:45–12:49，注册 → 开拍 → 方向、脚本、出图、笔记、视频全自动到完成，App 端观察到全部六步，`app/screenshots-live/auto/run-4-evidence.json` 与 `run-4-*.png`，项目 45.9 点 |
+| 真实商品图试跑 | 一件鹅黄色拉链连帽卫衣的正反两张商品图走一键出片：5 张成片 + 笔记 + 视频，核对分 95–98，`app/screenshots-live/auto/run-2-*`（服务端完成，用例在"写笔记"步因页面刷新间隔误判，已修） |
+| 录屏 | `app/screenshots-live/走查视频/线上全链路-注册到视频-最终版-原速.mp4`（7 分 31 秒）与 3 倍速版；`线上一键出片-注册到视频-最终版-原速.mp4` 与 3 倍速版；更早几轮的录屏保留在同目录 |
+| 真机 | iPhone 17 Pro（iOS 26）Release 包：注册 → 上传相册照片 → 开拍 → 出图 → 查看成片已由本人走通；首次真机上传暴露了 React Native FormData 文件通道的问题，已改为系统原生上传（见开发记录） |
+| 点数口径 | 10 点 = 1 元；每个完整项目约 57 点（一键出片约 46 点）。用户侧只显示点数；管理端按元统计 |
+| 已知未达标 | 局部改"袖口放平"多次线上均被还原检查判为未改到位（流程正确呈现失败，不算效果达标）；未核对通过的版本不默认入稿 |
+| 未验证 | 小红书平台实际发帖（App 到"准备发布"为止，由系统分享面板接手） |
+| 历史记录 | `run-1/`（07:41，第七轮）、`run-2/`（08:27，第八轮）、`run-3/`（10:55，第九轮）、`app/LIVE.md` |
 
 ## 开发方法与顺序
 
@@ -67,8 +70,8 @@ App（Expo）──HTTPS：REST + SSE──▶ FastAPI ──▶ LangGraph 智�
 
 | 目录 | 说明 | 运行 |
 |---|---|---|
-| [server/](server/) | FastAPI + LangGraph + SQLAlchemy/Alembic + Worker + 管理端，358 个测试 | `cd server && docker compose up -d --build`，见 [server/README.md](server/README.md) |
-| [app/](app/) | Expo SDK 58 App + 本地假服务（不花钱也能走完整条链路），110 个测试 + 假服务 / 线上两套 Playwright 流程 | `cd app && npm ci && npm run mock & npm run start`，见 [app/README.md](app/README.md) |
+| [server/](server/) | FastAPI + LangGraph + SQLAlchemy/Alembic + Worker + 管理端，562 个测试 | `cd server && docker compose up -d --build`，见 [server/README.md](server/README.md) |
+| [app/](app/) | Expo SDK 58 App + 本地假服务（不花钱也能走完整条链路），207 个单测 + 27 条假服务端到端 + 2 条线上流程（Playwright） | `cd app && npm ci && npm run mock & npm run start`，见 [app/README.md](app/README.md) |
 
 关键实验（`server/scripts/experiments.py`）：E1 重启后续聊、E2 重复确认不重复花钱、E3 越阶段被拒、E4 脚本时间旅行，全部通过。
 
