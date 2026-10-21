@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { profilePhotos } from '../../lib/profile';
@@ -22,14 +22,19 @@ export default function NewProject() {
   const router = useRouter();
   const [mode, setMode] = useState<ProjectMode>('guided');
   const [help, setHelp] = useState<ProjectMode | null>(null);
-  const [batch, setBatch] = useState(0);
-  const [tags, setTags] = useState<string[]>([STYLE_TAGS[0]]);
+  // 从灵感墙进来时带着风格与氛围描述，直接作为初始值。
+  const params = useLocalSearchParams<{ style?: string | string[]; brief?: string | string[] }>();
+  const presetStyle = Array.isArray(params.style) ? params.style[0] : params.style;
+  const presetBrief = Array.isArray(params.brief) ? params.brief[0] : params.brief;
+  const presetIndex = presetStyle ? (STYLE_TAGS as readonly string[]).indexOf(presetStyle) : -1;
+  const [batch, setBatch] = useState(presetIndex >= 8 ? 1 : 0);
+  const [tags, setTags] = useState<string[]>([presetIndex >= 0 ? STYLE_TAGS[presetIndex] : STYLE_TAGS[0]]);
   const [quote, setQuote] = useState<AutoQuote>();
   const [quoteError, setQuoteError] = useState('');
   useEffect(() => { let active = true; void api.autoQuote().then(value => { if (active) { if (!Number.isFinite(value.estimate_points) || value.estimate_points < 0) throw new Error('invalid quote'); setQuote(value); setQuoteError(''); } }).catch(() => { if (active) setQuoteError('估点暂时没取到，可稍后再试。'); }); return () => { active = false; }; }, [api]);
   const [title, setTitle] = useState('');
   const [brand, setBrand] = useState('');
-  const [brief, setBrief] = useState('');
+  const [brief, setBrief] = useState(presetBrief || '');
   const [garments, setGarments] = useState<Asset[]>([]);
   const selectGarment = useCallback((item: Asset) => setGarments(previous => previous.length >= MAX_GARMENTS || previous.some(asset => asset.id === item.id) ? previous : [...previous, item]), []);
   const [references, setReferences] = useState<Asset[]>([]);
