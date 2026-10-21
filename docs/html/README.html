@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>README · 总览与最终验收索引 · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">README.md</span><div class="nav"><a href="index.html">目录</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#文档">文档</a></li>
+<li><a href="#最终验收索引唯一口径">最终验收索引（唯一口径）</a></li>
+<li><a href="#开发方法与顺序">开发方法与顺序</a></li>
+<li><a href="#架构一览">架构一览</a></li>
+<li><a href="#代码">代码</a></li>
+<li><a href="#管理端">管理端</a></li>
+<li><a href="#部署">部署</a></li>
+</ul>
+</div>
+</nav><main><h1 id="衣序-穿搭笔记智能体outfit-agent">衣序 · 穿搭笔记智能体（outfit-agent）<a class="headerlink" href="#衣序-穿搭笔记智能体outfit-agent" title="Permanent link">¶</a></h1>
+<p>小红书穿搭博主接到品牌合作，品牌方往往只给几张衣服图。博主在「衣序」App 里和智能体多轮对话：智能体看懂衣服、给出场景和风格方向（附灵感预览图），写出笔记脚本，博主确认后按脚本批量生成"博主本人 × 品牌衣服 × 场景"的图片，不满意的一句话改图，最后得到一篇可直接发布的图文笔记，还可以生成一条 5 秒短视频。 赶更新时可以切到「一键出片」：交完素材去喝杯咖啡，全套图文和视频自动出好，中途随时接手。用户侧只看点数，不看货币。</p>
+<ul>
+<li>线上服务：<code>https://47.97.153.127:8443</code>（<code>GET /api/health</code>）</li>
+<li>移动端：Expo（React Native + TypeScript），iOS / Android 同一套代码</li>
+</ul>
+<h2 id="文档">文档<a class="headerlink" href="#文档" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="index.html">docs/html/index.html</a></td>
+<td>以下全部文档的 HTML 阅读版（带目录与流程图），<code>make docs</code> 由 Markdown 生成</td>
+</tr>
+<tr>
+<td><a href="调研.html">docs/调研.md</a></td>
+<td>场景调研、生成能力实测对比、<strong>智能体框架选型</strong>（硬需求 → 8 个候选对照 → 实验证明 → 反方意见）、演进方向</td>
+</tr>
+<tr>
+<td><a href="设计.html">docs/设计.md</a></td>
+<td>架构、智能体状态与人在回路、接口约定、卡片结构、数据表（后端和 App 共用的唯一约定）</td>
+</tr>
+<tr>
+<td><a href="UI设计稿.html">docs/UI设计稿.md</a></td>
+<td>UI 设计稿：信息架构、核心流程、双主题视觉、页面状态与组件规格；<a href="../design/index.html">高保真设计板</a></td>
+</tr>
+<tr>
+<td><a href="设计系统.html">docs/设计系统.md</a></td>
+<td>衣序 DS：token 单一来源、双主题组件规格、开发画廊、视觉快照与设计协作流程</td>
+</tr>
+<tr>
+<td><a href="CONTRIBUTING.html">CONTRIBUTING.md</a></td>
+<td>开发环境、分支提交、提交门禁与评审清单</td>
+</tr>
+<tr>
+<td><a href="工程规范.html">docs/工程规范.md</a></td>
+<td>分层、代码规范、测试与发布、ADR 索引、规则债务与质量快照</td>
+</tr>
+<tr>
+<td><a href="开发记录.html">docs/开发记录.md</a></td>
+<td>从接到作业开始的完整过程与卡点</td>
+</tr>
+<tr>
+<td><a href="../review">docs/review/</a></td>
+<td>外部技术评审意见</td>
+</tr>
+<tr>
+<td><a href="../spike">docs/spike/</a></td>
+<td>模型实测素材（全部自生成）</td>
+</tr>
+<tr>
+<td><a href="演示脚本.html">docs/演示脚本.md</a></td>
+<td>5–8 分钟演示流程与追问答法</td>
+</tr>
+<tr>
+<td><a href="调研-Chiccify对照.html">docs/调研-Chiccify对照.md</a></td>
+<td>对公司现有产品 Chiccify 的功能对照与取舍</td>
+</tr>
+<tr>
+<td><a href="../../app/LIVE.md">app/LIVE.md</a></td>
+<td>10-21 凌晨第一批线上联调报告（历史；最终验收见下方索引）</td>
+</tr>
+<tr>
+<td><a href="评审-独立评估.html">docs/评审-独立评估.md</a></td>
+<td>交付前的独立评审（gpt-6.1-sol，只评不改）：六维评分、Top 10 问题、追问清单；第八轮按它修</td>
+</tr>
+<tr>
+<td><a href="../../server/FINAL.md">server/FINAL.md</a> · <a href="../../server/ADMIN.md">server/ADMIN.md</a></td>
+<td>服务端各轮验收报告：局部改像素证据、接缝指标、管理端验收</td>
+</tr>
+</tbody>
+</table>
+<h2 id="最终验收索引唯一口径">最终验收索引（唯一口径）<a class="headerlink" href="#最终验收索引唯一口径" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>代码基线</td>
+<td>main，见 <code>git log</code>（线上服务端与 main 同步部署，<code>cd server &amp;&amp; ./deploy/deploy-ecs.sh</code>）</td>
+</tr>
+<tr>
+<td>最新一次线上全链路</td>
+<td>2026-10-21 08:27–08:32（Asia/Shanghai），服务端与 App 均为第八轮，<code>app/screenshots-live/run-2/</code>（evidence.json / http-evidence.json / sse-evidence.json），<strong>13/13 通过</strong>，真实模型（health <code>mock=false</code>），390×844 手机视口 Web。本次局部改仍被核对判为未改到位，App 按新规则默认沿用原版入稿（approve 请求里是 v1），改图请求带 <code>attempt</code></td>
+</tr>
+<tr>
+<td>录屏</td>
+<td><code>app/screenshots-live/走查视频/线上全链路-注册到视频-第八轮-原速.mp4</code>（5 分 29 秒）与 3 倍速版（第七轮的两段也保留）；<code>walkthrough/线上项目回放.mp4</code> 是另一已完成项目的界面回看</td>
+</tr>
+<tr>
+<td>费用口径</td>
+<td>每个完整项目约 ¥5.7（视频前快照约 ¥4.2）；预算上限 100 元，截至 08:50 累计约 76 元</td>
+</tr>
+<tr>
+<td>已知未达标</td>
+<td>局部改"袖口放平"两次线上均被还原检查判为未改到位（流程正确呈现失败，不算效果达标）；第八轮起未核对通过的版本不再默认入稿</td>
+</tr>
+<tr>
+<td>未验证</td>
+<td>iPhone 真机从登录到发布的闭环（模拟器已验证编译启动到登录页）；小红书平台实际发帖</td>
+</tr>
+<tr>
+<td>历史记录</td>
+<td><code>app/screenshots-live/run-1/</code>（07:41，第七轮 App）、<code>app/LIVE.md</code> 与 <code>run-3/</code>（10-21 00:19–01:01 三轮）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="开发方法与顺序">开发方法与顺序<a class="headerlink" href="#开发方法与顺序" title="Permanent link">¶</a></h2>
+<ol>
+<li><strong>调研与实测</strong>：场景拆解、生成能力真实调用对比、智能体框架选型与小实验（<code>docs/调研.md</code>、<code>docs/spike/</code>）。</li>
+<li><strong>设计先行</strong>：产品范围与分期（<code>docs/设计.md</code> §1.1）、UI 设计稿（信息架构、流程、视觉语言、页面稿与状态、组件规格：<code>docs/UI设计稿.md</code>）、后端与 App 共用的接口契约（<code>docs/设计.md</code>）、设计 token 单一来源（<code>docs/设计系统.md</code>）。</li>
+<li><strong>工程底座</strong>：仓库分层、CI 门禁、校验脚本、假服务与 mock 模型（不花钱走通全链路）、迁移与部署脚本、工程规范（<code>docs/工程规范.md</code>、<code>CONTRIBUTING.md</code>）。</li>
+<li><strong>按设计还原 P0 主链路</strong>：假服务端到端通过后，上线真实模型，从注册到视频全链路留证据（截图、HTTP / SSE 证据、录屏）。</li>
+<li><strong>P1 产品完整度 → P2 质量与体系</strong>：每项只增不改，老客户端不受影响；每合入一项跑一遍假服务端到端，关键节点跑线上回归。</li>
+<li><strong>独立评审 → 修复 → 最终回归</strong>：交付前由另一个模型只评不改（<code>docs/评审-独立评估.md</code>），按评审修复后再做一遍线上全链路回归与录屏，结果汇总在下方「最终验收索引」。</li>
+</ol>
+<p>整个过程采用 AI 原生的协作方式：人定方向与验收，Claude Code 写契约与任务书并复测合并，Codex 按任务书并行实现（<code>docs/开发记录.md</code>「工作方式」）。</p>
+<h2 id="架构一览">架构一览<a class="headerlink" href="#架构一览" title="Permanent link">¶</a></h2>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>App（Expo）──HTTPS：REST + SSE──▶ FastAPI ──▶ LangGraph 智能体（PostgresSaver，thread = 项目）
+                                     │          阶段之间：状态机（代码管钱、可审计）
+                                     │          阶段之内：ReAct（模型选工具、写回复）
+                                     ▼
+                                 PostgreSQL（业务表 + 任务队列 + checkpoint）
+                                     ▲
+                       Worker × 2（SKIP LOCKED 领任务）
+                         ├─ wan2.7-image-pro：试衣 + 换场景 / 改图
+                         ├─ qwen3-vl-plus：看图、还原分质检
+                         └─ wan2.6-i2v-flash：图生视频
+</code></pre></div>
+
+<h2 id="代码">代码<a class="headerlink" href="#代码" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>目录</th>
+<th>说明</th>
+<th>运行</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../../server">server/</a></td>
+<td>FastAPI + LangGraph + SQLAlchemy/Alembic + Worker + 管理端，358 个测试</td>
+<td><code>cd server &amp;&amp; docker compose up -d --build</code>，见 <a href="server-README.html">server/README.md</a></td>
+</tr>
+<tr>
+<td><a href="../../app">app/</a></td>
+<td>Expo SDK 58 App + 本地假服务（不花钱也能走完整条链路），110 个测试 + 假服务 / 线上两套 Playwright 流程</td>
+<td><code>cd app &amp;&amp; npm ci &amp;&amp; npm run mock &amp; npm run start</code>，见 <a href="app-README.html">app/README.md</a></td>
+</tr>
+</tbody>
+</table>
+<p>关键实验（<code>server/scripts/experiments.py</code>）：E1 重启后续聊、E2 重复确认不重复花钱、E3 越阶段被拒、E4 脚本时间旅行，全部通过。</p>
+<h2 id="管理端">管理端<a class="headerlink" href="#管理端" title="Permanent link">¶</a></h2>
+<p>和 API 同一容器：<code>/admin</code>（独立口令，<code>ADMIN_TOKEN</code> 为空时整体关闭）。总览、用量统计（按模型 / 用户 / 天，导出 CSV）、模型分层与每日配额（存库即时生效）、任务队列（重试 / 取消）、用户管理（禁用 / 层级）。花钱的动作在服务端按层级预算门禁，对话不受限。约定见 <code>docs/设计.md</code> 第 9 节。</p>
+<h2 id="部署">部署<a class="headerlink" href="#部署" title="Permanent link">¶</a></h2>
+<p>单台阿里云 ECS，docker compose（api、worker × 2、postgres）+ 宿主机 nginx 终止 TLS。域名未在阿里云备案接入，域名 HTTPS 会被按 SNI 拦截，所以使用 Let's Encrypt 的 IP 证书（每天自动续期）。部署脚本：<a href="../../server/deploy/deploy-ecs.sh">server/deploy/deploy-ecs.sh</a>。</p></main></div></body></html>

@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工程规范与 ADR 索引 · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/工程规范.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#目录与分层">目录与分层</a></li>
+<li><a href="#分支提交与评审">分支、提交与评审</a></li>
+<li><a href="#typescript-与-python">TypeScript 与 Python</a></li>
+<li><a href="#测试金字塔与命令">测试金字塔与命令</a></li>
+<li><a href="#门禁与-ci">门禁与 CI</a></li>
+<li><a href="#发布健康与回滚">发布、健康与回滚</a></li>
+<li><a href="#可观测与安全">可观测与安全</a></li>
+<li><a href="#adr-索引">ADR 索引</a></li>
+<li><a href="#规则与债务">规则与债务</a></li>
+<li><a href="#质量快照">质量快照</a></li>
+</ul>
+</div>
+</nav><main><h1 id="工程规范">工程规范<a class="headerlink" href="#工程规范" title="Permanent link">¶</a></h1>
+<p>本规范落实 <a href="设计.html">设计第 17 节</a>，与 <a href="CONTRIBUTING.html">贡献指南</a> 配套。接口契约仍只有 <code>docs/设计.md</code>。下文区分已有实现、门禁要求和待治理债务；设计记录不等于功能已上线。</p>
+<h2 id="目录与分层">目录与分层<a class="headerlink" href="#目录与分层" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>路径</th>
+<th>职责与依赖方向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app/src/app/</code></td>
+<td>Expo Router 页面，组合组件和 Hook，路由不直接实现供应商调用</td>
+</tr>
+<tr>
+<td><code>app/src/components/</code>、<code>app/src/theme.ts</code></td>
+<td>共享交互组件、颜色/间距/字体/动效 token；<code>ui.tsx</code> 提供 Page、Button、Field 等基础组件</td>
+</tr>
+<tr>
+<td><code>app/src/hooks/</code>、<code>app/src/context/</code></td>
+<td>工作台同步及会话状态；<code>useWorkspace.ts</code> 合并 SSE 与轮询结果</td>
+</tr>
+<tr>
+<td><code>app/src/api/</code>、<code>app/src/lib/</code></td>
+<td>API 类型、HTTP/SSE 客户端与合并逻辑；选图、草稿、发布等可独立测试的逻辑</td>
+</tr>
+<tr>
+<td><code>app/mock-server/</code>、<code>app/tests/</code>、<code>app/e2e/</code></td>
+<td>本地假服务、Node 单测、Playwright 流程；线上测试使用独立配置</td>
+</tr>
+<tr>
+<td><code>server/app/main.py</code>、<code>schemas.py</code>、<code>security.py</code></td>
+<td>HTTP/SSE 入口、Pydantic 输入输出、身份与归属检查</td>
+</tr>
+<tr>
+<td><code>server/app/graph.py</code>、<code>workflow.py</code></td>
+<td>LangGraph 持久化与阶段工具放行，业务确认和幂等入队由代码控制</td>
+</tr>
+<tr>
+<td><code>server/app/providers.py</code>、<code>worker.py</code></td>
+<td>模型适配与 Mock；独立任务领取、租约、执行、结果回写</td>
+</tr>
+<tr>
+<td><code>server/app/models.py</code>、<code>db.py</code>、<code>server/alembic/</code></td>
+<td>SQLAlchemy 表/会话与版本化迁移；checkpoint 由 PostgresSaver 管理</td>
+</tr>
+<tr>
+<td><code>server/app/observability.py</code>、<code>log_errors.py</code>、<code>rate_limits.py</code></td>
+<td>请求/模型事件、异常脱敏、共享限流</td>
+</tr>
+<tr>
+<td><code>server/tests/</code>、<code>server/scripts/</code></td>
+<td>单元/HTTP/迁移测试与闭环脚本；测试工具不作为生产 API 的依赖</td>
+</tr>
+<tr>
+<td><code>server/deploy/</code>、<code>.github/workflows/ci.yml</code></td>
+<td>Compose 部署覆盖、现有 ECS 脚本与持续集成</td>
+</tr>
+</tbody>
+</table>
+<p>API 先校验账号、输入和对象归属，再进入 Workflow；Workflow 校验阶段与预算后入队，Worker 执行 Provider。不要让页面直接调用模型，也不要用模型回复代替付费放行、归属或阶段校验。状态来源、幂等和 checkpoint 的取舍详见 <a href="server-README.html">服务端说明</a>。</p>
+<h2 id="分支提交与评审">分支、提交与评审<a class="headerlink" href="#分支提交与评审" title="Permanent link">¶</a></h2>
+<p>分支从最新 <code>main</code> 建立；并行任务限定自己的路径，避免跨轮重排。提交使用中文一行标题、作者 <code>chaw1 &lt;97000945@qq.com&gt;</code>，不含工具署名。暂存前检查状态，精确添加文件，提交前检查完整暂存差异。完整评审清单和门禁启用方式见贡献指南。</p>
+<p>评审沿数据流检查：请求字段 → 校验 → Workflow → job payload → Provider → 持久化 → 输出 schema → App 类型与渲染；涉及阶段、重试、删除和付费确认时补对应行为测试。迁移既要覆盖空库升级，也要检查已有数据兼容，现有例子为 <code>server/tests/test_migrations.py</code>、<code>test_admin_migrations.py</code>。</p>
+<h2 id="typescript-与-python">TypeScript 与 Python<a class="headerlink" href="#typescript-与-python" title="Permanent link">¶</a></h2>
+<p>TypeScript 使用 <code>app/tsconfig.json</code> 的 strict，组件/类型 PascalCase、函数/变量 camelCase、Hook <code>useXxx</code>；沿用单引号与分号。API 数据结构在 <code>app/src/api/types.ts</code>，新增外部输入先收窄类型，不随意扩散 <code>any</code>。导入排序、Hook 依赖和具体规则级别见下文规则与债务。</p>
+<p>Python 函数/变量/模块 snake_case、类 CapWords、常量 UPPER_SNAKE_CASE；ruff 的 I 规则检查导入排序，E/F/UP/B 检查语法习惯与常见错误。<code>server/pyproject.toml</code> 设定行宽 100，实际启用规则以该配置为准。边界层补类型，复用 Pydantic schema；不运行全仓格式化改变无关代码。</p>
+<p>App 业务失败使用 <code>app/src/api/client.ts</code> 的 <code>ApiError</code>（code/message/status），展示可恢复的中文提示；普通 REST 读/写/上传分别限时 20/60/120 秒，写入不自动重放。服务端使用 <code>app/errors.py</code> 的 <code>AppError</code>，<code>main.py</code> 统一输出 <code>{error: {code, message}}</code>，未知异常回通用中文信息；SSE 错误由事件传达。</p>
+<p>新增网络调用必须指定超时，沿用 App 客户端及服务端 <code>providers.py</code> 的 httpx 访问方式；不能无限等待。供应商请求超时或结果未知时，不为通过检查盲目重复付费调用。重试次数、稳定去重键、attempt 和重放语义必须一起评审。</p>
+<p>UI 新增颜色从 <code>app/src/theme.ts</code> 取，禁止在组件中新增硬编码色值。当前主题集中管理，但设计第 16 节的 JSON token 生成、组件拆分及其专属 ESLint 规则由设计系统轮实施，本轮不声称已有这些文件或命令。不得提交明文凭证、私钥、生产 <code>.env</code>，也不能在日志输出凭证或完整媒体签名 URL。</p>
+<h2 id="测试金字塔与命令">测试金字塔与命令<a class="headerlink" href="#测试金字塔与命令" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>命令（分别在对应目录执行）</th>
+<th>覆盖范围</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>App 静态</td>
+<td><code>npm run typecheck</code>、<code>npm run lint</code></td>
+<td>strict 类型与 ESLint</td>
+</tr>
+<tr>
+<td>App 单元</td>
+<td><code>npm test</code></td>
+<td><code>tests/*.test.ts</code>，API/SSE、选图、草稿、发布等</td>
+</tr>
+<tr>
+<td>App 完整校验</td>
+<td><code>npm run verify</code></td>
+<td>类型、lint、单测、iOS/Android Expo 导出，输出 <code>app/verification/</code></td>
+</tr>
+<tr>
+<td>App 浏览器</td>
+<td><code>PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers" npm run test:e2e</code></td>
+<td>默认排除 <code>live.spec.ts</code>，配置启动 :19301 假服务和 :19300 Web，390×844 视口</td>
+</tr>
+<tr>
+<td>服务端静态</td>
+<td><code>uv run ruff check .</code></td>
+<td>app、迁移、scripts、tests</td>
+</tr>
+<tr>
+<td>服务端单元与集成</td>
+<td><code>REQUIRE_INTEGRATION=1 uv run pytest -q --cov=app --cov-report=term-missing</code></td>
+<td>Provider Mock、图/Worker、鉴权、HTTP、PostgreSQL 队列和迁移，同时报告覆盖率</td>
+</tr>
+<tr>
+<td>服务端闭环</td>
+<td><code>uv run python scripts/e2e.py --mode mock</code></td>
+<td>注册、上传、对话、出图、编辑、笔记、视频及媒体下载</td>
+</tr>
+</tbody>
+</table>
+<p>从底层纯逻辑单测开始，涉及数据库/并发/HTTP 再用集成，跨页面和流程用假服务 Playwright。Mock 证据不等于真实模型质量，也不等于真机发布验收。真实模型与线上测试必须单独明确授权，本轮不运行。</p>
+<p>服务端集成前启动本项目 Mock 栈：<code>cd server &amp;&amp; docker compose up -d --build</code>。本机已有 API/Worker/PG 时复用，不抢占其他 worktree 的端口。测试固定本机 API :18080、PostgreSQL :18432，并校验 Mock；<code>REQUIRE_INTEGRATION=1</code> 使缺栈成为失败，避免静默跳过。迁移测试在独立随机 <code>outfit_test_*</code> 库执行，finally 只删除自己创建的库，禁止把已有库当残留清理。</p>
+<p>覆盖率由 dev 依赖 pytest-cov 提供，配置在 <code>server/pyproject.toml</code>；<code>make check</code> 额外输出 <code>server/artifacts/coverage.xml</code>，终端列出未覆盖行，不设阈值。统计口径是 pytest 进程内执行的 app 代码，外置 Uvicorn/Worker 的 HTTP 行为虽经集成验证，其进程内行覆盖率没有自动合并。<code>.coverage</code>、XML 和 htmlcov 产物不提交。</p>
+<h2 id="门禁与-ci">门禁与 CI<a class="headerlink" href="#门禁与-ci" title="Permanent link">¶</a></h2>
+<p>根目录 <code>.editorconfig</code> 约定 UTF-8、LF、文件尾换行，默认 2 空格、Python 4 空格、Makefile 用 tab；Markdown 保留有语义的行尾空格。只影响后续编辑，不自动重排现有文件。</p>
+<p>启用 <code>.githooks/pre-commit</code>：<code>git config core.hooksPath .githooks</code>。Hook 按暂存路径判断侧别，包含删除和跨目录重命名；App 跑整侧 <code>npm run lint</code> 与 <code>npm run typecheck</code>，服务端跑整侧 <code>uv run ruff check .</code>，失败阻止提交。工作区内容参与检查，提交者仍需核对暂存内容；只改根文档不触发两侧检查。</p>
+<p>根目录 <code>Makefile</code>：<code>make check</code> 跑 App verify 与服务端 ruff/强制集成；<code>make dev</code> 用 Compose 启本地 Mock 服务；<code>make e2e</code> 跑 App 假服务和服务端 Mock 闭环，也可分别跑 <code>make app-e2e</code>、<code>make server-e2e</code>（<code>API_BASE_URL</code> 可覆盖默认本机 :18080）；<code>make deploy</code> 调用现有部署脚本，审查入口用 <code>make -n deploy</code>。Node 和 uv 须在 PATH，浏览器默认取 <code>app/.tools/browsers</code>（现有 Playwright 配置也支持本机 Chrome）。</p>
+<p><code>.github/workflows/ci.yml</code> 在 push/PR 执行四个任务，仓库权限只有 contents:read，不含部署：</p>
+<table>
+<thead>
+<tr>
+<th>任务</th>
+<th>检查及产物</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>server</code></td>
+<td>PostgreSQL 16 service、ruff、Alembic、Mock API/Worker、强制集成 pytest + 覆盖率；始终尝试归档 coverage.xml 与服务日志 7 天</td>
+</tr>
+<tr>
+<td><code>app</code></td>
+<td>Node 22 + npm ci，typecheck、lint、Node 单测</td>
+</tr>
+<tr>
+<td><code>app-playwright</code></td>
+<td>app 任务通过后，安装 Chromium，用默认配置启动本地假服务和 Web，CI 拒绝复用已有端口进程，关闭 Expo 联网及遥测；始终尝试归档 test-results 报告与失败轨迹 7 天</td>
+</tr>
+<tr>
+<td><code>docker</code></td>
+<td>用 <code>server/Dockerfile</code> 构建服务端镜像，只构建，不推送或部署</td>
+</tr>
+</tbody>
+</table>
+<p><code>tokens:check</code> 尚不存在于本分支，由第 16 节设计系统轮创建脚本和命令后接入 CI；这里不使用可选跳过命令冒充门禁。</p>
+<h2 id="发布健康与回滚">发布、健康与回滚<a class="headerlink" href="#发布健康与回滚" title="Permanent link">¶</a></h2>
+<p>发布前先运行本地检查，核对迁移链及新旧 schema/数据兼容，保留数据库与媒体卷备份和上一个镜像 SHA。不得用容器删除或卷删除代替升级。</p>
+<p>现有入口为 <code>cd server &amp;&amp; ./deploy/deploy-ecs.sh</code>：本机构建 linux/amd64 镜像，以短提交 SHA 和 latest 标记，上传到配置的 ECS，再运行 Compose。它会连接远端，只有目标环境已明确授权才可执行；本轮仅检查脚本，不部署。</p>
+<p>迁移在 <code>server/Dockerfile</code> 的启动命令里先执行 <code>alembic upgrade head</code>，成功后才启动 Uvicorn。部署脚本最后执行 compose ps；健康检查另外读取目标 <code>/api/health</code> 并检查 <code>ok</code> 与 Mock/真实模式符合预期，再验关键流程。Compose 已配置 API/PG healthcheck，<code>server/scripts/wait_health.py</code> 用于等待本机健康。健康接口检查数据库连接及配置，不验证上游模型服务可用性。</p>
+<p>镜像回退需要人工将保留的旧 SHA 镜像标为 <code>outfit-agent-server:latest</code>，再用目标机已有的 <code>compose.yaml</code>、<code>compose.production.yaml</code>、<code>compose.image.yaml</code> 执行 <code>docker compose ... up -d</code>（完整参数同部署脚本），然后重复健康及关键流程检查。仓库没有自动回滚脚本；镜像回退不会自动撤销数据迁移。先判断旧版本是否兼容新 schema，不兼容则按已验证的数据备份恢复方案处理；不盲目执行有损 downgrade。</p>
+<h2 id="可观测与安全">可观测与安全<a class="headerlink" href="#可观测与安全" title="Permanent link">¶</a></h2>
+<p>请求 ID 由 <code>server/app/observability.py</code> 接收或生成并通过 <code>X-Request-ID</code> 返回；请求和模型事件为 JSON 行，包含 request_id、user_id、project_id、耗时和状态，模型事件还带模型名和估算成本。异常使用 <code>log_errors.log_exception</code>，文本经过脱敏；不要另开打印凭证或原始 SSE 内容的旁路。</p>
+<p>请求计数持久化到 request_events，最近 24 小时 HTTP ≥400 或 SSE error 每请求计一次。管理端默认 <code>ADMIN_TOKEN</code> 为空而关闭，启用后使用独立会话；详见 <code>server/app/admin.py</code>、<code>runtime_settings.py</code>。观测数据和限流记录目前没有自动保留期，不能声称已有归档任务。</p>
+<p>所有资产/项目/任务必须校验当前用户归属；媒体签名 URL 是可读凭证，备份、日志和截图都避免泄露签名。保留 <code>rate_limits.py</code> 的共享限流、上传类型/大小/像素上限和 <code>security.py</code> 的签名/鉴权。生产环境变量由部署环境注入，不从历史资料恢复或提交密钥。</p>
+<h2 id="adr-索引">ADR 索引<a class="headerlink" href="#adr-索引" title="Permanent link">¶</a></h2>
+<p>决策正文保存在唯一契约，不另复制一套 ADR。第 14–16 节是已记录、由并行轮次负责的设计，本轮基线不代表它们已实现或上线；第 17 节由本轮落实。</p>
+<table>
+<thead>
+<tr>
+<th>设计节</th>
+<th>决策摘要</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="设计.html#2-架构">§2 架构</a></td>
+<td>Expo + FastAPI + PostgreSQL，耗时媒体生成交给独立 Worker</td>
+</tr>
+<tr>
+<td><a href="设计.html#3-智能体">§3 智能体</a></td>
+<td>LangGraph 持久化项目状态，在确认点暂停并按阶段放行工具</td>
+</tr>
+<tr>
+<td><a href="设计.html#4-接口约定">§4 接口约定</a></td>
+<td>REST 管资源、SSE 传对话与稳定 ID 卡片，统一中文错误结构</td>
+</tr>
+<tr>
+<td><a href="设计.html">§5 模型与成本</a></td>
+<td>文本、看图、图像和视频分别适配供应商，以 Mock 支撑无费用验证</td>
+</tr>
+<tr>
+<td><a href="设计.html#6-数据表">§6 数据表</a></td>
+<td>业务表、任务、调用账本与 checkpoint 共存 PostgreSQL，Alembic 管迁移</td>
+</tr>
+<tr>
+<td><a href="设计.html">§7 第二轮</a></td>
+<td>代码管阶段和付费、模型做阶段内选择，增加预览、还原评分和生成声明</td>
+</tr>
+<tr>
+<td><a href="设计.html">§8 图片交互</a></td>
+<td>支持相对坐标局部编辑和图片引用，合成保证蒙版外像素不变</td>
+</tr>
+<tr>
+<td><a href="设计.html">§9 管理端</a></td>
+<td>同容器独立管理认证，提供成本、配额、队列与用户管理</td>
+</tr>
+<tr>
+<td><a href="设计.html">§10 档案与闭环</a></td>
+<td>增加博主档案、项目/发布恢复、共享限流和请求观测</td>
+</tr>
+<tr>
+<td><a href="设计.html">§11 透明与预估</a></td>
+<td>可见执行轨迹、付费前预估、方向再生成与可编辑发帖表单</td>
+</tr>
+<tr>
+<td><a href="设计.html">§12 参考与锚点</a></td>
+<td>有上限的参考图与封面人物锚点兼顾构图和人物一致性</td>
+</tr>
+<tr>
+<td><a href="设计.html">§13 可信改图</a></td>
+<td>未核对图片须明确采用，新 attempt、草稿冲突与超时保留用户判断</td>
+</tr>
+<tr>
+<td><a href="设计.html">§14 点数与片场</a></td>
+<td>设计点数展示、一键出片、摄影语言和离开后进度恢复</td>
+</tr>
+<tr>
+<td><a href="设计.html">§15 账号闭环</a></td>
+<td>设计法律同意、恢复码、密码失效与账号注销，暂不引入短信通道</td>
+</tr>
+<tr>
+<td><a href="设计.html">§16 设计系统</a></td>
+<td>设计 token 单一来源、组件规格、实验室和视觉回归</td>
+</tr>
+<tr>
+<td><a href="设计.html">§17 工程规范</a></td>
+<td>文档、按侧提交检查、规则治理、覆盖率、CI 和统一 Make 入口</td>
+</tr>
+</tbody>
+</table>
+<h2 id="规则与债务">规则与债务<a class="headerlink" href="#规则与债务" title="Permanent link">¶</a></h2>
+<p>ESLint 在 Expo flat 预设上新增 <code>@typescript-eslint/no-explicit-any</code>（仅 TS/TSX）、<code>react-hooks/exhaustive-deps</code>、<code>eqeqeq</code>（保留 Expo 的 smart 选项）、<code>no-var</code>、<code>prefer-const</code> 为 error，现有代码这五项零违规。<code>import/order</code> 为 warn，现有 19 处；检查仍输出警告，不用大范围禁用规则掩盖问题。</p>
+<table>
+<thead>
+<tr>
+<th><code>import/order</code> 文件（相对 app/）</th>
+<th>行号/数量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>e2e/image-interactions.ts</code></td>
+<td>2（1）</td>
+</tr>
+<tr>
+<td><code>e2e/live.spec.ts</code>、<code>polish.spec.ts</code>、<code>product.spec.ts</code>、<code>round6.spec.ts</code>、<code>round7.spec.ts</code>、<code>round8.spec.ts</code>、<code>workflow.spec.ts</code></td>
+<td>各第 1 行（7）</td>
+</tr>
+<tr>
+<td><code>playwright.config.ts</code>、<code>playwright.live.config.ts</code></td>
+<td>各第 1 行（2）</td>
+</tr>
+<tr>
+<td><code>src/app/projects/new.tsx</code></td>
+<td>7（1）</td>
+</tr>
+<tr>
+<td><code>src/components/Cards.tsx</code></td>
+<td>12、17、18、20（4）</td>
+</tr>
+<tr>
+<td><code>src/components/GenerationInfo.tsx</code></td>
+<td>4（1）</td>
+</tr>
+<tr>
+<td><code>src/components/ImageInteractions.tsx</code></td>
+<td>13（1）</td>
+</tr>
+<tr>
+<td><code>src/components/Onboarding.tsx</code></td>
+<td>6（1）</td>
+</tr>
+<tr>
+<td><code>src/components/ProfileEditor.tsx</code></td>
+<td>10（1）</td>
+</tr>
+</tbody>
+</table>
+<p>ruff 在 E/F/I/UP/B 上启用 SIM/RUF/N/S 全族；ruff 没有 warn，历史项采用 <code>server/pyproject.toml</code> 的限定文件/规则例外。未加例外时新增族共 2250 项，应用配置后零违规；不修改业务代码消债。</p>
+<table>
+<thead>
+<tr>
+<th>例外（相对 server/）</th>
+<th>数量、原因与后续处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RUF001/RUF002 的 <code>allowed-confusables</code></td>
+<td>664/3；允许配置列出的 11 个中文/排版字符，保留其他混淆字符检测，属于文案策略</td>
+</tr>
+<tr>
+<td><code>tests/**/*.py</code> S101/S105/S106</td>
+<td>1309/5/28；测试断言与固定假密码，属于测试策略，不适用于生产模块</td>
+</tr>
+<tr>
+<td><code>scripts/*.py</code> S101/S106</td>
+<td>218/4；验收脚本允许断言及假 password_hash，脚本仍不应使用生产凭证</td>
+</tr>
+<tr>
+<td><code>app/config.py:12</code> S105</td>
+<td>1；本地 JWT 占位值，生产启动会拒绝该默认值；保持生产保护</td>
+</tr>
+<tr>
+<td><code>app/providers.py:49</code> N818</td>
+<td>1；BudgetExceeded 既有异常名，后续统一 Error 后缀及引用</td>
+</tr>
+<tr>
+<td><code>app/main.py:396</code> SIM102</td>
+<td>1；嵌套条件后续可合并，本轮不碰入口</td>
+</tr>
+<tr>
+<td><code>app/observability.py:207,210</code> SIM105/S110</td>
+<td>各 1；断连后结束流的容错块，后续审查 suppress 与日志噪声</td>
+</tr>
+<tr>
+<td><code>app/rate_limits.py:127</code> SIM115</td>
+<td>1；上传临时文件生命周期需专项核对再改 context manager</td>
+</tr>
+<tr>
+<td><code>app/project_cleanup.py:130</code> S608</td>
+<td>1；插入的表名来自固定三表白名单，thread_id 绑定参数，后续可改 Identifier 构造</td>
+</tr>
+<tr>
+<td><code>scripts/admin_review.py:49</code> S603</td>
+<td>1；验收 runner 的命令列表来自脚本，后续收紧命令入口</td>
+</tr>
+<tr>
+<td><code>scripts/experiments.py:33</code>、<code>scripts/restart_e2e.py:24</code> S607</td>
+<td>2；按 PATH 找 docker，后续显式解析可执行路径</td>
+</tr>
+<tr>
+<td><code>tests/test_admin_migrations.py:17,18</code> S603/S607、<code>tests/test_migrations.py:14</code> S607</td>
+<td>3；固定 uv/alembic 命令，后续显式解析可执行路径</td>
+</tr>
+<tr>
+<td><code>tests/test_admin_runtime.py:256</code> SIM117</td>
+<td>1；测试上下文嵌套，后续合并</td>
+</tr>
+<tr>
+<td><code>tests/test_project_cleanup.py:366,373</code> S608</td>
+<td>2；固定 checkpoint 表名构造测试 SQL，后续使用 Identifier</td>
+</tr>
+<tr>
+<td><code>tests/test_observability.py:114</code>、<code>tests/test_profile.py:133</code> RUF059</td>
+<td>2；解包后未使用变量，后续改为占位变量</td>
+</tr>
+<tr>
+<td><code>tests/test_verify_anchor.py:108</code> RUF043</td>
+<td>1；match 正则含元字符，后续明确转义意图</td>
+</tr>
+</tbody>
+</table>
+<p>这些文件级例外也可能放过同文件同规则的新问题，评审须主动检查；消债后删除对应例外，不扩大豁免。<code>import/order</code> 修复后再升 error。硬编码色值的自动化治理由设计系统轮负责，本轮新增代码仍按 token 约定评审。</p>
+<p>现有超时债务：<code>app/src/lib/media.ts:14</code> 的 Web 媒体下载直接使用 fetch，缺显式超时。本轮只记录，后续在业务轮次补可取消下载和错误反馈；新增代码仍遵守显式超时要求。</p>
+<h2 id="质量快照">质量快照<a class="headerlink" href="#质量快照" title="Permanent link">¶</a></h2>
+<p>日期：2026-10-21（Asia/Shanghai）。本轮在 <code>feat/engineering</code> 本地验证，数字只代表该分支，不引用历史 README 的测试数。</p>
+<table>
+<thead>
+<tr>
+<th>项目</th>
+<th>实测结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>环境</td>
+<td>Node v22.23.1、Python 3.12.13、本地 PostgreSQL 16，全部模型 Mock</td>
+</tr>
+<tr>
+<td>App verify</td>
+<td>类型、lint、137 项单测、iOS/Android 导出五项通过</td>
+</tr>
+<tr>
+<td>App Playwright</td>
+<td>假服务 13/13 通过，6 个测试文件，5.7 分钟；全部原断言保留</td>
+</tr>
+<tr>
+<td>ESLint</td>
+<td>Expo flat + 上列 5 项 error；0 error、19 项 import/order warn</td>
+</tr>
+<tr>
+<td>服务端测试</td>
+<td><code>REQUIRE_INTEGRATION=1</code> 下 408 passed、0 skipped</td>
+</tr>
+<tr>
+<td>ruff</td>
+<td>E/F/I/UP/B + SIM/RUF/N/S，限定例外后零违规</td>
+</tr>
+<tr>
+<td>覆盖率</td>
+<td>pytest-cov 7.1.0 / coverage 7.16.2，3464/3803 条语句，91.09%（终端四舍五入 91%），未设阈值</td>
+</tr>
+<tr>
+<td>Hook / Make 行为</td>
+<td>临时独立仓库中 13 项通过，覆盖侧别、删除、跨侧重命名及失败阻断</td>
+</tr>
+<tr>
+<td><code>make check</code></td>
+<td>两侧全部检查以退出码 0 完成，服务端 408 passed</td>
+</tr>
+<tr>
+<td>服务端 Mock 闭环</td>
+<td><code>make server-e2e</code> 通过，17 个步骤</td>
+</tr>
+<tr>
+<td>Docker</td>
+<td>本地成功构建 linux/amd64，独立标签 <code>outfit-agent-server:eng-round11-ci</code></td>
+</tr>
+<tr>
+<td>CI 配置</td>
+<td>server / app / app-playwright / docker 共 4 个任务，PyYAML 解析与字段核对通过；未在 GitHub Actions 执行</td>
+</tr>
+</tbody>
+</table>
+<p>集成测试使用本 worktree 源码、独立数据库和媒体目录。共享 :18080 的 IPv4 栈属于并行轮次，本轮 API 仅监听 ::1，测试进程将 localhost:18080 限制为 IPv6，拒绝回退到另一栈；没有更改业务源码或断言。覆盖率 XML 留在忽略目录 <code>server/artifacts/coverage.xml</code>。</p>
+<p>并行 worktree 验证要先核对服务端口归属。共享 node_modules 时还可能复用其他 worktree 的 Metro Router 转换缓存，不能只看监听进程 cwd；本轮设置独立 <code>EXPO_METRO_CACHE_OUTPUT_DIR</code>、<code>TMPDIR</code>，并在浏览器开跑前验证 source map 的 46 个应用源码均来自本 worktree。19300/19301 被并行轮占用，浏览器使用 19600/19601 和临时测试副本，仅替换 8 处端口 URL；逐文件逆替换与原文完全一致，原测试文件及全部断言未改。隔离证据、JSON 报告和日志留在 <code>server/artifacts/eng-round11-playwright-isolated/</code> 及相邻日志中。</p></main></div></body></html>

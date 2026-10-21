@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>开发记录 · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/开发记录.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#工作方式">工作方式</a></li>
+<li><a href="#2026-10-20">2026-10-20</a><ul>
+<li><a href="#0235-线上回归第-08-步假失败排查">02:35 线上回归第 08 步「假失败」排查</a></li>
+<li><a href="#0245-最终版-app-线上全链路回归通过1313">02:45 最终版 App 线上全链路回归通过（13/13）</a></li>
+<li><a href="#0255-视频生成后的改图口径对齐-回放视频">02:55 视频生成后的改图口径对齐 + 回放视频</a></li>
+<li><a href="#0405-ios-平台装好模拟器原生编译通过">04:05 iOS 平台装好，模拟器原生编译通过</a></li>
+<li><a href="#0815-独立评审-服务端第八轮合入">08:15 独立评审 + 服务端第八轮合入</a></li>
+<li><a href="#0825-服务端第八轮上线">08:25 服务端第八轮上线</a></li>
+<li><a href="#0845-app-第八轮合入">08:45 App 第八轮合入</a></li>
+<li><a href="#0850-第八轮线上全链路回归通过服务端-app-均为第八轮">08:50 第八轮线上全链路回归通过（服务端 + App 均为第八轮）</a></li>
+<li><a href="#0940-进入-p1-p2对照规划盘点差距">09:40 进入 P1 / P2：对照规划盘点差距</a></li>
+<li><a href="#10001015-六路并行派发">10:00–10:15 六路并行派发</a></li>
+<li><a href="#10201045-逐路验收与合并">10:20–10:45 逐路验收与合并</a></li>
+<li><a href="#10551110-合并后的线上回归两种模式各跑一遍">10:55–11:10 合并后的线上回归：两种模式各跑一遍</a></li>
+<li><a href="#11151130-用真实商品图试一键出片顺手修两处出片口径">11:15–11:30 用真实商品图试一键出片，顺手修两处出片口径</a></li>
+<li><a href="#1135-iphone-真机装上并打开">11:35 iPhone 真机装上并打开</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</nav><main><h1 id="开发记录卡点与过程">开发记录（卡点与过程）<a class="headerlink" href="#开发记录卡点与过程" title="Permanent link">¶</a></h1>
+<blockquote>
+<p>从接到作业开始记，按时间顺序。每条写：做了什么 / 卡在哪 / 怎么解决 / 用时。</p>
+</blockquote>
+<h2 id="工作方式">工作方式<a class="headerlink" href="#工作方式" title="Permanent link">¶</a></h2>
+<p>这次按"AI 原生开发"的方式做：我负责定场景、定范围、拍板取舍和最终验收；Claude Code 负责把决策写成唯一契约（<code>docs/设计.md</code>）、拆成带验收标准的任务书（<code>docs/codex/*_PROMPT.md</code>）、亲自复测每一次交付并合并上线；Codex 按任务书在各自的 git worktree 里并行实现，只提交本地分支。任何交付都不信自报，以我和 Claude Code 的实测为准。</p>
+<p>顺序上先调研实测、再设计、再搭工程底座、然后按设计还原主链路并在线上留证据，之后按 P1（产品完整度）→ P2（质量与体系）逐项"只增不改"地合入，最后做独立评审、全链路回归与录屏。各期范围见 <code>docs/设计.md</code> §1.1。</p>
+<h2 id="2026-10-20">2026-10-20<a class="headerlink" href="#2026-10-20" title="Permanent link">¶</a></h2>
+<ul>
+<li><strong>21:54 接到作业</strong>：霖润一面结束，要求 24 小时内交付一个 App demo（小红书服装内容智能体的 mini 链路）。交付物：场景调研文档（含智能体框架选型理由）、卡点记录、开发感受、App + Server + 数据库完整代码。</li>
+<li><strong>21:55 读手写需求</strong>：两页手写稿拍照（HEIC）交给 Claude Code 识别，转成文字需求：注册登录；模特图 + 多张衣服图 + 搭配；调性与选款理解；批量出图；AI 改图；脚本到视频；智能体 + 多轮对话；用公开 API；App/Server 分离部署。</li>
+<li><strong>21:56 和 Claude Code 对齐范围</strong>：确认"mini"指公司线上某条链路的缩小版，交付形态是 App。</li>
+<li><strong>21:58 场景定清楚</strong>：用户是小红书博主。金主（品牌方）可能只给几张衣服图；博主和智能体多轮对话，聊出场景和风格（AI 给建议）→ 先产出脚本 → 最终产出图文笔记；最好还能出视频。</li>
+<li><strong>22:08 API 实测</strong>：用 qwen-image-3.0-pro 自己生成衣服图和模特图，每张 41–46 秒；用 wan2.7-image-pro 做"多图参考试衣 + 换场景"，一次成功，用时 14 秒，面料、纽扣、口袋都对得上，唯一偏差是衬衫没按要求塞进裤腰（正好用来演示改图）。</li>
+<li><strong>22:08 卡点：百炼账号开着"仅使用免费额度"</strong>：happyhorse-1.1-i2v 返回 403 AllocationQuota.FreeTierOnly，免费额度已用完。改测 wan2.6-i2v-flash；正式演示前需要在控制台关掉这个开关并充值。</li>
+<li><strong>22:09 视频实测通过</strong>：wan2.6-i2v-flash，720P、5 秒、自带音轨，52 秒出片；动作按提示词走（看窗外→转头看镜头微笑→整理领口→镜头推近），衣服细节保持住，脸有轻微变化。链路上的三种能力（看图理解→试衣换景→图生视频）都已证明可用。</li>
+<li><strong>22:12 定架构、派活</strong>：写好 docs/设计.md（场景、架构、接口约定、卡片结构、数据表）；服务端（FastAPI + LangGraph + Postgres + Worker）和 App（Expo）按同一份接口约定拆成两个任务，派给两个 Codex 并行开发，各在自己的 git worktree 里，互不干扰。</li>
+<li><strong>22:27 App 交付方式</strong>：我想走 TestFlight，最后在 Mac 上镜像 iPhone 演示；开发者账号是 97000945@qq.com，需确认是付费会员。计划用 Expo 云打包（EAS Build）直接传 TestFlight，本机不用装 Xcode。</li>
+<li><strong>22:28 决定 iOS 交付走免费方案</strong>：用免费 Apple ID + Xcode 直接装到我的 iPhone（7 天有效），演示时用 iPhone 镜像投到 Mac；不用不确定归属的开发者账号。我开始下载 Xcode。</li>
+<li><strong>22:28 加一道外部评审</strong>：我要求方案出来后让另一个模型（Fable）做独立技术评审、提优化建议。</li>
+<li><strong>22:31 卡点：qwen-image-3.0-pro 多图改图连不回来</strong>：同样的"模特 + 两件衣服 + 场景"请求，两次都没拿到结果（一次 Node fetch 报 fetch failed，一次 curl 在 61 秒时连接断开，HTTP 000）。它只有同步接口，出图超过约 60 秒就被链路上的超时切断。对比 wan2.7-image-pro 14 秒稳定返回，生成主力定为 wan2.7-image-pro；qwen-image 只用于生成测试素材（文生图 41–46 秒能返回）。</li>
+<li><strong>22:44 服务器到位</strong>：用我的阿里云杭州 ECS（2 核 3.4G）。先把上面原有的 LobeChat、chatgpt-web、paper-tracker、QuanBot 等服务停掉（只停不删，清单和恢复命令放在服务器 /root/STOPPED-FOR-OUTFIT-20261020.md），空出 2.7G 内存。</li>
+<li><strong>22:44 卡点：域名 HTTPS 被备案拦截</strong>：给 jiawis.cn 加了子域名 outfit.jiawis.cn，certbot 验证拿到 403，返回页标题是 "Non-compliance ICP Filing"——jiawis.cn 没在阿里云备案接入。换 8443 端口 + DNS 验证签了证书，curl 仍在 TLS 握手时被重置：阿里云按 TLS 握手里的域名（SNI）拦截，换端口也没用（OpenSSL 3 能连上，是因为它的握手包更大、被拆成两段，拦截没识别出来，靠这个不可靠）。</li>
+<li><strong>22:44 解决</strong>：改用 IP 直连——Let's Encrypt 已支持给 IP 地址签证书（shortlived 档，约 6 天），在服务器上用 lego 走 HTTP-01 签发，cron 每天检查、剩 3 天自动续。服务地址定为 https://47.97.153.127:8443，证书校验通过。</li>
+<li><strong>22:45 App 验收通过并合入主线</strong>：Codex 交付"衣序"App（对话工作台、六种卡片、改图弹窗、选图排序、笔记预览、视频播放、断网与登录过期处理）+ 本地假服务 + 18 张流程截图。Claude Code 复测：类型检查、代码检查、26 个单元测试、iOS/Android 打包全部通过。</li>
+<li><strong>22:51 服务端第一版验收</strong>：Codex 交付 FastAPI + LangGraph（PostgresSaver、interrupt 确认）+ Postgres 任务队列（SKIP LOCKED、租约、去重键）+ Worker。Claude Code 复测 64 个测试全过、ruff 干净、Mock 端到端通过；Codex 用真实模型跑通一整条（5 图 + 改图 + 视频，约 7 元估算，走免费额度）。</li>
+<li><strong>22:51 评审发现硬伤</strong>：Fable 评审 + Claude Code 读代码确认——阶段内的意图识别是关键词表（连"通勤风"都写死了），回复是模板句，模型每次被强制只能调一个指定工具。这是"状态机 + 关键词"，不是智能体，面试官一眼能看穿。决定开第二轮：阶段之间状态机（代码管钱），阶段之内由模型从允许的工具里自己选（ReAct），回复由模型写。</li>
+<li><strong>22:52 派第二轮</strong>：设计约定补第 7 节（只增不改）；服务端第二轮：阶段内 ReAct、模型写回复、修 4 个 bug、还原分 + 自动修图、方向预览图、主动播报、脚本时间旅行、卡片早到、成本与 AI 标识、E1–E4 实验脚本。App 第二轮：接上新字段、准备真机安装。两边继续并行。</li>
+<li><strong>23:08 App 第二轮验收通过并合入</strong>：用时约 12 分钟。方向预览图、还原分角标与自动修复说明、改图快捷说法、脚本历史与恢复、笔记成本与 AI 声明、主动消息同步、默认连 https://47.97.153.127:8443、iOS prebuild 通过。Claude Code 复测 35 个测试与双平台导出全过。</li>
+<li><strong>23:08 部署准备</strong>：服务器在国内，从镜像源拉 postgres 一直卡住；改为在本机拉 linux/amd64 镜像打包上传（228MB 用 36 秒），服务端镜像也按这个办法在本机构建后上传。</li>
+<li><strong>23:24 服务端第二轮验收通过</strong>：用时约 25 分钟。Claude Code 用自己的 16 句私有问句（不给 Codex 看）在真实 DeepSeek 上抽查阶段内选工具：16 句里 15 句直接对，剩下 1 句（"退回上一版"）是抽查脚本没加载历史，模型答"没有可回退的版本"是对的；回复是自然的博主搭子口吻。100 个测试、E1–E4 四个实验全部通过。</li>
+<li><strong>23:24 部署上线</strong>：服务器 .env 由本机钥匙串直接通过 ssh 写入（600 权限，不落本地文件）；本机构建 amd64 镜像上传。卡点：数据库镜像第一次传成了 ARM 版（本机是 Apple 芯片，docker save 默认带本机架构），容器起不来；改用 docker save --platform linux/amd64 重传解决。https://47.97.153.127:8443 上线，api + 2 个 worker + postgres 健康，真实模型模式。</li>
+<li><strong>23:31 线上真实全链路通过</strong>：https://47.97.153.127:8443 上从注册到视频 212 秒全部成功；5 张正式图两个 Worker 并行约 78 秒、还原分 92–96；笔记显示本篇成本 4.63 元；图片右下角带"AI 生成"标识。</li>
+<li><strong>23:31 目检发现两个问题</strong>：①衣服原图上的吊牌、织标被当成衣服"穿"上身，质检还拿吊牌文字扣分；②改图指令"衬衫塞进裤腰"没做到，系统也没发现（质检只看还原度不看指令）。</li>
+<li><strong>23:31 我提出移动端改图交互要做细</strong>：放大看细节、圈出袖口只改那一块、版本对比、在对话里引用某张图。决定第三轮：服务端做局部改（蒙版 → 裁剪 → 只改那块 → 羽化贴回，圈外像素不变）、改图后核对指令、引用图片、忽略吊牌；App 做全屏查看器、涂抹圈选、版本对比滑块、引用到对话、长按菜单。</li>
+<li><strong>23:49 卡点：命令行装不了 Xcode</strong>：用 mas 从 App Store 获取 Xcode 报 ISErrorDomain Code=4"未知错误"——新版 macOS 不允许第三方工具代替用户"获取"免费应用。改为打开 App Store 的 Xcode 页面，由我手动点"获取"。</li>
+<li><strong>23:52 服务端第三轮验收通过并上线</strong>：局部改实测——圈内改动 6.6 万像素、圈外 412 万像素改变数为 0；"衬衫塞进裤腰"整张改这次做到并通过指令核对；"袖口放下来"局部改重试一次后仍没做到，系统如实标注"没改到位"并主动告诉博主（不装作成功）；吊牌不再被穿上身。170 个测试、Mock 端到端、E1–E4 全过。Claude Code 目检发现局部改贴回边缘有轻微色差接缝，列为后续优化（贴回前做颜色匹配）。重新部署 45 秒，数据库迁移自动执行。</li>
+<li><strong>23:52 Xcode</strong>：我在 App Store 点了获取，正在下载。</li>
+<li><strong>23:52 App 第三轮验收通过并合入</strong>：全屏查看器（滑动、双指/双击缩放、版本条、前后对比滑块）、涂抹/框选局部改（笔刷粗细、撤销、快捷说法；缩放和留白下坐标换算有 13 项单测）、引用到对话、长按菜单、触感反馈、"没改到位"提示与重试。51 个测试、双平台导出、iOS prebuild 通过。手势和触感需真机验收。</li>
+<li><strong>00:19 发现缺口：App 从没连过线上服务</strong>：App 只对着假服务验收、服务端只被脚本直接调用，两边没真正接上过。派 Codex 做线上联调：App 以 web 形式连 https://47.97.153.127:8443 用真实模型走完整链路，App 侧问题直接修，服务端问题记录给 Claude Code。同时 Mac 在下载 iPhone 连接组件和 Xcode（各约 1 小时）。</li>
+<li><strong>00:25 换一个专门的会话推进</strong>：开一个新的 Claude Code 会话专门推进这个作业，交接说明写在 docs/交接.md。</li>
+<li><strong>00:45 卡点：App 第一次连线上就卡在选方向</strong>：联调 Codex 报服务端错误"对话模型返回列表长度有误，圈选轨迹不能为空"，选方向重试也必失败。看线上日志定位：联调用的品牌需求写了"脚本只需 3 张照片"，模型老实写了 3 个镜头，而服务端 schema 硬要求 4–6 个镜头，校验失败；报错文案又是通用数组检查里写死的"圈选轨迹"，误导排查。修法：镜头放宽到 3–6 个（提示词改成"品牌需求指定了张数就按需求"），数组校验报错指明是哪个字段、几项。170 个测试通过后热修上线（约 50 秒），联调继续在原项目重试。教训：App 和服务端各自对着假数据验收，这种"需求文本影响模型输出、再撞上代码硬约束"的问题只有真连起来才暴露。</li>
+<li><strong>00:50 服务端第四轮验收通过并合入</strong>：用时约 15 分钟。①局部改接缝：贴回前在蒙版边缘一带按同位置低频色差做校正（每通道最多 ±48，向内衰减）+ 蒙版内向内羽化，接缝指标（边界两侧引入的色差）2–8 像素带 1.23→0.38，蒙版外像素改变数仍为 0；目检旧版背景上有一块发亮的方形贴回痕迹，新版看不出边界。②角标：用思源黑体子集（只含 A/I/生/成 四个字形，4KB，SIL OFL 许可）4 倍超采样渲染，各尺寸清晰。③局部改成功率：三种策略 × 三个样例真实对照（上下文 20% vs 60%、是否附整图、指令写"目标状态"而非动作），选了"60% 上下文 + 原衣服参考 + 目标状态描述"；塞腰两版都做到且新版没有凭空加假标签，袖口放下来仍然做不到，Codex 如实写"未证实成功率提升"。193 个测试、Mock 端到端、E1–E4 全过。本轮花费约 4.5 元。部署等 App 联调这一遍跑完再做，避免中途重启打断它。</li>
+<li><strong>01:00 线上联调全链路通过</strong>：热修后 Codex 在线上用真实模型连跑两遍完整链路（注册 → 上传 → 分析与方向预览 → 选方向 → 自由文本改脚本 → 确认 → 出图与还原分、主动播报 → 涂抹袖口局部改 → 引用一张图对话 → 选图 → 笔记预览（成本、AI 声明）→ 确认视频 → 播放），每遍约 8 分钟、6 元左右，都走到 done。三遍联调合计约 13.8 元。</li>
+<li><strong>01:00 Xcode 就绪</strong>：Xcode 26.6 装好，接受许可、切换开发者目录、装附加组件；预编译时发现 iOS 26.5 平台组件要单独下载（真机编译必需），后台下载中。</li>
+<li><strong>01:02 服务端第四轮上线</strong>：联调跑完后部署合并后的 main（接缝融合、新角标字体、目标状态提示），api + 2 worker 健康。</li>
+<li><strong>01:10 App 联调分支合入</strong>：联调 Codex 修了一个 App 问题——长卡片把服务端错误提示顶出视口（旧位置在可视区上方 433 像素），改到输入框上方固定显示并加单测。联调报告 <code>app/LIVE.md</code> 和第三遍 25 张手机尺寸截图一并提交作为证据。联调还确认了"袖口放下来"局部改在线上仍做不到（任务成功、还原分 98、指令核对不通过，App 如实显示"可能没改到位"并给重试/换个说法）。</li>
+<li><strong>01:10 盘点产品完整性，开第五轮</strong>：我提出面试官会看整条通路的完整性。设计约定加第 9 节（管理端：总览、用量、模型分层与配额、任务队列、用户管理）和第 10 节（博主档案与偏好记忆、项目管理、一键发布、本机通知、对话细节、限流/上传校验/请求 id/CI）。管理端 Codex 00:51 派出；App 第四轮 01:10 派出；服务端第五轮等管理端合并后派。</li>
+<li><strong>01:20 管理端验收通过并上线</strong>：Codex 用时约 50 分钟，0 模型费用。与 API 同一容器、单文件前端：总览（用户/项目/今日调用与花费/阶段分布/队列）、用量统计（按模型/用户/天、筛用户、导出 CSV）、模型与配额（四种能力选模型、free/pro 层每日预算与可用模型、全局日预算，存库即时生效）、任务队列（失败重试、排队取消）、用户管理（禁用/启用、改层级）。预算门禁接进了确认脚本、改图、视频和方向预览这些花钱入口，对话不受限；Worker 续跑已付费的视频任务不重复扣。220 个测试、Mock 端到端、E1–E4 全过；迁移在线上有数据的库上自动执行成功。管理口令只在服务器 .env，<code>ADMIN_TOKEN</code> 为空时管理端整体 404。</li>
+<li><strong>01:30 服务端第五轮验收通过并上线</strong>：Codex 用时约 25 分钟，真实调用仅 2 次 DeepSeek（约 0.02 元）。博主档案（<code>GET/PATCH /api/me</code>：本人照片、身高体型、风格偏好，新建项目默认用档案照片，偏好进智能体上下文——真实模型两次方向/脚本都体现了"松弛、平底鞋"）；删项目级联清理消息、任务、checkpoint、生成媒体，上传原图保留，运行中的任务被项目锁挡住不回写；注册/登录按 IP、上传/对话按用户限流（默认每分钟 120，429 中文提示），上传只收 jpeg/png/webp/heic、15 MB、6000 像素；每个请求回传 X-Request-Id，JSON 结构化日志带用户/项目/耗时；GitHub Actions CI（服务端 ruff + pytest、App typecheck + lint + 单测）本地等价跑通。267 个测试、Mock 端到端、E1–E4 全过；线上迁移 0005→0007 自动执行。</li>
+<li><strong>01:40 App 第四轮验收通过并合入</strong>：Codex 用时约 35 分钟，0 费用（全程本地假服务）。我的形象（多张本人照片、设默认、昵称/身高/体型/风格偏好，新建项目默认带档案照片；旧服务端 404 时入口降级）、项目列表搜索/下拉刷新/阶段标签/长按删除二次确认、"准备发布"一键复制文案 + 顺序保存全部图片 + 保存视频 + 系统分享（带发布清单，失败只重试未完成项）、后台生成完成本机通知（前台改为应用内提示）、长按消息复制、失败消息重发、"换个说法"（需服务端标记，当前线上隐藏）、首次三屏引导、关于与隐私页；顺手去掉查看器叠在图片自带角标上的第二层"AI生成"，还原分差异点默认折叠两行。93 个测试、假服务 Playwright 流程、iOS prebuild 全过。通知、相册、系统分享要真机验。</li>
+<li><strong>01:45 Chiccify 对照调研</strong>：派 agent 直接拉取 musegate.tech 四个子产品的前端代码包解出全部 UI 文案（搜索引擎几乎没收录）。结论：Chiccify 是桌面 Web、没有 App、发布靠本地助手且仍标"即将上线"；流程与本作业同构；它强在智能体面板展示"用了什么能力/耗时/花费"、花钱前预估扣点、完整发帖表单；本作业强在手机端全链路、对话内圈选局部改、还原质检、脚本回滚、博主档案、管理端。决定开第六轮补"智能体透明、花钱前预估、换一组、发帖表单"（设计第 11 节），不碰自动发布和模特训练。全文 <code>docs/调研-Chiccify对照.md</code>。</li>
+<li><strong>01:55 服务端第六轮验收通过并上线</strong>：Codex 用时约 9 分钟，真实费用约 1.16 元。每条智能体消息带 trace（选了什么工具、模型、耗时、费用、分步），SSE 在 done 前多发一个 trace 事件；确认出图/视频前有预估费用（镜头数 × 0.5 × 1.2，视频 1.5），状态里带今日预算与剩余；"换一组方向"由模型自己选 propose_directions 并保留用户说过的偏好（真实验证保留了"要通勤、平底鞋"）；regenerate_reply 只重写文字、同 id 覆盖、不花出图费，付费轮次拒绝。292 个测试、Mock 端到端、E1–E4 全过；线上迁移到 0008，线上实测 trace 事件和预算字段都在。</li>
+<li><strong>02:00 App 第五轮（视觉打磨）验收通过并合入</strong>：Codex 用时约 20 分钟，0 费用。<code>src/theme.ts</code> 统一间距/圆角/字号/颜色 token 并用于全部 8 个页面；骨架屏、图片淡入、卡片与消息进入动效、呼吸进度条与四步指示、统一按压态/角标/轻提示、统一删除确认与错误恢复、44pt 点击区、文字对比度 ≥ 4.5:1、减少动态效果适配。93 单测、三套 E2E、双平台导出、iOS prebuild 全过；75 张 390×844 截图。真机帧率、触感、键盘与刘海待验。</li>
+<li><strong>01:55 卡点：iOS 平台组件下载慢</strong>：Xcode 26 的 iOS 26.5 平台（模拟器运行时 + 真机支持，约 8.5 GB）走 Apple 的 MobileAsset 通道，经本机 FlClash 代理只有 0.4–0.9 MB/s；第一次跑了 52 分钟看不到进度以为卡死，杀掉重来才发现只是慢。试了从组件索引找直链（只有 mobileAsset 标记没有 URL）、MobileAsset 目录（403）、关系统代理（FlClash 立刻接管回去），都绕不开，只能等，预计 04:30 前后装好。真机编译必须有它：<code>xcodebuild</code> 没有它连"Any iOS Device"这个 destination 都找不到。</li>
+<li><strong>02:05 App 第六轮验收通过并合入</strong>：Codex 用时约 12 分钟，0 费用。每条智能体消息下一行"用了 写脚本 · 4.8s · ¥0.01"可展开模型与分步；确认出图/视频旁显示预计费用与今日剩余，余额不足置灰并提示；方向卡"换一组"同 id 覆盖；笔记页改成发帖表单（标题 20 字计数、正文编辑、话题胶囊、AI 声明勾选、本地草稿恢复），发布用编辑后的内容；同 id 重写在断流后能正确恢复。105 单测、6 套 E2E、双平台导出、iOS prebuild 全过。</li>
+<li><strong>02:15 服务端第七轮验收通过并上线</strong>：Codex 用时约 15 分钟，真实费用约 2.57 元。建项目可带最多 3 张参考图，看图阶段做五维风格分析进 brief 和上下文，方向/脚本/预览/正式出图都体现参考风格（真实对比：同一套衣服，无参考是日间室内，带霓虹参考就是霓虹街景）；确认脚本后先出封面，其余镜头并行并以封面为锚点，封面失败自动退回并行；还原分新增人像一致性与封面一致性（真实三镜头 98/98/98 与 92/92），主动播报带一致性摘要。358 个测试、Mock 端到端、E1–E4 全过；线上迁移到 0009。</li>
+<li><strong>02:25 App 第七轮验收通过并合入</strong>：Codex 用时约 15 分钟，0 费用。新建项目可选 0–3 张参考图（满 3 禁用、可删换），工作台显示参考图风格卡；图片角标"人像 92"，查看器显示"以封面为锚点"，主动一致性播报原样显示；字段缺失时全部隐藏。110 单测、10 套 E2E、双平台导出、iOS prebuild 全过。至此 App 七轮、服务端七轮 + 管理端全部合入 main，线上为最新服务端。</li>
+</ul>
+<h3 id="0235-线上回归第-08-步假失败排查">02:35 线上回归第 08 步「假失败」排查<a class="headerlink" href="#0235-线上回归第-08-步假失败排查" title="Permanent link">¶</a></h3>
+<ul>
+<li>现象：合并后的 App 跑线上回归，01–07 步全过（注册 2.8s / 上传 3.7s / 分析 62s / 方向+脚本 6s / 改脚本 6s / 确认 2s / 出图+还原+主动消息 80s），第 08 步圈选袖口超时 180s。</li>
+<li>排查：线上项目状态正常（3 张图均 succeeded、无 active_jobs、worker 无报错），失败截图停在查看器刚打开的画面。对照 <code>e2e/live.spec.ts</code> 第 320 行：超时的是 <code>LIVE_INSPECT_CUFF=1</code> 的「人工圈选」分支，它会等人把袖口坐标写进 <code>screenshots-live/cuff-selection.json</code>。这次是我沿用了上一轮的环境变量，没人写文件，所以等满超时。<strong>不是 App/服务端回归问题。</strong></li>
+<li>处理：去掉 <code>LIVE_INSPECT_CUFF</code>，按失败截图核对袖口位置，用 <code>LIVE_CUFF_X=0.47 LIVE_CUFF_Y=0.62</code> 从第 08 步断点续跑（同一项目，不新建、不重复花钱）。</li>
+<li>教训：<code>test:live</code> 的人工模式只在第一次核坐标时开，后续回归一律关掉；README 已有说明，交接里再补一句。</li>
+</ul>
+<h3 id="0245-最终版-app-线上全链路回归通过1313">02:45 最终版 App 线上全链路回归通过（13/13）<a class="headerlink" href="#0245-最终版-app-线上全链路回归通过1313" title="Permanent link">¶</a></h3>
+<ul>
+<li>从第 08 步续跑时又被首次引导弹窗挡住（断点续跑是新浏览器环境，引导页重新出现）。修法：<code>e2e/live.spec.ts</code> 的初始化脚本在带登录态续跑时直接写 <code>outfit.onboarding.v1=done</code>；首次注册仍真实走三页引导。已合入 main。</li>
+<li>续跑结果：局部改 117s、引用图聊天 3s、选图出笔记 4s、笔记预览 2s、确认视频 3s、视频就绪 54s，全部通过，本次项目总花费约 4.2 元。</li>
+<li>观察：自动坐标 0.47/0.62 实际涂在了胸口（查看器默认是裁切显示，我按裁切图估的坐标），改图检查如实报「圈出区域仍为卷起状态」并给出「再试一次 / 换个说法」——检查与兜底流程本身工作正常。想按正确袖口坐标（约 0.33–0.39 / 0.64–0.67）用接口重放一次，被服务端阶段门禁挡回（项目已到 done，<code>tool_not_allowed</code>），这也是预期行为；真机实测时由我在查看器里手动涂抹验证即可。</li>
+</ul>
+<h3 id="0255-视频生成后的改图口径对齐-回放视频">02:55 视频生成后的改图口径对齐 + 回放视频<a class="headerlink" href="#0255-视频生成后的改图口径对齐-回放视频" title="Permanent link">¶</a></h3>
+<ul>
+<li>录已完成项目的回放时发现：服务端在 video/done 阶段只允许 <code>write_note</code>/<code>chat</code>，但 App 查看器在 done 阶段仍把「局部改/整张改」放开，点了会收到「当前阶段不能执行这个操作」。改 App 与服务端对齐：<code>canEdit</code> 只在 images/note 阶段为真；查看器在定稿状态显示一行提示「视频已生成，这组图片已定稿；想继续改图，可以新建一次合作」。单测 110 项、mock 端到端 10 项全过。</li>
+<li>备份：用线上已完成项目录了一段手机尺寸回放 <code>app/screenshots-live/walkthrough/线上项目回放.mp4</code>（1 分 17 秒：项目列表 → 对话全程 → 视频播放 → 笔记预览 → 查看器对比 v1/v2），真机演示出问题时可用。</li>
+</ul>
+<h3 id="0405-ios-平台装好模拟器原生编译通过">04:05 iOS 平台装好，模拟器原生编译通过<a class="headerlink" href="#0405-ios-平台装好模拟器原生编译通过" title="Permanent link">¶</a></h3>
+<ul>
+<li>iOS 26.5 平台组件 03:55 下载完成并就绪（8.5 GB，经代理约 2 小时）。</li>
+<li>立刻在 iPhone 17 模拟器上 <code>npx expo run:ios --device "iPhone 17"</code>：CocoaPods 安装、原生编译 0 错误、安装启动、Metro 打包 2135 个模块，App 正常显示三页引导和登录页（截图在会话记录）。</li>
+<li>卡点：Mac 屏幕处于锁定状态，无法模拟点击/输入，模拟器里的登录和后续流程没法自动走；用预置 AsyncStorage（<code>Application Support/com.chaw1.outfitnotes/RCTAsyncLocalStorage_V1/manifest.json</code>）的方式验证了引导页跳过逻辑。原生端连线上服务的验证留到我用真机操作。</li>
+<li>同时在后台预编译真机版本（<code>-sdk iphoneos</code>，不签名），让后面 <code>expo run:ios --device</code> 更快。</li>
+</ul>
+<h3 id="0815-独立评审-服务端第八轮合入">08:15 独立评审 + 服务端第八轮合入<a class="headerlink" href="#0815-独立评审-服务端第八轮合入" title="Permanent link">¶</a></h3>
+<ul>
+<li>07:46 派 Codex（gpt-6.1-sol，ultra）只读评审整体交付，产物 <code>docs/评审-独立评估.md</code>：有保留推荐，均分 7.3/10；核心批评是"流程通过 ≠ 内容可交付"（质检失败版本默认入稿、文案把未成功的指令写成事实、再试一次被去重吞掉、本地草稿盖住新稿）。据此写了设计 §13 作为第八轮唯一契约，服务端与 App 并行派发。</li>
+<li>派发时踩了一个坑：App worktree 里有未跟踪的旧回归截图挡住了快进合并，第一次派出去的 Codex 基线是旧的（没有 §13 和任务书），1 分钟内发现并杀掉，清掉挡路文件后重派。教训：派发前要核对 worktree <code>git log -1</code> 等于 main。</li>
+<li>服务端第八轮 08:06 交付（9 分钟）：<code>edit_image.attempt</code> + 回包 <code>reused</code>；<code>approve_images</code> 的 <code>unverified_image</code> 错误与 <code>accept_unverified</code>，<code>note.accepted_unverified_ids</code> 持久化；写笔记上下文分 <code>requested_change</code> 与 <code>confirmed_visual_facts</code>；<code>directions.regenerate_estimate_cny</code>（¥1.5）。无新迁移。我复测：ruff 干净、集成 pytest 408 过、mock 端到端过；提交无 AI 署名、改动只在 server/。已合 main，开始部署。</li>
+</ul>
+<h3 id="0825-服务端第八轮上线">08:25 服务端第八轮上线<a class="headerlink" href="#0825-服务端第八轮上线" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>deploy-ecs.sh</code> 部署完成，api healthy、两个 worker 正常；线上核验：历史项目的 <code>directions</code> 卡片已带 <code>regenerate_estimate_cny=1.5</code>。</li>
+<li>过渡期说明：线上服务端已是第八轮，当前线上 App 还是第七轮——若用户选了未核对通过的改图版本进笔记，会收到「以下图片未改到位，请确认仍然采用后重试」的提示而无法继续，这正是新规则；App 第八轮合入后会弹确认并带 <code>accept_unverified</code> 重发。</li>
+</ul>
+<h3 id="0845-app-第八轮合入">08:45 App 第八轮合入<a class="headerlink" href="#0845-app-第八轮合入" title="Permanent link">¶</a></h3>
+<ul>
+<li>Codex 08:20 交付（23 分钟）：默认选择规则 + 「未改到位」角标 + 「仍然采用」确认（显示原因）+ <code>accept_unverified</code> 重发；<code>edit_image.attempt</code>（UUID）与 <code>reused</code> 提示；note 阶段「采用此版本到笔记 / 重新选图」；草稿来源指纹与「保留我的修改 / 采用新版本 / 恢复服务端版本」；REST 分类超时（读 20 s / 写 60 s / 传 120 s，写不自动重放，建项目超时先刷新列表）；「换一组」旁显示估价；引导页第二页标题改为「正式出图和视频，由你确认」。新增 <code>e2e/round8.spec.ts</code> 与截图 77–89。</li>
+<li>我复测：<code>npm run verify</code> 五项过（137 项单测）、mock 端到端 13/13（含第八轮 3 条）；改动只在 app/，无 AI 署名。已合 main，接着在线上从注册开始再跑一遍完整回归（录屏）。</li>
+</ul>
+<h3 id="0850-第八轮线上全链路回归通过服务端-app-均为第八轮">08:50 第八轮线上全链路回归通过（服务端 + App 均为第八轮）<a class="headerlink" href="#0850-第八轮线上全链路回归通过服务端-app-均为第八轮" title="Permanent link">¶</a></h3>
+<ul>
+<li>08:27–08:32 从注册开始 13/13 通过，录屏已出（<code>走查视频/线上全链路-注册到视频-第八轮-*.mp4</code>）。分析 68 s、出图 85 s、局部改 90 s、视频 48 s，项目约 ¥5.7。</li>
+<li>新规则在线上得到验证：这次「袖口放平」第三次被核对判为未改到位，App 默认沿用原版 v1 进笔记（approve 请求里没有失败的 v2），改图请求带了 <code>attempt</code>。</li>
+<li>预算：累计约 76 元 / 100 元。</li>
+</ul>
+<h3 id="0940-进入-p1-p2对照规划盘点差距">09:40 进入 P1 / P2：对照规划盘点差距<a class="headerlink" href="#0940-进入-p1-p2对照规划盘点差距" title="Permanent link">¶</a></h3>
+<ul>
+<li>主链路（P0）已在线上留证据，按 <code>docs/设计.md</code> §1.1 的分期盘点剩余项：两种创作模式（一键出片 / 沉浸编导）、用户侧点数而非货币、账号闭环（协议与隐私、找回密码、改密、注销）、离开再回来的进度与通知、摄影感出片、设计系统、工程规范。另外首页与新建页仍是表单感，用词偏 B 端（"品牌合作""合作工作台"），和「片场」的产品气质不符。</li>
+<li>卡点：短信验证码通道（阿里云 / 腾讯云）要签名与模板审核和实名主体，24 小时内拿不到。决定不做手机号注册，忘记密码走恢复码（注册时一次性发放，只存 hash），字段留好换手机号验证码的位置。</li>
+<li>卡点：图片有通用模型的"AI 感"（居中、暖光、磨皮、干净背景）。原因是给图像模型的只有一行"场景 / 动作 / 镜头"。决定在入队前把镜头扩写成摄影脚本（焦段、光线、构图、瞬间、质感 + 否定项），风格词条映射摄影语言，参考图作构图锚点；模型本身（wan2.7-image-pro）今天不换。</li>
+<li>契约先行：设计约定补 §14（两种模式、点数、摄影感、进度）、§15（账号闭环）、§16（设计系统）、§17（工程规范）；UI 设计稿单独成文（<code>docs/UI设计稿.md</code> + 高保真设计板）。</li>
+</ul>
+<h3 id="10001015-六路并行派发">10:00–10:15 六路并行派发<a class="headerlink" href="#10001015-六路并行派发" title="Permanent link">¶</a></h3>
+<ul>
+<li>六个 git worktree 并行：服务端 §14、App §14、服务端 §15、App §15、工程规范 §17、UI 设计稿；每路一份任务书（目标 + ≤5 条护栏 + 验收标准），互不碰对方文件（账号接口放独立模块 <code>account.py</code>，迁移 0011 先挂 0009、合并时重接链）。设计系统 §16 等 §14 合并后再派，因为它要拆 <code>ui.tsx</code>。</li>
+<li>坑：派发前必须确认 worktree 和 main 同一基线。本次有一路因未跟踪文件挡住快进，起手用了旧基线，一分钟内发现并重派。</li>
+</ul>
+<h3 id="10201045-逐路验收与合并">10:20–10:45 逐路验收与合并<a class="headerlink" href="#10201045-逐路验收与合并" title="Permanent link">¶</a></h3>
+<ul>
+<li>服务端 §14（Codex 约 24 分钟）：点数双字段（旧 <code>*_cny</code> 保留）、项目列表 <code>progress</code>、<code>mode: auto</code> 状态机（方向 → 脚本 → 出图 → 笔记 → 视频 → done，任一步失败转回 guided 并发主动消息，<code>POST /mode</code> 接手）、<code>GET /api/quotes/auto</code> 48 点、摄影脚本扩写进 <code>photo_prompt</code>。我用它的代码重建本地 Mock compose 栈后全量测试 503 项通过，Mock 端到端通过。</li>
+<li>服务端 §15（Codex 约 17 分钟）：三份法律文本与公开接口、注册同意字段、恢复码找回（hash 存储、失败限流）、改密作废旧 token（签发时间早于 <code>password_updated_at</code> 一律 401）、注销软删并释放用户名、清理项目与媒体。我复测时先踩了环境坑：集成测试要求 API 在 18080/18081，且 <code>PUBLIC_BASE_URL</code> 要指向同一实例，否则媒体链接打到另一套服务上 404；对齐后全过。</li>
+<li>App §14（Codex 约 19 分钟）：深色片场首页（灵感墙用我们自己线上跑出的成片）、「拍一组新片」双模式入口、风格词条换一批、点数口径、auto 进度条与「我来接手」、进行中区与 5 秒刷新。<code>npm run verify</code> 全过，假服务端到端第一次有 3 条失败，复跑全过——当时本机同时跑着五路 Codex 和两套测试栈，是超时而非功能问题。Codex 退出后还有一批未提交改动（新用例、截图、校验记录），由我复测后补提交。</li>
+<li>App §15（Codex 约 20 分钟）：隐私门控、协议页、注册勾选、恢复码整页展示与"我已保存"、忘记密码、账号与安全、注销二次确认。合并到 main 时和 §14 冲突 12 处（登录页、布局、用例、假服务），手工合：登录页保留深色片场样式并加入勾选、恢复码和注销提示；用例以新文案为准并加"我已保存"步骤。合并后 expo-router 的类型化路由文件过期导致 tsc 报错，刷新 <code>.expo/types/router.d.ts</code> 后通过。</li>
+<li>工程规范（Codex 约 25 分钟）：CONTRIBUTING、工程规范与 ADR 索引、<code>.editorconfig</code>、分侧 pre-commit 钩子、Makefile、ESLint / ruff 规则扩展（有违规的降为 warn 并登记为债务）、覆盖率报告（91%）、CI 加 Playwright 与 Docker 构建。</li>
+<li>UI 设计稿（Codex 约 30 分钟）：35 个手机画布的高保真设计板、40 张截图、页面地图与流程图、双主题视觉规范、组件规格表。</li>
+<li>迁移链：§14 的 0010 与 §15 的 0011 并行产生，合并时把 0011 的上游改为 0010，<code>alembic heads</code> 单一头。合并后的 main 服务端 529 项测试通过，已部署上线（迁移 0010、0011 自动执行，<code>/api/legal</code> 线上可读）。</li>
+</ul>
+<h3 id="10551110-合并后的线上回归两种模式各跑一遍">10:55–11:10 合并后的线上回归：两种模式各跑一遍<a class="headerlink" href="#10551110-合并后的线上回归两种模式各跑一遍" title="Permanent link">¶</a></h3>
+<ul>
+<li>沉浸编导（<code>e2e/live.spec.ts</code>，从注册开始）：10:55–11:03，13/13 通过，<code>app/screenshots-live/run-3/</code>。注册 34 s、分析 60 s、出图 86 s、局部改 94 s、视频 93 s，项目 57 点。第一次跑在引导页卡住，原因是线上用例还用旧按钮文案「开始创作」，与第九轮改的「进入片场」不一致，改用例后续跑通过。</li>
+<li>一键出片（<code>e2e/live-auto.spec.ts</code>，断点续跑）：11:03–11:09，注册 → 开拍 → 自动推进方向、脚本、出图、笔记、视频到 done，App 端观察到全部六步，48 点，<code>app/screenshots-live/auto/run-1-evidence.json</code>。第一次跑在注册步等接口响应超时（注册成功后页面已跳到恢复码页，响应早已返回），改为与编导用例一致的"点我已保存 → 看到首页 → 从 sessionStorage 取会话"后通过。</li>
+<li>两条线上用例若同时跑会互相清空 <code>test-results/live</code> 里的录屏，一键出片改为独立输出目录。</li>
+<li>预算：累计约 87 元 / 100 元（两次线上回归约 10.5 元）。</li>
+<li>真机：iPhone 已识别（开发者模式、信任均已开），<code>expo run:ios --device</code> 卡在"没有代码签名证书"，需要在 Xcode 里给 target 选一次 Personal Team；这步只能由账号持有人操作。</li>
+</ul>
+<h3 id="11151130-用真实商品图试一键出片顺手修两处出片口径">11:15–11:30 用真实商品图试一键出片，顺手修两处出片口径<a class="headerlink" href="#11151130-用真实商品图试一键出片顺手修两处出片口径" title="Permanent link">¶</a></h3>
+<ul>
+<li>用一件鹅黄色短款拉链连帽卫衣的正反两张商品图（裁掉平台横幅）走线上一键出片：6 分钟出 5 张成片 + 笔记 + 5 秒视频，56 点；胶片质感、操场看台场景、胸前刺绣基本保住，核对分 95–98。线上用例顺手加了 <code>LIVE_GARMENTS</code> / <code>LIVE_BRIEF</code>，以后拿任何衣服图都能走同一条链路。</li>
+<li>发现两处和小红书口径不符：出图比例跟着最后一张参考图走（衣服图是方的就出方图），改为固定 3:4 竖版（在服务器上先用一张图验证模型接受 <code>1536*2048</code>）；没设档案时默认模特是西方面孔，改为"东亚面孔、博主气质"。两处都是一行提示词 / 参数，已上线。</li>
+<li>用例坑：一键出片里"写笔记"几秒就完成，页面 5 秒一刷新，用例等不到该步的文案就被下一步替代，判成失败；改为"服务端已进入下一步就不强求页面出现这一步"。</li>
+<li>按 §1.1 分期进入素材库（§18）：把成片里的模特存为"我的模特"、衣服与成片集中管理、下次拍片直接复用。契约写完后派两路 Codex 并行（服务端 <code>assets_library.py</code> 独立模块、App 新文件为主，避免和同时进行的设计系统拆分打架）。</li>
+<li>预算：累计约 93 元 / 100 元。</li>
+</ul>
+<h3 id="1135-iphone-真机装上并打开">11:35 iPhone 真机装上并打开<a class="headerlink" href="#1135-iphone-真机装上并打开" title="Permanent link">¶</a></h3>
+<ul>
+<li>真机编译走的是 Xcode 命令行并带自动签名（<code>-allowProvisioningUpdates</code>），因为 Expo 的 <code>run:ios --device</code> 没带这个开关，个人 Apple ID 首次没有证书时会失败。</li>
+<li>个人开发团队不支持"推送通知"能力，而通知组件默认把它写进了 entitlements；App 只用本机通知，真机包去掉该能力后签名通过（仓库里的 entitlements 不改，这是打包时的处理）。</li>
+<li>手机端信任开发者后，App 打开到登录页，默认连接线上服务。</li>
+</ul></main></div></body></html>

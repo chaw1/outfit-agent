@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>贡献指南 · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">CONTRIBUTING.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#开发环境">开发环境</a></li>
+<li><a href="#分支和提交">分支和提交</a></li>
+<li><a href="#提交前检查">提交前检查</a></li>
+<li><a href="#评审清单">评审清单</a></li>
+<li><a href="#代码约定">代码约定</a></li>
+</ul>
+</div>
+</nav><main><h1 id="贡献指南">贡献指南<a class="headerlink" href="#贡献指南" title="Permanent link">¶</a></h1>
+<p>接口和行为以 <a href="设计.html">设计</a> 为准；目录、质量门禁、发布和决策索引见 <a href="工程规范.html">工程规范</a>。</p>
+<h2 id="开发环境">开发环境<a class="headerlink" href="#开发环境" title="Permanent link">¶</a></h2>
+<p>App 使用 Node 22.13 以上（<code>app/package.json</code>），服务端使用 Python 3.11–3.12 和 uv（<code>server/pyproject.toml</code>）。已有依赖可直接复用；新 checkout 分别执行 <code>cd app &amp;&amp; npm ci</code>、<code>cd server &amp;&amp; uv sync --frozen --dev</code>。本地服务默认 Mock，不需要模型密钥。</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #60A0B0; font-style: italic"># 从仓库根目录启用提交门禁；每个 checkout/worktree 检查自己的配置</span>
+git<span style="color: #BBB"> </span>config<span style="color: #BBB"> </span>core.hooksPath<span style="color: #BBB"> </span>.githooks
+</code></pre></div>
+
+<p>门禁根据暂存路径选择检查侧：<code>app/</code> 运行 ESLint 和 TypeScript，<code>server/</code> 运行 ruff；同时修改两侧则都检查。检查整侧，避免漏掉跨文件类型和导入错误；检查读取工作区，提交前仍须检查暂存差异。仅根目录或 <code>docs/</code> 下文档变更不启动应用检查，App/服务端目录里的文档仍触发所在侧。</p>
+<h2 id="分支和提交">分支和提交<a class="headerlink" href="#分支和提交" title="Permanent link">¶</a></h2>
+<p>从最新 <code>main</code> 建功能分支，每个分支只处理一个明确目标。并行 worktree 不改其他轮次负责的业务代码。提交作者固定为 <code>chaw1 &lt;97000945@qq.com&gt;</code>，提交说明使用一行中文标题，不加工具署名或联合署名。</p>
+<p>提交前先 <code>git status -s</code>，只精确暂存自己的文件，再检查 <code>git diff --cached</code>。不使用 <code>git add -A</code> 收入其他人的工作；不提交 <code>.env</code>、私钥、凭证、临时数据库、测试产物或依赖目录。调研、草稿和临时 SQL 默认留本地，正式文档与 Alembic 迁移除外。</p>
+<h2 id="提交前检查">提交前检查<a class="headerlink" href="#提交前检查" title="Permanent link">¶</a></h2>
+<p>根目录 <code>make check</code> 运行 App 完整校验和服务端 ruff/强制集成测试；<code>make e2e</code> 运行假服务浏览器流程和服务端 Mock HTTP 闭环。后者要求已启动本地 Mock API/Worker。<code>make dev</code> 使用 Compose 启动本项目 Mock 服务，App 可另开终端执行 <code>cd app &amp;&amp; npm run start</code>。已有栈占用端口时复用，勿重复启动。</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #007020">cd</span><span style="color: #BBB"> </span>app
+npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>verify
+<span style="color: #60A0B0; font-style: italic"># 另跑假服务浏览器闭环；浏览器预先安装在该目录</span>
+<span style="color: #BB60D5">PLAYWRIGHT_BROWSERS_PATH</span><span style="color: #666">=</span><span style="color: #4070A0">&quot;</span><span style="color: #BB60D5">$PWD</span><span style="color: #4070A0">/.tools/browsers&quot;</span><span style="color: #BBB"> </span>npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>test:e2e
+</code></pre></div>
+
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #007020">cd</span><span style="color: #BBB"> </span>server
+uv<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>ruff<span style="color: #BBB"> </span>check<span style="color: #BBB"> </span>.
+<span style="color: #BB60D5">REQUIRE_INTEGRATION</span><span style="color: #666">=</span><span style="color: #40A070">1</span><span style="color: #BBB"> </span>uv<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>pytest<span style="color: #BBB"> </span>-q<span style="color: #BBB"> </span>--cov<span style="color: #666">=</span>app<span style="color: #BBB"> </span>--cov-report<span style="color: #666">=</span>term-missing
+</code></pre></div>
+
+<p>服务端集成检查依赖本项目的本地 Mock API（<code>127.0.0.1:18080</code>）、Worker 和 PostgreSQL（<code>localhost:18432</code>）。没有栈时用 <code>cd server &amp;&amp; docker compose up -d --build</code>；不要在已占用这些端口的其他 worktree 上再起第二套。测试会校验本机地址及 Mock 状态，迁移测试只创建、删除自身随机命名的 <code>outfit_test_*</code> 数据库。详见 <a href="server-README.html">服务端说明</a>。</p>
+<h2 id="评审清单">评审清单<a class="headerlink" href="#评审清单" title="Permanent link">¶</a></h2>
+<ul>
+<li>契约：字段、错误码、SSE 卡片和旧客户端兼容符合 <code>docs/设计.md</code>；数据库变更配 Alembic 迁移，核对序列化与 App 类型。</li>
+<li>边界：API 负责鉴权和输入校验，阶段与付费放行仍由服务端代码决定，供应商调用复用 Provider，生成任务交给 Worker。</li>
+<li>体验：失败可解释、可恢复；请求有超时；写入不自动重放，创建超时先刷新核对再人工决定，付费任务保持稳定去重键；组件使用主题 token，不新增散落色值。</li>
+<li>安全：校验用户/项目/资产归属，保留限流、上传限制、媒体签名和日志脱敏；不提交或记录明文凭证、完整签名 URL。</li>
+<li>证据：运行受影响侧校验、相关单测及必要闭环，记录命令、结果、未验证范围；不要用 Mock 结果宣称真实模型效果或真机效果。</li>
+<li>发布：先检查迁移兼容与数据备份，再部署、验健康和关键流程；预留旧镜像及数据库恢复方案，见工程规范。</li>
+</ul>
+<h2 id="代码约定">代码约定<a class="headerlink" href="#代码约定" title="Permanent link">¶</a></h2>
+<p>TypeScript 开启 strict；组件/类型用 PascalCase、变量/函数用 camelCase，Hook 用 <code>use</code> 前缀；沿用当前单引号和分号风格。Python 模块/函数/变量用 snake_case、类用 CapWords、常量用 UPPER_SNAKE_CASE，按 ruff 导入规则组织。新增代码遵守门禁；历史例外和规则级别以工程规范中的债务清单为准。不要运行格式化工具重排整仓。</p>
+<p>业务错误沿用 App <code>ApiError</code> 和服务端 <code>AppError</code>；不要吞掉用户操作失败或向客户端透传堆栈。网络访问必须有超时；服务端事件使用 <code>structured_log</code>，异常使用 <code>log_exception</code> 脱敏，禁止打印 token、密码、模型密钥或媒体签名。</p></main></div></body></html>

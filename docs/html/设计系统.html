@@ -1,0 +1,1156 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计系统：衣序 DS · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/设计系统.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#设计原则">设计原则</a></li>
+<li><a href="#token-单一来源">Token 单一来源</a><ul>
+<li><a href="#命名与-figma-variables">命名与 Figma Variables</a></li>
+<li><a href="#token-表脚本生成">Token 表（脚本生成）</a></li>
+</ul>
+</li>
+<li><a href="#组件规格与清单">组件规格与清单</a><ul>
+<li><a href="#关键-props-与交互约束">关键 props 与交互约束</a></li>
+</ul>
+</li>
+<li><a href="#开发画廊与截图回归">开发画廊与截图回归</a><ul>
+<li><a href="#本地命令">本地命令</a></li>
+</ul>
+</li>
+<li><a href="#无障碍评审清单">无障碍评审清单</a></li>
+<li><a href="#与设计协作">与设计协作</a></li>
+<li><a href="#变更与评审流程">变更与评审流程</a></li>
+</ul>
+</div>
+</nav><main><h1 id="衣序-ds-设计系统">衣序 DS 设计系统<a class="headerlink" href="#衣序-ds-设计系统" title="Permanent link">¶</a></h1>
+<p>衣序 DS 把片场与编辑桌的视觉约定收敛到 token、组件规格和截图回归。范围以 <a href="设计.html#16-设计系统衣序-ds">设计契约第 16 节</a> 为准；业务页面通过原有 <code>components/ui.tsx</code> 引用组件，该文件保留为 <code>components/ds/</code> 的再导出层。</p>
+<h2 id="设计原则">设计原则<a class="headerlink" href="#设计原则" title="Permanent link">¶</a></h2>
+<ol>
+<li><strong>片场是暗的，编辑桌是亮的。</strong> <code>studio</code> 承载拍摄与创作氛围，<code>paper</code> 承载阅读、编辑与确认；同一组件共享结构，用语义色板表达环境。</li>
+<li><strong>一次只问一个问题。</strong> 用标题、主操作和留白建立顺序。组件提供层级，页面决定当前需要用户完成的动作。</li>
+<li><strong>花钱前先说清。</strong> 点数、生成范围和确认操作要放在同一决策区域；加载或禁用状态要表达请求正在处理，避免重复操作。</li>
+<li><strong>错误要能恢复。</strong> 错误说明与重试、返回或换一种方式的操作相邻；失败状态不能只靠红色表达，也不能覆盖用户已输入的内容。</li>
+</ol>
+<h2 id="token-单一来源">Token 单一来源<a class="headerlink" href="#token-单一来源" title="Permanent link">¶</a></h2>
+<p>源文件是 <a href="../../app/design/tokens.json"><code>app/design/tokens.json</code></a>，使用 DTCG 格式：每个 token 包含 <code>$type</code>、<code>$value</code> 和说明用途的 <code>$description</code>，复用值可写成 <code>{color.paper.red}</code> 这样的引用。颜色使用 sRGB 分量和透明度，尺寸和时长带单位；生成时转换成 React Native 使用的数值与字符串。</p>
+<p><a href="../../app/scripts/build-tokens.mjs"><code>app/scripts/build-tokens.mjs</code></a> 生成 <a href="../../app/src/theme.ts"><code>app/src/theme.ts</code></a>，<a href="../../app/scripts/build-token-docs.mjs"><code>app/scripts/build-token-docs.mjs</code></a> 从同一份 JSON 生成下方 token 表。<code>npm run tokens</code> 统一更新两个产物，<code>npm run tokens:check</code> 检查两者是否与来源一致。<code>theme.ts</code> 标有“由 tokens.json 生成，勿手改”，继续导出已有的 <code>colors</code>、<code>studio</code>、<code>space</code>、<code>radius</code>、<code>type</code>、<code>motion</code>、<code>layout</code>，保留页面的使用方式；两个生成产物均可重复构建，不接受手工修补。</p>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>负责的约定</th>
+<th>使用边界</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>color.paper</code> / <code>color.studio</code></td>
+<td>浅色编辑桌、深色片场的文字、背景、边界与状态色</td>
+<td>按语义取色，不在页面写颜色常量</td>
+</tr>
+<tr>
+<td><code>color.brand</code></td>
+<td>品牌级操作语义</td>
+<td>设计变量与代码名称一一对应，兼容已有运行时导出</td>
+</tr>
+<tr>
+<td><code>space</code></td>
+<td>内容间距、内外边距与触控扩展间距</td>
+<td><code>margin</code> / <code>padding</code> / <code>gap</code> / <code>hitSlop</code> 等从这里取值</td>
+</tr>
+<tr>
+<td><code>radius</code></td>
+<td>控件与容器圆角</td>
+<td>同层级表面复用同一档圆角</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>字号、行高、字重、字间距及平台字体</td>
+<td>组件从字体角色取值；画廊倍率同步作用于字号和行高</td>
+</tr>
+<tr>
+<td><code>motion</code></td>
+<td>交互与入场、骨架动画时长</td>
+<td>动效需要考虑系统“减少动态效果”设置</td>
+</tr>
+<tr>
+<td><code>layout</code></td>
+<td>最小触控尺寸、内容最大宽度、缩略图比例</td>
+<td>触控目标至少 44 × 44 逻辑尺寸</td>
+</tr>
+</tbody>
+</table>
+<h3 id="命名与-figma-variables">命名与 Figma Variables<a class="headerlink" href="#命名与-figma-variables" title="Permanent link">¶</a></h3>
+<p>token 的完整路径是代码侧标识，Figma 使用斜线分组。以下映射保持稳定，主题差异通过对应分组或 Variables mode 管理：</p>
+<table>
+<thead>
+<tr>
+<th>Token 路径</th>
+<th>Figma Variable</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>color.brand.primary</code></td>
+<td><code>Brand/Primary</code></td>
+</tr>
+<tr>
+<td><code>color.paper.ink</code></td>
+<td><code>Paper/Ink</code></td>
+</tr>
+<tr>
+<td><code>color.studio.ink</code></td>
+<td><code>Studio/Ink</code></td>
+</tr>
+<tr>
+<td><code>space.sm</code></td>
+<td><code>Space/Sm</code></td>
+</tr>
+<tr>
+<td><code>radius.md</code></td>
+<td><code>Radius/Md</code></td>
+</tr>
+<tr>
+<td><code>type.body.fontSize</code></td>
+<td><code>Type/Body/FontSize</code></td>
+</tr>
+<tr>
+<td><code>motion.normal</code></td>
+<td><code>Motion/Normal</code></td>
+</tr>
+<tr>
+<td><code>layout.touch</code></td>
+<td><code>Layout/Touch</code></td>
+</tr>
+</tbody>
+</table>
+<p>设计修改 Figma 变量后，导出符合上述分组的 JSON，保留类型、描述和引用。变量调整的 PR <strong>人工只修改 <code>tokens.json</code></strong>；运行生成脚本后，把生成的 <code>theme.ts</code>、本页 token 表和必要的快照更新一起提交。生成文件不接受手工修补。改名同时检查变量映射、别名引用与现有调用，避免两套名称长期并存。</p>
+<h3 id="token-表脚本生成">Token 表（脚本生成）<a class="headerlink" href="#token-表脚本生成" title="Permanent link">¶</a></h3>
+<p>下面的内容从 <code>tokens.json</code> 生成，值和说明以源文件为准；请勿手工维护表内单元格。</p>
+<!-- tokens:start -->
+
+<table>
+<thead>
+<tr>
+<th>Token 路径</th>
+<th>Figma Variable</th>
+<th>$type</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>color.paper.red</td>
+<td>Paper/Red</td>
+<td>color</td>
+<td>#FF2442</td>
+<td>浅色编辑桌：red</td>
+</tr>
+<tr>
+<td>color.paper.action</td>
+<td>Paper/Action</td>
+<td>color</td>
+<td>{color.brand.primary}</td>
+<td>浅色编辑桌主操作色；沿用 colors.action 接口</td>
+</tr>
+<tr>
+<td>color.paper.redText</td>
+<td>Paper/RedText</td>
+<td>color</td>
+<td>#C51D39</td>
+<td>浅色编辑桌：redText</td>
+</tr>
+<tr>
+<td>color.paper.ink</td>
+<td>Paper/Ink</td>
+<td>color</td>
+<td>#252522</td>
+<td>浅色编辑桌：ink</td>
+</tr>
+<tr>
+<td>color.paper.muted</td>
+<td>Paper/Muted</td>
+<td>color</td>
+<td>#6D6963</td>
+<td>浅色编辑桌：muted</td>
+</tr>
+<tr>
+<td>color.paper.border</td>
+<td>Paper/Border</td>
+<td>color</td>
+<td>#E9E5DE</td>
+<td>浅色编辑桌：border</td>
+</tr>
+<tr>
+<td>color.paper.paper</td>
+<td>Paper/Paper</td>
+<td>color</td>
+<td>#FCFAF7</td>
+<td>浅色编辑桌：paper</td>
+</tr>
+<tr>
+<td>color.paper.surface</td>
+<td>Paper/Surface</td>
+<td>color</td>
+<td>#FFFFFF</td>
+<td>浅色编辑桌：surface</td>
+</tr>
+<tr>
+<td>color.paper.white</td>
+<td>Paper/White</td>
+<td>color</td>
+<td>#FFFFFF</td>
+<td>浅色编辑桌：white</td>
+</tr>
+<tr>
+<td>color.paper.blush</td>
+<td>Paper/Blush</td>
+<td>color</td>
+<td>#FFF0F2</td>
+<td>浅色编辑桌：blush</td>
+</tr>
+<tr>
+<td>color.paper.green</td>
+<td>Paper/Green</td>
+<td>color</td>
+<td>#32684E</td>
+<td>浅色编辑桌：green</td>
+</tr>
+<tr>
+<td>color.paper.successSoft</td>
+<td>Paper/SuccessSoft</td>
+<td>color</td>
+<td>#EDF5EF</td>
+<td>浅色编辑桌：successSoft</td>
+</tr>
+<tr>
+<td>color.paper.danger</td>
+<td>Paper/Danger</td>
+<td>color</td>
+<td>#B42338</td>
+<td>浅色编辑桌：danger</td>
+</tr>
+<tr>
+<td>color.paper.imagePlaceholder</td>
+<td>Paper/ImagePlaceholder</td>
+<td>color</td>
+<td>#EEE9E1</td>
+<td>浅色编辑桌：imagePlaceholder</td>
+</tr>
+<tr>
+<td>color.paper.overlay</td>
+<td>Paper/Overlay</td>
+<td>color</td>
+<td>rgba(24,22,20,0.48)</td>
+<td>浅色编辑桌：overlay</td>
+</tr>
+<tr>
+<td>color.paper.heroOverlay</td>
+<td>Paper/HeroOverlay</td>
+<td>color</td>
+<td>rgba(20,18,16,0.6)</td>
+<td>浅色编辑桌：heroOverlay</td>
+</tr>
+<tr>
+<td>color.paper.glass</td>
+<td>Paper/Glass</td>
+<td>color</td>
+<td>rgba(255,255,255,0.94)</td>
+<td>浅色编辑桌：glass</td>
+</tr>
+<tr>
+<td>color.paper.viewerBg</td>
+<td>Paper/ViewerBg</td>
+<td>color</td>
+<td>#111215</td>
+<td>浅色编辑桌：viewerBg</td>
+</tr>
+<tr>
+<td>color.paper.viewerCanvas</td>
+<td>Paper/ViewerCanvas</td>
+<td>color</td>
+<td>#17191D</td>
+<td>浅色编辑桌：viewerCanvas</td>
+</tr>
+<tr>
+<td>color.paper.viewerSurface</td>
+<td>Paper/ViewerSurface</td>
+<td>color</td>
+<td>#24262C</td>
+<td>浅色编辑桌：viewerSurface</td>
+</tr>
+<tr>
+<td>color.paper.viewerMuted</td>
+<td>Paper/ViewerMuted</td>
+<td>color</td>
+<td>#BBBFC8</td>
+<td>浅色编辑桌：viewerMuted</td>
+</tr>
+<tr>
+<td>color.paper.viewerLine</td>
+<td>Paper/ViewerLine</td>
+<td>color</td>
+<td>#3D4048</td>
+<td>浅色编辑桌：viewerLine</td>
+</tr>
+<tr>
+<td>color.paper.viewerSelected</td>
+<td>Paper/ViewerSelected</td>
+<td>color</td>
+<td>#4B2630</td>
+<td>浅色编辑桌：viewerSelected</td>
+</tr>
+<tr>
+<td>color.paper.mask</td>
+<td>Paper/Mask</td>
+<td>color</td>
+<td>#FF244255</td>
+<td>浅色编辑桌：mask</td>
+</tr>
+<tr>
+<td>color.paper.warning</td>
+<td>Paper/Warning</td>
+<td>color</td>
+<td>#8A5A00</td>
+<td>浅色编辑桌上的警告文字</td>
+</tr>
+<tr>
+<td>color.paper.warningSoft</td>
+<td>Paper/WarningSoft</td>
+<td>color</td>
+<td>#FFF4D6</td>
+<td>浅色编辑桌上的警告底色</td>
+</tr>
+<tr>
+<td>color.studio.bg</td>
+<td>Studio/Bg</td>
+<td>color</td>
+<td>{color.paper.viewerBg}</td>
+<td>深色片场：bg</td>
+</tr>
+<tr>
+<td>color.studio.canvas</td>
+<td>Studio/Canvas</td>
+<td>color</td>
+<td>{color.paper.viewerCanvas}</td>
+<td>深色片场：canvas</td>
+</tr>
+<tr>
+<td>color.studio.surface</td>
+<td>Studio/Surface</td>
+<td>color</td>
+<td>{color.paper.viewerSurface}</td>
+<td>深色片场：surface</td>
+</tr>
+<tr>
+<td>color.studio.glass</td>
+<td>Studio/Glass</td>
+<td>color</td>
+<td>rgba(255,255,255,0.045)</td>
+<td>深色片场：glass</td>
+</tr>
+<tr>
+<td>color.studio.line</td>
+<td>Studio/Line</td>
+<td>color</td>
+<td>#35373D</td>
+<td>深色片场：line</td>
+</tr>
+<tr>
+<td>color.studio.ink</td>
+<td>Studio/Ink</td>
+<td>color</td>
+<td>#F7F3EA</td>
+<td>深色片场：ink</td>
+</tr>
+<tr>
+<td>color.studio.muted</td>
+<td>Studio/Muted</td>
+<td>color</td>
+<td>#B8B6B1</td>
+<td>深色片场：muted</td>
+</tr>
+<tr>
+<td>color.studio.subtle</td>
+<td>Studio/Subtle</td>
+<td>color</td>
+<td>#777B83</td>
+<td>深色片场：subtle</td>
+</tr>
+<tr>
+<td>color.studio.accent</td>
+<td>Studio/Accent</td>
+<td>color</td>
+<td>{color.paper.red}</td>
+<td>深色片场：accent</td>
+</tr>
+<tr>
+<td>color.studio.softAccent</td>
+<td>Studio/SoftAccent</td>
+<td>color</td>
+<td>#39232A</td>
+<td>深色片场：softAccent</td>
+</tr>
+<tr>
+<td>color.studio.redText</td>
+<td>Studio/RedText</td>
+<td>color</td>
+<td>#FF7084</td>
+<td>深色片场上的品牌文字与聚焦轮廓</td>
+</tr>
+<tr>
+<td>color.studio.danger</td>
+<td>Studio/Danger</td>
+<td>color</td>
+<td>#FF8B9B</td>
+<td>深色片场上的错误提示文字</td>
+</tr>
+<tr>
+<td>color.studio.green</td>
+<td>Studio/Green</td>
+<td>color</td>
+<td>#9DCDB1</td>
+<td>深色片场上的成功提示文字</td>
+</tr>
+<tr>
+<td>color.studio.successSoft</td>
+<td>Studio/SuccessSoft</td>
+<td>color</td>
+<td>#1D3428</td>
+<td>深色片场上的成功反馈底色</td>
+</tr>
+<tr>
+<td>color.studio.warning</td>
+<td>Studio/Warning</td>
+<td>color</td>
+<td>#F2CB7C</td>
+<td>深色片场上的警告文字</td>
+</tr>
+<tr>
+<td>color.studio.warningSoft</td>
+<td>Studio/WarningSoft</td>
+<td>color</td>
+<td>#3A2F1B</td>
+<td>深色片场上的警告底色</td>
+</tr>
+<tr>
+<td>color.studio.generating</td>
+<td>Studio/Generating</td>
+<td>color</td>
+<td>#FF899A</td>
+<td>片场项目卡的生成中进度文字；沿用现有强调色</td>
+</tr>
+<tr>
+<td>color.studio.modalOverlay</td>
+<td>Studio/ModalOverlay</td>
+<td>color</td>
+<td>rgba(0,0,0,0.72)</td>
+<td>片场首页弹窗遮罩，保持原有透明度</td>
+</tr>
+<tr>
+<td>color.studio.helpOverlay</td>
+<td>Studio/HelpOverlay</td>
+<td>color</td>
+<td>rgba(0,0,0,0.7)</td>
+<td>新建合作说明弹窗遮罩，保持原有透明度</td>
+</tr>
+<tr>
+<td>color.brand.primary</td>
+<td>Brand/Primary</td>
+<td>color</td>
+<td>#D91B38</td>
+<td>主要操作色，对应 Figma Brand/Primary</td>
+</tr>
+<tr>
+<td>space.xs</td>
+<td>Space/Xs</td>
+<td>dimension</td>
+<td>4px</td>
+<td>间距：xs</td>
+</tr>
+<tr>
+<td>space.sm</td>
+<td>Space/Sm</td>
+<td>dimension</td>
+<td>8px</td>
+<td>间距：sm</td>
+</tr>
+<tr>
+<td>space.md</td>
+<td>Space/Md</td>
+<td>dimension</td>
+<td>12px</td>
+<td>间距：md</td>
+</tr>
+<tr>
+<td>space.lg</td>
+<td>Space/Lg</td>
+<td>dimension</td>
+<td>16px</td>
+<td>间距：lg</td>
+</tr>
+<tr>
+<td>space.xl</td>
+<td>Space/Xl</td>
+<td>dimension</td>
+<td>24px</td>
+<td>间距：xl</td>
+</tr>
+<tr>
+<td>space.xxl</td>
+<td>Space/Xxl</td>
+<td>dimension</td>
+<td>32px</td>
+<td>间距：xxl</td>
+</tr>
+<tr>
+<td>space.none</td>
+<td>Space/None</td>
+<td>dimension</td>
+<td>0px</td>
+<td>紧邻布局不额外添加间距</td>
+</tr>
+<tr>
+<td>space.inset20</td>
+<td>Space/Inset20</td>
+<td>dimension</td>
+<td>20px</td>
+<td>图片查看器锁定提示的左右内边距</td>
+</tr>
+<tr>
+<td>space.offset10</td>
+<td>Space/Offset10</td>
+<td>dimension</td>
+<td>10px</td>
+<td>图片查看器滑块居中所需的半宽偏移，负方向取反</td>
+</tr>
+<tr>
+<td>radius.sm</td>
+<td>Radius/Sm</td>
+<td>dimension</td>
+<td>12px</td>
+<td>圆角：sm</td>
+</tr>
+<tr>
+<td>radius.md</td>
+<td>Radius/Md</td>
+<td>dimension</td>
+<td>16px</td>
+<td>圆角：md</td>
+</tr>
+<tr>
+<td>radius.lg</td>
+<td>Radius/Lg</td>
+<td>dimension</td>
+<td>20px</td>
+<td>圆角：lg</td>
+</tr>
+<tr>
+<td>motion.fast</td>
+<td>Motion/Fast</td>
+<td>duration</td>
+<td>160ms</td>
+<td>动效时长：fast</td>
+</tr>
+<tr>
+<td>motion.normal</td>
+<td>Motion/Normal</td>
+<td>duration</td>
+<td>240ms</td>
+<td>动效时长：normal</td>
+</tr>
+<tr>
+<td>motion.slow</td>
+<td>Motion/Slow</td>
+<td>duration</td>
+<td>360ms</td>
+<td>动效时长：slow</td>
+</tr>
+<tr>
+<td>motion.pulse</td>
+<td>Motion/Pulse</td>
+<td>duration</td>
+<td>1200ms</td>
+<td>动效时长：pulse</td>
+</tr>
+<tr>
+<td>type.display.fontFamily</td>
+<td>Type/Display/FontFamily</td>
+<td>fontFamily</td>
+<td>Songti SC（仅 iOS；其他平台使用系统字体）</td>
+<td>iOS 展示字体；其他平台使用系统字体</td>
+</tr>
+<tr>
+<td>type.display.fontSize</td>
+<td>Type/Display/FontSize</td>
+<td>dimension</td>
+<td>34px</td>
+<td>display 的 fontSize</td>
+</tr>
+<tr>
+<td>type.display.lineHeight</td>
+<td>Type/Display/LineHeight</td>
+<td>dimension</td>
+<td>46px</td>
+<td>display 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.display.fontWeight</td>
+<td>Type/Display/FontWeight</td>
+<td>fontWeight</td>
+<td>300</td>
+<td>display 的 fontWeight</td>
+</tr>
+<tr>
+<td>type.display.letterSpacing</td>
+<td>Type/Display/LetterSpacing</td>
+<td>dimension</td>
+<td>2px</td>
+<td>display 的 letterSpacing</td>
+</tr>
+<tr>
+<td>type.brand.fontSize</td>
+<td>Type/Brand/FontSize</td>
+<td>dimension</td>
+<td>36px</td>
+<td>brand 的 fontSize</td>
+</tr>
+<tr>
+<td>type.brand.lineHeight</td>
+<td>Type/Brand/LineHeight</td>
+<td>dimension</td>
+<td>44px</td>
+<td>brand 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.brand.fontWeight</td>
+<td>Type/Brand/FontWeight</td>
+<td>fontWeight</td>
+<td>800</td>
+<td>brand 的 fontWeight</td>
+</tr>
+<tr>
+<td>type.brand.letterSpacing</td>
+<td>Type/Brand/LetterSpacing</td>
+<td>dimension</td>
+<td>2px</td>
+<td>brand 的 letterSpacing</td>
+</tr>
+<tr>
+<td>type.reading.fontSize</td>
+<td>Type/Reading/FontSize</td>
+<td>dimension</td>
+<td>15px</td>
+<td>reading 的 fontSize</td>
+</tr>
+<tr>
+<td>type.reading.lineHeight</td>
+<td>Type/Reading/LineHeight</td>
+<td>dimension</td>
+<td>28px</td>
+<td>reading 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.title.fontSize</td>
+<td>Type/Title/FontSize</td>
+<td>dimension</td>
+<td>28px</td>
+<td>title 的 fontSize</td>
+</tr>
+<tr>
+<td>type.title.lineHeight</td>
+<td>Type/Title/LineHeight</td>
+<td>dimension</td>
+<td>36px</td>
+<td>title 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.title.fontWeight</td>
+<td>Type/Title/FontWeight</td>
+<td>fontWeight</td>
+<td>700</td>
+<td>title 的 fontWeight</td>
+</tr>
+<tr>
+<td>type.title.letterSpacing</td>
+<td>Type/Title/LetterSpacing</td>
+<td>dimension</td>
+<td>-0.6px</td>
+<td>title 的 letterSpacing</td>
+</tr>
+<tr>
+<td>type.heading.fontSize</td>
+<td>Type/Heading/FontSize</td>
+<td>dimension</td>
+<td>20px</td>
+<td>heading 的 fontSize</td>
+</tr>
+<tr>
+<td>type.heading.lineHeight</td>
+<td>Type/Heading/LineHeight</td>
+<td>dimension</td>
+<td>28px</td>
+<td>heading 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.heading.fontWeight</td>
+<td>Type/Heading/FontWeight</td>
+<td>fontWeight</td>
+<td>700</td>
+<td>heading 的 fontWeight</td>
+</tr>
+<tr>
+<td>type.subtitle.fontSize</td>
+<td>Type/Subtitle/FontSize</td>
+<td>dimension</td>
+<td>16px</td>
+<td>subtitle 的 fontSize</td>
+</tr>
+<tr>
+<td>type.subtitle.lineHeight</td>
+<td>Type/Subtitle/LineHeight</td>
+<td>dimension</td>
+<td>24px</td>
+<td>subtitle 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.subtitle.fontWeight</td>
+<td>Type/Subtitle/FontWeight</td>
+<td>fontWeight</td>
+<td>600</td>
+<td>subtitle 的 fontWeight</td>
+</tr>
+<tr>
+<td>type.body.fontSize</td>
+<td>Type/Body/FontSize</td>
+<td>dimension</td>
+<td>15px</td>
+<td>body 的 fontSize</td>
+</tr>
+<tr>
+<td>type.body.lineHeight</td>
+<td>Type/Body/LineHeight</td>
+<td>dimension</td>
+<td>24px</td>
+<td>body 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.label.fontSize</td>
+<td>Type/Label/FontSize</td>
+<td>dimension</td>
+<td>13px</td>
+<td>label 的 fontSize</td>
+</tr>
+<tr>
+<td>type.label.lineHeight</td>
+<td>Type/Label/LineHeight</td>
+<td>dimension</td>
+<td>20px</td>
+<td>label 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.label.fontWeight</td>
+<td>Type/Label/FontWeight</td>
+<td>fontWeight</td>
+<td>600</td>
+<td>label 的 fontWeight</td>
+</tr>
+<tr>
+<td>type.caption.fontSize</td>
+<td>Type/Caption/FontSize</td>
+<td>dimension</td>
+<td>12px</td>
+<td>caption 的 fontSize</td>
+</tr>
+<tr>
+<td>type.caption.lineHeight</td>
+<td>Type/Caption/LineHeight</td>
+<td>dimension</td>
+<td>18px</td>
+<td>caption 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.badge.fontSize</td>
+<td>Type/Badge/FontSize</td>
+<td>dimension</td>
+<td>11px</td>
+<td>badge 的 fontSize</td>
+</tr>
+<tr>
+<td>type.badge.lineHeight</td>
+<td>Type/Badge/LineHeight</td>
+<td>dimension</td>
+<td>16px</td>
+<td>badge 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.badge.fontWeight</td>
+<td>Type/Badge/FontWeight</td>
+<td>fontWeight</td>
+<td>600</td>
+<td>badge 的 fontWeight</td>
+</tr>
+<tr>
+<td>type.button.fontSize</td>
+<td>Type/Button/FontSize</td>
+<td>dimension</td>
+<td>15px</td>
+<td>button 的 fontSize</td>
+</tr>
+<tr>
+<td>type.button.lineHeight</td>
+<td>Type/Button/LineHeight</td>
+<td>dimension</td>
+<td>22px</td>
+<td>button 的 lineHeight</td>
+</tr>
+<tr>
+<td>type.button.fontWeight</td>
+<td>Type/Button/FontWeight</td>
+<td>fontWeight</td>
+<td>700</td>
+<td>button 的 fontWeight</td>
+</tr>
+<tr>
+<td>layout.touch</td>
+<td>Layout/Touch</td>
+<td>dimension</td>
+<td>44px</td>
+<td>最小触控尺寸</td>
+</tr>
+<tr>
+<td>layout.thumbnailRatio</td>
+<td>Layout/ThumbnailRatio</td>
+<td>number</td>
+<td>0.75</td>
+<td>缩略图宽高比 3:4</td>
+</tr>
+<tr>
+<td>layout.maxWidth</td>
+<td>Layout/MaxWidth</td>
+<td>dimension</td>
+<td>520px</td>
+<td>页面最大宽度</td>
+</tr>
+</tbody>
+</table>
+<!-- tokens:end -->
+
+<h2 id="组件规格与清单">组件规格与清单<a class="headerlink" href="#组件规格与清单" title="Permanent link">¶</a></h2>
+<p>组件位于 <a href="../../app/src/components/ds"><code>app/src/components/ds/</code></a>，每个组件一个文件，<code>index.ts</code> 统一导出。共有 20 个公开组件：原 <code>ui.tsx</code> 的 15 个组件，加 <code>ThemeProvider</code>、<code>Card</code>、<code>Chip</code>、<code>Segmented</code>、<code>Sheet</code>；样式、工具与导出文件不计入组件数。公开 props 通过 TypeScript 接口和 JSDoc 描述；业务页面沿用 <code>components/ui.tsx</code> 的导入路径。页面文案、操作顺序与数据行为不属于这次拆分的变更范围。</p>
+<p>表中的截图链接指向同一主题的完整画廊，包含对应组件分组。四份评审图为 <a href="../../app/screenshots/ds/paper-320.png">paper / 320</a>、<a href="../../app/screenshots/ds/paper-390.png">paper / 390</a>、<a href="../../app/screenshots/ds/studio-320.png">studio / 320</a>、<a href="../../app/screenshots/ds/studio-390.png">studio / 390</a>。</p>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>用途</th>
+<th>变体</th>
+<th>状态与约束</th>
+<th>截图</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ThemeProvider</code></td>
+<td>向子树提供主题与字体倍率</td>
+<td><code>paper</code> / <code>studio</code>；<code>fontScale</code></td>
+<td>默认 <code>paper</code> / <code>1</code>；嵌套时继承未指定的值</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Page</code></td>
+<td>安全区、状态栏与可选滚动容器</td>
+<td><code>tone</code>；<code>scroll</code></td>
+<td><code>children</code> 必填；默认 <code>tone="paper"</code>，滚动内容可通过 <code>contentStyle</code> 补充布局</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Header</code></td>
+<td>标题、副标题和返回操作</td>
+<td>有 / 无返回；可选右侧内容</td>
+<td><code>title</code> 必填；<code>onBack</code> 存在时显示带“返回”名称的图标按钮</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Button</code></td>
+<td>主操作与辅助操作</td>
+<td><code>primary</code> / <code>secondary</code> / <code>ghost</code> / <code>danger</code></td>
+<td>每种变体覆盖 <code>default</code> / <code>pressed</code> / <code>disabled</code> / <code>loading</code></td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>IconButton</code></td>
+<td>只有图标的紧凑操作</td>
+<td>图标名称</td>
+<td>默认 / 按下；<code>label</code> 必填；44 × 44 触控目标</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Field</code></td>
+<td>带可见标签的文本输入</td>
+<td>继承原生 <code>TextInputProps</code>，支持多行</td>
+<td><code>default</code> / <code>focused</code> / <code>error</code> / <code>disabled</code>；<code>label</code> 必填</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Card</code></td>
+<td>信息与内容的表面容器</td>
+<td><code>surface</code> / <code>inset</code></td>
+<td><code>children</code> 必填；容器本身不承担点击行为</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Chip</code></td>
+<td>可选择的风格词条</td>
+<td>未选 / 已选</td>
+<td>默认 / 按下 / 禁用；<code>label</code> 与 <code>onPress</code> 必填</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Segmented</code></td>
+<td>一组互斥模式或选项</td>
+<td>由 <code>options</code> 定义</td>
+<td>选中 / 未选 / 按下 / 单项禁用；必填分组名称与选项名称</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Sheet</code></td>
+<td>可关闭的底部弹层</td>
+<td>模态展示；画廊 <code>inline</code> 展示</td>
+<td>隐藏 / 打开；<code>label</code>、<code>visible</code>、<code>onClose</code>、<code>children</code> 必填</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Badge</code></td>
+<td>简短状态与语义提示</td>
+<td><code>brand</code> / <code>success</code> / <code>neutral</code> / <code>warning</code></td>
+<td>兼容已有 <code>danger</code> / <code>inverse</code>；<code>label</code> 必填，非交互元素</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Notice</code></td>
+<td>错误或需要注意的消息</td>
+<td>有 / 无重试</td>
+<td><code>text</code> 必填；提供 <code>onRetry</code> 时显示重试按钮</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Toast</code></td>
+<td>短暂的结果反馈</td>
+<td><code>success</code> / <code>danger</code> / <code>info</code></td>
+<td>展示 / 自动消失；<code>text</code> 必填，支持 <code>onDismiss</code> / <code>duration</code></td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>StatePanel</code></td>
+<td>空内容、出错与离线恢复</td>
+<td><code>empty</code> / <code>error</code> / <code>offline</code></td>
+<td><code>icon</code>、<code>title</code>、<code>description</code> 必填；恢复操作需同时提供 <code>actionLabel</code> / <code>onAction</code></td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Skeleton</code></td>
+<td>单块加载占位</td>
+<td><code>width</code> / <code>height</code> / <code>style</code></td>
+<td>加载脉冲；装饰占位不逐块朗读</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>LoadingSkeleton</code></td>
+<td>页面内容加载结构</td>
+<td><code>list</code> / <code>workspace</code> / <code>note</code></td>
+<td>统一声明“正在加载内容”</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>ProgressStrip</code></td>
+<td>无确定百分比的生成进度</td>
+<td>标题；可选 <code>detail</code></td>
+<td><code>title</code> 必填，兼作进度条无障碍名称</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>Loading</code></td>
+<td>通用加载提示包装</td>
+<td>可覆盖 <code>text</code></td>
+<td>复用 <code>ProgressStrip</code></td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>AnimatedEntry</code></td>
+<td>内容入场</td>
+<td>可选 <code>delay</code> / <code>style</code></td>
+<td>系统减少动态效果时跳过入场动画</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+<tr>
+<td><code>FadeImage</code></td>
+<td>图片加载后的淡入</td>
+<td>继承原生 <code>ImageProps</code></td>
+<td>加载前 / 加载后；保留 <code>onLoad</code> 和样式覆盖顺序</td>
+<td><a href="../../app/screenshots/ds/paper-390.png">paper</a> / <a href="../../app/screenshots/ds/studio-390.png">studio</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="关键-props-与交互约束">关键 props 与交互约束<a class="headerlink" href="#关键-props-与交互约束" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>Button({ title, onPress, variant?, disabled?, loading?, icon? })</code>：<code>title</code> 是可见文案，也是无障碍名称。加载时显示指示器，并与禁用态一起阻止重复触发；宽度至少 44，高度至少 52。<code>previewPressed</code> 仅用于固定展示按下态，普通页面通过实际按压触发反馈。</li>
+<li><code>IconButton({ name, label, onPress })</code>：三个 props 都必填。<code>label</code> 描述动作，例如“关闭预览”，不能只写图标名称。<code>hitSlop</code> 补充触控容错，控件自身仍保持 44 × 44。</li>
+<li><code>Field({ label, error?, disabled?, inputRef?, ...textInputProps })</code>：<code>label</code> 必填，不能用 placeholder 代替标签。<code>error</code> 显示可见说明，并设置原生 <code>accessibilityHint</code>；Web 当前未建立 <code>aria-describedby</code> / <code>aria-invalid</code> 字段关联，仍需单独评审读屏表现。<code>disabled</code> 禁止编辑并显示半透明外观，在 Web 提供禁用语义；旧页面的 <code>editable={false}</code> 刻意保留 Web <code>readonly</code> 行为，不增加半透明样式，两者不能视为完全同义。普通聚焦沿用平台表现，<code>previewFocused</code> 用于画廊固定展示聚焦外观。</li>
+<li><code>Chip({ label, onPress, selected?, disabled? })</code>：以 checkbox 语义公布选中和禁用状态。<code>Segmented&lt;T&gt;({ label, options, value, onChange })</code>：分组名称必填，每个选项必须有稳定 <code>value</code> 和可读 <code>label</code>，以 tablist / tab 公布当前选项；每个触控选项至少 44 × 44。</li>
+<li><code>Sheet({ label, visible, onClose, children, inline? })</code>：标题、关闭动作、遮罩关闭和系统返回共用明确的退出路径。<code>inline</code> 只把同一份表面放到画廊中，便于截图；业务弹层使用模态形态。</li>
+<li><code>Toast({ text, tone?, onDismiss?, duration? })</code>：默认 <code>duration={6000}</code>，保持业务临时反馈的消失时机。<code>duration={0}</code> 仅用于画廊持续展示三种语气，避免长截图中示例提前消失；普通提示以 <code>status</code> 角色提供结果反馈，危险提示使用 <code>alert</code>。</li>
+<li><code>ThemeProvider({ tone?, fontScale?, children })</code>：<code>usePalette()</code> 读取语义色板，<code>useTypography()</code> 读取字体角色。画廊的 <code>1.0</code> / <code>1.3</code> 同时缩放字号和行高，用于检查布局；它不替代 iOS / Android 系统动态字体与读屏验证。<code>Page</code> 为兼容既有页面默认使用 <code>tone="paper"</code>，会覆盖外层的主题；在 <code>studio</code> 提供器内嵌套 <code>Page</code> 时仍需显式传入 <code>tone="studio"</code>。</li>
+</ul>
+<p>布局容器没有操作时不强加按钮角色。可交互元素需要可读名称，由上述必填 <code>title</code> / <code>label</code> 类型约束支持；图片是否需要描述由内容语义决定，信息图片提供 <code>accessibilityLabel</code>，纯装饰图片不抢占朗读顺序。</p>
+<h2 id="开发画廊与截图回归">开发画廊与截图回归<a class="headerlink" href="#开发画廊与截图回归" title="Permanent link">¶</a></h2>
+<p>画廊通过开发 URL <code>/__design</code> 打开，App 内没有入口。顶部可切 <code>paper</code> / <code>studio</code>、宽度 <code>320</code> / <code>390</code>、字号倍率 <code>1.0</code> / <code>1.3</code>；20 个公开组件按用途合并成 13 个示例分组，展示变体与状态，主题提供器由顶部预览设置体现。</p>
+<p>开发态使用 <code>__DEV__</code> 门控。正式构建还在编译 Expo Router 的 <code>_ctx</code> 模块时，从 <code>require.context</code> 的文件过滤表达式排除根 <code>__design</code> 页面、平台变体和 <code>__design/</code> 子目录；生产包不依赖“打开页面后再返回空内容”隐藏画廊。原有路由正则、平台过滤与特殊 HTML / API 文件过滤保持原有语义，业务路由不增加画廊入口。正式 Web 模式直接访问 <code>/__design</code> 的预期结果是 Expo Router 的 <code>Unmatched Route</code> 页面，不是跳转到登录页。</p>
+<p><a href="../../app/e2e/design-system.spec.ts"><code>app/e2e/design-system.spec.ts</code></a> 的四个组合是 <code>paper</code> / <code>studio</code> × <code>320</code> / <code>390</code>。基线 PNG 位于 <a href="../../app/e2e/__snapshots__"><code>app/e2e/__snapshots__/</code></a> 下，文件名固定为 <code>paper-320.png</code>、<code>paper-390.png</code>、<code>studio-320.png</code>、<code>studio-390.png</code>，不带平台后缀，必须随变更提交。面向评审与文档的截图另存到 <a href="../../app/screenshots/ds"><code>app/screenshots/ds/</code></a> 的 <code>paper-320.png</code>、<code>paper-390.png</code>、<code>studio-320.png</code>、<code>studio-390.png</code>。字号 <code>1.3</code> 用于额外检查换行、裁切和触控区域，不应以更新四份基线替代检查。</p>
+<p>四份像素基线在 macOS 本机浏览器生成，使用系统字体。测试仅在 macOS 执行像素比对和更新；Ubuntu CI 仍运行四组合的结构、ARIA 状态、页面错误与无 API 请求检查，生成实际截图并附到 Playwright 报告，也运行 1.3 字号、44 触控、Sheet 和正式路由检查。Linux 的字体和浏览器环境不同，当前没有 Linux 像素基线；增加该覆盖时需在固定的 Linux 字体与浏览器环境单独生成、评审基线。CI 的 App 检查已显式加入 <code>npm run tokens:check</code>，同时校验主题和文档表。</p>
+<h3 id="本地命令">本地命令<a class="headerlink" href="#本地命令" title="Permanent link">¶</a></h3>
+<p>以下命令均在仓库的 <code>app/</code> 目录、Node 22 环境执行。依赖和浏览器已经就位，不需要重新安装。端口与 API 地址全部指向本地，命令不接线上服务。</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #007020">cd</span><span style="color: #BBB"> </span>app
+<span style="color: #007020">export</span><span style="color: #BBB"> </span><span style="color: #BB60D5">PATH</span><span style="color: #666">=</span><span style="color: #4070A0">&quot;</span><span style="color: #BB60D5">$HOME</span><span style="color: #4070A0">/.local/share/mise/installs/node/22.23.1/bin:</span><span style="color: #BB60D5">$PATH</span><span style="color: #4070A0">&quot;</span>
+<span style="color: #007020">export</span><span style="color: #BBB"> </span><span style="color: #BB60D5">PLAYWRIGHT_BROWSERS_PATH</span><span style="color: #666">=</span><span style="color: #4070A0">&quot;</span><span style="color: #BB60D5">$PWD</span><span style="color: #4070A0">/.tools/browsers&quot;</span>
+<span style="color: #007020">export</span><span style="color: #BBB"> </span><span style="color: #BB60D5">E2E_WEB_PORT</span><span style="color: #666">=</span><span style="color: #4070A0">&quot;</span><span style="color: #70A0D0; font-style: italic">${</span><span style="color: #BB60D5">E2E_WEB_PORT</span><span style="color: #007020; font-weight: bold">:-</span><span style="color: #BB60D5">19420</span><span style="color: #70A0D0; font-style: italic">}</span><span style="color: #4070A0">&quot;</span>
+<span style="color: #007020">export</span><span style="color: #BBB"> </span><span style="color: #BB60D5">E2E_MOCK_PORT</span><span style="color: #666">=</span><span style="color: #4070A0">&quot;</span><span style="color: #70A0D0; font-style: italic">${</span><span style="color: #BB60D5">E2E_MOCK_PORT</span><span style="color: #007020; font-weight: bold">:-</span><span style="color: #BB60D5">19421</span><span style="color: #70A0D0; font-style: italic">}</span><span style="color: #4070A0">&quot;</span>
+<span style="color: #007020">export</span><span style="color: #BBB"> </span><span style="color: #BB60D5">E2E_DESIGN_PORT</span><span style="color: #666">=</span><span style="color: #4070A0">&quot;</span><span style="color: #70A0D0; font-style: italic">${</span><span style="color: #BB60D5">E2E_DESIGN_PORT</span><span style="color: #007020; font-weight: bold">:-</span><span style="color: #BB60D5">19422</span><span style="color: #70A0D0; font-style: italic">}</span><span style="color: #4070A0">&quot;</span>
+<span style="color: #007020">export</span><span style="color: #BBB"> </span><span style="color: #BB60D5">EXPO_PUBLIC_API_BASE</span><span style="color: #666">=</span><span style="color: #4070A0">&quot;http://localhost:</span><span style="color: #70A0D0; font-style: italic">${</span><span style="color: #BB60D5">E2E_MOCK_PORT</span><span style="color: #70A0D0; font-style: italic">}</span><span style="color: #4070A0">&quot;</span>
+
+npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>tokens
+npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>tokens:check
+npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>verify
+npx<span style="color: #BBB"> </span>playwright<span style="color: #BBB"> </span><span style="color: #007020">test</span>
+</code></pre></div>
+
+<p>业务 mock 回归、假服务和开发画廊分别使用 <code>19420</code>、<code>19421</code>、<code>19422</code>。需要避让已有进程时，提前设置对应环境变量覆盖端口，保持三个端口互不冲突。Playwright 配置负责启动对应的本地服务；业务回归与画廊分开构建，避免生产模式服务误用成开发画廊。</p>
+<p>手工评审时，在另一个终端进入 <code>app/</code> 并沿用相同 Node 与环境变量，关闭 CI 模式以启用文件监听，再启动开发画廊：</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code><span style="color: #007020">unset</span><span style="color: #BBB"> </span>CI
+<span style="color: #BB60D5">BROWSER</span><span style="color: #666">=</span>none<span style="color: #BBB"> </span>npx<span style="color: #BBB"> </span>expo<span style="color: #BBB"> </span>start<span style="color: #BBB"> </span>--web<span style="color: #BBB"> </span>--host<span style="color: #BBB"> </span>localhost<span style="color: #BBB"> </span>--port<span style="color: #BBB"> </span><span style="color: #4070A0">&quot;</span><span style="color: #BB60D5">$E2E_DESIGN_PORT</span><span style="color: #4070A0">&quot;</span>
+</code></pre></div>
+
+<p>随后通过本地浏览器访问 <code>http://localhost:19422/__design</code>；覆盖端口后使用对应端口。画廊使用静态组件示例，业务交互验证仍使用本地 mock。Playwright 的两套 Expo 服务均设置 <code>reuseExistingServer: false</code>，不会复用手工启动的服务；运行 e2e 前，应关闭自己启动的 Expo 服务，或先覆盖对应的 <code>E2E_WEB_PORT</code> / <code>E2E_DESIGN_PORT</code>，避免占用相同端口。</p>
+<p>确认为预期的视觉变更后更新基线，再完整复跑：</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>npx<span style="color: #BBB"> </span>playwright<span style="color: #BBB"> </span><span style="color: #007020">test</span><span style="color: #BBB"> </span>e2e/design-system.spec.ts<span style="color: #BBB"> </span>--update-snapshots
+npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>verify
+npx<span style="color: #BBB"> </span>playwright<span style="color: #BBB"> </span><span style="color: #007020">test</span>
+</code></pre></div>
+
+<p><code>verify</code> 依次执行 8 项检查：token 生成一致性、TypeScript、ESLint、单元测试、iOS 导出、Android 导出、Web 导出、画廊正式产物排除。最后一项通过 <a href="../../app/scripts/check-design-export.mjs"><code>check-design-export.mjs</code></a> 逐文件读取三个平台产物，包括 Hermes 二进制，检查画廊路由与页面标记。完整 Playwright 回归同时覆盖已有业务 spec 与新增画廊 spec。</p>
+<p>如需独立复查已经导出的产物，可以运行：</p>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>node<span style="color: #BBB"> </span>scripts/check-design-export.mjs<span style="color: #BBB"> </span>dist/ios<span style="color: #BBB"> </span>dist/android<span style="color: #BBB"> </span>dist/web
+rg<span style="color: #BBB"> </span>-a<span style="color: #BBB"> </span>--no-ignore<span style="color: #BBB"> </span>-l<span style="color: #BBB"> </span><span style="color: #4070A0">&#39;__design|YIXU_DS_GALLERY_ONLY&#39;</span><span style="color: #BBB"> </span>dist/ios<span style="color: #BBB"> </span>dist/android<span style="color: #BBB"> </span>dist/web
+</code></pre></div>
+
+<p>脚本检查通过时退出码为 <code>0</code>；<code>rg</code> 预期没有命中，退出码 <code>1</code> 表示未找到，其他失败不能当作通过。<code>-a</code> 保证搜索二进制，<code>--no-ignore</code> 防止 <code>.gitignore</code> 跳过导出目录，不按文件扩展名缩小范围。实际导出、检查命令与退出码统一记录在<a href="../codex/runs/app-design-system-final.txt">交付摘要</a>中。本文给出复现方法，不把命令存在视为验证已经通过，也不据此推断真机表现。</p>
+<h2 id="无障碍评审清单">无障碍评审清单<a class="headerlink" href="#无障碍评审清单" title="Permanent link">¶</a></h2>
+<p>以下条目是每次组件或 token 变更的评审项，不表示本次已经完成真机验收。</p>
+<ul>
+<li>[ ] 可交互目标至少 44 × 44；密集图标之间保留可辨识的触控空间，320 宽度下不重叠。</li>
+<li>[ ] 按钮、输入框、图标操作、选项分组、选项和弹层有明确名称；读屏不会只读出图标名或 placeholder。</li>
+<li>[ ] <code>disabled</code>、<code>busy</code>、<code>checked</code>、<code>selected</code> 等状态与实际交互一致；加载时不能重复触发操作。</li>
+<li>[ ] 文字和边界在两个主题下可辨识；警告、成功与错误同时使用文本或图标表达，不只依赖颜色。</li>
+<li>[ ] 键盘 Tab 顺序、可见聚焦样式和操作可达性正确；弹层关闭后焦点能返回合理位置，遮罩与返回键都有关闭路径。</li>
+<li>[ ] 输入错误关联到对应字段，提示说明恢复方式；重要错误能够被读屏感知，短暂提示不夺取焦点。</li>
+<li>[ ] 宽度 320 / 390、字号倍率 1.0 / 1.3 下没有关键内容被裁切，按钮标签可以换行或完整展示。</li>
+<li>[ ] 系统减少动态效果时，入场、骨架与进度动效不会造成持续干扰；图片淡入等剩余动效另行检查。</li>
+<li>[ ] 信息图片有描述，装饰图与单块骨架不重复朗读；加载结构和进度有整体说明。</li>
+<li>[ ] iOS VoiceOver、Android TalkBack 和系统动态字体的实际表现单独验证、单独记录证据。</li>
+</ul>
+<h2 id="与设计协作">与设计协作<a class="headerlink" href="#与设计协作" title="Permanent link">¶</a></h2>
+<p>新增组件按“设计稿 → props / 变体 / 状态规格表 → 实现 → 实验室截图回评”推进：</p>
+<ol>
+<li>先明确页面用途、已有组件可复用的部分及主题差异，在 Figma 使用对应变量。</li>
+<li>在实现前写出 props、默认值、必填名称、可交互状态、触控尺寸与恢复行为；确认需要展示哪些变体，不把业务流程写进基础组件。</li>
+<li>在 <code>components/ds/</code> 实现并从 <code>index.ts</code> 导出，更新画廊分组。已有页面保持通过 <code>ui.tsx</code> 引用，避免为组件拆分批量改业务导入。</li>
+<li>在四个主题 / 宽度组合中比较截图，额外检查 1.3 字号和键盘、读屏行为；将差异与设计稿逐项核对。</li>
+<li>PR 附变量或规格变更说明、预期截图差异与实际验证证据。设计反馈以 token 或组件规格为落点，避免把临时数值散落到页面。</li>
+</ol>
+<h2 id="变更与评审流程">变更与评审流程<a class="headerlink" href="#变更与评审流程" title="Permanent link">¶</a></h2>
+<p>token 改动 → 运行生成脚本 → 检查生成 diff → 更新四份视觉快照 → 完整回归 → 评审。</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>需要检查的内容</th>
+<th>随变更提供的材料</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>修改来源</td>
+<td>token 类型、描述、主题语义、Figma 映射与引用是否完整</td>
+<td><code>tokens.json</code> diff 与修改理由</td>
+</tr>
+<tr>
+<td>生成产物</td>
+<td><code>tokens</code> 可重建，<code>tokens:check</code> 能发现手改漂移</td>
+<td><code>theme.ts</code>、本页 token 表的生成 diff</td>
+</tr>
+<tr>
+<td>组件状态</td>
+<td>新值是否覆盖两种主题、必需变体和异常状态</td>
+<td>更新后的规格表、画廊示例</td>
+</tr>
+<tr>
+<td>四份快照</td>
+<td>逐张确认变化是否由本次改动导致，避免无解释地接受差异</td>
+<td><code>e2e/__snapshots__/*.png</code> 与 <code>screenshots/ds/*.png</code></td>
+</tr>
+<tr>
+<td>工程回归</td>
+<td><code>verify</code>、全部 mock Playwright spec、正式包排除与 lint</td>
+<td>命令、时间、退出码及证据路径</td>
+</tr>
+<tr>
+<td>合入评审</td>
+<td>设计意图、无障碍影响与业务页面渲染是否一致</td>
+<td>可复现命令、已知限制、必要的人工检查记录</td>
+</tr>
+</tbody>
+</table>
+<p>ESLint 的两条本地规则在 <code>src/</code> 内以 error 拦截裸十六进制 / RGB / HSL 色值与魔法间距，仅 <code>src/theme.ts</code> 和 <code>src/components/ds/</code> 豁免。规则见 <a href="../../app/scripts/eslint/design-tokens.cjs"><code>design-tokens.cjs</code></a>，用例见 <a href="../../app/tests/design-tokens.test.cjs"><code>design-tokens.test.cjs</code></a>。<code>npm run lint</code> 使用 <code>--max-warnings=0</code>，现有 import 排序告警也已清理。页面从 theme 取值；组件目录仍优先使用 token，不能作为新增独立色板的理由。</p>
+<p>间距检查覆盖 <code>margin</code> / <code>padding</code> 及方向变体、<code>gap</code> / <code>rowGap</code> / <code>columnGap</code> 和 <code>hitSlop</code>，支持直接字面量、常量别名与静态对象成员。不把宽高、透明度、业务计数、比例或请求时长当作间距，也不把条件判断和业务 helper 的数字参数当作间距输出。这是源码规则，不是全程序数据流证明：动态属性名、可变绑定、解构别名及导入值的来源仍须评审。实际零违规结果以<a href="../codex/runs/app-design-system-final.txt">交付摘要</a>为准。</p>
+<p>基线只在明确的视觉变更中更新。若只是拆分文件或调整导出结构，已有业务截图应保持一致；如果截图失败，先解释和修复原因，再决定是否更新。实际通过情况和遗留项统一记录在 <a href="../codex/runs/app-design-system-final.txt"><code>docs/codex/runs/app-design-system-final.txt</code></a>。</p></main></div></body></html>

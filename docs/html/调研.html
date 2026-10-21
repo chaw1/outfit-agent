@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>调研：场景、生成能力与框架 · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/调研.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#1-场景一篇品牌合作笔记是怎么做出来的">1. 场景：一篇品牌合作笔记是怎么做出来的</a><ul>
+<li><a href="#11-角色">1.1 角色</a></li>
+<li><a href="#12-今天的流程和卡点">1.2 今天的流程和卡点</a></li>
+<li><a href="#13-智能体接手哪几段">1.3 智能体接手哪几段</a></li>
+<li><a href="#14-和-musegate-的关系">1.4 和 MuseGate 的关系</a></li>
+<li><a href="#15-必须守住的三条">1.5 必须守住的三条</a></li>
+</ul>
+</li>
+<li><a href="#2-生成能力选型实测">2. 生成能力选型（实测）</a><ul>
+<li><a href="#21-试衣-换场景链路里最关键最贵的一步">2.1 试衣 + 换场景（链路里最关键、最贵的一步）</a></li>
+<li><a href="#22-图生视频">2.2 图生视频</a></li>
+<li><a href="#23-文本与看图">2.3 文本与看图</a></li>
+<li><a href="#24-成本估算单篇笔记">2.4 成本估算（单篇笔记）</a></li>
+</ul>
+</li>
+<li><a href="#3-智能体框架选型">3. 智能体框架选型</a><ul>
+<li><a href="#31-先把场景翻译成框架必须满足的硬需求">3.1 先把场景翻译成框架必须满足的硬需求</a></li>
+<li><a href="#32-候选框架对照版本为-2026-10-20-pypi-最新">3.2 候选框架对照（版本为 2026-10-20 PyPI 最新）</a></li>
+<li><a href="#33-用小实验证明而不是只列表格">3.3 用小实验证明，而不是只列表格</a></li>
+<li><a href="#34-反方意见和应对">3.4 反方意见和应对</a></li>
+</ul>
+</li>
+<li><a href="#4-整体架构">4. 整体架构</a></li>
+<li><a href="#5-演进方向">5. 演进方向</a></li>
+</ul>
+</div>
+</nav><main><h1 id="场景调研与技术选型">场景调研与技术选型<a class="headerlink" href="#场景调研与技术选型" title="Permanent link">¶</a></h1>
+<blockquote>
+<p>作业：24 小时交付一个"小红书博主 × 品牌合作"内容智能体的 App demo。本文先讲清楚场景，再讲生成能力和智能体框架为什么这么选。实测数据全部来自 2026-10-20 当晚的真实调用，素材在 <code>docs/spike/</code>。</p>
+</blockquote>
+<h2 id="1-场景一篇品牌合作笔记是怎么做出来的">1. 场景：一篇品牌合作笔记是怎么做出来的<a class="headerlink" href="#1-场景一篇品牌合作笔记是怎么做出来的" title="Permanent link">¶</a></h2>
+<h3 id="11-角色">1.1 角色<a class="headerlink" href="#11-角色" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>角色</th>
+<th>想要什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>品牌方（金主）</td>
+<td>新品尽快被种草；图里的衣服必须和实物一致；内容调性符合品牌</td>
+</tr>
+<tr>
+<td>博主</td>
+<td>少花时间、少花钱接更多单；内容保持自己的风格，不像硬广</td>
+</tr>
+<tr>
+<td>平台（小红书蒲公英）</td>
+<td>品牌找博主、下单、报备笔记的官方通道；对广告和 AI 内容有规范</td>
+</tr>
+</tbody>
+</table>
+<h3 id="12-今天的流程和卡点">1.2 今天的流程和卡点<a class="headerlink" href="#12-今天的流程和卡点" title="Permanent link">¶</a></h3>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>品牌发 brief（几张衣服图 + 一两句卖点）
+  → 博主想方案：场景、风格、怎么拍         ← 卡点①：只有几张图，靠博主自己脑补，来回沟通
+  → 写脚本给品牌审                         ← 卡点②：脚本反复改
+  → 等样衣、约场地/摄影/妆造、拍摄、修图    ← 卡点③：周期按天算，单套成本上百元
+  → 写文案、排图                            ← 卡点④：标题、正文、标签都要贴平台语感
+  → 品牌审稿，不满意重拍某张                ← 卡点⑤：改一张图 = 重拍一次
+  → 发布报备笔记
+</code></pre></div>
+
+<p>参考数据：服装商拍团队自述，传统单套商拍 200 元以上、出图 5–7 天，用 AI 后单套 5–8 元、1 天内出图（<a href="https://m.sohu.com/a/998620694_122675809/">搜狐</a>，团队自述数据，未独立核实）。另有评测指出 AI 模特图仍需人工确认光线、色调和服饰细节（同一组搜索结果，中文评测）。</p>
+<h3 id="13-智能体接手哪几段">1.3 智能体接手哪几段<a class="headerlink" href="#13-智能体接手哪几段" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>原环节</th>
+<th>mini 链路里的一步</th>
+<th>用到的能力</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>看懂品牌给的衣服</td>
+<td>智能体看图，说出品类、颜色、面料、风格标签</td>
+<td>多模态理解</td>
+</tr>
+<tr>
+<td>博主想方案（卡点①）</td>
+<td>智能体主动给 2–3 个场景 + 风格方向，博主挑或继续聊</td>
+<td>对话 + 审美建议</td>
+</tr>
+<tr>
+<td>写脚本（卡点②）</td>
+<td>结构化脚本：标题备选、封面、每张图的场景/穿搭/动作/配文、视频分镜；对话里改</td>
+<td>对话 + 结构化输出</td>
+</tr>
+<tr>
+<td>拍摄修图（卡点③）</td>
+<td>按脚本批量出图：博主本人照片 × 品牌衣服 × 场景</td>
+<td>多图参考生成（试衣 + 换景）</td>
+</tr>
+<tr>
+<td>改图（卡点⑤）</td>
+<td>说一句"衬衫塞进裤腰"，只重做那一张，保留版本</td>
+<td>指令改图</td>
+</tr>
+<tr>
+<td>写文案排图（卡点④）</td>
+<td>产出可直接发布的图文笔记</td>
+<td>文本生成</td>
+</tr>
+<tr>
+<td>加分项</td>
+<td>选中的图生成 5 秒短视频</td>
+<td>图生视频</td>
+</tr>
+</tbody>
+</table>
+<p>博主还有两种工作状态，入口上要分开：赶更新、不想做选择题的时候要「一键出片」（交素材，直接拿全套）；想打磨的时候要「沉浸编导」（聊灵感、定脚本、挑图改图，每一步自己定）。两种模式走同一条链路，区别只是人在回路点是停下等人，还是按默认继续。</p>
+<h3 id="14-和-musegate-的关系">1.4 和 MuseGate 的关系<a class="headerlink" href="#14-和-musegate-的关系" title="Permanent link">¶</a></h3>
+<p>霖润的 MuseGate 已经覆盖出图、视频、设计、详情页、资产中心，其中 <strong>Chiccify（即刻达人）</strong> 面向创作者一键做小红书 / TikTok / Instagram 图文笔记；公开可见的"Agent 对话创作"流程是：上传服装和模特 → 出多组风格灵感图挑选 → 定主图 → 自动补全套配图和文案。</p>
+<p>Chiccify 的功能清单、交互细节和与本作业的逐项对照见 <a href="调研-Chiccify对照.html"><code>docs/调研-Chiccify对照.md</code></a>（2026-10-21 凌晨补做：它是桌面 Web、没有 App；流程与本作业同构；它强在过程透明、预估扣点和发帖表单，本作业强在手机端全链路、对话内局部改、还原质检、脚本回滚、管理端）。</p>
+<p>这份作业是这条链路的 mini 版：<strong>只做一个博主、一个合作项目里从 brief 到成稿的闭环</strong>。没做的部分（资产中心与自动打标、专属模特训练、详情页、多平台分发）在第 5 节列为演进方向。</p>
+<h3 id="15-必须守住的三条">1.5 必须守住的三条<a class="headerlink" href="#15-必须守住的三条" title="Permanent link">¶</a></h3>
+<ol>
+<li><strong>高还原</strong>：衣服的颜色、面料、版型、logo 不能走样。这是品牌方付钱的前提（创始人原话："高还原是生死线，高审美是入场券"）。</li>
+<li><strong>审美贴合博主</strong>：场景和风格要像这个博主会发的内容，而不是千篇一律的棚拍。</li>
+<li><strong>合规</strong>：
+   - 《人工智能生成合成内容标识办法》2025-09-01 起施行，要求生成的图片、视频、文本带<strong>显式标识</strong>（文字或图形提示），文件元数据带<strong>隐式标识</strong>，下载导出时也要保留（<a href="https://www.news.cn/tech/20250319/a572ec4366f149c1b0b04a07ebf4931b/c.html">新华网</a>、<a href="https://www.pwccn.com/zh/tmt/method-identifying-synthetic-content-generated-ai-sep2025.pdf">普华永道解读</a>）。笔记发布时还应使用平台的 AI 内容声明。
+   - 肖像：模特只用博主本人上传的照片或 AI 生成的虚拟模特。
+   - 品类：内衣、泳衣等敏感品类不做（MuseGate 也有同样限制）。</li>
+</ol>
+<h2 id="2-生成能力选型实测">2. 生成能力选型（实测）<a class="headerlink" href="#2-生成能力选型实测" title="Permanent link">¶</a></h2>
+<p>测试素材全部自己生成（避免肖像和版权问题）：用 qwen-image-3.0-pro 文生图生成一件米白亚麻衬衫、一条浅蓝直筒牛仔裤（平铺产品图）和一张站立全身模特照，见 <code>docs/spike/inputs.jpg</code>。</p>
+<h3 id="21-试衣-换场景链路里最关键最贵的一步">2.1 试衣 + 换场景（链路里最关键、最贵的一步）<a class="headerlink" href="#21-试衣-换场景链路里最关键最贵的一步" title="Permanent link">¶</a></h3>
+<p>同一个请求：模特图 + 衬衫 + 牛仔裤 + "穿上这两件、衬衫塞进裤腰、换成周末咖啡馆窗边、小红书生活随手拍"。</p>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>结果</th>
+<th>耗时</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>wan2.7-image-pro</strong>（多图参考生成）</td>
+<td>一步完成试衣和换景；面料纹理、纽扣、胸袋、裤子水洗颜色都对得上；没按要求塞衣角</td>
+<td><strong>14 秒</strong></td>
+<td><strong>选用</strong>。没塞衣角正好用来演示"改图"</td>
+</tr>
+<tr>
+<td>qwen-image-3.0-pro（多图编辑）</td>
+<td>两次都没拿到结果：只有同步接口，超过约 60 秒连接被切断</td>
+<td>&gt; 60 秒</td>
+<td>不适合交互式场景；只用来生成测试素材</td>
+</tr>
+<tr>
+<td>AI 试衣 aitryon-plus（专用试衣）</td>
+<td>未实测。按官方文档只负责"换衣"，换场景还要再调一次生成模型</td>
+<td>—</td>
+<td>两步链路更慢、更贵；还原度要求极高时可作为第二道精修</td>
+</tr>
+</tbody>
+</table>
+<h3 id="22-图生视频">2.2 图生视频<a class="headerlink" href="#22-图生视频" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>方案</th>
+<th>结果</th>
+<th>耗时</th>
+<th>价格（官方，北京）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>wan2.6-i2v-flash</strong></td>
+<td>720P、5 秒、自带音轨；动作按提示走（看窗外 → 转头看镜头微笑 → 整理领口 → 镜头推近），衣服细节保持，脸有轻微变化</td>
+<td><strong>52 秒</strong></td>
+<td>—</td>
+</tr>
+<tr>
+<td>happyhorse-1.1-i2v（更新的模型）</td>
+<td>账号开着"仅使用免费额度"，免费额度已用完，返回 403</td>
+<td>—</td>
+<td>720P 约 0.124 美元/秒</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-文本与看图">2.3 文本与看图<a class="headerlink" href="#23-文本与看图" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>模型</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>对话、工具调用、写脚本、写笔记</td>
+<td>DeepSeek <code>deepseek-flash</code></td>
+<td>中文语感好、支持 function calling、首字 0.5–1 秒、便宜</td>
+</tr>
+<tr>
+<td>看懂衣服</td>
+<td>通义 <code>qwen3-vl-plus</code></td>
+<td>与生成模型同在百炼，图片可直接传</td>
+</tr>
+</tbody>
+</table>
+<h3 id="24-成本估算单篇笔记">2.4 成本估算（单篇笔记）<a class="headerlink" href="#24-成本估算单篇笔记" title="Permanent link">¶</a></h3>
+<p>按 6 张图 + 2 次改图 + 1 条 5 秒视频 + 对话和看图估算，单篇约 <strong>8–9 元</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>单价（官方，北京）</th>
+<th>用量</th>
+<th>小计</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>wan2.7-image-pro 出图/改图</td>
+<td>0.50 元/张</td>
+<td>8 张</td>
+<td>4.0 元</td>
+</tr>
+<tr>
+<td>图生视频</td>
+<td>未查到 wan2.6-i2v-flash 单价，按 happyhorse 720P 约 0.9 元/秒作上限</td>
+<td>5 秒</td>
+<td>≤ 4.5 元</td>
+</tr>
+<tr>
+<td>qwen3-vl-plus 看图</td>
+<td>输入 1 元 / 输出 10 元（每百万 token）</td>
+<td>约 2 万 token</td>
+<td>&lt; 0.1 元</td>
+</tr>
+<tr>
+<td>DeepSeek 对话</td>
+<td>每百万 token 几元</td>
+<td>约 10 万 token</td>
+<td>&lt; 0.5 元</td>
+</tr>
+</tbody>
+</table>
+<p>对比传统商拍单套 200 元以上、周期按天计，成本和周期都低一到两个数量级。本次开发全部用的是免费额度。</p>
+<h2 id="3-智能体框架选型">3. 智能体框架选型<a class="headerlink" href="#3-智能体框架选型" title="Permanent link">¶</a></h2>
+<h3 id="31-先把场景翻译成框架必须满足的硬需求">3.1 先把场景翻译成框架必须满足的硬需求<a class="headerlink" href="#31-先把场景翻译成框架必须满足的硬需求" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>硬需求</th>
+<th>来自场景的哪里</th>
+<th>做不到会怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>H1</td>
+<td><strong>会话状态持久化</strong>：一个合作项目可能聊几天，服务重启、App 断网后从原处继续</td>
+<td>博主不会一次聊完；服务要能发版</td>
+<td>重启一次，脚本和已选方向全丢</td>
+</tr>
+<tr>
+<td>H2</td>
+<td><strong>人在回路</strong>：花钱的步骤（出图、出视频）前必须停下等博主确认，确认后从停下的地方恢复</td>
+<td>生成按张/按秒计费；品牌审脚本</td>
+<td>智能体自作主张出 20 张图，钱花了方向还是错的</td>
+</tr>
+<tr>
+<td>H3</td>
+<td><strong>流程可控 + 局部自主</strong>：大阶段有固定顺序（方向 → 脚本 → 出图 → 笔记 → 视频），阶段内自由对话和调用工具</td>
+<td>品牌合作有交付顺序</td>
+<td>纯自主智能体会跳步、漏步，没法对品牌交代</td>
+</tr>
+<tr>
+<td>H4</td>
+<td><strong>长任务不阻塞对话</strong>：出图 15–45 秒/张、视频约 1 分钟，交给后台任务，完成后回到对话</td>
+<td>批量出图 + 视频</td>
+<td>对话卡死；App 一断线任务就丢</td>
+</tr>
+<tr>
+<td>H5</td>
+<td><strong>版本与回退</strong>：改脚本、改图要留历史，能回到上一版</td>
+<td>品牌反复改稿</td>
+<td>改坏了回不去</td>
+</tr>
+<tr>
+<td>H6</td>
+<td><strong>模型无关</strong>：文本用 DeepSeek、看图用通义、生成用万相，随时换</td>
+<td>成本和效果都要能调</td>
+<td>被一家模型绑定</td>
+</tr>
+<tr>
+<td>H7</td>
+<td><strong>能融进现有后端</strong>：Python 服务里当库用，状态进自己的 Postgres，可观测</td>
+<td>要部署到自己的服务器，代码给人审</td>
+<td>只能在某个平台里跑，没法接业务表</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32-候选框架对照版本为-2026-10-20-pypi-最新">3.2 候选框架对照（版本为 2026-10-20 PyPI 最新）<a class="headerlink" href="#32-候选框架对照版本为-2026-10-20-pypi-最新" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>框架</th>
+<th>H1 持久化</th>
+<th>H2 人在回路</th>
+<th>H3 流程可控</th>
+<th>H4 长任务</th>
+<th>H5 版本回退</th>
+<th>H6/H7</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>LangGraph 1.2.16</strong></td>
+<td>Checkpointer 官方 Postgres 实现，按 thread 持久化</td>
+<td><code>interrupt()</code> 任意节点暂停，<code>Command(resume=…)</code> 恢复</td>
+<td>显式状态图：节点 + 条件边，阶段内可嵌工具调用智能体</td>
+<td>节点内入队后 <code>interrupt</code> 等结果，Worker 完成后 resume</td>
+<td>checkpoint 历史可查、可从任一历史点分叉</td>
+<td>模型无关；纯库，状态在自己的库里</td>
+<td><strong>选用</strong></td>
+</tr>
+<tr>
+<td>OpenAI Agents SDK 0.24</td>
+<td>Sessions 存对话历史；运行状态 <code>RunState</code> 可序列化</td>
+<td>工具 <code>needs_approval</code>，审批后 resume</td>
+<td>以 handoff 和工具为主，没有显式阶段图</td>
+<td>需自己编排</td>
+<td>无内建</td>
+<td>支持兼容接口的其他模型，但默认能力围绕 OpenAI 设计</td>
+<td>审批模型只覆盖"工具级"，阶段流程要自己写</td>
+</tr>
+<tr>
+<td>Google ADK 2.12</td>
+<td>Session 服务可接数据库；App 级 resumability</td>
+<td>工具确认；2.12 起工作流节点 <code>require_confirmation</code></td>
+<td>有 Workflow 智能体</td>
+<td><code>LongRunningFunctionTool</code></td>
+<td>无内建</td>
+<td>在 GCP / Gemini 生态里最顺</td>
+<td>能力在追，但国内模型和部署不是它的主场</td>
+</tr>
+<tr>
+<td>CrewAI 1.15</td>
+<td>Flow <code>@persist</code>（默认 SQLite）</td>
+<td><code>@human_feedback</code>（≥1.8）</td>
+<td>Flow 有步骤；Crew 偏角色协作</td>
+<td>需自己编排</td>
+<td>无内建</td>
+<td>多角色提示词开销大</td>
+<td>适合快速做"多角色协作"原型，不是本场景的形状</td>
+</tr>
+<tr>
+<td>Microsoft Agent Framework 1.22</td>
+<td>工作流带 checkpoint</td>
+<td>请求/响应式人工介入</td>
+<td>有工作流图</td>
+<td>支持</td>
+<td>依赖 checkpoint</td>
+<td>.NET / Azure 生态优先</td>
+<td>可行，但国内落地和社区资料少</td>
+</tr>
+<tr>
+<td>AgentScope 2.0（阿里通义）</td>
+<td>2.x 有状态存储（Java 版支持 MySQL/Redis）</td>
+<td>2.x 支持暂停后原位恢复</td>
+<td>以 ReAct 智能体和多智能体消息为主</td>
+<td>需自己编排</td>
+<td>无内建</td>
+<td>国产模型适配好</td>
+<td>适合多智能体对话/仿真；阶段化业务流程不是强项</td>
+</tr>
+<tr>
+<td>Dify / Coze</td>
+<td>平台托管</td>
+<td>有限（表单节点）</td>
+<td>可视化工作流</td>
+<td>平台内异步</td>
+<td>平台版本</td>
+<td>状态在平台里，难接自己的业务表；代码不可审</td>
+<td>做演示快，但作业要求交付完整代码和可部署服务，不合适</td>
+</tr>
+<tr>
+<td>不用框架（手写循环）</td>
+<td>自己存</td>
+<td>自己写</td>
+<td>自己写状态机</td>
+<td>自己写</td>
+<td>自己写</td>
+<td>完全可控</td>
+<td>24 小时内要把 H1–H5 写对、写稳，风险最高</td>
+</tr>
+</tbody>
+</table>
+<p>（各框架能力以官方文档为准，以上是 2026-10 调研时的公开资料，详见文末来源。）</p>
+<h3 id="33-用小实验证明而不是只列表格">3.3 用小实验证明，而不是只列表格<a class="headerlink" href="#33-用小实验证明而不是只列表格" title="Permanent link">¶</a></h3>
+<p>服务端代码里每条硬需求都有对应的自动化测试或演示脚本：</p>
+<ul>
+<li><strong>H1</strong>：选完方向后重启 api 容器，再发消息，智能体从原阶段继续，历史和卡片都在。</li>
+<li><strong>H2</strong>：脚本未确认时调用出图工具被拒绝；确认动作通过 <code>Command(resume=…)</code> 恢复图执行。</li>
+<li><strong>H4</strong>：出图任务入队后对话立即返回；Worker 完成后状态更新，App 轮询看到结果。</li>
+<li><strong>H5</strong>：改图生成 version 2，<code>parent_id</code> 指向原图；脚本修改前后在 checkpoint 历史里都能查到。</li>
+</ul>
+<p>实测结果（Mock 模式，<code>server/scripts/experiments.py</code>，2026-10-20 23:20）：</p>
+<table>
+<thead>
+<tr>
+<th>实验</th>
+<th>对应需求</th>
+<th>结果</th>
+<th style="text-align: right;">用时</th>
+<th>证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E1 重启续聊</td>
+<td>H1</td>
+<td>PASS</td>
+<td style="text-align: right;">2.86 秒</td>
+<td>选完方向后重启 API 容器，4 条消息、脚本和待确认点都在，继续对话正常</td>
+</tr>
+<tr>
+<td>E2 重复确认</td>
+<td>H2</td>
+<td>PASS</td>
+<td style="text-align: right;">2.24 秒</td>
+<td>确认脚本发两次、同一指令改图两次，任务表仍是 4 张原图 + 1 次改图，没有重复花钱</td>
+</tr>
+<tr>
+<td>E3 越阶段</td>
+<td>H2/H3</td>
+<td>PASS</td>
+<td style="text-align: right;">0.02 秒</td>
+<td>脚本阶段请求生成视频，被代码门禁拒绝，没有创建任务</td>
+</tr>
+<tr>
+<td>E4 时间旅行</td>
+<td>H5</td>
+<td>PASS</td>
+<td style="text-align: right;">0.12 秒</td>
+<td>改成通勤风（v2）后用 <code>get_state_history</code> 恢复到 v1 并确认，已生成的图保留</td>
+</tr>
+</tbody>
+</table>
+<p>阶段内 ReAct 的选工具准确率（真实 DeepSeek）：Codex 自建 30 句问句集 30/30；Claude 另写 16 句私有问句抽查（含"第二张背景有点乱""别聊了直接帮我出图""整体风格不对重来"这类模糊、越阶段、跑题的说法），全部选对工具，越阶段的请求由代码拒绝并用中文解释原因。</p>
+<p>真实模型全链路（看图 → 3 个方向和预览图 → 脚本 → 改成通勤风 → 5 张图并打还原分 → 改图 → 笔记 → 5 秒视频）：5 张正式图还原分 93–96；单篇花费约 6 元（官方单价估算）。</p>
+<h3 id="34-反方意见和应对">3.4 反方意见和应对<a class="headerlink" href="#34-反方意见和应对" title="Permanent link">¶</a></h3>
+<p><strong>最强的对手是"不用框架"。</strong> 一个 <code>while</code> 循环 + 一张存项目状态的 JSONB 表 + 一张事件表，大约 200 行就能跑通这 7 个阶段，更短、更透明。LangGraph 的重放语义反而带来了额外复杂度：任务 id 要做成确定性的（uuid5 去重键），恢复时要补齐业务表和 checkpoint 之间的差异。</p>
+<p>我们的第一版确实踩中了这个反方意见：图只有"理解需求 → 等待 → 执行工具 → 等待"几个节点，阶段内靠关键词判断用户意图，回复是模板句——LangGraph 在里面只是"存在 checkpoint 表里的待确认字段"。外部评审指出后，第二版让框架挣到它的位置：</p>
+<ol>
+<li><strong>阶段内 ReAct</strong>：模型从当前阶段允许的工具里自己选、自己解析参数（"第二张"是哪张图），代码只管放行和花钱门禁。</li>
+<li><strong>时间旅行</strong>：脚本历史直接来自 <code>get_state_history</code>，博主可以回到任意一版——手写循环要自己做快照和版本表。</li>
+<li><strong>流式中间结果</strong>：看图卡片在节点内就推给 App，不用等整轮结束。</li>
+<li><strong>interrupt 的重放安全</strong>：确认动作重复发送、服务中途重启，都不会重复入队花钱（实验 E1、E2）。</li>
+</ol>
+<p><strong>诚实的结论</strong>：如果流程永远只有这 7 个阶段、只有一个博主，手写也够用；选 LangGraph 是为了公司链路往下长——多个智能体协作（选款、文案、审核分开）、更多人工确认点、跨天的长会话、需要回放和审计——这些都是图 + checkpoint 的原生能力。</p>
+<p><strong>第二名是 AgentScope</strong>：阿里开源、和百炼模型配合最好、实时打断做得好。如果团队全在阿里云和百炼上、更看重多智能体对话，它值得选；它的短板是阶段化业务流程和 Postgres 持久化不是一等公民。</p>
+<h2 id="4-整体架构">4. 整体架构<a class="headerlink" href="#4-整体架构" title="Permanent link">¶</a></h2>
+<p>见 <code>docs/设计.md</code>。</p>
+<h2 id="5-演进方向">5. 演进方向<a class="headerlink" href="#5-演进方向" title="Permanent link">¶</a></h2>
+<p>按"离公司线上链路有多近"排序：</p>
+<ol>
+<li><strong>多智能体分工</strong>：把选款/审美、文案、合规审核拆成子图，主图负责编排；审核子图在发布前检查品牌禁忌词、AI 声明、敏感品类。</li>
+<li><strong>还原度从"打分 + 重修"升级到"专用试衣 + 精修"</strong>：高要求品类先走专用试衣模型（如 aitryon-plus）保证版型，再用通用生成模型换场景；还原分作为质检门禁和数据回流（低分样本进标注池）。</li>
+<li><strong>博主风格记忆</strong>：把博主历史笔记的风格、常用场景、口头禅存成长期记忆，方向建议和文案更像本人。</li>
+<li><strong>资产中心对接</strong>：衣服图、生成图、版本链进入资产中心，带自动打标和检索，和 MuseGate 现有资产体系打通。</li>
+<li><strong>充值与结算</strong>：点数账本已经按项目和用户汇总（10 点 = 1 元），接支付即可做"先充值后消耗、失败退点"和品牌方代付。</li>
+<li><strong>真流式</strong>：在工具调用参数流上做增量 JSON 解析，回复逐字出现。</li>
+<li><strong>部署</strong>：单机 docker compose → 业务后端（Java/Spring）+ AI 服务（Python）分开部署；Worker 按 GPU/外部 API 配额水平扩展；媒体进 OSS + CDN。</li>
+</ol></main></div></body></html>

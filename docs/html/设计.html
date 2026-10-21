@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计约定：范围、分期与接口契约 · 衣序</title><style>
+:root { --ink:#252522; --muted:#6D6963; --line:#E9E5DE; --paper:#FCFAF7; --surface:#FFFFFF; --accent:#D91B38; --code:#F4F1EC; --side: 280px; }
+@media (prefers-color-scheme: dark) { :root { --ink:#F7F3EA; --muted:#B8B6B1; --line:#35373D; --paper:#1B1C1F; --surface:#232428; --accent:#FF7084; --code:#2A2B30; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin:0; background:var(--paper); color:var(--ink); font: 16px/1.75 -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.top { position: sticky; top: 0; z-index: 2; display:flex; gap:16px; align-items:center; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--line); font-size: 14px; }
+.top .brand { font-weight: 700; letter-spacing: .5px; }
+.top .crumb { color: var(--muted); }
+.top .nav { margin-left:auto; display:flex; gap:14px; flex-wrap: wrap; }
+.wrap { display: grid; grid-template-columns: var(--side) minmax(0, 1fr); gap: 32px; max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+nav.toc { position: sticky; top: 56px; align-self: start; max-height: calc(100vh - 72px); overflow: auto; font-size: 13px; line-height: 1.5; padding-right: 8px; }
+nav.toc ul { list-style: none; margin: 0; padding-left: 12px; } nav.toc > ul { padding-left: 0; }
+nav.toc li { margin: 4px 0; } nav.toc a { color: var(--muted); } nav.toc a:hover { color: var(--accent); }
+nav.toc > ul > li > a { color: var(--ink); font-weight: 600; }
+main { min-width: 0; }
+main h1 { font-size: 30px; line-height: 1.3; margin: 0 0 20px; }
+main h2 { font-size: 22px; margin: 44px 0 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+main h3 { font-size: 18px; margin: 30px 0 10px; } main h4 { font-size: 16px; margin: 22px 0 8px; }
+main p, main ul, main ol { margin: 0 0 14px; } main li { margin: 4px 0; }
+main img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+main table { border-collapse: collapse; width: 100%; margin: 14px 0 20px; font-size: 14.5px; display: block; overflow-x: auto; }
+main th, main td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; text-align: left; }
+main th { background: var(--code); white-space: nowrap; }
+main code { font: 13.5px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+main pre { background: var(--code); padding: 14px 16px; border-radius: 8px; overflow: auto; font-size: 13.5px; line-height: 1.55; }
+main pre code { background: none; padding: 0; }
+main blockquote { margin: 0 0 14px; padding: 8px 16px; border-left: 3px solid var(--accent); background: var(--surface); color: var(--muted); }
+main hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.headerlink { opacity: 0; margin-left: 6px; font-size: 14px; } h2:hover .headerlink, h3:hover .headerlink { opacity: .6; }
+pre.mermaid { background: var(--surface); text-align: center; }
+.meta { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.index-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; list-style: none; padding: 0; }
+.index-list li { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+.index-list .n { color: var(--muted); font-size: 12px; } .index-list a { font-weight: 600; display: block; margin: 2px 0 4px; }
+.index-list .d { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
+@media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
+</style></head>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/设计.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<div class="wrap"><nav class="toc"><div class="toc">
+<ul>
+<li><a href="#1-场景">1. 场景</a><ul>
+<li><a href="#11-产品范围与分期">1.1 产品范围与分期</a></li>
+</ul>
+</li>
+<li><a href="#2-架构">2. 架构</a></li>
+<li><a href="#3-智能体">3. 智能体</a><ul>
+<li><a href="#31-状态langgraph-state按项目持久化">3.1 状态（LangGraph State，按项目持久化）</a></li>
+<li><a href="#32-人在回路花钱前必须博主确认">3.2 人在回路（花钱前必须博主确认）</a></li>
+<li><a href="#33-工具智能体可调用">3.3 工具（智能体可调用）</a></li>
+</ul>
+</li>
+<li><a href="#4-接口约定">4. 接口约定</a><ul>
+<li><a href="#41-账号">4.1 账号</a></li>
+<li><a href="#42-资产图片视频">4.2 资产（图片/视频）</a></li>
+<li><a href="#43-合作项目">4.3 合作项目</a></li>
+<li><a href="#44-对话">4.4 对话</a></li>
+<li><a href="#45-生成任务">4.5 生成任务</a></li>
+<li><a href="#46-健康检查">4.6 健康检查</a></li>
+</ul>
+</li>
+<li><a href="#5-模型与成本2026-10-20-实测">5. 模型与成本（2026-10-20 实测）</a></li>
+<li><a href="#6-数据表">6. 数据表</a></li>
+<li><a href="#7-智能体边界与合规只增不改旧字段语义不变">7. 智能体边界与合规（只增不改，旧字段语义不变）</a><ul>
+<li><a href="#71-智能体的边界">7.1 智能体的边界</a></li>
+<li><a href="#72-字段新增">7.2 字段新增</a></li>
+<li><a href="#73-合规">7.3 合规</a></li>
+</ul>
+</li>
+<li><a href="#8-手机上的图片交互与局部改">8. 手机上的图片交互与局部改</a><ul>
+<li><a href="#81-交互app">8.1 交互（App）</a></li>
+<li><a href="#82-接口新增">8.2 接口新增</a></li>
+<li><a href="#83-服务端局部改的做法">8.3 服务端局部改的做法</a></li>
+<li><a href="#84-吊牌与包装">8.4 吊牌与包装</a></li>
+</ul>
+</li>
+<li><a href="#9-管理端">9. 管理端</a><ul>
+<li><a href="#91-定位">9.1 定位</a></li>
+<li><a href="#92-页面">9.2 页面</a></li>
+<li><a href="#93-接口">9.3 接口</a></li>
+<li><a href="#94-数据">9.4 数据</a></li>
+<li><a href="#95-约束">9.5 约束</a></li>
+</ul>
+</li>
+<li><a href="#10-博主档案项目管理发布闭环与工程成熟度">10. 博主档案、项目管理、发布闭环与工程成熟度</a><ul>
+<li><a href="#101-博主档案app我的形象-服务端">10.1 博主档案（App「我的形象」+ 服务端）</a></li>
+<li><a href="#102-项目管理app">10.2 项目管理（App）</a></li>
+<li><a href="#103-发布闭环app">10.3 发布闭环（App）</a></li>
+<li><a href="#104-对话细节app">10.4 对话细节（App）</a></li>
+<li><a href="#105-工程成熟度服务端">10.5 工程成熟度（服务端）</a></li>
+<li><a href="#106-约束">10.6 约束</a></li>
+</ul>
+</li>
+<li><a href="#11-智能体过程透明花钱前预估换一组发帖表单">11. 智能体过程透明、花钱前预估、换一组、发帖表单</a><ul>
+<li><a href="#111-智能体过程透明">11.1 智能体过程透明</a></li>
+<li><a href="#112-花钱前预估">11.2 花钱前预估</a></li>
+<li><a href="#113-换一组方向与重新回复">11.3 换一组方向与重新回复</a></li>
+<li><a href="#114-发帖表单app">11.4 发帖表单（App）</a></li>
+<li><a href="#115-约束">11.5 约束</a></li>
+</ul>
+</li>
+<li><a href="#12-参考图与封面锚点">12. 参考图与封面锚点</a><ul>
+<li><a href="#121-参考图">12.1 参考图</a></li>
+<li><a href="#122-封面锚点">12.2 封面锚点</a></li>
+<li><a href="#123-约束">12.3 约束</a></li>
+</ul>
+</li>
+<li><a href="#13-改图结果可信闭环">13. 改图结果可信闭环</a><ul>
+<li><a href="#131-质检失败的版本不默认入稿">13.1 质检失败的版本不默认入稿</a></li>
+<li><a href="#132-再试一次-明确的新尝试">13.2 "再试一次"= 明确的新尝试</a></li>
+<li><a href="#133-笔记阶段能采用新版">13.3 笔记阶段能采用新版</a></li>
+<li><a href="#134-本地草稿与服务端修订的冲突仅-app">13.4 本地草稿与服务端修订的冲突（仅 App）</a></li>
+<li><a href="#135-普通请求超时仅-app">13.5 普通请求超时（仅 App）</a></li>
+<li><a href="#136-换一组的费用提示">13.6 "换一组"的费用提示</a></li>
+<li><a href="#137-约束">13.7 约束</a></li>
+</ul>
+</li>
+<li><a href="#14-两种创作模式点数摄影感出片与离开再回来">14. 两种创作模式、点数、摄影感出片与离开再回来</a><ul>
+<li><a href="#141-点数服务端-app">14.1 点数（服务端 + App）</a></li>
+<li><a href="#142-一键出片mode-auto">14.2 一键出片（mode: auto）</a></li>
+<li><a href="#143-摄影感出片服务端">14.3 摄影感出片（服务端）</a></li>
+<li><a href="#144-离开再回来进度与通知">14.4 离开再回来：进度与通知</a></li>
+<li><a href="#145-片场感文案与视觉app">14.5 片场感：文案与视觉（App）</a></li>
+<li><a href="#146-约束">14.6 约束</a></li>
+</ul>
+</li>
+<li><a href="#15-账号闭环">15. 账号闭环</a><ul>
+<li><a href="#151-法律文本">15.1 法律文本</a></li>
+<li><a href="#152-同意与首次启动">15.2 同意与首次启动</a></li>
+<li><a href="#153-忘记密码恢复码">15.3 忘记密码（恢复码）</a></li>
+<li><a href="#154-修改密码与登录失效">15.4 修改密码与登录失效</a></li>
+<li><a href="#155-注销账号">15.5 注销账号</a></li>
+<li><a href="#156-约束">15.6 约束</a></li>
+</ul>
+</li>
+<li><a href="#16-设计系统衣序-ds">16. 设计系统「衣序 DS」</a><ul>
+<li><a href="#161-token-单一来源">16.1 Token 单一来源</a></li>
+<li><a href="#162-组件库">16.2 组件库</a></li>
+<li><a href="#163-组件画廊仅开发态与视觉回归">16.3 组件画廊（仅开发态）与视觉回归</a></li>
+<li><a href="#164-文档">16.4 文档</a></li>
+</ul>
+</li>
+<li><a href="#17-工程规范">17. 工程规范</a></li>
+<li><a href="#18-素材库模特衣服与成片沉淀为本人数据">18. 素材库：模特、衣服与成片沉淀为本人数据</a><ul>
+<li><a href="#181-服务端">18.1 服务端</a></li>
+<li><a href="#182-app">18.2 App</a></li>
+<li><a href="#183-约束">18.3 约束</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</nav><main><h1 id="穿搭笔记智能体outfit-agent设计">穿搭笔记智能体（outfit-agent）设计<a class="headerlink" href="#穿搭笔记智能体outfit-agent设计" title="Permanent link">¶</a></h1>
+<blockquote>
+<p>本文是后端和 App 共同遵守的唯一约定。接口有变化先改这里。</p>
+</blockquote>
+<h2 id="1-场景">1. 场景<a class="headerlink" href="#1-场景" title="Permanent link">¶</a></h2>
+<p>用户是小红书穿搭博主。品牌方（金主）发来一条合作需求，往往只有几张衣服图和一两句话。博主打开 App，新建一个合作项目，和智能体多轮对话：</p>
+<ol>
+<li>智能体先看懂衣服（品类、颜色、面料、风格），复述品牌需求。</li>
+<li>智能体主动给出 2–3 个<strong>场景 + 风格方向</strong>（AI 建议），博主挑一个，或者说"再松弛一点""换成通勤"继续聊。</li>
+<li>方向定了，智能体写出<strong>笔记脚本</strong>：标题备选、封面怎么拍、每张图的场景/穿搭/动作/配文、视频分镜。博主可以在对话里改，确认后才开始花钱生成。</li>
+<li>按脚本<strong>批量出图</strong>：博主本人照片（没有就用 AI 模特）× 品牌衣服 × 场景。</li>
+<li>博主挑图，不满意的在对话里说"这张衬衫塞进裤腰""背景太暗"，智能体<strong>改图</strong>，保留版本。</li>
+<li>产出最终<strong>图文笔记</strong>：标题、正文、话题标签、图片顺序。</li>
+<li>可选：用选中的图生成 5 秒<strong>短视频</strong>。</li>
+</ol>
+<p>这是公司线上"品牌需求 → 博主内容"链路的 mini 版：只做一个博主、一个项目内的完整闭环。</p>
+<h3 id="11-产品范围与分期">1.1 产品范围与分期<a class="headerlink" href="#11-产品范围与分期" title="Permanent link">¶</a></h3>
+<p>24 小时只够把一条链路做扎实，但设计时按完整产品来规划，分三期落地，每一期的契约都在本文对应的节里：</p>
+<table>
+<thead>
+<tr>
+<th>期</th>
+<th>范围</th>
+<th>约定所在</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P0 主链路</strong></td>
+<td>看懂衣服 → 场景 / 风格方向 → 脚本 → 批量出图 → 局部改图留版本 → 图文笔记 → 5 秒视频；人在回路（花钱前确认）；生成走队列</td>
+<td>§2–§6、§8</td>
+</tr>
+<tr>
+<td><strong>P1 产品完整度</strong></td>
+<td>两种创作模式（一键出片 / 沉浸编导）与风格词条；点数而非货币；账号闭环（协议与隐私、恢复码找回、修改密码、注销）；博主档案与项目管理；过程透明、花钱前预估、换一组；参考图与封面锚点；发布闭环；离开再回来的进度与通知；素材库（模特、衣服、成片沉淀为本人可复用的数据）；管理端</td>
+<td>§7、§9–§12、§14、§15、§18</td>
+</tr>
+<tr>
+<td><strong>P2 质量与体系</strong></td>
+<td>改图结果可信闭环（质检失败不默认入稿）；摄影感出片；设计系统（token 单一来源、组件库、组件实验室、视觉回归）；工程规范（CI 门禁、钩子、覆盖率、ADR）</td>
+<td>§13、§14.3、§16、§17</td>
+</tr>
+</tbody>
+</table>
+<p>UI 以 <code>docs/UI设计稿.md</code>（信息架构、流程、视觉语言、页面高保真稿与状态、组件规格；设计板 <code>docs/design/index.html</code>）为上游依据，本文只定数据与接口契约。</p>
+<p>实施顺序：P0 先在线上跑通并留证据，再按 P1 → P2 逐项合入，每项"只增不改"，老客户端不受影响。</p>
+<h2 id="2-架构">2. 架构<a class="headerlink" href="#2-架构" title="Permanent link">¶</a></h2>
+<div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>iOS / Android App（Expo + React Native + TypeScript）
+        │ HTTPS：REST + SSE（对话流式输出）
+        ▼
+API 服务（FastAPI）──── 智能体（LangGraph，PostgresSaver 持久化，thread_id = 项目 id）
+        │                    │ 工具调用
+        │                    ├─ 文本：DeepSeek（deepseek-flash，function calling）
+        │                    ├─ 看图：通义 qwen3-vl-plus
+        │                    └─ 生成任务入队（不在对话里同步等）
+        ▼
+PostgreSQL ── 业务表 + 任务队列表 + LangGraph checkpoint 表
+        ▲
+Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
+        ├─ 试衣/换景/改图：wan2.7-image-pro（多图参考，实测 14 秒/张）
+        └─ 图生视频：wan2.6-i2v-flash（720P 5 秒，实测 52 秒）
+媒体文件：服务器本地卷 /data/media（模型返回的 URL 只有 24 小时，必须下载转存）
+部署：docker compose（api、worker、postgres、caddy 自动 HTTPS）
+</code></pre></div>
+
+<p>为什么生成走 Worker：一张图 15–45 秒、一条视频约 1 分钟，同步等会让对话卡死，也扛不住 App 断网重连。对话只负责"决定生成什么"，Worker 负责"生成出来"，结果写回项目状态，App 轮询或下一轮对话里看到。</p>
+<h2 id="3-智能体">3. 智能体<a class="headerlink" href="#3-智能体" title="Permanent link">¶</a></h2>
+<h3 id="31-状态langgraph-state按项目持久化">3.1 状态（LangGraph State，按项目持久化）<a class="headerlink" href="#31-状态langgraph-state按项目持久化" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stage</code></td>
+<td><code>brief</code> → <code>direction</code> → <code>script</code> → <code>images</code> → <code>note</code> → <code>video</code> → <code>done</code></td>
+</tr>
+<tr>
+<td><code>brief</code></td>
+<td>品牌需求原文 + 智能体整理后的要点</td>
+</tr>
+<tr>
+<td><code>garments</code></td>
+<td>衣服资产 id 列表 + 看图结果（品类/颜色/面料/风格标签）</td>
+</tr>
+<tr>
+<td><code>model_asset_id</code></td>
+<td>博主本人照片；为空则用默认 AI 模特</td>
+</tr>
+<tr>
+<td><code>directions</code></td>
+<td>智能体给出的方向列表；<code>chosen_direction_id</code></td>
+</tr>
+<tr>
+<td><code>script</code></td>
+<td>结构化脚本（见 4.4 <code>script</code> 卡片），<code>status: draft / confirmed</code></td>
+</tr>
+<tr>
+<td><code>images</code></td>
+<td>每个镜头的图片版本链（<code>shot_id</code>、<code>version</code>、<code>parent_id</code>）</td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td>标题、正文、标签、图片顺序</td>
+</tr>
+<tr>
+<td><code>video</code></td>
+<td>视频任务和结果</td>
+</tr>
+<tr>
+<td><code>messages</code></td>
+<td>对话历史（LangGraph <code>add_messages</code>）</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32-人在回路花钱前必须博主确认">3.2 人在回路（花钱前必须博主确认）<a class="headerlink" href="#32-人在回路花钱前必须博主确认" title="Permanent link">¶</a></h3>
+<ul>
+<li>选方向：智能体给出方向后停下，等博主选或继续聊。</li>
+<li>确认脚本：脚本确认后才允许出图。</li>
+<li>确认出视频：视频最贵，单独确认。</li>
+</ul>
+<p>用 LangGraph <code>interrupt()</code> 停下，App 发来的动作（<code>action</code>）通过 <code>Command(resume=…)</code> 恢复。博主随时可以发自由文本，智能体在当前阶段内回答或修改。</p>
+<h3 id="33-工具智能体可调用">3.3 工具（智能体可调用）<a class="headerlink" href="#33-工具智能体可调用" title="Permanent link">¶</a></h3>
+<p><code>analyze_garments</code>、<code>propose_directions</code>、<code>write_script</code>、<code>revise_script</code>、<code>generate_images</code>（入队）、<code>edit_image</code>（入队）、<code>write_note</code>、<code>generate_video</code>（入队）。工具按阶段放行：脚本没确认不能出图，没有图不能写笔记、出视频。</p>
+<h2 id="4-接口约定">4. 接口约定<a class="headerlink" href="#4-接口约定" title="Permanent link">¶</a></h2>
+<p>所有接口前缀 <code>/api</code>，JSON，<code>Authorization: Bearer &lt;token&gt;</code>（注册/登录除外）。时间用 ISO 8601。错误统一 <code>{"error": {"code": "...", "message": "中文说明"}}</code>。</p>
+<h3 id="41-账号">4.1 账号<a class="headerlink" href="#41-账号" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/auth/register</code> <code>{username, password, nickname?}</code> → <code>{token, user}</code></li>
+<li><code>POST /api/auth/login</code> <code>{username, password}</code> → <code>{token, user}</code></li>
+<li><code>GET /api/me</code> → <code>user</code></li>
+<li><code>user = {id, username, nickname, created_at}</code>；用户名 3–32 位，密码至少 8 位，bcrypt 存储，JWT 7 天。</li>
+</ul>
+<h3 id="42-资产图片视频">4.2 资产（图片/视频）<a class="headerlink" href="#42-资产图片视频" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/assets</code>（multipart：<code>file</code>，<code>kind</code> = <code>garment | model | reference</code>）→ <code>asset</code></li>
+<li><code>asset = {id, kind, url, width, height, mime, created_at, source: "upload" | "generated", parent_id?, prompt?}</code></li>
+<li><code>url</code> 是带签名的绝对地址（<code>/media/{id}?exp=…&amp;sig=…</code>，有效 24 小时），App 直接给 <code>&lt;Image&gt;</code> 用，不需要带 token。</li>
+</ul>
+<h3 id="43-合作项目">4.3 合作项目<a class="headerlink" href="#43-合作项目" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/projects</code> <code>{title, brand, brief, garment_asset_ids: [..], model_asset_id?}</code> → <code>project</code></li>
+<li><code>GET /api/projects</code> → <code>[project]</code>（按更新时间倒序）</li>
+<li><code>GET /api/projects/{id}</code> → <code>project</code></li>
+<li><code>GET /api/projects/{id}/state</code> → <code>state</code>（App 渲染工作台用，见下）</li>
+<li><code>DELETE /api/projects/{id}</code></li>
+<li><code>project = {id, title, brand, brief, stage, cover_url?, created_at, updated_at}</code></li>
+<li><code>state = {stage, garments: [garment], directions: [direction], chosen_direction_id?, script?, images: [image], note?, video?, active_jobs: [job], pending_action?}</code></li>
+<li><code>pending_action</code>：智能体正在等的确认，<code>{type: "choose_direction" | "confirm_script" | "confirm_video", prompt}</code>，没有则为 null。</li>
+</ul>
+<h3 id="44-对话">4.4 对话<a class="headerlink" href="#44-对话" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>GET /api/projects/{id}/messages</code> → <code>[message]</code></li>
+<li><code>POST /api/projects/{id}/messages</code> <code>{text?, action?}</code> → <strong>SSE</strong> 流（<code>text/event-stream</code>）</li>
+<li><code>action</code> 可选：<ul>
+<li><code>{type: "choose_direction", direction_id}</code></li>
+<li><code>{type: "confirm_script"}</code></li>
+<li><code>{type: "edit_image", image_id, instruction}</code></li>
+<li><code>{type: "approve_images", image_ids: [..]}</code>（选定用于笔记的图和顺序）</li>
+<li><code>{type: "confirm_video", image_id}</code></li>
+</ul>
+</li>
+<li>SSE 事件：<ul>
+<li><code>event: token</code> <code>data: {"delta": "..."}</code> 智能体回复的文字增量</li>
+<li><code>event: card</code> <code>data: card</code> 结构化卡片（完整对象，同 id 后到的覆盖先到的）</li>
+<li><code>event: job</code> <code>data: job</code> 新建或更新的生成任务</li>
+<li><code>event: done</code> <code>data: {"message_id": "..."}</code> 本轮结束</li>
+<li><code>event: error</code> <code>data: {"code": "...", "message": "..."}</code></li>
+</ul>
+</li>
+<li><code>message = {id, role: "user" | "assistant", text, cards: [card], action?, created_at}</code></li>
+</ul>
+<p>卡片（<code>card.type</code> 决定样式，<code>card.id</code> 稳定，可被后续事件覆盖更新）：</p>
+<table>
+<thead>
+<tr>
+<th>type</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>garments</code></td>
+<td><code>{items: [{asset_id, url, category, color, material, style_tags: []}]}</code></td>
+</tr>
+<tr>
+<td><code>directions</code></td>
+<td><code>{options: [{id, name, scene, mood, palette, why, sample_title}]}</code></td>
+</tr>
+<tr>
+<td><code>script</code></td>
+<td><code>{status, title_ideas: [], cover: {scene, pose, text_overlay}, shots: [{id, scene, outfit_asset_ids: [], pose, camera, caption}], video: {prompt, duration}}</code></td>
+</tr>
+<tr>
+<td><code>images</code></td>
+<td><code>{items: [image]}</code></td>
+</tr>
+<tr>
+<td><code>note</code></td>
+<td><code>{title, body, tags: [], image_ids: []}</code></td>
+</tr>
+<tr>
+<td><code>video</code></td>
+<td><code>{status, url?, poster_url?, job_id?}</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>image = {id, shot_id, url?, status: "queued" | "running" | "succeeded" | "failed", version, parent_id?, instruction?, error?}</code></p>
+<h3 id="45-生成任务">4.5 生成任务<a class="headerlink" href="#45-生成任务" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>GET /api/jobs/{id}</code> → <code>job</code></li>
+<li><code>job = {id, project_id, kind: "image" | "edit" | "video", status: "queued" | "running" | "succeeded" | "failed", result_asset_id?, url?, error?, created_at, updated_at}</code></li>
+<li>App 在 <code>state.active_jobs</code> 非空时每 3 秒拉一次 <code>/state</code>。</li>
+</ul>
+<h3 id="46-健康检查">4.6 健康检查<a class="headerlink" href="#46-健康检查" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>GET /api/health</code> → <code>{ok: true, version, providers: {text, vision, image, video, mock}}</code></li>
+</ul>
+<h2 id="5-模型与成本2026-10-20-实测">5. 模型与成本（2026-10-20 实测）<a class="headerlink" href="#5-模型与成本2026-10-20-实测" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>用途</th>
+<th>模型</th>
+<th>实测</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>对话 / 工具调用 / 写脚本写笔记</td>
+<td>DeepSeek <code>deepseek-flash</code></td>
+<td>首字 0.5–1 秒</td>
+</tr>
+<tr>
+<td>看懂衣服</td>
+<td><code>qwen3-vl-plus</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td>试衣 + 换场景 / 改图</td>
+<td><code>wan2.7-image-pro</code>（1–3 张参考图 + 指令）</td>
+<td>14 秒/张，面料纽扣口袋保持</td>
+</tr>
+<tr>
+<td>图生视频</td>
+<td><code>wan2.6-i2v-flash</code>（720P 5 秒，带音轨）</td>
+<td>52 秒/条</td>
+</tr>
+</tbody>
+</table>
+<p><code>MOCK_PROVIDERS=1</code> 时全部换成本地假实现（返回固定示例图和文本），开发和测试不花钱。</p>
+<h2 id="6-数据表">6. 数据表<a class="headerlink" href="#6-数据表" title="Permanent link">¶</a></h2>
+<p><code>users</code>、<code>projects</code>、<code>assets</code>（含 <code>parent_id</code> 版本链、<code>prompt</code>、<code>model</code>、<code>source</code>）、<code>messages</code>（展示用，含 cards JSON）、<code>jobs</code>（队列：<code>status</code>、<code>attempts</code>、<code>locked_at</code>、<code>payload</code>、<code>result</code>）、<code>usage_ledger</code>（每次模型调用的模型名、耗时、计费单位）+ LangGraph 自带 checkpoint 表。迁移用 Alembic。</p>
+<h2 id="7-智能体边界与合规只增不改旧字段语义不变">7. 智能体边界与合规（只增不改，旧字段语义不变）<a class="headerlink" href="#7-智能体边界与合规只增不改旧字段语义不变" title="Permanent link">¶</a></h2>
+<h3 id="71-智能体的边界">7.1 智能体的边界<a class="headerlink" href="#71-智能体的边界" title="Permanent link">¶</a></h3>
+<ul>
+<li><strong>阶段之间是状态机</strong>：哪个阶段允许哪些工具、花钱前必须确认，由代码决定，可审计。</li>
+<li><strong>阶段之内是 ReAct</strong>：博主的自由文本交给模型，模型从当前阶段允许的工具里自己选（含只回复不动作的 <code>chat</code>），参数也由模型从上下文解析（比如"第二张""咖啡馆那张"对应哪个 <code>image_id</code>）。代码只校验和放行，不做关键词路由。</li>
+<li><strong>回复由模型写</strong>：每个工具都带 <code>reply</code> 字段，模型用博主搭子的口吻顺手写一两句；模板句只作为模型失败时的兜底。</li>
+</ul>
+<h3 id="72-字段新增">7.2 字段新增<a class="headerlink" href="#72-字段新增" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>direction</code> 增加 <code>preview_url?</code>、<code>preview_status?</code>（<code>queued | running | succeeded | failed</code>）：每个方向一张灵感预览图，出方向后自动生成（低成本层，约 0.5 元/张；批量出图仍要确认脚本）。</li>
+<li><code>image</code> 增加：</li>
+<li><code>fidelity?: {score: 0-100, diffs: [string], auto_fixed: bool}</code>：生成后用看图模型对比原衣服打的"还原分"和差异点；低于 60 分自动修一版（每张最多一次），新版本 <code>instruction</code> 写明修了什么。</li>
+<li><code>script_version?</code>：这张图是按第几版脚本生成的。</li>
+<li><code>note</code> 增加 <code>cost_cny?</code>（这篇笔记累计花费估算）和 <code>ai_label</code>（AI 生成声明文案，App 在笔记预览里显示）。</li>
+<li><code>state</code> 增加：</li>
+<li><code>cost_cny</code>：项目累计花费估算（元）；</li>
+<li><code>last_message_id</code>：最新一条消息的 id。后台任务完成时智能体会<strong>主动发一条消息</strong>（比如"4 张都好了，第 3 张口袋跑了我已经补了一版"），App 发现它变化就重新拉 <code>/messages</code>；</li>
+<li><code>script_versions: [{version, checkpoint_id, created_at, summary, current}]</code>：脚本历史，来自 LangGraph 的 checkpoint 历史。</li>
+<li>新动作 <code>{type: "restore_script", checkpoint_id}</code>：把脚本恢复到某个历史版本，回到 <code>script</code> 阶段等确认，已有图片保留。</li>
+</ul>
+<h3 id="73-合规">7.3 合规<a class="headerlink" href="#73-合规" title="Permanent link">¶</a></h3>
+<p>生成的图片保存时带可见的"AI生成"角标和元数据标识；视频请求带水印参数。笔记预览提示博主发布时勾选平台的 AI 内容声明。</p>
+<h2 id="8-手机上的图片交互与局部改">8. 手机上的图片交互与局部改<a class="headerlink" href="#8-手机上的图片交互与局部改" title="Permanent link">¶</a></h2>
+<h3 id="81-交互app">8.1 交互（App）<a class="headerlink" href="#81-交互app" title="Permanent link">¶</a></h3>
+<ul>
+<li><strong>点图进全屏查看器</strong>：左右滑切换图片，双指缩放、双击放大看细节（袖口、纽扣、面料）；底部是这个镜头的<strong>版本条</strong>（v1 / v2 / v3…，按 <code>parent_id</code> 链），可以拖动<strong>前后对比滑块</strong>看改了哪里。</li>
+<li><strong>局部改</strong>：在查看器里进入"圈选"模式，用手指涂抹要改的地方（可调笔刷粗细、撤销、清空，也可切换成框选），再点快捷说法（袖口放下来 / 衬衫塞进裤腰 / 去掉吊牌 / 换颜色 / 背景亮一点…）或自己输入，提交后只改圈出来的区域。</li>
+<li><strong>整张改</strong>：不圈选，直接说一句话改整张。</li>
+<li><strong>引用到对话</strong>：长按图片或在查看器里点"引用"，输入框上方出现这张图的缩略图，博主可以说"这张袖口卷起来了"，智能体知道指的是哪张。</li>
+<li><strong>长按菜单</strong>：局部改 / 整张改 / 引用到对话 / 对比版本 / 保存到相册。</li>
+<li>改完的新版本自动出现在版本条里，并显示"是否按要求改好"的检查结果；没改到位可以一键重试或换个说法。</li>
+</ul>
+<h3 id="82-接口新增">8.2 接口新增<a class="headerlink" href="#82-接口新增" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>edit_image</code> 动作增加可选字段（二选一，都不带就是整张改）：</li>
+<li><code>region: {x, y, w, h}</code>：框选，0–1 归一化，相对原图宽高；</li>
+<li><code>mask_strokes: {brush: 0–1（相对图片短边）, strokes: [[{x, y}, …], …]}</code>：涂抹轨迹，坐标 0–1 归一化。</li>
+<li><code>POST /messages</code> 增加可选 <code>refs: [image_id]</code>（引用的图片）；<code>message</code> 增加 <code>refs</code>。</li>
+<li><code>image</code> 增加：</li>
+<li><code>region?</code>：这一版是局部改时的区域（框选或涂抹外接框，0–1）；</li>
+<li><code>edit_check?: {passed: bool, reason: string}</code>：看图模型核对"指令有没有做到"。</li>
+</ul>
+<h3 id="83-服务端局部改的做法">8.3 服务端局部改的做法<a class="headerlink" href="#83-服务端局部改的做法" title="Permanent link">¶</a></h3>
+<p>按涂抹轨迹生成蒙版 → 取外接框并向外扩一圈上下文裁剪 → 只把裁剪块和指令（附原衣服图）交给生成模型，最后一张参考始终是唯一待编辑的裁剪画布 → 在蒙版内对齐边缘颜色和亮度，再按蒙版羽化贴回原图。<strong>蒙版以外的像素保持不变</strong>（测试验证）。上下文扩边按选区长边的 60% 取值（至少 16 像素）；指令描述需要看到的最终状态，保持未要求改变的品类与袖长，不把短袖展开误解为改成长袖；纯调色或亮度指令只改变对应属性。改完用看图模型核对指令是否做到，没做到自动加强指令重试一次，结果如实写进 <code>edit_check</code>。</p>
+<h3 id="84-吊牌与包装">8.4 吊牌与包装<a class="headerlink" href="#84-吊牌与包装" title="Permanent link">¶</a></h3>
+<p>衣服原图上的吊牌、价签、织标贴纸、衣架、包装袋不属于衣服：出图提示和还原分质检都要忽略它们，生成图里不能出现。</p>
+<h2 id="9-管理端">9. 管理端<a class="headerlink" href="#9-管理端" title="Permanent link">¶</a></h2>
+<h3 id="91-定位">9.1 定位<a class="headerlink" href="#91-定位" title="Permanent link">¶</a></h3>
+<p>运营者视角的后台，和 App 共用同一个服务与数据库，不另起服务：页面在 <code>/admin</code>，接口在 <code>/api/admin/*</code>。独立口令登录（环境变量 <code>ADMIN_TOKEN</code>，只在服务器 <code>.env</code>），与 App 账号体系无关；App 用户拿不到管理接口。中文界面，手机浏览器也要能看（面试现场可能用手机打开）。</p>
+<h3 id="92-页面">9.2 页面<a class="headerlink" href="#92-页面" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>页面</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总览</td>
+<td>用户数、项目数、今日 / 累计模型调用次数与估算费用、项目按阶段分布、排队中 / 运行中 / 失败任务数</td>
+</tr>
+<tr>
+<td>用量统计</td>
+<td>按模型、按用户、按天（最近 30 天）的调用次数、耗时、估算费用；可按用户筛选；可导出 CSV</td>
+</tr>
+<tr>
+<td>模型与配额</td>
+<td>四种能力（对话 / 看图 / 出图 / 视频）各用哪个模型（从候选列表选）；用户分层 <code>free</code> / <code>pro</code>，每层默认每日预算（元）和可用模型；全局每日预算；改了立即生效，不重启</td>
+</tr>
+<tr>
+<td>任务队列</td>
+<td>生成任务列表（状态、种类、项目、用户、尝试次数、错误原因、耗时）；失败任务一键重试；排队中的可取消</td>
+</tr>
+<tr>
+<td>用户管理</td>
+<td>列表（注册时间、项目数、累计花费、层级、状态）；禁用 / 启用；改层级</td>
+</tr>
+</tbody>
+</table>
+<h3 id="93-接口">9.3 接口<a class="headerlink" href="#93-接口" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/admin/login</code>：<code>{token}</code> → 会话（cookie 或 bearer，自选）；其余管理接口都要求已登录。</li>
+<li><code>GET /api/admin/overview</code></li>
+<li><code>GET /api/admin/usage?group=model|user|day&amp;from=&amp;to=&amp;user_id=</code>；<code>GET /api/admin/usage.csv</code>（同参数）</li>
+<li><code>GET /api/admin/settings</code>、<code>PUT /api/admin/settings</code>：<code>{models: {text, vision, image, video}, tiers: {free: {daily_budget_cny, models: [...]}, pro: {...}}, global_daily_budget_cny}</code></li>
+<li><code>GET /api/admin/jobs?status=&amp;limit=</code>；<code>POST /api/admin/jobs/{id}/retry</code>；<code>POST /api/admin/jobs/{id}/cancel</code></li>
+<li><code>GET /api/admin/users?q=</code>；<code>PATCH /api/admin/users/{id}</code>：<code>{tier?, disabled?}</code></li>
+</ul>
+<h3 id="94-数据">9.4 数据<a class="headerlink" href="#94-数据" title="Permanent link">¶</a></h3>
+<ul>
+<li>新表 <code>app_settings(key, value jsonb, updated_at)</code>：运行时配置；环境变量只作为默认值。API 与 Worker 读取时短缓存（≤ 10 秒）。</li>
+<li><code>users</code> 增加 <code>tier</code>（默认 <code>free</code>）、<code>disabled</code>（默认 false）。禁用的用户登录和所有写接口返回 403，中文说明。</li>
+<li><code>usage_ledger</code> 增加 <code>user_id</code>（新记录写入；旧记录按 <code>project_id</code> 回填）。</li>
+<li>预算：用户当日估算花费达到所在层级的每日预算、或全局当日预算达到上限时，花钱的动作（出方向预览、确认脚本出图、改图、视频）被拒绝，App 收到明确的中文提示（沿用现有错误事件格式），不入队任何付费任务；对话类调用不受限。</li>
+</ul>
+<h3 id="95-约束">9.5 约束<a class="headerlink" href="#95-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>对 App 已有接口零改动（只增）；App 不需要为管理端改代码。</li>
+<li>页面技术自选，要求和 API 同一个容器部署、不增加新进程；服务端渲染 + 少量脚本或单文件前端都可以。</li>
+</ul>
+<h2 id="10-博主档案项目管理发布闭环与工程成熟度">10. 博主档案、项目管理、发布闭环与工程成熟度<a class="headerlink" href="#10-博主档案项目管理发布闭环与工程成熟度" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>目的：面试官看到的不是"一个能跑的对话"，而是一条完整的产品通路——博主有自己的形象和偏好、项目能管理、笔记能一键发出去、后台有人能看能管、服务端有线上系统该有的防护。</p>
+</blockquote>
+<h3 id="101-博主档案app我的形象-服务端">10.1 博主档案（App「我的形象」+ 服务端）<a class="headerlink" href="#101-博主档案app我的形象-服务端" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>GET /api/me</code> 增加：<code>tier</code>、<code>daily_budget_cny</code>、<code>today_cost_cny</code>、<code>profile: {model_asset_ids: [asset_id], height_cm?, body_notes?, style_notes?}</code>。</li>
+<li><code>PATCH /api/me</code> <code>{nickname?, profile?}</code> → <code>user</code>。<code>model_asset_ids</code> 里的资产必须是本人上传的 <code>kind=model</code>。</li>
+<li>新建项目时 <code>model_asset_id</code> 可不传：服务端取档案里第一张本人照片；<code>style_notes</code>（如"喜欢松弛感，不穿高跟鞋"）作为博主偏好进入智能体上下文，方向和脚本要照顾它。这是"博主风格记忆"的 mini 版。</li>
+<li>App 设置页加「我的形象」：管理本人照片（多张、设默认）、身高体型、风格偏好；新建项目时默认选档案照片，也可换。昵称可改。</li>
+</ul>
+<h3 id="102-项目管理app">10.2 项目管理（App）<a class="headerlink" href="#102-项目管理app" title="Permanent link">¶</a></h3>
+<ul>
+<li>项目列表：左滑或长按删除（二次确认，用现有 <code>DELETE /api/projects/{id}</code>）；按标题/品牌搜索；卡片显示阶段标签和封面；下拉刷新。</li>
+<li>服务端删除项目时级联清理该项目的消息、任务、生成媒体文件（上传的衣服原图保留，可能被别的项目复用）。</li>
+</ul>
+<h3 id="103-发布闭环app">10.3 发布闭环（App）<a class="headerlink" href="#103-发布闭环app" title="Permanent link">¶</a></h3>
+<ul>
+<li>笔记预览页加「准备发布」：一步完成复制文案 + 保存全部图片（按顺序）+ 保存视频到相册，再弹系统分享面板；带一张"发布清单"（图片 n 张、视频、已勾选 AI 内容声明）。</li>
+<li>生成完成本地通知：App 在后台时，批量出图 / 改图 / 视频完成弹本机通知（<code>state.last_message_id</code> 变化或任务完成触发），点通知进对应项目。</li>
+</ul>
+<h3 id="104-对话细节app">10.4 对话细节（App）<a class="headerlink" href="#104-对话细节app" title="Permanent link">¶</a></h3>
+<ul>
+<li>长按消息：复制文本；失败的用户消息可重发；智能体最后一条回复可「换个说法」（重新生成，只重跑本轮，不重复花钱——有付费动作的轮次不提供）。</li>
+<li>首次打开三屏引导（能做什么、花钱前会确认、AI 声明）；关于页：版本、服务地址、隐私说明。</li>
+</ul>
+<h3 id="105-工程成熟度服务端">10.5 工程成熟度（服务端）<a class="headerlink" href="#105-工程成熟度服务端" title="Permanent link">¶</a></h3>
+<ul>
+<li>限流：注册 / 登录按 IP 每分钟上限，上传和对话按用户每分钟上限；超限返回 429 中文说明。</li>
+<li>上传校验：只收 jpeg/png/webp/heic，单文件 ≤ 15 MB，最长边 ≤ 6000；超限 413/415 中文说明。</li>
+<li>可观测：每个请求带 <code>X-Request-Id</code>（响应头回传），结构化 JSON 日志含请求 id、用户 id、项目 id、耗时；模型调用日志含模型名、耗时、费用。</li>
+<li>配额：<code>today_cost_cny</code>、<code>daily_budget_cny</code> 与第 9 节管理端的层级一致。</li>
+<li>CI：GitHub Actions 工作流，服务端 ruff + pytest（Mock）、App typecheck + lint + 单测。</li>
+<li>管理端（第 9 节）在总览加"最近 24 小时错误数"和请求量。</li>
+</ul>
+<h3 id="106-约束">10.6 约束<a class="headerlink" href="#106-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>全部只增不改：旧接口、旧字段语义不变；App 对不存在的新接口（404）要优雅降级（隐藏对应入口），保证旧服务端也能用。</li>
+</ul>
+<h2 id="11-智能体过程透明花钱前预估换一组发帖表单">11. 智能体过程透明、花钱前预估、换一组、发帖表单<a class="headerlink" href="#11-智能体过程透明花钱前预估换一组发帖表单" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P1「像产品」的三件事：博主看得见智能体做了什么、花钱前先说清、不满意能换一组；发布面板向小红书发帖表单靠齐。</p>
+</blockquote>
+<h3 id="111-智能体过程透明">11.1 智能体过程透明<a class="headerlink" href="#111-智能体过程透明" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>message</code>（assistant）增加 <code>trace?: {tool, model, duration_ms, cost_cny, refs: [image_id], steps: [{label, duration_ms}]}</code>：这一轮模型选了哪个工具（<code>chat / propose_directions / write_script / revise_script / edit_image / write_note / generate_images / generate_video / restore_script</code>）、用的文本模型、这一轮对话调用耗时与估算费用、引用的图片、分步（如"看图 2 件 3.1s""写脚本 4.8s"）。</li>
+<li>SSE 新增 <code>event: trace</code> <code>data: trace</code>，在 <code>done</code> 之前发；<code>GET /messages</code> 可读回。Worker 完成的主动消息也带 <code>trace</code>（出图 n 张、耗时、费用）。</li>
+<li>App：每条智能体消息下方一行小字"用了 写脚本 · 4.8s · ¥0.01"，点开展开分步；不打扰阅读。</li>
+</ul>
+<h3 id="112-花钱前预估">11.2 花钱前预估<a class="headerlink" href="#112-花钱前预估" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>state.pending_action</code> 增加 <code>estimated_cost_cny?</code>：<code>confirm_script</code> = 镜头数 × 单张出图估价（+ 可能的自动修一版按 20% 计）；<code>confirm_video</code> = 视频估价；预估口径与账本一致（设计第 5 节单价）。</li>
+<li><code>state</code> 增加 <code>budget: {tier, daily_budget_cny, today_cost_cny, remaining_cny}</code>。</li>
+<li>App：确认按钮旁显示"预计约 ¥x · 今日剩余 ¥y"；余额不够时按钮置灰并提示。</li>
+</ul>
+<h3 id="113-换一组方向与重新回复">11.3 换一组方向与重新回复<a class="headerlink" href="#113-换一组方向与重新回复" title="Permanent link">¶</a></h3>
+<ul>
+<li>方向阶段自由文本"换一组"由模型选 <code>propose_directions</code> 重新给 2–3 个（已有能力，服务端保证可用并在提示词里说明"保留用户已说过的偏好"）；App 方向卡底部加"换一组"按钮，发送固定文本"换一组方向，保留我刚才说的偏好"。</li>
+<li><code>message</code>（assistant）增加 <code>can_regenerate?: boolean</code>：这一轮没有创建任何付费任务时为 true。新动作 <code>{type: "regenerate_reply", message_id}</code>：只重写这条回复的文字（同 id 覆盖，重发 <code>token</code> 和 <code>done</code>），不重跑工具、不花出图费用；带付费任务的轮次拒绝（中文说明）。</li>
+</ul>
+<h3 id="114-发帖表单app">11.4 发帖表单（App）<a class="headerlink" href="#114-发帖表单app" title="Permanent link">¶</a></h3>
+<ul>
+<li>笔记预览页改成贴近小红书发帖的表单：标题（20 字计数）、正文可编辑、话题标签胶囊（可增删）、"AI 生成内容"声明勾选（默认勾）、图片顺序、"保存草稿"（本地）、"准备发布"。编辑后的标题/正文/标签通过已有 <code>write_note</code> 路径回写（自由文本"标题改成…"）或本地覆盖后再复制，二选一写明。</li>
+</ul>
+<h3 id="115-约束">11.5 约束<a class="headerlink" href="#115-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>只增不改；旧 App 不认识 <code>trace / estimated_cost_cny / budget / can_regenerate</code> 也不影响使用。</li>
+</ul>
+<h2 id="12-参考图与封面锚点">12. 参考图与封面锚点<a class="headerlink" href="#12-参考图与封面锚点" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P1：博主自己喜欢的图应当能左右方向；全套图以封面为锚点保证人物与风格一致。</p>
+</blockquote>
+<h3 id="121-参考图">12.1 参考图<a class="headerlink" href="#121-参考图" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/projects</code> 增加可选 <code>reference_asset_ids: [asset_id]</code>（<code>kind=reference</code>，最多 3 张，必须本人上传）；<code>project</code> 返回同名字段。</li>
+<li>看图阶段对参考图做风格分析（场景、光线、构图、氛围、配色），写进 <code>brief</code> 的整理要点和智能体上下文；方向、脚本、方向预览图和正式出图的提示都要体现参考图的风格；<code>garments</code> 卡片之外新增 <code>references</code> 卡片 <code>{items: [{asset_id, url, style_tags: []}]}</code>（可选，没有参考图就不发）。</li>
+<li>App：新建项目加"参考图（选填）"槽位，最多 3 张；工作台显示参考图卡。</li>
+</ul>
+<h3 id="122-封面锚点">12.2 封面锚点<a class="headerlink" href="#122-封面锚点" title="Permanent link">¶</a></h3>
+<ul>
+<li>确认脚本后批量出图改为两段：先出封面镜头（脚本 <code>cover</code> 对应的第一个镜头），成功后其余镜头并行生成，并把封面图作为额外参考传给生成模型（保持同一人、同一妆发、同一光线氛围）。封面失败则退回原来的并行方式。</li>
+<li><code>image</code> 增加 <code>anchor_id?</code>（这张图以哪张为锚点）；<code>fidelity</code> 增加 <code>person_score?: 0-100</code>（与博主本人照片的人像一致性，看图模型打分）和 <code>anchor_score?: 0-100</code>（与封面的一致性）。</li>
+<li>主动播报里带一句一致性摘要（"5 张都好了，人像一致性 90+"）。</li>
+<li>查看器角标显示"人像 92"。</li>
+</ul>
+<h3 id="123-约束">12.3 约束<a class="headerlink" href="#123-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>只增不改；没有参考图、没有本人照片时行为与现在一致。</li>
+</ul>
+<h2 id="13-改图结果可信闭环">13. 改图结果可信闭环<a class="headerlink" href="#13-改图结果可信闭环" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P2「可信」：任务成功不等于内容可交付。改图没改到位的版本不能悄悄进入笔记和视频，文案不能把没改成的指令写成事实，"再试一次"必须是一次真正的新尝试。本节是服务端与 App 的唯一契约。</p>
+</blockquote>
+<h3 id="131-质检失败的版本不默认入稿">13.1 质检失败的版本不默认入稿<a class="headerlink" href="#131-质检失败的版本不默认入稿" title="Permanent link">¶</a></h3>
+<ul>
+<li>定义：一张图"未核对通过"= <code>image.edit_check</code> 存在且 <code>passed === false</code>。</li>
+<li>App 默认选择：每个镜头默认选<strong>最新一张已成功且核对通过（或没有 edit_check）的版本</strong>；未核对通过的新版本显示角标"未改到位"，不自动替换默认选择，也不自动进入选图顺序。</li>
+<li>用户可以主动采用未通过的版本：查看器/选图处提供"仍然采用"，弹一次确认（显示 <code>edit_check.reason</code>），确认后 <code>approve_images</code> 带 <code>accept_unverified: [image_id]</code>。</li>
+<li>服务端 <code>approve_images</code>：<code>image_ids</code> 里若含未核对通过的图而没有列在 <code>accept_unverified</code> 里，返回错误 <code>unverified_image</code>（消息列出镜头号和原因，App 用它弹确认后重发）；通过后 <code>state.note.accepted_unverified_ids: [image_id]</code> 持久化，App 在预览/发布清单里对这些图标"手动采用"。</li>
+<li>视频源图走同一规则（源图必须在当前 <code>note.image_ids</code> 里，因此不需要新字段）。</li>
+<li>写笔记上下文：把"用户要求怎么改"（requested_change）和"可确认的画面事实"分开传给文案模型；只有 <code>edit_check.passed === true</code> 或被用户主动采用的改图指令才能写成画面事实，否则按原衣服/原画面描述；提示词里明确"没有核对通过的修改不要写进文案"。</li>
+<li>不把质检失败改成任务 <code>failed</code>（避免误触发付费重试）。</li>
+</ul>
+<h3 id="132-再试一次-明确的新尝试">13.2 "再试一次"= 明确的新尝试<a class="headerlink" href="#132-再试一次-明确的新尝试" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>edit_image</code> 增加可选 <code>attempt: string</code>（客户端生成，≤ 64 字符，建议 <code>UUID</code>）。去重键 = 父图 + 指令 + 选区 + <code>attempt</code>。同一 <code>attempt</code> 重放 → 返回同一任务（网络重放不多花钱）；新的 <code>attempt</code> → 新任务（照常走预算与限流）。不带 <code>attempt</code> 时行为与现在一致。</li>
+<li>服务端返回里标明本次是否复用：<code>pending_action</code> 或任务响应中 <code>reused: boolean</code>（放在现有改图回包的同级字段，App 以它判断要不要继续等新版本）。</li>
+<li>App：同一次用户提交只生成一个 <code>attempt</code>，传输层重试复用它；用户点"再试一次 / 换个说法"才生成新的 <code>attempt</code>；收到 <code>reused=true</code> 时不再无期限等新 ID，提示"这次和上次一样，没有重新生成"。</li>
+</ul>
+<h3 id="133-笔记阶段能采用新版">13.3 笔记阶段能采用新版<a class="headerlink" href="#133-笔记阶段能采用新版" title="Permanent link">¶</a></h3>
+<ul>
+<li>服务端已支持 note 阶段 <code>approve_images</code>（重新写笔记），本轮不改语义，只保证：<code>approve_images</code> 在 note 阶段会重写 <code>note</code>，并保留用户已有标题/标签的改动不做要求（本地草稿由 13.4 处理）。</li>
+<li>App：note 阶段（<code>state.stage === 'note'</code>）在查看器版本条和笔记卡提供"采用此版本到笔记"/"重新选图"，用新版替换同镜头的旧版、保持顺序，发 <code>approve_images</code>；预览与发布清单随 <code>note.image_ids</code> 刷新。video/done 阶段维持定稿，不开放。</li>
+</ul>
+<h3 id="134-本地草稿与服务端修订的冲突仅-app">13.4 本地草稿与服务端修订的冲突（仅 App）<a class="headerlink" href="#134-本地草稿与服务端修订的冲突仅-app" title="Permanent link">¶</a></h3>
+<ul>
+<li>本地草稿记录来源指纹 <code>sourceFingerprint = sha256(title + body + tags + image_ids)</code> 和 <code>dirty</code>。</li>
+<li>打开预览：<code>!dirty</code> → 直接跟随服务端最新笔记；<code>dirty</code> 且服务端指纹变化 → 顶部提示"笔记有新版本"，给"保留我的修改 / 采用新版本"两个按钮；任何时候都有"恢复服务端版本"入口。不清空用户草稿。</li>
+</ul>
+<h3 id="135-普通请求超时仅-app">13.5 普通请求超时（仅 App）<a class="headerlink" href="#135-普通请求超时仅-app" title="Permanent link">¶</a></h3>
+<ul>
+<li>REST 分类超时：读取 20 s、写入 60 s、上传 120 s；用 <code>AbortController</code>，超时后读取类可重试，写入类<strong>不自动重放</strong>，创建项目超时后先刷新项目列表再决定是否重建。上传逐张显示"第 n/N 张"。SSE 保持现有 120 s。</li>
+</ul>
+<h3 id="136-换一组的费用提示">13.6 "换一组"的费用提示<a class="headerlink" href="#136-换一组的费用提示" title="Permanent link">¶</a></h3>
+<ul>
+<li>服务端 <code>directions</code> 卡片增加 <code>regenerate_estimate_cny</code>（按 <code>costs.py</code> 估算 2–3 张预览的费用）。</li>
+<li>App："换一组"按钮旁显示"约 ¥x · 含 2–3 张预览"；首次引导第二页标题改为"正式出图和视频，由你确认"。</li>
+</ul>
+<h3 id="137-约束">13.7 约束<a class="headerlink" href="#137-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>只增不改，没有新字段时行为与 §12 一致；线上回归用例 <code>e2e/live.spec.ts</code> 不需要改也应继续通过。</li>
+</ul>
+<h2 id="14-两种创作模式点数摄影感出片与离开再回来">14. 两种创作模式、点数、摄影感出片与离开再回来<a class="headerlink" href="#14-两种创作模式点数摄影感出片与离开再回来" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P1 / P2：博主有两种状态——赶更新不想做选择题（一键出片），或想一步步打磨（沉浸编导）；对用户只展示点数不展示货币；出片要有摄影感而不是通用模型的"AI 感"；生成动辄一两分钟，离开再回来必须知道进度。本节是唯一契约，字段名照此。</p>
+</blockquote>
+<h3 id="141-点数服务端-app">14.1 点数（服务端 + App）<a class="headerlink" href="#141-点数服务端-app" title="Permanent link">¶</a></h3>
+<ul>
+<li>口径：<strong>10 点 = 1 元</strong>，<code>costs.py</code> 增加 <code>POINTS_PER_CNY = 10</code> 与 <code>points(cny) -&gt; float</code>（保留 1 位小数）。出图 1 张 = 5 点，视频 = 15 点，换一组预览约 15 点，文本对话按实际折算（通常不到 1 点）。</li>
+<li>服务端在所有现有 <code>*_cny</code> 字段旁增加同义的 <code>*_points</code> 字段，旧字段保留不改：<code>budget.{daily_budget_points, today_cost_points, remaining_points}</code>、<code>pending_action.estimated_cost_points</code>、<code>trace.cost_points</code>、<code>directions.regenerate_estimate_points</code>、卡片 <code>cost_points</code>、<code>GET /api/me</code> 的 <code>daily_budget_points / today_cost_points</code>。</li>
+<li>App 用户可见的任何地方只出现"点"，不再出现 ¥ / 元 / 费用 / 花费 / 价格：确认按钮旁"预计 15 点 · 今日还有 585 点"；消息下方"用了 写脚本 · 4.8s · 0.3 点"（不到 0.1 点显示"不到 0.1 点"）；点数不够时"今日点数不够了，明天 00:00 恢复"。设置页与引导页的措辞同步。</li>
+<li>管理端仍按元统计（运营口径），页头注明"用户端以点数显示，10 点 = 1 元"。</li>
+</ul>
+<h3 id="142-一键出片mode-auto">14.2 一键出片（<code>mode: auto</code>）<a class="headerlink" href="#142-一键出片mode-auto" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/projects</code> 增加 <code>mode: "guided" | "auto"</code>（默认 <code>guided</code>，老客户端不变）和 <code>style_tags: list[str]</code>（≤ 6 条，每条 ≤ 12 字；进提方向与写脚本的上下文，不改 brief 原文）；<code>projects.mode</code>、<code>projects.style_tags</code> 新列（迁移 0010）；<code>ProjectOutput</code> 与 <code>state</code> 回 <code>mode</code> 与 <code>style_tags</code>。</li>
+<li><code>GET /api/quotes/auto</code> → <code>{estimate_points, breakdown: [{label, points}]}</code>：预览 3 张 + 正式出图 3 张（含自动修一版 20%）+ 视频 1 条，按 <code>costs.py</code> 估算（当前约 48 点）。App 在"开拍"按钮上显示它。</li>
+<li>auto 行为（服务端）：三个人在回路点自动走默认——方向取 <code>propose_directions</code> 标记的 <code>recommended: true</code> 那个（模型按 style_tags 与 brief 推荐，缺省第 1 个）；脚本写完立即确认并入队出图；出图完成后自动采用全部 v1（封面 = 封面锚点，跳过核对失败的版本）→ 写笔记 → 自动确认视频 → 视频完成 → <code>done</code>。任何一步失败（任务 failed、点数不够、模型错误）停在当前阶段，<code>mode</code> 转回 <code>guided</code>，发一条主动消息说明停在哪、为什么、下一步怎么做。</li>
+<li><code>state.auto: {active: bool, step: "directions"|"script"|"images"|"note"|"video"|"done", label: string, started_at, estimate_points}</code>；auto 进行中 <code>pending_action</code> 始终为 <code>null</code>，每步切换发一条主动消息（和出图完成的主动消息同一通道）。</li>
+<li><code>POST /api/projects/{id}/mode {mode: "guided"}</code>：从下一个人在回路点起停下等用户，已在跑的任务不取消；回 <code>state</code>。auto 中用户仍可发消息，<code>chat</code> 正常；<code>ALLOWED_TOOLS</code> 不变。</li>
+</ul>
+<h3 id="143-摄影感出片服务端">14.3 摄影感出片（服务端）<a class="headerlink" href="#143-摄影感出片服务端" title="Permanent link">¶</a></h3>
+<ul>
+<li>入队出图前，把每个镜头扩写成摄影脚本再交给图像模型：焦段（35/50mm）、光线（自然光 / 直闪 / 逆光 / 窗光）、构图（不居中、半身裁切、低角度、前景遮挡）、瞬间（走动、整理衣角、不看镜头）、质感（胶片颗粒、轻微动态模糊、真实皮肤纹理、不磨皮）；明确写"不要棚拍白底、不要对称居中、不要塑料感皮肤"。<code>style_tags</code> 各自映射一套摄影语言（见 14.5 词条表）；有参考图时参考图的构图与光线作为锚点优先。</li>
+<li>扩写结果写进 job payload 的 <code>photo_prompt</code>，管理端队列可见；衣服还原相关的描述不动。</li>
+</ul>
+<h3 id="144-离开再回来进度与通知">14.4 离开再回来：进度与通知<a class="headerlink" href="#144-离开再回来进度与通知" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>GET /api/projects</code> 每项增加 <code>progress: {status: "waiting_you"|"generating"|"ready"|"done"|"failed"|"idle", label: string, running: int, total: int, updated_at}</code>，label 中文短句："出图中 2/3""等你确认脚本""改图中""笔记已就绪，等你看""视频生成中""全套已出好""出图失败，点开看看"。</li>
+<li>App 首页：有 <code>generating</code> / <code>waiting_you</code> / <code>ready</code> 的项目置顶到「进行中」区，显示 label 和"继续"；列表有 <code>generating</code> 项时每 5 s 刷新，回到前台立即刷新；首页顶部"刚刚出好"条目（来自现有完成追踪）点击进入。</li>
+<li>现有本地通知与前台横幅（<code>GenerationNotifications</code>）不变；auto 项目打开后显示步骤进度条与当前步骤，不显示确认按钮，有"我来接手"按钮调 14.2 的接口。</li>
+</ul>
+<h3 id="145-片场感文案与视觉app">14.5 片场感：文案与视觉（App）<a class="headerlink" href="#145-片场感文案与视觉app" title="Permanent link">¶</a></h3>
+<ul>
+<li>词汇表（全局替换，含无障碍标签与测试选择器）：新建品牌合作 → <strong>拍一组新片</strong>；合作项目 / 合作笔记 → <strong>我的片场</strong> / <strong>这组片</strong>；合作工作台 → <strong>编导间</strong>；创作间 → <strong>片场</strong>；品牌需求 → <strong>这次想拍什么</strong>；让你来当主角 → <strong>出镜的人</strong>；开始聊灵感 → <strong>开拍</strong>；合作品牌 → <strong>品牌</strong>（选填，空则 App 填"自由创作"）；项目名称默认"品牌 · 第一个风格词"，可改。</li>
+<li>新建页：大标题"一件衣服，一组大片"；模式切换「一键出片 / 沉浸编导」，各一行说明 + 问号弹层（一键出片："交给我们，全套图文和视频一次出好，中途可以接手。"沉浸编导："聊灵感、定脚本、挑图改图，每一步你说了算。"）；三张卡：衣服（必填）/ 出镜的人（选填，默认档案）/ 参考图（选填，一键出片下建议上传）；"描述你的风格"输入 + 风格词条（每次显示 8 个 + 换一批）；底部一个按钮：沉浸编导 →"开拍，先聊灵感"；一键出片 →"开拍，全自动 · 约 48 点"。</li>
+<li>风格词条（12 个，App 与服务端共用同一份中文）：松弛通勤、老钱极简、法式慵懒、街头胶片、杂志大片、咖啡馆午后、闪光灯夜拍、复古港风、户外野餐、美术馆漫步、雨天街角、运动机能。</li>
+<li>首页：深色影棚风；顶部"灵感墙"用 <code>app/assets/inspiration/studio-01..10.jpg</code>（我们自己线上跑出来的成片）做两列瀑布，点开大图；下方「进行中」与「我的片场」；主按钮"拍一组新片"。</li>
+<li>配色与字体：<code>theme.ts</code> 增加 <code>studio</code> 色板（以现有 viewer 色为基础：深底、玻璃面、细线、米白字、品牌红只做强调）；首页、登录、引导、新建页用 studio；编导间与预览保持纸色（"片场是暗的，编辑桌是亮的"）。展示级标题 iOS 用 <code>Songti SC</code> 细体 + 字间距，Android 用系统字体。</li>
+<li>引导页三页改为：一件衣服，一组大片 / 一键出片，或者一步步来 / 正式出图和视频会扣点，由你确认。</li>
+</ul>
+<h3 id="146-约束">14.6 约束<a class="headerlink" href="#146-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>只增不改：不带 <code>mode</code> / <code>style_tags</code> 时行为与 §13 一致；旧 <code>*_cny</code> 字段继续返回。</li>
+<li><code>e2e/live.spec.ts</code> 允许按新文案改选择器，不改流程语义；新增 <code>e2e/live-auto.spec.ts</code>（注册 → 一键出片 → 等到 done，上限 10 分钟）由 Claude 在线上跑。</li>
+</ul>
+<h2 id="15-账号闭环">15. 账号闭环<a class="headerlink" href="#15-账号闭环" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P1：呈现出来的功能都要闭环。账号除注册登录外还要有协议与隐私、忘记密码、修改密码、注销。短信验证码通道需要签名与模板审核和实名主体，24 小时内拿不到，<strong>不做手机号注册</strong>；忘记密码用恢复码，字段留好换成手机号验证码的位置。</p>
+</blockquote>
+<h3 id="151-法律文本">15.1 法律文本<a class="headerlink" href="#151-法律文本" title="Permanent link">¶</a></h3>
+<ul>
+<li>服务端 <code>server/app/legal/{terms,privacy,disclaimer}.md</code>（用户协议 / 隐私政策 / AI 内容免责声明），<code>LEGAL_VERSION = "2026-10-21"</code>。<code>GET /api/legal</code> → <code>[{kind, title, version}]</code>；<code>GET /api/legal/{kind}</code> → <code>{kind, title, version, markdown}</code>，无需登录。</li>
+<li>内容要真实可读、面向演示版：主体写"衣序（演示版）"，联系邮箱 <code>97000945@qq.com</code>。用户协议：服务内容、账号规则、点数（10 点 = 1 元，失败退点）、AI 生成内容归属与使用、禁止用途（内衣泳装等敏感品类、未经授权的他人肖像、侵权素材）、免责、变更与终止。隐私政策：收集什么（账号、上传的衣服图 / 本人照片 / 参考图、生成记录、设备与日志）、用途、保存期限、第三方模型服务（阿里云百炼、DeepSeek，只传生成所需内容）、用户权利（查看、删除项目、注销账号）、未成年人、联系方式。免责声明：生成内容可能有误、还原度以实际为准、商用前自行核对、按《人工智能生成合成内容标识办法》带标识、发布时勾选平台 AI 声明。</li>
+<li>App 页面 <code>/legal/[kind]</code> 渲染 markdown（标题 / 段落 / 列表即可），登录页底部、设置页、关于页都有入口。</li>
+</ul>
+<h3 id="152-同意与首次启动">15.2 同意与首次启动<a class="headerlink" href="#152-同意与首次启动" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/auth/register</code> 增加 <code>agreed_legal_version: str</code>（新 App 必传，老客户端不传则记为空）；<code>users.legal_version</code>、<code>users.legal_agreed_at</code> 新列。</li>
+<li>App 注册 tab：勾选框"我已阅读并同意《用户协议》和《隐私政策》"，链接可点；未勾选时按钮置灰并提示。首次启动在引导页之前弹"隐私提示"（一段话 + 查看协议 + 同意并继续 / 暂不使用），同意后才进入引导。</li>
+</ul>
+<h3 id="153-忘记密码恢复码">15.3 忘记密码（恢复码）<a class="headerlink" href="#153-忘记密码恢复码" title="Permanent link">¶</a></h3>
+<ul>
+<li>注册成功响应增加 <code>recovery_code</code>（12 位，<code>xxxx-xxxx-xxxx</code>，只在这一次返回，服务端只存 hash）。App 用整页展示：这是唯一的找回方式，提供"复制"，用户点"我已保存"才进入。</li>
+<li><code>POST /api/auth/recover {username, recovery_code, new_password}</code> → 验证通过则重置密码、作废旧登录、换发新恢复码并返回 <code>{token, user, recovery_code}</code>；失败统一回 <code>RECOVERY_FAILED</code>，按用户名限流（现有 <code>rate_limits</code>）。</li>
+<li><code>POST /api/me/recovery-code {password}</code> → 重新生成并返回新恢复码（设置页"重新生成恢复码"）。</li>
+<li>登录页"忘记密码？"→ <code>/forgot</code>：用户名 + 恢复码 + 新密码；成功后展示新恢复码并登录。</li>
+</ul>
+<h3 id="154-修改密码与登录失效">15.4 修改密码与登录失效<a class="headerlink" href="#154-修改密码与登录失效" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/me/password {current_password, new_password}</code> → 修改并作废此前签发的所有 token（<code>users.password_updated_at</code>，早于它签发的 token 一律 401），当前设备拿到新 token。</li>
+<li>App 设置 → 「账号与安全」页：当前账号、修改密码、恢复码、协议与隐私、注销账号。</li>
+</ul>
+<h3 id="155-注销账号">15.5 注销账号<a class="headerlink" href="#155-注销账号" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>DELETE /api/me {password}</code> → 软删除：<code>users.deleted_at</code>，用户名改为 <code>deleted-&lt;id 前 8 位&gt;</code> 以释放原用户名，立即清理该用户全部项目与媒体（复用现有项目清理），token 作废。管理端用户列表显示"已注销"。</li>
+<li>App：账号与安全 → 注销账号 → 二次确认页（说明会删除什么 + 输入密码）→ 回登录页并提示"账号已注销"。</li>
+</ul>
+<h3 id="156-约束">15.6 约束<a class="headerlink" href="#156-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>只增不改：不带新字段的老请求行为不变；新接口放独立模块（服务端 <code>app/account.py</code> 路由，<code>main.py</code> 只加一行挂载），避免和 §14 的改动冲突。</li>
+<li>迁移文件命名 <code>0011_account_closure.py</code>，<code>down_revision = "0009"</code>（§14 使用 0010，两者并行实施，合并时重接迁移链）。</li>
+<li>短信 / 邮箱验证码：不做；文档写明接入后 <code>recover</code> 增加 <code>phone + sms_code</code> 分支。</li>
+</ul>
+<h2 id="16-设计系统衣序-ds">16. 设计系统「衣序 DS」<a class="headerlink" href="#16-设计系统衣序-ds" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P2：<code>app/src/theme.ts</code>（token）与 <code>app/src/components/ui.tsx</code>（Page / Button / IconButton / Header / Field / Notice / Toast / Badge / Skeleton / ProgressStrip / StatePanel 等）从第一天就是全 App 唯一的样式来源；本节把它建设成可展示、可治理、可和设计师协作的设计系统。</p>
+</blockquote>
+<h3 id="161-token-单一来源">16.1 Token 单一来源<a class="headerlink" href="#161-token-单一来源" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>app/design/tokens.json</code>：W3C Design Tokens（DTCG）格式，分 <code>color</code>（两套主题：<code>paper</code> 浅色编辑桌、<code>studio</code> 深色片场）、<code>space</code>、<code>radius</code>、<code>type</code>（字号 / 行高 / 字重 / 字间距）、<code>motion</code>、<code>layout</code>；每个 token 带 <code>$description</code>。</li>
+<li><code>app/scripts/build-tokens.mjs</code>：从 tokens.json 生成 <code>app/src/theme.ts</code>（文件头注明"由 tokens.json 生成，勿手改"），生成结果必须与合入 §14 之后的 <code>theme.ts</code> 等价（先把现状反推进 tokens.json，再生成，diff 为空才算完成）；<code>npm run tokens</code> 与 <code>npm run tokens:check</code>（生成后比对，CI 用）。</li>
+<li>与设计协作的约定写进 <code>docs/设计系统.md</code>：token 命名与 Figma Variables 一一对应（<code>color.brand.primary</code> ↔ <code>Brand/Primary</code>），设计改 Figma 变量 → 导出 JSON → PR 只改 tokens.json；组件新增走"设计稿 → 组件规格表（props / 变体 / 状态）→ 实现 → 实验室截图回评"。</li>
+</ul>
+<h3 id="162-组件库">16.2 组件库<a class="headerlink" href="#162-组件库" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>app/src/components/ui.tsx</code> 拆成 <code>app/src/components/ds/</code> 目录，一个组件一个文件，<code>ds/index.ts</code> 统一导出；<code>ui.tsx</code> 保留为再导出层，现有引用不改。</li>
+<li>每个组件：props 有 JSDoc；变体与状态明确（Button：primary / secondary / ghost / danger × default / pressed / disabled / loading；Field：default / focused / error / disabled；Badge：brand / success / neutral / warning；StatePanel：empty / error / offline）；最小触控 44；无障碍标签必填项用类型约束。</li>
+<li>新增组件只在契约里已经用到的范围内：<code>ThemeProvider</code>（paper / studio 切换，读 tokens）、<code>Card</code>、<code>Chip</code>（风格词条）、<code>Segmented</code>（模式切换）、<code>Sheet</code>（底部弹层）。</li>
+</ul>
+<h3 id="163-组件画廊仅开发态与视觉回归">16.3 组件画廊（仅开发态）与视觉回归<a class="headerlink" href="#163-组件画廊仅开发态与视觉回归" title="Permanent link">¶</a></h3>
+<ul>
+<li>组件画廊不是用户功能：路由 <code>/__design</code> 只在开发构建注册（<code>__DEV__</code> 门控，正式包不含），App 内没有任何入口，只通过 URL（Web / 开发客户端）打开，用途是视觉回归快照、设计评审截图和文档配图。画廊按组件分组渲染全部变体与状态，顶部可切换 paper / studio、字号 1.0 / 1.3（动态字体）、宽度 320 / 390。</li>
+<li><code>e2e/design-system.spec.ts</code>：对画廊在 paper / studio × 320 / 390 四种组合截图并做 Playwright 快照比对（基线提交进仓库 <code>e2e/__snapshots__/</code>），截图同时存 <code>screenshots/ds/</code>。</li>
+<li>ESLint 规则：<code>src/</code> 内禁止裸十六进制色值与魔法间距（只允许从 theme 取），例外只允许在 <code>theme.ts</code> / <code>ds/</code>；规则加上时现有代码必须零违规（违规先修）。</li>
+</ul>
+<h3 id="164-文档">16.4 文档<a class="headerlink" href="#164-文档" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>docs/设计系统.md</code>：设计原则（片场是暗的、编辑桌是亮的；一次只问一个问题；花钱前先说清；错误要能恢复）、token 表（从 tokens.json 生成）、组件清单（名称 / 用途 / 变体 / 状态 / 截图）、可访问性清单、与设计协作流程、变更流程（token 改动 → 快照更新 → 评审）。</li>
+<li>README 的文档表加一行；<code>docs/演示脚本.md</code> 加"设计系统 30 秒"（讲 token 流水线与快照回归，配画廊截图，不在 App 里演示）。</li>
+</ul>
+<h2 id="17-工程规范">17. 工程规范<a class="headerlink" href="#17-工程规范" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P2：CI（服务端 ruff + 迁移 + 集成测试；App 校验）、TS strict、ESLint、ruff、<code>npm run verify</code>、<code>scripts/e2e.py</code>、Alembic、docker compose、部署脚本、结构化日志与请求 ID、限流与归属校验从一开始就在；本节把它们写成规范并补齐门禁。</p>
+</blockquote>
+<ul>
+<li><code>CONTRIBUTING.md</code> + <code>docs/工程规范.md</code>：目录结构与分层、分支与提交（中文一行、作者、无 AI 署名）、评审清单、代码规范（TS / Python 各自的命名、错误处理、日志、禁止事项：硬编码色值、明文凭证、未加超时的网络调用）、测试金字塔与命令、CI 门禁、发布流程（迁移 → 部署 → 健康检查 → 回滚）、可观测与安全要点、ADR 索引（本文件第 2–16 节各是一条决策记录，列表 + 一句话）。内容必须以仓库事实为准，不写没有的东西。</li>
+<li>门禁补齐：根目录 <code>.editorconfig</code>；<code>.githooks/pre-commit</code>（服务端 ruff check、App eslint + tsc 只跑改动文件所在侧；<code>git config core.hooksPath .githooks</code> 写进 CONTRIBUTING）；App ESLint 增加 <code>import/order</code>、<code>@typescript-eslint/no-explicit-any</code>（error）、<code>react-hooks/exhaustive-deps</code>（error）等，加规则时现有代码必须零违规，否则降为 warn 并在工程规范里列为债务；服务端 ruff 扩到 <code>SIM</code>、<code>RUF</code>、<code>N</code>、<code>S</code>（同样零违规原则，必要时逐条 <code>per-file-ignores</code> 并说明）；<code>pytest-cov</code> 出覆盖率报告（CI 存档，不设阈值，数字写进文档）；CI 增加 App Playwright（假服务）任务、Docker 镜像构建任务、<code>npm run tokens:check</code>（随 §16 加入）。</li>
+<li>根目录 <code>Makefile</code>：<code>make check</code>（两侧全部检查）、<code>make dev</code>（本地起服务）、<code>make deploy</code>（调用现有部署脚本）、<code>make e2e</code>。</li>
+<li><code>docs/工程规范.md</code> 末尾放"质量快照"：测试数、lint 规则集、CI 任务、覆盖率，由本轮实测填写并注明日期。</li>
+</ul>
+<h2 id="18-素材库模特衣服与成片沉淀为本人数据">18. 素材库：模特、衣服与成片沉淀为本人数据<a class="headerlink" href="#18-素材库模特衣服与成片沉淀为本人数据" title="Permanent link">¶</a></h2>
+<blockquote>
+<p>规划 P1：博主每拍一组片，产生的模特形象、上传过的衣服、挑中的成片都应沉淀为本人的素材，下一组片可以直接复用——尤其是"同一个模特"：固定出镜的人是小红书账号人设的一部分。底子已经有：生成时第一张参考图就是 <code>model_asset_id</code>，提示词要求保持参考图中的模特身份（§6）；档案里的 <code>model_asset_ids</code> 已可作为出镜的人（§10.1）。本节只补"把成片里的人存下来"和"把本人素材集中管理"两件事，不新造概念。</p>
+</blockquote>
+<h3 id="181-服务端">18.1 服务端<a class="headerlink" href="#181-服务端" title="Permanent link">¶</a></h3>
+<ul>
+<li><code>POST /api/me/models/from-image</code> <code>{image_id, name?}</code> → <code>{asset, user}</code>。把某张本人项目的成片存为模特素材：复制该成片文件为新资产 <code>kind=model, source=generated, parent_id=成片资产 id, project_id=来源项目</code>，并追加到 <code>profile.model_asset_ids</code>（沿用 20 张上限，超限 422 中文说明）。同一 <code>image_id</code> 重复存返回同一资产（幂等）。<code>name</code> 存在 <code>asset.analysis.name</code>（如"操场那组的她"），缺省取来源项目标题。</li>
+<li><code>GET /api/me/assets?kind=model|garment|image&amp;limit=&amp;offset=</code> → <code>{items: [AssetOutput + {project_id, project_title, created_at, source, name?, in_profile: bool}], total}</code>，只含本人资产，按时间倒序。<code>kind=image</code> 指各项目 <code>status=succeeded</code> 的成片（含改图版本）。</li>
+<li><code>DELETE /api/me/assets/{id}</code>：模特素材从 <code>profile.model_asset_ids</code> 移除并删除文件（<code>source=generated</code> 的副本）；上传的衣服仅在没有项目引用时删除，否则 409 说明被哪些项目使用；成片不在此删除（跟随项目，§10.2）。</li>
+<li>衣服复用：<code>POST /api/projects</code> 的 <code>garment_asset_ids</code> 可引用本人任何 <code>kind=garment</code> 资产，不限制必须是本次上传（现有校验已满足，补测试固定这一行为）。</li>
+<li>注销（§15）清理本人全部资产时一并覆盖本节新增的副本。</li>
+<li>迁移：不加表；<code>in_profile</code> 与 <code>name</code> 由现有字段推导，<code>0012</code> 仅在需要索引时新增。</li>
+</ul>
+<h3 id="182-app">18.2 App<a class="headerlink" href="#182-app" title="Permanent link">¶</a></h3>
+<ul>
+<li>图片查看器与挑图页的动作区加「存为我的模特」：成功后角标「已在我的模特」，再次点击不重复存（幂等）。旧服务端 404 → 隐藏该动作。</li>
+<li>新页面「素材库」（路由 <code>/assets</code>，设置页与首页头部各一个入口）：三段 <code>我的模特 / 我的衣服 / 我的成片</code>，3:4 网格。模特：设为默认（移到 <code>model_asset_ids</code> 首位，<code>PATCH /api/me</code>）、删除（二次确认）、来源标签"上传 / 成片"；衣服：「用这件拍一组新片」跳到新建页并预填；成片：点开看大图、「回到这组片」。空态文案见 §14.5 口径（"拍过的片都会留在这里"）。</li>
+<li>「拍一组新片」：出镜的人一栏已列档案照片，加来源标签；衣服一栏加「从我的衣服里选」，不必再传一遍。</li>
+<li>词汇：用户看到的是「素材库 / 我的模特 / 我的衣服 / 我的成片」，不出现"资产 / asset"。</li>
+</ul>
+<h3 id="183-约束">18.3 约束<a class="headerlink" href="#183-约束" title="Permanent link">¶</a></h3>
+<ul>
+<li>只增不改：旧接口与字段语义不变；所有删除二次确认；文件删除在事务提交后执行，失败记日志不回滚。</li>
+</ul></main></div></body></html>
