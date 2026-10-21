@@ -4,7 +4,7 @@ import json
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
 
-from app.costs import AUTO_FIX_ALLOWANCE, image_cost_cny, video_cost_cny
+from app.costs import AUTO_FIX_ALLOWANCE, image_cost_cny, video_cost_cny, with_points
 from app.media import signed_url
 from app.models import Asset, Job, Message, Project, UsageLedger, User
 from app.runtime_settings import user_budget
@@ -14,7 +14,7 @@ from app.schemas import Profile
 def user_dict(user: User, session: Session | None = None) -> dict:
     session = session if session is not None else object_session(user)
     budget = user_budget(user, session)
-    return {
+    return with_points({
         "id": user.id,
         "username": user.username,
         "nickname": user.nickname,
@@ -23,7 +23,7 @@ def user_dict(user: User, session: Session | None = None) -> dict:
         "daily_budget_cny": budget["daily_budget_cny"],
         "today_cost_cny": budget["today_cost_cny"],
         "profile": Profile.model_validate(user.profile or {}).model_dump(exclude_none=True),
-    }
+    })
 
 
 def pending_action_dict(state: dict) -> dict | None:
@@ -37,7 +37,7 @@ def pending_action_dict(state: dict) -> dict | None:
         result["estimated_cost_cny"] = float(image_cost_cny(len(shots)) * AUTO_FIX_ALLOWANCE)
     elif pending["type"] == "confirm_video":
         result["estimated_cost_cny"] = float(video_cost_cny())
-    return result
+    return with_points(result)
 
 
 def project_dict(project: Project, session: Session) -> dict:
@@ -184,7 +184,7 @@ def refresh_cards(cards: list, session: Session, project_id: str) -> list:
                 source = job.payload.get("image_asset_id")
                 if source and session.get(Asset, source):
                     card["poster_url"] = signed_url(source)
-        refreshed.append(card)
+        refreshed.append(with_points(card))
     return refreshed
 
 
@@ -196,7 +196,7 @@ def message_dict(message: Message, session: Session) -> dict:
         "cards": refresh_cards(message.cards, session, message.project_id),
         "action": message.action,
         "refs": message.refs or [],
-        "trace": message.trace,
+        "trace": with_points(message.trace),
         "can_regenerate": message.can_regenerate,
         "created_at": message.created_at.isoformat(),
     }

@@ -58,6 +58,8 @@ class UserOutput(BaseModel):
     tier: str = "free"
     daily_budget_cny: float = 0
     today_cost_cny: float = 0
+    daily_budget_points: float = 0
+    today_cost_points: float = 0
     profile: Profile = Field(default_factory=Profile)
 
 
@@ -263,6 +265,7 @@ class MessageTrace(BaseModel):
     model: str
     duration_ms: int = Field(ge=0)
     cost_cny: float = Field(ge=0)
+    cost_points: float = Field(default=0, ge=0)
     refs: list[str] = Field(default_factory=list)
     steps: list[TraceStep] = Field(default_factory=list)
 
@@ -296,6 +299,7 @@ class PendingAction(BaseModel):
     type: Literal["choose_direction", "confirm_script", "confirm_video"]
     prompt: str
     estimated_cost_cny: float | None = None
+    estimated_cost_points: float | None = None
 
 
 class BudgetOutput(BaseModel):
@@ -303,6 +307,9 @@ class BudgetOutput(BaseModel):
     daily_budget_cny: float
     today_cost_cny: float
     remaining_cny: float
+    daily_budget_points: float
+    today_cost_points: float
+    remaining_points: float
 
 
 class StateOutput(BaseModel):
@@ -317,6 +324,7 @@ class StateOutput(BaseModel):
     active_jobs: list[JobOutput]
     pending_action: PendingAction | None = None
     cost_cny: float = 0
+    cost_points: float = 0
     last_message_id: str | None = None
     script_versions: list[dict] = Field(default_factory=list)
     budget: BudgetOutput | None = None

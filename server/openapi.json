@@ -3074,6 +3074,18 @@
           "remaining_cny": {
             "type": "number",
             "title": "Remaining Cny"
+          },
+          "daily_budget_points": {
+            "type": "number",
+            "title": "Daily Budget Points"
+          },
+          "today_cost_points": {
+            "type": "number",
+            "title": "Today Cost Points"
+          },
+          "remaining_points": {
+            "type": "number",
+            "title": "Remaining Points"
           }
         },
         "type": "object",
@@ -3081,7 +3093,10 @@
           "tier",
           "daily_budget_cny",
           "today_cost_cny",
-          "remaining_cny"
+          "remaining_cny",
+          "daily_budget_points",
+          "today_cost_points",
+          "remaining_points"
         ],
         "title": "BudgetOutput"
       },
@@ -3609,6 +3624,12 @@
             "minimum": 0.0,
             "title": "Cost Cny"
           },
+          "cost_points": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Cost Points",
+            "default": 0
+          },
           "refs": {
             "items": {
               "type": "string"
@@ -3758,6 +3779,17 @@
               }
             ],
             "title": "Estimated Cost Cny"
+          },
+          "estimated_cost_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Points"
           }
         },
         "type": "object",
@@ -4289,6 +4321,11 @@
             "title": "Cost Cny",
             "default": 0
           },
+          "cost_points": {
+            "type": "number",
+            "title": "Cost Points",
+            "default": 0
+          },
           "last_message_id": {
             "anyOf": [
               {
@@ -4503,6 +4540,16 @@
           "today_cost_cny": {
             "type": "number",
             "title": "Today Cost Cny",
+            "default": 0
+          },
+          "daily_budget_points": {
+            "type": "number",
+            "title": "Daily Budget Points",
+            "default": 0
+          },
+          "today_cost_points": {
+            "type": "number",
+            "title": "Today Cost Points",
             "default": 0
           },
           "profile": {

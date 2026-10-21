@@ -24,6 +24,7 @@ from starlette.exceptions import HTTPException
 
 from app.admin import router as admin_router
 from app.config import settings
+from app.costs import points, with_points
 from app.db import SessionLocal
 from app.errors import AppError
 from app.graph import build_graph, get_graph_state, run_turn, script_versions
@@ -464,6 +465,7 @@ def get_state(
         note = {
             **note,
             "cost_cny": cost,
+            "cost_points": points(cost),
             "ai_label": "内容含 AI 生成图片，发布时请勾选平台的 AI 内容声明。",
         }
     latest_message_id = session.scalar(
@@ -485,8 +487,9 @@ def get_state(
         "video": video,
         "active_jobs": [job_dict(job) for job in jobs],
         "pending_action": pending_action_dict(state),
-        "budget": user_budget(user, session),
+        "budget": with_points(user_budget(user, session)),
         "cost_cny": cost,
+        "cost_points": points(cost),
         "last_message_id": latest_message_id,
         "script_versions": script_versions(graph, project_id),
     }

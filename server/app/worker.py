@@ -19,6 +19,7 @@ from sqlalchemy import and_, or_, select, text, update
 from sqlalchemy.orm import Session, aliased
 
 from app.config import settings
+from app.costs import points
 from app.db import SessionLocal
 from app.edit_guidance import local_edit_prompt
 from app.errors import AppError
@@ -494,6 +495,7 @@ def _worker_trace(session: Session, jobs: list[Job]) -> dict:
         "model": " / ".join(models),
         "duration_ms": duration_ms,
         "cost_cny": float(sum((row.estimated_cny for row in rows), Decimal(0))),
+        "cost_points": points(sum((row.estimated_cny for row in rows), Decimal(0))),
         "refs": refs,
         "steps": steps,
     }

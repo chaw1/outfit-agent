@@ -325,3 +325,7 @@ uv run ruff check .
 REQUIRE_INTEGRATION=1 uv run python -m pytest -q
 uv run python scripts/e2e.py --mode mock --output artifacts/round8/mock-e2e.json
 ```
+
+## 第九轮：点数与一键出片
+
+用户端以点数显示，`costs.POINTS_PER_CNY = 10`，即 10 点 = 1 元；`points(cny)` 保留一位小数。图片估算 5 点/张、5 秒视频 15 点；脚本确认预留 20% 自动修复，换一组方向按三张预览估算 15 点。预算、确认报价、消息追踪、卡片和 `/api/me` 都在旧 `*_cny` 字段旁增加 `*_points`，历史消息读回同样补齐。账本、预算门禁和管理端继续按元计算，Mock 报价相同、实际费用为 0。
