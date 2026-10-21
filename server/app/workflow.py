@@ -909,7 +909,8 @@ class Workflow:
             state["stage"],
             "write_note",
             context,
-            "按已选图片顺序写小红书笔记，标题不超过20字，正文分段带表情，5到8个标签。"
+            "按已选图片顺序写小红书笔记：标题不超过20字；正文120到250字，最多5个短段，"
+            "每段一两句，表情点到为止，不写长文；5到8个标签。用户要求更短或更长时以用户为准。"
             + ("保留原笔记未要求更改的内容，落实以下修改：" + instruction if instruction else ""),
         )
         note = {key: value for key, value in result.items() if key != "reply"}
