@@ -13,7 +13,7 @@ app-check:
 
 server-check:
 	cd server && $(UV) run ruff check .
-	cd server && REQUIRE_INTEGRATION=1 $(UV) run pytest -q
+	cd server && REQUIRE_INTEGRATION=1 $(UV) run pytest -q --cov=app --cov-report=term-missing --cov-report=xml:artifacts/coverage.xml
 
 dev:
 	cd server && MOCK_PROVIDERS=1 docker compose up --build

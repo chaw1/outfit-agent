@@ -11,7 +11,7 @@ App 使用 Node 22.13 以上（`app/package.json`），服务端使用 Python 3.
 git config core.hooksPath .githooks
 ```
 
-门禁根据暂存路径选择检查侧：`app/` 运行 ESLint 和 TypeScript，`server/` 运行 ruff；同时修改两侧则都检查。检查整侧，避免漏掉跨文件类型和导入错误；检查读取工作区，提交前仍须检查暂存差异。仅文档变更不启动应用检查。
+门禁根据暂存路径选择检查侧：`app/` 运行 ESLint 和 TypeScript，`server/` 运行 ruff；同时修改两侧则都检查。检查整侧，避免漏掉跨文件类型和导入错误；检查读取工作区，提交前仍须检查暂存差异。仅根目录或 `docs/` 下文档变更不启动应用检查，App/服务端目录里的文档仍触发所在侧。
 
 ## 分支和提交
 
@@ -33,7 +33,7 @@ PLAYWRIGHT_BROWSERS_PATH="$PWD/.tools/browsers" npm run test:e2e
 ```bash
 cd server
 uv run ruff check .
-REQUIRE_INTEGRATION=1 uv run pytest -q
+REQUIRE_INTEGRATION=1 uv run pytest -q --cov=app --cov-report=term-missing
 ```
 
 服务端集成检查依赖本项目的本地 Mock API（`127.0.0.1:18080`）、Worker 和 PostgreSQL（`localhost:18432`）。没有栈时用 `cd server && docker compose up -d --build`；不要在已占用这些端口的其他 worktree 上再起第二套。测试会校验本机地址及 Mock 状态，迁移测试只创建、删除自身随机命名的 `outfit_test_*` 数据库。详见 [服务端说明](server/README.md)。
@@ -42,7 +42,7 @@ REQUIRE_INTEGRATION=1 uv run pytest -q
 
 - 契约：字段、错误码、SSE 卡片和旧客户端兼容符合 `docs/设计.md`；数据库变更配 Alembic 迁移，核对序列化与 App 类型。
 - 边界：API 负责鉴权和输入校验，阶段与付费放行仍由服务端代码决定，供应商调用复用 Provider，生成任务交给 Worker。
-- 体验：失败可解释、可恢复；请求有超时；写请求重试不会重复创建项目或付费任务；组件使用主题 token，不新增散落色值。
+- 体验：失败可解释、可恢复；请求有超时；写入不自动重放，创建超时先刷新核对再人工决定，付费任务保持稳定去重键；组件使用主题 token，不新增散落色值。
 - 安全：校验用户/项目/资产归属，保留限流、上传限制、媒体签名和日志脱敏；不提交或记录明文凭证、完整签名 URL。
 - 证据：运行受影响侧校验、相关单测及必要闭环，记录命令、结果、未验证范围；不要用 Mock 结果宣称真实模型效果或真机效果。
 - 发布：先检查迁移兼容与数据备份，再部署、验健康和关键流程；预留旧镜像及数据库恢复方案，见工程规范。
