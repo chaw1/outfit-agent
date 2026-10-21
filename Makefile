@@ -2,6 +2,7 @@
 
 NPM ?= npm
 UV ?= uv
+API_BASE_URL ?= http://127.0.0.1:18080
 PLAYWRIGHT_BROWSERS_PATH ?= $(CURDIR)/app/.tools/browsers
 
 .PHONY: check app-check server-check dev deploy e2e app-e2e server-e2e
@@ -27,4 +28,4 @@ app-e2e:
 	cd app && EXPO_OFFLINE=1 EXPO_NO_TELEMETRY=1 PLAYWRIGHT_BROWSERS_PATH="$(PLAYWRIGHT_BROWSERS_PATH)" $(NPM) run test:e2e
 
 server-e2e:
-	cd server && $(UV) run python scripts/e2e.py --mode mock
+	cd server && $(UV) run python scripts/e2e.py --mode mock --base-url "$(API_BASE_URL)"
