@@ -26,7 +26,7 @@ def test_alembic_builds_an_empty_isolated_database(isolated_database_url):
             "users", "projects", "assets", "messages", "jobs", "usage_ledger",
             "request_events", "rate_limit_counters",
         } <= tables
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0011",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0012",)
         account_columns = dict(connection.execute(
             "SELECT column_name, is_nullable FROM information_schema.columns "
             "WHERE table_schema='public' AND table_name='users'",

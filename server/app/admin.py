@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.errors import AppError
-from app.models import Job, Project, UsageLedger, User, utcnow
+from app.models import Job, Model, Project, UsageLedger, User, utcnow
 from app.observability import request_totals
 from app.runtime_settings import (
     assert_generation_allowed,
@@ -168,7 +168,7 @@ class SettingsOutput(RuntimeSettings):
 
 class AdminJob(BaseModel):
     id: str
-    project_id: str
+    project_id: str | None
     project_title: str
     user_id: str
     username: str
@@ -363,7 +363,7 @@ def update_settings(body: RuntimeSettings, session: Session = Depends(get_sessio
     return {**value, "candidates": model_candidates()}
 
 
-def _job_output(job: Job, project: Project, user: User) -> dict:
+def _job_output(job: Job, project: Project | None, user: User) -> dict:
     start, end = job.locked_at or job.created_at, job.updated_at
     # SQLite unit tests return naive UTC timestamps; production uses timestamptz.
     if start.tzinfo is None:
@@ -373,7 +373,8 @@ def _job_output(job: Job, project: Project, user: User) -> dict:
     if job.status in {"queued", "running"}:
         end = utcnow()
     return {
-        "id": job.id, "project_id": job.project_id, "project_title": project.title,
+        "id": job.id, "project_id": job.project_id,
+        "project_title": project.title if project else "模特身份卡",
         "user_id": job.user_id, "username": user.username, "kind": job.kind,
         "status": job.status, "attempts": job.attempts, "error": job.error,
         "duration_ms": job.result.get(
@@ -391,7 +392,7 @@ def jobs(
     limit: int = Query(100, ge=1, le=500),
     session: Session = Depends(get_session),
 ):
-    statement = select(Job, Project, User).join(Project, Job.project_id == Project.id).join(
+    statement = select(Job, Project, User).outerjoin(Project, Job.project_id == Project.id).join(
         User, Job.user_id == User.id
     ).order_by(Job.created_at.desc()).limit(limit)
     if status:
@@ -399,7 +400,7 @@ def jobs(
     return [_job_output(*row) for row in session.execute(statement)]
 
 
-def _locked_job(session: Session, job_id: str) -> tuple[Job, Project, User]:
+def _locked_job(session: Session, job_id: str) -> tuple[Job, Project | None, User]:
     snapshot = session.get(Job, job_id)
     if not snapshot:
         raise AppError("NOT_FOUND", "任务不存在", 404)
@@ -409,8 +410,9 @@ def _locked_job(session: Session, job_id: str) -> tuple[Job, Project, User]:
         select(Job).where(Job.id == job_id).with_for_update()
         .execution_options(populate_existing=True)
     )
-    project, user = session.get(Project, job.project_id), session.get(User, job.user_id)
-    if not project or project.deleted_at or not user:
+    project = session.get(Project, job.project_id) if job.project_id else None
+    user = session.get(User, job.user_id)
+    if not user or (job.kind != "identity" and (not project or project.deleted_at)):
         raise AppError("NOT_FOUND", "任务所属项目或用户不存在", 404)
     return job, project, user
 
@@ -428,6 +430,11 @@ def retry_job(job_id: str, session: Session = Depends(get_session)):
     job.status, job.attempts, job.error, job.locked_at = "queued", 0, None, None
     job.available_at = utcnow()
     job.result, job.result_asset_id = {}, None
+    if job.kind == "identity":
+        model = session.get(Model, job.payload["model_id"])
+        if not model or model.status == "deleted":
+            raise AppError("NOT_FOUND", "模特已不存在", 404)
+        model.status = "queued"
     session.commit()
     return _job_output(job, project, user)
 
@@ -441,7 +448,12 @@ def cancel_job(job_id: str, session: Session = Depends(get_session)):
         raise AppError("JOB_STATE_CONFLICT", "只能取消排队中的任务", 409)
     job.status, job.locked_at, job.error = "failed", None, "管理员已取消任务。"
     job.result = {**job.result, "cancelled": True, "admin_cancelled": True}
-    _notify_completion(session, job)
+    if job.kind == "identity":
+        model = session.get(Model, job.payload["model_id"])
+        if model and model.status != "deleted":
+            model.status = "failed"
+    else:
+        _notify_completion(session, job)
     session.commit()
     return _job_output(job, project, user)
 

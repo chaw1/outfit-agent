@@ -174,6 +174,24 @@ def advance_auto(session, project, graph, workflow) -> bool:
                      and job.payload.get("version", 1) == 1
                      and job.status == "succeeded" and job.result_asset_id
                      and (job.result.get("edit_check") or {}).get("passed") is not False}
+        # A person repair replaces a low-scoring original only when it passed.
+        # Other manual edits and the garment selection rules stay unchanged.
+        for shot_id, original in list(originals.items()):
+            if (original.result.get("fidelity") or {}).get("person_score", 100) >= 70:
+                continue
+            repair = next((job for job in jobs
+                           if job.payload.get("auto_fix_for") == original.id
+                           and job.status == "succeeded" and job.result_asset_id
+                           and (job.result.get("fidelity") or {}).get("person_score", 0) >= 70
+                           and (job.result.get("edit_check") or {}).get("passed") is not False),
+                          None)
+            if repair is None:
+                take_over(
+                    session, project, graph,
+                    reason="人像一致性重出后仍未达70分，请核对后手动选图",
+                )
+                return True
+            originals[shot_id] = repair
         selected = [originals[shot["id"]].id for shot in state["script"]["shots"]
                     if shot["id"] in originals]
         if not selected:

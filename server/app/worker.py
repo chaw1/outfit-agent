@@ -36,7 +36,8 @@ from app.local_edit import (
 )
 from app.log_errors import log_exception
 from app.media import asset_path, store_generated
-from app.models import Asset, Job, Message, Project, UsageLedger, utcnow
+from app.model_library import is_preset_asset, model_references
+from app.models import Asset, Job, Message, Model, Project, UsageLedger, utcnow
 from app.project_cleanup import drain_media_cleanup
 from app.providers import GeneratedMedia, ProviderError, ProviderHub
 from app.runtime_settings import assert_generation_allowed, get_runtime_settings
@@ -139,7 +140,7 @@ def claim_job(session: Session) -> Job | None:
     ).all()
     # Use the same project-before-batch-before-job order as publication. Recheck
     # the lease after locking: an owner may have finished or renewed meanwhile.
-    for candidate in sorted(candidates, key=lambda item: (item.project_id, _batch_key(item))):
+    for candidate in sorted(candidates, key=lambda item: (item.project_id or "", _batch_key(item))):
         _completion_lock(session, candidate)
         expired = session.scalar(
             select(Job)
@@ -163,12 +164,18 @@ def claim_job(session: Session) -> Job | None:
             if unknown
             else "任务执行中断，已达到重试上限。"
         )
-        _notify_completion(session, expired)
+        if expired.kind == "identity":
+            model = session.get(Model, expired.payload.get("model_id"))
+            if model and model.status != "deleted":
+                model.status = "failed"
+        else:
+            _notify_completion(session, expired)
     job = session.scalar(
         select(Job)
-        .join(Project, Job.project_id == Project.id)
+        .outerjoin(Project, Job.project_id == Project.id)
         .where(
-            Project.deleted_at.is_(None),
+            or_(and_(Project.id.is_not(None), Project.deleted_at.is_(None)),
+                and_(Job.kind == "identity", Job.project_id.is_(None))),
             Job.attempts < max_attempts(),
             _anchor_ready(),
             or_(
@@ -234,7 +241,9 @@ def _assets(session: Session, job: Job, asset_ids: list[str]) -> list[Asset]:
     result = []
     for asset_id in dict.fromkeys(asset_ids):
         asset = session.get(Asset, asset_id)
-        if asset is None or asset.user_id != job.user_id:
+        if asset is None or (asset.user_id != job.user_id and not (
+            asset.user_id is None and is_preset_asset(session, asset.id)
+        )):
             raise ProviderError("任务引用的素材不存在或不属于当前账号。")
         if (
             asset.project_id is not None and asset.project_id != job.project_id
@@ -253,10 +262,14 @@ def _batch_key(job: Job) -> str:
     return f"{job.kind}:{job.id}"
 
 
-def _completion_lock(session: Session, job: Job) -> Project | None:
+def _completion_lock(session: Session, job: Job) -> Project | Model | None:
     # Deletion, expired-lease reporting and publication share this row lock.
     # Lock the parent first: notification INSERTs also need its FK key-share
     # lock, so acquiring batch/job first can deadlock with concurrent deletion.
+    if job.kind == "identity":
+        return session.scalar(select(Model).where(
+            Model.id == job.payload.get("model_id"),
+        ).with_for_update())
     project = session.scalar(
         select(Project)
         .where(Project.id == job.project_id)
@@ -292,7 +305,7 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
     fidelity = job.result.get("fidelity")
     if (
         not fidelity
-        or fidelity["score"] >= 60
+        or (fidelity["score"] >= 60 and fidelity.get("person_score", 100) >= 70)
         or job.payload.get("auto_fix")
         or job.kind == "edit"
     ):
@@ -312,6 +325,13 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
         garment_ids = list(project.garment_asset_ids)
     diffs = "；".join(fidelity.get("diffs", [])) or "恢复原衣服的版型、颜色和细节"
     instruction = f"自动还原修复：{diffs}。严格保留原衣服版型、颜色、面料、纽扣、口袋和 logo。"
+    person_refs, identity_text = model_references(session, project)
+    low_person = fidelity.get("person_score", 100) < 70
+    if low_person:
+        instruction += (
+            f"人像一致性仅 {fidelity['person_score']} 分，必须恢复身份卡中同一人的面部五官，"
+            "保持肤色、发型发色与体态一致。"
+        )
     descriptions = []
     for garment_id in garment_ids:
         garment = session.get(Asset, garment_id)
@@ -321,6 +341,14 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
             + "".join(str(analysis.get(field, "")) for field in ("color", "material", "category"))
         )
     versions = session.scalars(select(Job).where(Job.project_id == job.project_id)).all()
+    best = max(
+        (item for item in versions if item.status == "succeeded" and item.result_asset_id
+         and isinstance((item.result.get("fidelity") or {}).get("person_score"), (int, float))
+         and item.payload.get("purpose") != "preview"
+         and item.payload.get("model_asset_id", project.model_asset_id)
+         == job.payload.get("model_asset_id", project.model_asset_id)),
+        key=lambda item: (item.result["fidelity"]["person_score"], item.id), default=None,
+    ) if low_person else None
     version = (
         max(
             (
@@ -341,11 +369,12 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
         "source_asset_id": asset.id,
         "instruction": instruction,
         "prompt": (
-            (
-                "参考图1为待修图，中间参考图为原衣服。保留人物身份和场景。"
-                if job.payload.get("anchor_asset_id")
-                else "参考图1为待修图，其余参考图为原衣服。保留人物身份和场景。"
-            )
+            "参考图1为待修图，保留场景。"
+            + (f"随后{len(person_refs)}张为人物身份卡，正脸优先，仅供身份参考。"
+               if person_refs else "")
+            + "接下来是原衣服图，只约束服装细节。"
+            + ("另有上一版中人像分最高的成片，仅参考其面部身份。" if best else "")
+            + (f"人物身份卡：{identity_text}。" if identity_text else "")
             + "；".join(descriptions)
             + "。"
             + instruction
@@ -354,10 +383,14 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
             + job.payload.get("reference_style_prompt", "")
         ),
         "reference_asset_ids": list(dict.fromkeys([
-            asset.id, *(garment_ids if job.payload.get("anchor_asset_id") else garment_ids[:2]),
+            asset.id, *person_refs,
+            *(garment_ids if job.payload.get("anchor_asset_id") else garment_ids[:2]),
+            *([best.result_asset_id] if best else []),
             *([job.payload["anchor_asset_id"]] if job.payload.get("anchor_asset_id") else []),
         ])),
         "garment_asset_ids": garment_ids,
+        "best_person_asset_id": best.result_asset_id if best else None,
+        "auto_fix_reason": "person" if low_person else "garment",
         "auto_fix": True,
         "auto_fix_for": job.id,
         "completion_batch_key": _batch_key(job),
@@ -405,6 +438,8 @@ def _score_summary(jobs: list[Job]) -> str:
                 str(min(values)) if min(values) == max(values) else f"{min(values)}–{max(values)}"
             )
             summary += f"{label} {score} 分。"
+            if field == "person_score" and min(values) < 70:
+                summary += "人像一致性仍低于70分，请核对后再选用。"
     return summary
 
 
@@ -587,7 +622,9 @@ def _notify_completion(session: Session, job: Job) -> None:
             session,
             job,
             f"auto-fix:{job.id}",
-            "1 张图的自动还原修复做好了，原图和新版都保留着。"
+            ("1 张图的人像一致性自动修复做好了，原图和新版都保留着。"
+             if job.payload.get("auto_fix_reason") == "person" else
+             "1 张图的自动还原修复做好了，原图和新版都保留着。")
             + _score_summary([job]) + _edit_summary([job]),
             cards,
         )
@@ -656,10 +693,17 @@ def _generate_image(
             )
             # Wan takes its default output aspect from the last reference.
             anchor = identity.get("anchor_asset")
-            references = [*originals, anchor, cropped] if anchor else [*originals[:2], cropped]
+            face = identity.get("model_asset")
+            references = ([face] if face else []) + (
+                [*originals, anchor, cropped] if anchor else [*originals[:2], cropped]
+            )
             prompt = local_edit_prompt(
                 str(payload.get("instruction", "")), selection, anchor_reference=bool(anchor)
             )
+            if face:
+                prompt += "第一张为人物正脸身份参考，不是衣服图，也不是编辑画布。"
+            if payload.get("identity_text"):
+                prompt += f"人物身份卡：{payload['identity_text']}。"
             prompt += payload.get("reference_style_prompt", "")
 
         def render(current_prompt: str) -> GeneratedMedia:
@@ -753,6 +797,11 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
     """
     with session_factory() as session:
         job = session.get(Job, job_id)
+        if job and job.kind == "identity":
+            from app.identity_worker import process_identity
+            session.close()
+            process_identity(job_id, attempt, session_factory)
+            return
         if not job or job.status != "running" or job.attempts != attempt:
             return
         started = time.monotonic()

@@ -31,6 +31,8 @@ from app.errors import AppError
 from app.graph import build_graph, get_graph_state, run_turn, script_versions
 from app.log_errors import log_exception
 from app.media import asset_dict, asset_path, preview_path, store_upload
+from app.model_library import available_model, seed_presets
+from app.model_library import router as models_router
 from app.models import Asset, Job, Message, Project, User, utcnow
 from app.observability import RequestObservabilityMiddleware, bind_project, bind_user
 from app.profile import default_model_asset_id, patch_user
@@ -97,6 +99,9 @@ async def lifespan(application: FastAPI):
         application.state.graph = build_graph(saver)
         application.state.observability_session_factory = SessionLocal
         settings.media_dir.mkdir(parents=True, exist_ok=True)
+        with SessionLocal() as session:
+            seed_presets(session)
+            session.commit()
         yield
 
 
@@ -125,6 +130,7 @@ app.add_middleware(
 app.include_router(admin_router)
 app.include_router(account_router)
 app.include_router(assets_library_router)
+app.include_router(models_router)
 
 
 @app.middleware("http")
@@ -343,10 +349,11 @@ def create_project(
             or asset.source != "upload"
         ):
             raise AppError("INVALID_ASSET", "参考图必须是本人上传的参考图资产", 422)
-    model_id = body.model_asset_id
+    selected = available_model(session, user.id, body.model_id) if body.model_id else None
+    model_id = selected.face_asset_id if selected else body.model_asset_id
     if model_id is None:
         model_id = default_model_asset_id(session, user)
-    if model_id:
+    if model_id and not selected:
         asset = session.get(Asset, model_id)
         if not asset or asset.user_id != user.id or asset.kind != "model":
             raise AppError("INVALID_ASSET", "模特资产不存在或无权使用", 404)
@@ -664,7 +671,10 @@ def get_job(
     job = session.scalar(select(Job).where(Job.id == job_id, Job.user_id == user.id))
     if job is None:
         raise AppError("NOT_FOUND", "任务不存在", 404)
-    owned_project(session, job.project_id, user.id)
+    if job.project_id:
+        owned_project(session, job.project_id, user.id)
+    elif job.kind != "identity":
+        raise AppError("NOT_FOUND", "任务不存在", 404)
     return job_dict(job)
 
 

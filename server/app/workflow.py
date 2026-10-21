@@ -14,6 +14,7 @@ from app.costs import image_cost_cny, with_points
 from app.errors import AppError
 from app.local_edit import prepare_selection
 from app.media import asset_dict
+from app.model_library import model_references
 from app.models import Asset, Job, Project, User, utcnow
 from app.photography import expand_photo_prompt
 from app.providers import ProviderHub
@@ -737,14 +738,16 @@ class Workflow:
         assert_generation_allowed(self.session, self.project.user_id)
         jobs = []
         clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
-        refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes
+        person_refs, identity_text = model_references(self.session, self.project)
+        refs = list(dict.fromkeys(person_refs + clothes))
         for direction in state["directions"]:
             photo_prompt = expand_photo_prompt(
                 {"scene": direction["scene"]}, self.project.style_tags or [],
                 state.get("references") or [],
             )
             prompt = (
-                f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
+                (f"人物身份：{identity_text}。" if identity_text else "")
+                + f"穿搭方向灵感预览：{direction['name']}；场景：{direction['scene']}；"
                 f"氛围：{direction['mood']}；配色：{direction['palette']}。"
                 + (f"搭配建议：{direction['styling']}。" if direction.get("styling") else "")
                 + self._garment_prompt(state, clothes)
@@ -792,13 +795,15 @@ class Workflow:
             photo_prompt = expand_photo_prompt(
                 shot, self.project.style_tags or [], state.get("references") or [],
             )
-            references = [self.project.model_asset_id] if self.project.model_asset_id else []
+            references, identity_text = model_references(self.session, self.project)
             references = list(dict.fromkeys(references + shot["outfit_asset_ids"]))
             prompt = (
                 "小红书穿搭摄影，保持参考图中模特身份。"
                 if self.project.model_asset_id
                 else "小红书穿搭摄影，使用成年虚构模特：东亚面孔、小红书博主气质，自然妆容。"
             )
+            if identity_text:
+                prompt += f"人物身份卡：{identity_text}。"
             prompt += self._garment_prompt(state, shot["outfit_asset_ids"])
             prompt += f"场景：{shot['scene']}；动作：{shot['pose']}；镜头：{shot['camera']}。"
             if shot.get("styling"):
@@ -817,8 +822,13 @@ class Workflow:
                 "shot": deepcopy(shot),
             }
             key = f"{self.project.id}:image:{script_hash}:{shot['id']}"
-            if self.project.model_asset_id:
-                payload["model_asset_id"] = self.project.model_asset_id
+            if references and (self.project.model_id or self.project.model_asset_id):
+                payload["model_asset_id"] = references[0]
+                payload["identity_asset_ids"], payload["identity_text"] = (
+                    model_references(self.session, self.project)
+                )
+                if self.project.model_id:
+                    payload["model_id"] = self.project.model_id
             if state.get("references"):
                 payload["reference_style_prompt"] = self._reference_prompt(state)
             if cover_id and key != cover_key:
@@ -884,6 +894,7 @@ class Workflow:
             [parent.payload["anchor_asset_id"]] if parent.payload.get("anchor_asset_id") else []
         )
         edit_clothes = clothes if anchor_references else clothes[:2]
+        person_refs, identity_text = model_references(self.session, self.project)
         payload = {
             "shot_id": shot_id,
             "version": max(versions, default=1) + 1,
@@ -892,11 +903,13 @@ class Workflow:
             "source_asset_id": parent.result_asset_id,
             "instruction": instruction,
             "prompt": "保留模特身份和未提到的画面细节。"
+            + ("首张是待修原图，第二张是人物正脸，仅用于保持身份。" if person_refs else "")
+            + (f"人物身份卡：{identity_text}。" if identity_text else "")
             + self._garment_prompt(state, clothes)
             + "只做以下修改："
             + instruction,
             "reference_asset_ids": list(dict.fromkeys([
-                parent.result_asset_id, *edit_clothes, *anchor_references,
+                parent.result_asset_id, *person_refs[:1], *edit_clothes, *anchor_references,
             ])),
             "garment_asset_ids": clothes,
             "script_version": parent.payload.get("script_version"),

@@ -53,6 +53,7 @@ class Project(Base):
     stage: Mapped[str] = mapped_column(String(20), default="brief")
     garment_asset_ids: Mapped[list] = mapped_column(json_type, default=list)
     model_asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)
+    model_id: Mapped[str | None] = mapped_column(ForeignKey("models.id"), nullable=True)
     reference_asset_ids: Mapped[list] = mapped_column(json_type, default=list, server_default="[]")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -61,10 +62,23 @@ class Project(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class Model(Base):
+    __tablename__ = "models"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(20), default="ready")
+    identity_text: Mapped[str] = mapped_column(Text, default="")
+    face_asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)
+    sheet_asset_ids: Mapped[list] = mapped_column(json_type, default=list, server_default="[]")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Asset(Base):
     __tablename__ = "assets"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     project_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     kind: Mapped[str] = mapped_column(String(20))
     path: Mapped[str] = mapped_column(Text)
@@ -96,7 +110,9 @@ class Message(Base):
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    project_id: Mapped[str | None] = mapped_column(
+        ForeignKey("projects.id"), nullable=True, index=True
+    )
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     kind: Mapped[str] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="queued")

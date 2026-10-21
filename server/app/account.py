@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import AppSetting, Asset, Job, Project, User, utcnow
+from app.models import AppSetting, Asset, Job, Model, Project, User, utcnow
 from app.observability import bind_user
 from app.project_cleanup import CLEANUP_PREFIX, cleanup_project, drain_media_cleanup
 from app.rate_limits import check_limit
@@ -190,11 +190,16 @@ def delete_account(
         project.title, project.brand, project.brief = "已注销账号的项目", "", ""
         project.garment_asset_ids, project.reference_asset_ids = [], []
         project.model_asset_id = None
+        project.model_id = None
 
     # Project deletion preserves reusable uploads; account deletion removes these too.
     remaining = session.execute(select(Asset.id, Asset.path).where(Asset.user_id == user.id)).all()
     asset_ids = [asset_id for asset_id, _ in remaining]
     session.execute(delete(Job).where(Job.user_id == user.id))
+    session.execute(update(Project).where(
+        Project.model_id.in_(select(Model.id).where(Model.user_id == user.id)),
+    ).values(model_id=None))
+    session.execute(delete(Model).where(Model.user_id == user.id))
     if asset_ids:
         session.execute(update(Asset).where(Asset.parent_id.in_(asset_ids)).values(parent_id=None))
         session.execute(
