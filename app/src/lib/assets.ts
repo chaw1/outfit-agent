@@ -11,6 +11,7 @@ export interface LibraryAsset extends Omit<Asset, 'kind'> {
   name?: string;
   analysis?: { name?: string };
   in_profile: boolean;
+  tags?: string[];
   /** 短片的封面图（首帧），只在 kind=video 时出现。 */
   poster_url?: string | null;
 }

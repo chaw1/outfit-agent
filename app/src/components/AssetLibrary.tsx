@@ -8,11 +8,23 @@ import { useSession } from '../context/Session';
 import { hideAssetLibrary, loadLibraryModels, useLibraryModels, type LibraryAsset, type LibraryKind } from '../lib/assets';
 import { colors, layout, radius, space, studio, type } from '../theme';
 import { previewUrl } from '../lib/previewUrl';
+import { filterGarmentsByTag, garmentTagCounts, toggleGarmentTag, type GarmentTagCount } from '../lib/garmentTags';
+import { Chip } from './ds/Chip';
 import { Badge, Button, FadeImage, Header, IconButton, Notice, Page, Skeleton, StatePanel, Toast, errorText } from './ui';
 import { VideoPlayer } from './VideoPlayer';
 
 const tabs: { kind: LibraryKind; title: string }[] = [{ kind: 'model', title: '我的模特' }, { kind: 'garment', title: '我的衣服' }, { kind: 'image', title: '我的成片' }, { kind: 'video', title: '我的短片' }];
 const PAGE_SIZE = 30;
+
+function GarmentTagFilters({ tags, selected, onSelect, testID }: { tags: GarmentTagCount[]; selected: string | null; onSelect: (tag: string | null) => void; testID: string }) {
+  if (!tags.length) return null;
+  return <View style={local.tagFilters} testID={testID}>
+    <Text style={local.body}>按衣服标签筛选{selected ? ` · ${selected}` : ''}</Text>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={local.tagChips}>
+      {tags.map(({ tag, count }) => <Chip key={tag} label={`${tag} · ${count}`} selected={selected === tag} onPress={() => onSelect(toggleGarmentTag(selected, tag))} />)}
+    </ScrollView>
+  </View>;
+}
 
 export function AssetLibraryEntry({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
@@ -38,6 +50,7 @@ export function GarmentPicker({ selectedIds, onSelect, disabled = false }: { sel
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   useEffect(() => {
     if (library.supported !== true || (!open && (!prefillId || prefilled.current === prefillId))) return;
     let active = true;
@@ -74,9 +87,11 @@ export function GarmentPicker({ selectedIds, onSelect, disabled = false }: { sel
     {loading && !open && <Text accessibilityRole="status" style={local.body}>正在取回我的衣服…</Text>}
     {!!error && !open && <Notice text={error} onRetry={() => { prefilled.current = ''; setRetry(value => value + 1); }} />}
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}><Page tone="studio"><Header title="我的衣服" onBack={() => setOpen(false)} /><ScrollView contentContainerStyle={local.content}>
+      <GarmentTagFilters tags={garmentTagCounts(items)} selected={selectedTag} onSelect={setSelectedTag} testID="picker-garment-tags" />
       {!!error && <Notice text={error} onRetry={() => setRetry(value => value + 1)} />}
       {loading ? <View accessibilityRole="progressbar" accessibilityLabel="正在加载我的衣服"><Skeleton height={layout.touch * 3} /></View> : !items.length && !error ? <StatePanel icon="shirt-outline" title="我的衣服" description="拍过的片都会留在这里" /> : null}
-      {!loading && items.map(item => <Pressable key={item.id} testID={`pick-garment-${item.id}`} accessibilityRole="button" accessibilityLabel={`选择我的衣服 ${item.name || item.project_title || '这件衣服'}`} accessibilityState={{ disabled: selectedIds.includes(item.id), selected: selectedIds.includes(item.id) }} disabled={selectedIds.includes(item.id)} onPress={() => { onSelect({ ...item, kind: 'garment' }); setOpen(false); }} style={({ pressed }) => [local.pickerCard, pressed && local.pressed]}><FadeImage source={{ uri: previewUrl(item.url) }} style={local.pickerImage} resizeMode="cover" /><View style={local.pickerDescription}><Text style={local.name}>{item.name || item.project_title || '我的衣服'}</Text><Text style={local.body}>{selectedIds.includes(item.id) ? '已添加' : '用这件拍一组新片'}</Text></View></Pressable>)}
+      {!loading && selectedTag && !filterGarmentsByTag(items, selectedTag).length ? <Text style={local.body}>这个标签下还没有衣服，再点标签可取消筛选。</Text> : null}
+      {!loading && filterGarmentsByTag(items, selectedTag).map(item => <Pressable key={item.id} testID={`pick-garment-${item.id}`} accessibilityRole="button" accessibilityLabel={`选择我的衣服 ${item.name || item.project_title || '这件衣服'}`} accessibilityState={{ disabled: selectedIds.includes(item.id), selected: selectedIds.includes(item.id) }} disabled={selectedIds.includes(item.id)} onPress={() => { onSelect({ ...item, kind: 'garment' }); setOpen(false); }} style={({ pressed }) => [local.pickerCard, pressed && local.pressed]}><FadeImage source={{ uri: previewUrl(item.url) }} style={local.pickerImage} resizeMode="cover" /><View style={local.pickerDescription}><Text style={local.name}>{item.name || item.project_title || '我的衣服'}</Text>{item.tags?.length ? <Text style={local.source}>{item.tags.join(' · ')}</Text> : null}<Text style={local.body}>{selectedIds.includes(item.id) ? '已添加' : '用这件拍一组新片'}</Text></View></Pressable>)}
     </ScrollView></Page></Modal>
   </View>;
 }
@@ -96,12 +111,27 @@ export function AssetLibrary() {
   const [candidate, setCandidate] = useState<LibraryAsset>();
   const [preview, setPreview] = useState<LibraryAsset>();
   const [busy, setBusy] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [tags, setTags] = useState<GarmentTagCount[]>([]);
+  const [tagError, setTagError] = useState('');
+  const [tagRevision, setTagRevision] = useState(0);
+  useEffect(() => {
+    if (kind !== 'garment') return;
+    let active = true;
+    void api.myAssetTags().then(page => {
+      if (active && isCurrentSession(token, baseUrl)) {
+        setTags(page.items); setTagError('');
+        setSelectedTag(current => page.items.some(item => item.tag === current) ? current : null);
+      }
+    }).catch(failure => { if (active && isCurrentSession(token, baseUrl)) setTagError(errorText(failure)); });
+    return () => { active = false; };
+  }, [api, baseUrl, isCurrentSession, kind, tagRevision, token]);
   const generation = useRef(0);
   const load = useCallback(async (offset = 0) => {
     const attempt = ++generation.current;
     setLoading(true); setError('');
     try {
-      const page = await api.myAssets(kind, PAGE_SIZE, offset);
+      const page = await api.myAssets(kind, PAGE_SIZE, offset, selectedTag);
       if (attempt !== generation.current || !isCurrentSession(token, baseUrl)) return;
       setItems(previous => offset ? [...previous, ...page.items.filter(item => !previous.some(existing => existing.id === item.id))] : page.items);
       setTotal(page.total);
@@ -110,7 +140,7 @@ export function AssetLibrary() {
       if (failure instanceof ApiError && failure.status === 404) hideAssetLibrary(api);
       else setError(errorText(failure));
     } finally { if (attempt === generation.current) setLoading(false); }
-  }, [api, baseUrl, isCurrentSession, kind, token]);
+  }, [api, baseUrl, isCurrentSession, kind, selectedTag, token]);
   useFocusEffect(useCallback(() => { setItems([]); setTotal(0); void load(); return () => { generation.current += 1; }; }, [load]));
   async function makeDefault(item: LibraryAsset) {
     if (busy) return;
@@ -133,21 +163,25 @@ export function AssetLibrary() {
       setItems(previous => previous.filter(asset => asset.id !== item.id)); setTotal(previous => Math.max(0, previous - 1)); setCandidate(undefined);
       await Promise.allSettled([refreshUser(), loadLibraryModels(api, true)]);
       setNotice('已删除');
+      setTagRevision(value => value + 1);
     } catch (failure) { if (isCurrentSession(token, baseUrl)) { setError(errorText(failure)); setCandidate(undefined); } }
     finally { setBusy(false); }
   }
   const title = (item: LibraryAsset) => item.name || item.analysis?.name || item.project_title || (item.kind === 'model' ? '我的模特' : item.kind === 'garment' ? '我的衣服' : item.kind === 'video' ? '我的短片' : '我的成片');
   if (library.supported === false) return <View style={local.content}><StatePanel icon="images-outline" title="当前服务未开通素材库" description="拍过的片都会留在这里" /></View>;
   return <View style={local.root}>
-    <View accessibilityRole="tablist" style={local.tabs}>{tabs.map(tab => <Pressable key={tab.kind} accessibilityRole="tab" accessibilityLabel={tab.title} accessibilityState={{ selected: kind === tab.kind }} aria-selected={kind === tab.kind} testID={`library-tab-${tab.kind}`} onPress={() => { if (kind !== tab.kind) { setKind(tab.kind); setNotice(''); } }} style={({ pressed }) => [local.tab, kind === tab.kind && local.tabSelected, pressed && local.pressed]}><Text style={[local.tabText, kind === tab.kind && local.selectedText]}>{tab.title}</Text></Pressable>)}</View>
+    <View accessibilityRole="tablist" style={local.tabs}>{tabs.map(tab => <Pressable key={tab.kind} accessibilityRole="tab" accessibilityLabel={tab.title} accessibilityState={{ selected: kind === tab.kind }} aria-selected={kind === tab.kind} testID={`library-tab-${tab.kind}`} onPress={() => { if (kind !== tab.kind) { setKind(tab.kind); setSelectedTag(null); setNotice(''); } }} style={({ pressed }) => [local.tab, kind === tab.kind && local.tabSelected, pressed && local.pressed]}><Text style={[local.tabText, kind === tab.kind && local.selectedText]}>{tab.title}</Text></Pressable>)}</View>
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={local.content}>
+      {kind === 'garment' ? <GarmentTagFilters tags={tags} selected={selectedTag} onSelect={setSelectedTag} testID="library-garment-tags" /> : null}
+      {kind === 'garment' && tagError ? <Notice text={tagError} onRetry={() => setTagRevision(value => value + 1)} /> : null}
       {!!notice && <Toast text={notice} onDismiss={() => setNotice('')} />}
       {!!error && <Notice text={error} onRetry={() => void load(items.length ? items.length : 0)} />}
       {loading && !items.length ? <View accessibilityRole="progressbar" accessibilityLabel="正在加载素材库" style={local.grid}>{[0, 1].map(index => <Skeleton key={index} width={tileWidth} height={tileWidth / layout.thumbnailRatio} />)}</View> : null}
-      {!loading && !items.length && !error ? <StatePanel icon={kind === 'garment' ? 'shirt-outline' : kind === 'model' ? 'person-outline' : kind === 'video' ? 'videocam-outline' : 'images-outline'} title={tabs.find(tab => tab.kind === kind)!.title} description="拍过的片都会留在这里" /> : null}
+      {!loading && !items.length && !error ? <StatePanel icon={kind === 'garment' ? 'shirt-outline' : kind === 'model' ? 'person-outline' : kind === 'video' ? 'videocam-outline' : 'images-outline'} title={tabs.find(tab => tab.kind === kind)!.title} description={kind === 'garment' && selectedTag ? '这个标签下还没有衣服，再点标签可取消筛选。' : '拍过的片都会留在这里'} /> : null}
       <View style={local.grid}>{items.map(item => <View key={item.id} testID={`library-${item.id}`} style={[local.tile, { width: tileWidth }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={`查看${title(item)}`} onPress={() => setPreview(item)} style={local.imageFrame} testID={`library-image-${item.id}`}><FadeImage source={{ uri: previewUrl(item.kind === 'video' ? (item.poster_url || item.url) : item.url) }} style={local.image} resizeMode="cover" accessibilityLabel={title(item)} />{item.kind === 'video' ? <View style={local.playBadge}><Ionicons name="play" size={16} color={colors.white} /></View> : null}</Pressable>
         <View style={local.details}><View style={local.labels}><Badge label={item.kind === 'video' ? '5 秒短片' : item.source === 'generated' ? '成片' : '上传'} />{kind === 'model' && user?.profile?.model_asset_ids[0] === item.id ? <Badge label="默认" tone="brand" /> : null}</View><Text numberOfLines={2} style={local.name}>{title(item)}</Text>
+          {kind === 'garment' && item.tags?.length ? <Text style={local.source}>{item.tags.join(' · ')}</Text> : null}
           {kind === 'model' ? <><Button title="设为默认" variant="secondary" disabled={busy || user?.profile?.model_asset_ids[0] === item.id} onPress={() => void makeDefault(item)} /><Button title="删除" variant="ghost" disabled={busy} onPress={() => setCandidate(item)} /></> : null}
           {kind === 'garment' ? <><Button title="用这件拍一组新片" variant="secondary" onPress={() => router.push({ pathname: '/projects/new', params: { garment: item.id } })} /><Button title="删除" variant="ghost" disabled={busy} onPress={() => setCandidate(item)} /></> : null}
           {(kind === 'image' || kind === 'video') && item.project_id ? <Button title="回到这组片" variant="secondary" onPress={() => router.push({ pathname: '/projects/[id]', params: { id: item.project_id! } })} /> : null}
@@ -161,6 +195,8 @@ export function AssetLibrary() {
 }
 
 const local = StyleSheet.create({
+  tagFilters: { gap: space.sm },
+  tagChips: { gap: space.sm },
   source: { ...type.badge, color: studio.muted, textAlign: 'center', paddingVertical: space.xs },
   pickerGroup: { gap: space.sm },
   pickerCard: { minHeight: layout.touch, flexDirection: 'row', alignItems: 'center', padding: space.md, gap: space.md, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, borderColor: studio.line, backgroundColor: studio.canvas },

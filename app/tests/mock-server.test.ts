@@ -1332,3 +1332,29 @@ test('quick image tools quote one edit, preserve preset versions and skip checks
     }
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });
+
+test('garment library exposes bounded tags and owner-only counts before filtered pagination', async () => {
+  const dataDir = await temporaryData('outfit-mock-garment-tags-');
+  const { server, base } = await startServer(dataDir);
+  try {
+    const { token } = await register(base, 'garment-tags');
+    const other = await register(base, 'other-garment-tags');
+    const shirt = await upload(base, token);
+    const pants = await upload(base, token);
+    await upload(base, other.token);
+    const all = (await request<{ items: { id: string; tags: string[] }[]; total: number }>(base, '/api/me/assets?kind=garment', { token })).body;
+    assert.equal(all.total, 2);
+    assert.equal(all.items.find(item => item.id === shirt.id)!.tags.length, 6);
+    const counts = (await request<{ items: { tag: string; count: number }[] }>(base, '/api/me/assets/tags?kind=garment', { token })).body.items;
+    assert.equal(counts.find(item => item.tag === '衬衫')!.count, 1);
+    assert.equal(counts.find(item => item.tag === '简约')!.count, 2);
+    const page = (await request<{ items: { id: string; tags: string[] }[]; total: number }>(base, '/api/me/assets?kind=garment&tag=牛仔裤&limit=1', { token })).body;
+    assert.equal(page.total, 1);
+    assert.deepEqual(page.items.map(item => item.id), [pants.id]);
+    const empty = (await request(base, '/api/me/assets?kind=garment&tag=冬', { token })).body;
+    assert.deepEqual(empty, { items: [], total: 0 });
+    const second = (await request<{ items: unknown[]; total: number }>(base, '/api/me/assets?kind=garment&tag=简约&limit=1&offset=1', { token })).body;
+    assert.equal(second.total, 2);
+    assert.equal(second.items.length, 1);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});

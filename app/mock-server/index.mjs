@@ -21,6 +21,28 @@ const points = (value) => Math.round(value * 100) / 10;
 const AUTO_LABELS = { directions: '正在找拍摄方向', script: '正在写拍摄脚本', images: '正在出图', note: '正在整理图文', video: '正在生成视频', done: '全套已出好' };
 const autoQuote = () => ({ estimate_points: points(money(3 * PRICES.preview + 3 * PRICES.image * 1.2 + PRICES.video)), breakdown: [{ label: '方向预览 3 张', points: points(3 * PRICES.preview) }, { label: '正式出图 3 张，含自动修一版预留', points: points(3 * PRICES.image * 1.2) }, { label: '视频 1 条', points: points(PRICES.video) }] });
 
+function garmentTags(analysis) {
+  if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) return [];
+  const result = [];
+  for (const [fields, limit] of [[['category', '品类'], 1], [['color', '颜色'], 1], [['season', 'seasons', '季节'], 2], [['style_tags', 'style', '风格'], 3]]) {
+    let added = 0;
+    for (const field of fields) {
+      const values = Array.isArray(analysis[field]) ? analysis[field] : [analysis[field]];
+      for (const value of values) {
+        if (typeof value !== 'string') continue;
+        for (const word of value.split(/[、,，;；/|]+/)) {
+          const tag = word.trim();
+          if (tag && [...tag].length <= 12 && !result.includes(tag) && added < limit) {
+            result.push(tag); added += 1;
+            if (result.length === 6) return result;
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
 function dimensions(bytes, mime) {
   if (mime === 'image/png' && bytes.length >= 24) return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
   if (mime === 'image/jpeg') {
@@ -440,7 +462,7 @@ export async function createMockServer(options = {}) {
   let savedModelQueue = Promise.resolve();
   function libraryAsset(asset, user, base, project, kind = asset.kind) {
     const sourceProject = project || db.projects.find((item) => item.ownerId === user.id && (item.id === asset.projectId || item.garmentAssetIds.includes(asset.id)));
-    return { ...publicAsset(asset, base), kind, project_id: sourceProject?.id || asset.projectId || null, project_title: sourceProject?.title || asset.projectTitle || null, ...(asset.analysis?.name ? { name: asset.analysis.name } : {}), in_profile: (user.profile?.model_asset_ids || []).includes(asset.id) };
+    return { ...publicAsset(asset, base), kind, project_id: sourceProject?.id || asset.projectId || null, project_title: sourceProject?.title || asset.projectTitle || null, ...(asset.analysis?.name ? { name: asset.analysis.name } : {}), in_profile: (user.profile?.model_asset_ids || []).includes(asset.id), tags: kind === 'garment' ? garmentTags(asset.analysis) : [] };
   }
   function generationPrompt(project, job, image) {
     let prompt = image?.instruction || project.analyzedBrief || project.brief;
@@ -1153,13 +1175,22 @@ export async function createMockServer(options = {}) {
         const asset = await operation;
         json(res, 200, { asset: publicAsset(asset, base), user: publicUser(user) }); return;
       }
+      if (url.pathname === '/api/me/assets/tags' && req.method === 'GET') {
+        if (options.legacyProfile || options.legacyAssets) throw failure(404, 'NOT_FOUND', '当前服务未开通素材库');
+        if ((url.searchParams.get('kind') || 'garment') !== 'garment') throw failure(422, 'INVALID_ASSET_QUERY', '请选择我的衣服');
+        const counts = new Map();
+        for (const asset of db.assets.filter((item) => item.ownerId === user.id && item.kind === 'garment' && !item.analysis?.library_hidden)) {
+          for (const tag of garmentTags(asset.analysis)) counts.set(tag, (counts.get(tag) || 0) + 1);
+        }
+        json(res, 200, { items: [...counts].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag)) }); return;
+      }
       if (url.pathname === '/api/me/assets' && req.method === 'GET') {
         if (options.legacyProfile || options.legacyAssets) throw failure(404, 'NOT_FOUND', '当前服务未开通素材库');
         const kind = url.searchParams.get('kind');
         const limit = Number(url.searchParams.get('limit') ?? 30);
         const offset = Number(url.searchParams.get('offset') ?? 0);
         if (!['model', 'garment', 'image', 'video'].includes(kind) || !Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0) throw failure(422, 'INVALID_ASSET_QUERY', '请选择我的模特、我的衣服或我的成片，并填写有效分页');
-        const items = kind === 'video'
+        let items = kind === 'video'
           ? db.projects.filter((project) => project.ownerId === user.id && project.state.video?.status === 'succeeded' && project.state.video.assetId).flatMap((project) => {
             const asset = db.assets.find((item) => item.id === project.state.video.assetId && item.ownerId === user.id);
             return asset ? [{ ...libraryAsset(asset, user, base, project, 'video'), poster_url: project.state.video.posterAssetId ? mediaUrl(project.state.video.posterAssetId, base) : null }] : [];
@@ -1169,7 +1200,10 @@ export async function createMockServer(options = {}) {
             const asset = db.assets.find((item) => item.id === image.assetId && item.ownerId === user.id);
             return asset ? [libraryAsset(asset, user, base, project, 'image')] : [];
           }))
-          : db.assets.filter((asset) => asset.ownerId === user.id && asset.kind === kind).map((asset) => libraryAsset(asset, user, base));
+          : db.assets.filter((asset) => asset.ownerId === user.id && asset.kind === kind && !asset.analysis?.library_hidden).map((asset) => libraryAsset(asset, user, base));
+        const tag = url.searchParams.get('tag');
+        if (tag !== null && (!tag.length || [...tag].length > 12)) throw failure(422, 'INVALID_ASSET_TAG', '请使用有效的衣服标签');
+        if (kind === 'garment' && tag !== null) items = items.filter((item) => item.tags.includes(tag.trim()));
         items.sort((a, b) => b.created_at.localeCompare(a.created_at));
         json(res, 200, { items: items.slice(offset, offset + limit), total: items.length }); return;
       }
@@ -1245,6 +1279,10 @@ export async function createMockServer(options = {}) {
         const filename = `${id}.bin`;
         await writeFile(path.join(dataDir, 'uploads', filename), imageBytes);
         const asset = { id, ownerId: user.id, kind, width, height, mime: file.type, created_at: now(), source: 'upload', filename };
+        if (kind === 'garment') {
+          const index = db.assets.filter((item) => item.ownerId === user.id && item.kind === 'garment').length;
+          asset.analysis = { category: index % 2 ? '牛仔裤' : '衬衫', color: index % 2 ? '浅蓝色' : '米白色', season: ['春', '秋'], style_tags: ['简约', '松弛'] };
+        }
         db.assets.push(asset); await persist(); json(res, 200, publicAsset(asset, base)); return;
       }
       if (url.pathname === '/api/projects' && req.method === 'GET') { json(res, 200, db.projects.filter((item) => item.ownerId === user.id).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((item) => publicProject(item, base))); return; }

@@ -1,5 +1,6 @@
 """Reusable personal models, garments and completed project images."""
 
+from collections import Counter
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -8,6 +9,7 @@ from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
+from app.garment_tags import garment_tags
 from app.media import asset_dict, asset_path, persist_bytes
 from app.models import AppSetting, Asset, Job, Project, User
 from app.project_cleanup import CLEANUP_PREFIX, drain_media_cleanup, track_generated_file
@@ -29,6 +31,7 @@ class LibraryAssetOutput(AssetOutput):
     name: str | None = None
     in_profile: bool
     poster_url: str | None = None
+    tags: list[str] = Field(default_factory=list)
 
 
 class ModelFromImageOutput(BaseModel):
@@ -39,6 +42,15 @@ class ModelFromImageOutput(BaseModel):
 class LibraryAssetsOutput(BaseModel):
     items: list[LibraryAssetOutput]
     total: int
+
+
+class AssetTagOutput(BaseModel):
+    tag: str
+    count: int
+
+
+class AssetTagsOutput(BaseModel):
+    items: list[AssetTagOutput]
 
 
 def completed_images(user_id: str):
@@ -72,6 +84,7 @@ def library_asset(asset: Asset, project: Project | None, user: User) -> dict:
         "project_title": project.title if project else None,
         "name": (asset.analysis or {}).get("name"),
         "in_profile": asset.id in (user.profile or {}).get("model_asset_ids", []),
+        "tags": garment_tags(asset.analysis) if asset.kind == "garment" else [],
     }
 
 
@@ -122,6 +135,7 @@ def model_from_image(
 def list_assets(
     kind: Literal["model", "garment", "image", "video"],
     limit: int = Query(default=50, ge=1, le=100), offset: int = Query(default=0, ge=0),
+    tag: str | None = Query(default=None, min_length=1, max_length=12),
     user: User = Depends(current_user), session: Session = Depends(get_session),
 ):
     if kind == "video":
@@ -147,6 +161,14 @@ def list_assets(
         # 用户在素材库里“删除”过的上传模特不再出现；文件和项目引用都还在。
         func.coalesce(Asset.analysis["library_hidden"].as_boolean(), False).is_(False),
     )
+    if kind == "garment":
+        # Filtering precedes pagination: the count and every page use the same
+        # normalized tags, including legacy analyses with partial/missing fields.
+        rows = session.execute(query.order_by(Asset.created_at.desc(), Asset.id.desc())).all()
+        items = [library_asset(asset, project, user) for asset, project in rows]
+        if tag is not None:
+            items = [item for item in items if tag.strip() in item["tags"]]
+        return {"items": items[offset:offset + limit], "total": len(items)}
     unique_ids = query.with_only_columns(Asset.id).distinct().subquery()
     total = session.scalar(select(func.count()).select_from(unique_ids))
     rows = session.execute(query.distinct().order_by(
@@ -155,6 +177,21 @@ def list_assets(
     return {
         "items": [library_asset(asset, project, user) for asset, project in rows], "total": total,
     }
+
+
+@router.get("/api/me/assets/tags", response_model=AssetTagsOutput)
+def list_asset_tags(
+    kind: Literal["garment"] = "garment", user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    analyses = session.scalars(select(Asset.analysis).where(
+        Asset.user_id == user.id, Asset.kind == kind,
+        func.coalesce(Asset.analysis["library_hidden"].as_boolean(), False).is_(False),
+    )).all()
+    counts = Counter(tag for analysis in analyses for tag in garment_tags(analysis))
+    return {"items": [{"tag": tag, "count": count} for tag, count in sorted(
+        counts.items(), key=lambda item: (-item[1], item[0]),
+    )]}
 
 
 @router.delete("/api/me/assets/{asset_id}", status_code=204, response_class=Response)
