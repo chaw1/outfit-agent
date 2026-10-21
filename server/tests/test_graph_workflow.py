@@ -302,7 +302,7 @@ def test_natural_image_edit_and_note_revision_stay_in_their_stage(flow, monkeypa
 def test_forbidden_tools_do_not_create_jobs_or_consume_pause(flow, action):
     session, project, _, graph = flow
     run_turn(graph, project, "开始", None)
-    with pytest.raises(AppError, match="当前阶段"):
+    with pytest.raises(AppError, match="这一步现在还做不了"):
         run_turn(graph, project, None, action)
     assert not session.scalars(
         select(Job).where(Job.payload["purpose"].as_string().is_(None))
@@ -565,7 +565,7 @@ def test_model_selects_content_once_and_code_rejects_forbidden_tool(flow, monkey
     monkeypatch.setattr(
         provider, "select_tool", lambda *args: ("generate_video", {"reply": "越界"})
     )
-    with pytest.raises(AppError, match="当前阶段"):
+    with pytest.raises(AppError, match="这一步现在还做不了"):
         run_turn(graph, project, "越阶段请求", None)
     assert list(session.scalars(select(Job)).all()) == before_jobs
 

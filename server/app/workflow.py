@@ -36,7 +36,18 @@ ALLOWED_TOOLS = {
         "chat",
     },
     "video": {"write_note", "chat"},
-    "done": {"write_note", "chat"},
+    "done": {"write_note", "generate_video", "chat"},
+}
+
+# 被拦下时告诉用户这一步能做什么，而不是一句"请先完成确认"。
+STAGE_HINTS = {
+    "brief": "先说说这次合作的需求和衣服，我会给出几个拍摄方向。",
+    "direction": "先在方向卡里选一个方向，我再写脚本。",
+    "script": "脚本确认后才会开始出图；现在可以改脚本或直接确认。",
+    "images": "这一步可以改图或定稿写笔记；视频要等笔记写好以后。",
+    "note": "现在可以改图、改笔记，或选一张图做 5 秒短片。",
+    "video": "短片正在生成，先改笔记文字；做好后可以再做一条。",
+    "done": "全套已完成：可以改笔记文字，或再做一条短片；想改图请拍一组新片。",
 }
 
 
@@ -65,7 +76,7 @@ class Workflow:
 
     def _allow(self, stage: str, tool: str) -> None:
         if tool not in ALLOWED_TOOLS.get(stage, set()):
-            raise AppError("tool_not_allowed", "当前阶段不能执行这个操作，请先完成前面的确认。")
+            raise AppError("tool_not_allowed", "这一步现在还做不了。" + STAGE_HINTS.get(stage, ""))
         self.tool = tool
 
     def _card(self, kind: str, content: dict) -> dict:
@@ -601,8 +612,12 @@ class Workflow:
             kind = "confirm_script" if name == "generate_images" else "confirm_video"
             state["pending_action"] = self._pending(kind)
             reply = self._reply(args, "准备好了，请在确认卡片上确认后开始生成。")
-            return self._finish(state, reply + "\n" + state["pending_action"]["prompt"], [])
-        raise AppError("tool_not_allowed", "当前阶段不能执行这个操作，请先完成前面的确认。")
+            # 再做一条短片时把笔记卡带回来，选图确认就在最新消息里，不用往上翻。
+            cards = []
+            if kind == "confirm_video" and state.get("note"):
+                cards.append(self._card("note", state["note"]))
+            return self._finish(state, reply + "\n" + state["pending_action"]["prompt"], cards)
+        raise AppError("tool_not_allowed", "这一步现在还做不了。" + STAGE_HINTS.get(stage, ""))
 
     def _choose(self, state: dict, action: dict, result: dict | None = None) -> dict:
         self._allow(state["stage"], "write_script")
@@ -940,8 +955,8 @@ class Workflow:
         }
 
     def _generate_video(self, state: dict, action: dict) -> dict:
-        if state["stage"] == "note":
-            self._allow("note", "generate_video")
+        if state["stage"] in {"note", "done"}:
+            self._allow(state["stage"], "generate_video")
         reply = self._action_reply(
             "generate_video",
             {**state, "stage": "note"},
