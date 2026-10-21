@@ -25,12 +25,12 @@
 | 项 | 值 |
 |---|---|
 | 代码基线 | main，见 `git log`（线上服务端与 main 同步部署，`cd server && ./deploy/deploy-ecs.sh`） |
-| 最新一次线上全链路 | 2026-10-21 07:41–07:46（Asia/Shanghai），`app/screenshots-live/run-1/`（evidence.json / http-evidence.json / sse-evidence.json），**13/13 通过**，真实模型（health `mock=false`），390×844 手机视口 Web |
-| 录屏 | `app/screenshots-live/走查视频/线上全链路-注册到视频-原速.mp4`（5 分 05 秒）与 3 倍速版；`walkthrough/线上项目回放.mp4` 是另一已完成项目的界面回看 |
-| 费用口径 | 该项目最终估价 ¥5.69（视频前快照 ¥4.16）；预算上限 100 元，截至 08:00 累计约 70 元 |
+| 最新一次线上全链路 | 2026-10-21 08:27–08:32（Asia/Shanghai），服务端与 App 均为第八轮，`app/screenshots-live/run-2/`（evidence.json / http-evidence.json / sse-evidence.json），**13/13 通过**，真实模型（health `mock=false`），390×844 手机视口 Web。本次局部改仍被核对判为未改到位，App 按新规则默认沿用原版入稿（approve 请求里是 v1），改图请求带 `attempt` |
+| 录屏 | `app/screenshots-live/走查视频/线上全链路-注册到视频-第八轮-原速.mp4`（5 分 29 秒）与 3 倍速版（第七轮的两段也保留）；`walkthrough/线上项目回放.mp4` 是另一已完成项目的界面回看 |
+| 费用口径 | 每个完整项目约 ¥5.7（视频前快照约 ¥4.2）；预算上限 100 元，截至 08:50 累计约 76 元 |
 | 已知未达标 | 局部改"袖口放平"两次线上均被还原检查判为未改到位（流程正确呈现失败，不算效果达标）；第八轮起未核对通过的版本不再默认入稿 |
 | 未验证 | iPhone 真机从登录到发布的闭环（模拟器已验证编译启动到登录页）；小红书平台实际发帖 |
-| 历史记录 | `app/LIVE.md`（10-21 00:19–01:01 三轮）、`app/screenshots-live/run-3/`、`app/screenshots-live/batch1/`（如有） |
+| 历史记录 | `app/screenshots-live/run-1/`（07:41，第七轮 App）、`app/LIVE.md` 与 `run-3/`（10-21 00:19–01:01 三轮） |
 
 ## 架构一览
 

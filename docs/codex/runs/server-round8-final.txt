@@ -1,0 +1,5 @@
+已完成第八轮服务端改动：失败图显式采用、文案事实隔离、`attempt/reused` 去重及换组估价。
+
+ruff、408 项强制集成回归、Mock E2E 全通过。已本地提交至 `feat/server`，HEAD 为 `d2a1eb8`；未 push，未调用线上或付费模型。
+
+摘要已写入 [server-round8-final.txt](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-server/docs/codex/runs/server-round8-final.txt)。
