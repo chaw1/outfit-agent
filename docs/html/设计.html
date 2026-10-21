@@ -212,7 +212,7 @@ API 服务（FastAPI）──── 智能体（LangGraph，PostgresSaver 持久
 PostgreSQL ── 业务表 + 任务队列表 + LangGraph checkpoint 表
         ▲
 Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
-        ├─ 试衣/换景/改图：wan2.7-image-pro（多图参考，实测 14 秒/张）
+        ├─ 试衣/换景/改图：豆包 Seedream 5.0 pro（多图参考，实测 42 秒/张；备选 wan2.7-image-pro 14 秒/张，管理端可切）
         └─ 图生视频：wan2.6-i2v-flash（720P 5 秒，实测 52 秒）
 媒体文件：服务器本地卷 /data/media（模型返回的 URL 只有 24 小时，必须下载转存）
 部署：docker compose（api、worker、postgres、caddy 自动 HTTPS）
@@ -396,8 +396,8 @@ Worker（独立进程，SELECT … FOR UPDATE SKIP LOCKED 取任务）
 </tr>
 <tr>
 <td>试衣 + 换场景 / 改图</td>
-<td><code>wan2.7-image-pro</code>（1–3 张参考图 + 指令）</td>
-<td>14 秒/张，面料纽扣口袋保持</td>
+<td>默认 <code>doubao-seedream-5-0-pro-260628</code>（火山方舟，最多 10 张参考图 + 指令，固定 1536×2048）；备选 <code>wan2.7-image-pro</code>（1–3 张参考图），管理端「模型与配额」一键切换</td>
+<td>Seedream 42 秒/张、皮肤与光线更像实拍；wan2.7 14 秒/张，面料纽扣口袋保持</td>
 </tr>
 <tr>
 <td>图生视频</td>

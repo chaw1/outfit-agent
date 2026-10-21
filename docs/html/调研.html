@@ -188,7 +188,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <td><strong>wan2.7-image-pro</strong>（多图参考生成）</td>
 <td>一步完成试衣和换景；面料纹理、纽扣、胸袋、裤子水洗颜色都对得上；没按要求塞衣角</td>
 <td><strong>14 秒</strong></td>
-<td><strong>选用</strong>。没塞衣角正好用来演示"改图"</td>
+<td><strong>第一阶段选用</strong>，交付前被豆包 Seedream 5.0 pro 取代为默认（见 2.4），保留为备选。没塞衣角正好用来演示"改图"</td>
 </tr>
 <tr>
 <td>qwen-image-3.0-pro（多图编辑）</td>
@@ -264,7 +264,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </thead>
 <tbody>
 <tr>
-<td>wan2.7-image-pro（现用）</td>
+<td>wan2.7-image-pro（第一阶段默认）</td>
 <td>衣服还原准确；皮肤与光线偏平，人像略有"合成感"；吊牌已按规则去除</td>
 <td>14 秒</td>
 <td>0.50 元/张</td>
@@ -280,7 +280,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <p>并排对比见 <code>docs/model-compare/wan27-vs-seedream50-shot1.jpg</code>（左 wan2.7，中 Seedream 5.0 pro，右为三张输入）。</p>
 <p>结论：出图默认切到 Seedream 5.0 pro，wan2.7 保留为可在管理端一键切回的备选；视频、看图、对话不变。接入方式是同一个 <code>image()</code> 入口按模型名分流到方舟 <code>images/generations</code>（固定 1536×2048、不加平台水印，标识仍由服务端统一盖），对工作流零改动。Seedream 5.0 pro 是字节 2026 年中发布的旗舰出图模型，国内第一梯队；横向看与 GPT-Image 2、Nano Banana Pro 同档，文字渲染略逊、价格约为前者四分之一。它不支持组图和流式，这两项我们不用。</p>
 <h3 id="25-成本估算单篇笔记">2.5 成本估算（单篇笔记）<a class="headerlink" href="#25-成本估算单篇笔记" title="Permanent link">¶</a></h3>
-<p>按 6 张图 + 2 次改图 + 1 条 5 秒视频 + 对话和看图估算，单篇约 <strong>8–9 元</strong>：</p>
+<p>按 6 张图 + 2 次改图 + 1 条 5 秒视频 + 对话和看图估算，单篇约 <strong>9–10 元</strong>（出图按最终默认的 Seedream 计；换回 wan2.7 约便宜 1 元）：</p>
 <table>
 <thead>
 <tr>
@@ -292,7 +292,13 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </thead>
 <tbody>
 <tr>
-<td>wan2.7-image-pro 出图/改图</td>
+<td>豆包 Seedream 5.0 pro 出图/改图（默认）</td>
+<td>0.60 元/张 + 参考图 0.02 元/张</td>
+<td>8 张</td>
+<td>约 5.0 元</td>
+</tr>
+<tr>
+<td>wan2.7-image-pro（备选）</td>
 <td>0.50 元/张</td>
 <td>8 张</td>
 <td>4.0 元</td>
@@ -317,7 +323,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 </tbody>
 </table>
-<p>对比传统商拍单套 200 元以上、周期按天计，成本和周期都低一到两个数量级。本次开发全部用的是免费额度。</p>
+<p>对比传统商拍单套 200 元以上、周期按天计，成本和周期都低一到两个数量级。整个作业的模型花费约 110 元（含同题换模型对比与灵感墙素材）。</p>
 <h2 id="3-智能体框架选型">3. 智能体框架选型<a class="headerlink" href="#3-智能体框架选型" title="Permanent link">¶</a></h2>
 <h3 id="31-先把场景翻译成框架必须满足的硬需求">3.1 先把场景翻译成框架必须满足的硬需求<a class="headerlink" href="#31-先把场景翻译成框架必须满足的硬需求" title="Permanent link">¶</a></h3>
 <table>
