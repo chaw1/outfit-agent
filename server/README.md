@@ -101,7 +101,7 @@ OpenAPI 静态导出位于 [`openapi.json`](openapi.json)，运行中还可查�
 
 每日预算按北京时间自然日统计账本估价（含尚未结算及失败预留），默认免费层 12 元、专业层 120 元、全局 1200 元。用户或全局到限时拒绝方向预览、批量出图、改图及视频，并返回中文 SSE 错误；每日预算不阻止对话。可用模型按用户当前层级校验。原真实模式 `MODEL_BUDGET_CNY` 仍是数据库全历史总额的外层安全上限，真实调用仍受其约束；Mock 账本费用为零，通过临时将预算设为零及隔离账本测试验证每日拒绝。
 
-验收见 [`ADMIN.md`](ADMIN.md)，断点见本地 `PROGRESS.md`；截图在 `artifacts/admin/`。本地验收只使用临时管理口令和 Mock，不需要真实模型密钥。
+验收见 [`ADMIN.md`](../docs/过程/server-ADMIN.md)，断点见本地 `PROGRESS.md`；截图在 `artifacts/admin/`。本地验收只使用临时管理口令和 Mock，不需要真实模型密钥。
 
 ### 局部编辑、指令核对与图片引用
 
@@ -210,7 +210,7 @@ uv run python scripts/ops_acceptance.py
 # app/ 目录，Node 22：npm ci && npm run typecheck && npm run lint && npm test
 ```
 
-本轮交付见 [`OPS.md`](OPS.md)，断点保存在本地 `PROGRESS.md`。`scripts/verify_profile.py --run` 只发送两次真实 DeepSeek 文本调用，固定独立 SQLite 账本先记录 `started`，未知结果拒绝重发，成功结果复用；总保守预留不超过 0.10 元。密钥仅通过钥匙串注入子进程环境，常驻 Mock 服务不切真实模式。估价按 [DeepSeek 官方峰值价格](https://api-docs.deepseek.com/quick_start/pricing/) 和保守汇率计算，实际扣费以供应商账单为准。
+这一轮交付见 [`OPS.md`](../docs/过程/server-OPS.md)，断点保存在本地 `PROGRESS.md`。`scripts/verify_profile.py --run` 只发送两次真实 DeepSeek 文本调用，固定独立 SQLite 账本先记录 `started`，未知结果拒绝重发，成功结果复用；总保守预留不超过 0.10 元。密钥仅通过钥匙串注入子进程环境，常驻 Mock 服务不切真实模式。估价按 [DeepSeek 官方峰值价格](https://api-docs.deepseek.com/quick_start/pricing/) 和保守汇率计算，实际扣费以供应商账单为准。
 
 ## 配置与真实费用
 
@@ -306,7 +306,7 @@ uv run python scripts/verify_anchor.py --mock
 uv run python scripts/verify_anchor.py --run --offline
 ```
 
-首次真实验证仅在已将个人钥匙串凭证注入子进程后运行 `scripts/verify_anchor.py --run`。它使用独立 SQLite 业务库与请求账本，固定 `evidence/anchor-real`，R1/R2 各不超过 2 元、总闸 5 元；每次调用先持久化 `started`，未知结果拒绝重提，成功结果复用，离线模式不新增预留。常驻服务始终保持 Mock。真实验证只执行每组一个方向预览和三镜头，未运行的预览在实验私有库标为失败；其余镜头的并行领取由 PostgreSQL Mock 测试验证。夜晚参考是脚本原创的霓虹街景插画，风格会相应影响结果。结果、调用账本和对比图见 `evidence/anchor-real/anchor-real.json`，交接结论见 [ANCHOR.md](ANCHOR.md)。
+首次真实验证仅在已将个人钥匙串凭证注入子进程后运行 `scripts/verify_anchor.py --run`。它使用独立 SQLite 业务库与请求账本，固定 `evidence/anchor-real`，R1/R2 各不超过 2 元、总闸 5 元；每次调用先持久化 `started`，未知结果拒绝重提，成功结果复用，离线模式不新增预留。常驻服务始终保持 Mock。真实验证只执行每组一个方向预览和三镜头，未运行的预览在实验私有库标为失败；其余镜头的并行领取由 PostgreSQL Mock 测试验证。夜晚参考是脚本原创的霓虹街景插画，风格会相应影响结果。结果、调用账本和对比图见 `evidence/anchor-real/anchor-real.json`，交接结论见 [ANCHOR.md](../docs/过程/server-ANCHOR.md)。
 
 ## 第八轮：改图结果可信闭环
 

@@ -1,6 +1,6 @@
 # 衣序 · 穿搭笔记工作台
 
-Expo SDK 58、expo-router、strict TypeScript 的 iOS / Android / web 演示应用。唯一接口约定是 [`../docs/设计.md`](../docs/设计.md)（图片交互见第 8 节），真实联调任务见 [`../docs/codex/APP_LIVE_PROMPT.md`](../docs/codex/APP_LIVE_PROMPT.md)，实际结论见本地 `LIVE.md`。假服务可以完整演示品牌合作项目、衣服分析、方向预览、脚本历史与恢复、图片还原分、改图版本、成本、笔记和短视频，不调用真实模型。
+Expo SDK 58、expo-router、strict TypeScript 的 iOS / Android / web 演示应用。唯一接口约定是 [`../docs/设计.md`](../docs/设计.md)（图片交互见第 8 节），真实联调任务见 [`../docs/codex/APP_LIVE_PROMPT.md`](../docs/codex/APP_LIVE_PROMPT.md)，实际结论见本地 `../docs/过程/app-LIVE.md`。假服务可以完整演示品牌合作项目、衣服分析、方向预览、脚本历史与恢复、图片还原分、改图版本、成本、笔记和短视频，不调用真实模型。
 
 ## 主要页面
 
@@ -99,7 +99,7 @@ Release 仍需网络连接 API，仍受 Personal Team 的 7 天有效期限制�
 
 默认 API 为 `https://47.97.153.127:8443`，登录页也能进入“设置”修改。若改用电脑假服务，填写 `http://192.168.1.23:19301` 之类的局域网地址。**手机中的 `localhost` 指手机本身，不能用来连接电脑。** 切换服务地址后需要重新登录。可先在手机浏览器访问电脑假服务的 `/api/health`：收到 401 说明已连通，登录后携带 Bearer token 才能返回健康状态；连接失败时检查 Wi-Fi 隔离和端口防火墙。
 
-本次只完成原生工程生成和配置检查，没有连接 iPhone、签名、读取钥匙串或打开模拟器。实际验证结果见 `FINAL.md`。
+本次只完成原生工程生成和配置检查，没有连接 iPhone、签名、读取钥匙串或打开模拟器。实际验证结果见 `../docs/过程/app-FINAL.md`。
 
 ## web、真实后端与演示路径
 
@@ -136,7 +136,7 @@ npm run web
 
 客户端通过集中式 `src/api/` 管理接口与类型，用纯 JS 的 XHR 增量读取 SSE，避免额外原生模块，兼顾 Expo Go 和 web。React Context 负责会话，服务端 state 负责项目恢复；同 ID 卡片由较新的对象覆盖，轮询合并任务结果。官方 Expo 模块处理照片、文件、剪贴板和视频，保留之后 prebuild / EAS 打包的路径。
 
-续接先读 `PROGRESS.md`，再对照当前代码与 `FINAL.md`；不要把历史待办当成已经通过的验收结果。`FINAL.md` 记录当前轮次的实际结论、接口差异、限制和截图清单。
+续接先读 `../docs/过程/app-PROGRESS.md`，再对照当前代码与 `../docs/过程/app-FINAL.md`；不要把历史待办当成已经通过的验收结果。`../docs/过程/app-FINAL.md` 记录当前轮次的实际结论、接口差异、限制和截图清单。
 
 ## 验证与截图
 
@@ -164,7 +164,7 @@ PLAYWRIGHT_BROWSERS_PATH=.tools/browsers npx playwright install chromium
 npm run test:e2e
 ```
 
-配置优先使用本机 `/Applications/Google Chrome.app`，始终以无头模式启动独立临时会话；也可以用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定浏览器路径。其他机器使用上面下载的 Chromium。自动化用 `expo start --web --no-dev --minify` 提供页面，不打开可见窗口。截图保存在 `screenshots/`，按步骤编号；`screenshots/evidence.json` 记录排序、状态请求和播放结果，实际验证结论见 `FINAL.md`。
+配置优先使用本机 `/Applications/Google Chrome.app`，始终以无头模式启动独立临时会话；也可以用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定浏览器路径。其他机器使用上面下载的 Chromium。自动化用 `expo start --web --no-dev --minify` 提供页面，不打开可见窗口。截图保存在 `screenshots/`，按步骤编号；`screenshots/evidence.json` 记录排序、状态请求和播放结果，实际验证结论见 `../docs/过程/app-FINAL.md`。
 
 主服务端口为 `19300` / `19301`，集成测试只在 `19410–19499` 中选择空闲端口，不停止占用端口的进程；测试临时数据也留在本 worktree 的 `mock-server/.data/tests/` 并在测试后清理。
 
@@ -198,7 +198,7 @@ LIVE_API_BASE=https://47.97.153.127:8443 npm run test:live
 
 首次通过 App 注册 `live-` 测试账号、上传 `docs/spike/inputs.jpg` 拆出的衣服和模特图并建立项目。每个步骤的截图、耗时及脱敏响应保存在 `screenshots-live/run-N/`。登录资料、已发送动作和完成步骤原子保存到被 Git 忽略的 `screenshots-live/checkpoint.json`，各轮另存 `private/run-N.json`，文件权限为 `0600`；不要提交或分享这些文件。再次执行相同命令会在同一项目上续跑；遇到已发出但结果未知的动作先读取状态，避免重复计费。
 
-需要最终从注册开始完整复跑时，显式加 `LIVE_NEW_RUN=1`，最多允许 3 个完整项目。不要删除计数断点来绕过上限。最终实际结论、耗时、App 修复和服务端待办见 `LIVE.md`；旧 `FINAL.md` 仅证明假服务流程。真实用例不修改 `server/`，服务端问题只保留请求、响应和复现证据。
+需要最终从注册开始完整复跑时，显式加 `LIVE_NEW_RUN=1`，最多允许 3 个完整项目。不要删除计数断点来绕过上限。最终实际结论、耗时、App 修复和服务端待办见 `../docs/过程/app-LIVE.md`；旧 `../docs/过程/app-FINAL.md` 仅证明假服务流程。真实用例不修改 `server/`，服务端问题只保留请求、响应和复现证据。
 
 默认点击方向卡片；`LIVE_DIRECTION_MODE=text` 改为在聊天框选择第一个方向。`LIVE_INSPECT_CUFF=1` 会先保存 `08-cuff-inspect.png`，等人工查看后在本地忽略文件 `screenshots-live/cuff-selection.json` 写入当前袖口中心的原图归一化坐标 `{"x":0.3,"y":0.4}`，再由查看器真实涂抹提交；每次要求新写入的坐标文件。未启用时用 `LIVE_CUFF_X/Y` 或默认坐标，需据截图核对实际选区。
 

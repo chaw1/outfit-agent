@@ -40,7 +40,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
 @media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
 </style><script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "neutral" });</script></head>
-<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">server/README.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="app-README.html">App README</a></div></div>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">server/README.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="app-README.html">App README</a></div></div>
 <div class="wrap"><nav class="toc"><div class="toc">
 <ul>
 <li><a href="#选择与边界">选择与边界</a></li>
@@ -67,7 +67,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </ul>
 </div>
 </nav><main><h1 id="穿搭笔记智能体服务端">穿搭笔记智能体服务端<a class="headerlink" href="#穿搭笔记智能体服务端" title="Permanent link">¶</a></h1>
-<p>接口只遵循 <a href="设计.html"><code>docs/设计.md</code></a>，第二、三轮增量见其第 7、8 节。API、智能体、Worker 共用 PostgreSQL，媒体写入命名卷，支持同一项目断点续聊。默认 Mock，不需要模型凭证。实际测试和本轮费用见 <a href="../../server/FINAL.md"><code>FINAL.md</code></a>；本文的部署配置与命令不代表已经部署。</p>
+<p>接口只遵循 <a href="设计.html"><code>docs/设计.md</code></a>，第二、三轮增量见其第 7、8 节。API、智能体、Worker 共用 PostgreSQL，媒体写入命名卷，支持同一项目断点续聊。默认 Mock，不需要模型凭证。实际测试和本轮费用见 <a href="FINAL.md"><code>FINAL.md</code></a>；本文的部署配置与命令不代表已经部署。</p>
 <h2 id="选择与边界">选择与边界<a class="headerlink" href="#选择与边界" title="Permanent link">¶</a></h2>
 <p>阶段之间由代码管理状态机，阶段之内由模型选择工具。<code>workflow.ALLOWED_TOOLS</code> 决定当前允许的工具；自由文本一次交给 DeepSeek，使用 <code>tool_choice="required"</code> 从整组工具中选一个，同时解析图片/方向 ID、生成完整内容和 <code>reply</code>。真实路径没有关键词路由，关键词只用于 Mock 假模型。模型选择后，代码仍校验阶段、项目归属、图片完成状态和输入参数。<code>chat.blocked_tool</code> 标出的越阶段请求同样经过代码门禁；模型无法绕过确认动作入队批量图片或视频。</p>
 <p>显式 <code>choose_direction/approve_images</code> 等动作已经确定工具，模型负责写对应内容和回复。自由文本中的“出图”“做视频”只提出确认意图，必须收到独立 <code>confirm_script/confirm_video</code> 动作才入队。改图、脚本回退和笔记修订保留当前项目已有的图片版本；<code>images/note</code> 阶段改脚本会回到 <code>script</code> 等确认，<code>note</code> 阶段改图保持笔记和视频确认。</p>
@@ -188,7 +188,7 @@ uv<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>ruff<sp
 <p>管理端与 API 使用同一容器：在服务器启动进程环境设置 <code>ADMIN_TOKEN</code> 后重新创建 API 容器，访问 <code>/admin</code> 输入该口令。默认空值关闭页面和全部 <code>/api/admin/*</code>（404）；<code>.env.example</code> 仅保留空值。不要将口令写入仓库或命令历史。管理登录签发独立会话，浏览器仅将会话保存在当前标签页的 <code>sessionStorage</code>，退出即清除；App JWT 无法访问管理接口。公开环境使用 HTTPS。</p>
 <p>五个页面提供总览、按模型/用户/天聚合的用量及 CSV、模型与配额、队列、用户管理。模型从内置候选中选择，配置写入 <code>app_settings</code>，API/Worker 下次读取直接生效，无需重启。禁用账号后登录与所有写接口返回中文 403；启用或改层级在下次请求生效。排队任务可取消，失败任务可手动重试；取消在 App 侧仍显示既有 <code>failed</code> 状态，管理端单独标注“已取消”。</p>
 <p>每日预算按北京时间自然日统计账本估价（含尚未结算及失败预留），默认免费层 12 元、专业层 120 元、全局 1200 元。用户或全局到限时拒绝方向预览、批量出图、改图及视频，并返回中文 SSE 错误；每日预算不阻止对话。可用模型按用户当前层级校验。原真实模式 <code>MODEL_BUDGET_CNY</code> 仍是数据库全历史总额的外层安全上限，真实调用仍受其约束；Mock 账本费用为零，通过临时将预算设为零及隔离账本测试验证每日拒绝。</p>
-<p>验收见 <a href="../../server/ADMIN.md"><code>ADMIN.md</code></a>，断点见本地 <code>PROGRESS.md</code>；截图在 <code>artifacts/admin/</code>。本地验收只使用临时管理口令和 Mock，不需要真实模型密钥。</p>
+<p>验收见 <a href="../过程/server-ADMIN.md"><code>ADMIN.md</code></a>，断点见本地 <code>PROGRESS.md</code>；截图在 <code>artifacts/admin/</code>。本地验收只使用临时管理口令和 Mock，不需要真实模型密钥。</p>
 <h3 id="局部编辑指令核对与图片引用">局部编辑、指令核对与图片引用<a class="headerlink" href="#局部编辑指令核对与图片引用" title="Permanent link">¶</a></h3>
 <p><code>edit_image</code> 动作可额外带 <code>region: {x,y,w,h}</code> 或 <code>mask_strokes: {brush,strokes}</code>，两者互斥；都省略时整张编辑。坐标为相对原图的 0–1 值，笔刷相对短边，支持单点、多段轨迹和贴边涂抹。API 在入队前检查越界、空轨迹、非法数值以及不足 16 像素的极小区域，并返回中文错误；不同选区参与任务去重。</p>
 <p>局部流程采用 Pillow：轨迹蒙版 → 外接框扩边（至少 16px、选区长边 20%）→ 原衣服参考加裁剪图 → 只生成裁剪块 → 蒙版内羽化贴回。蒙版外 alpha 严格为零，PNG 保存时不重复绘制角标，原有声明角标区域受保护，因此选区外逐像素不变。裁剪参考短边不足 240px 时上采样，极端长宽比用上下文填充；模型输出按裁剪画布映射回原尺寸。<a href="https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference">万相官方接口</a>有框选参数，但未承诺任意轨迹和外部像素一致；本轮采用契约第 8.3 节的可验证方案，没有额外付费对照原生框选。</p>
@@ -257,7 +257,7 @@ uv<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>python<
 <span style="color: #60A0B0; font-style: italic"># app/ 目录，Node 22：npm ci &amp;&amp; npm run typecheck &amp;&amp; npm run lint &amp;&amp; npm test</span>
 </code></pre></div>
 
-<p>本轮交付见 <a href="../../server/OPS.md"><code>OPS.md</code></a>，断点保存在本地 <code>PROGRESS.md</code>。<code>scripts/verify_profile.py --run</code> 只发送两次真实 DeepSeek 文本调用，固定独立 SQLite 账本先记录 <code>started</code>，未知结果拒绝重发，成功结果复用；总保守预留不超过 0.10 元。密钥仅通过钥匙串注入子进程环境，常驻 Mock 服务不切真实模式。估价按 <a href="https://api-docs.deepseek.com/quick_start/pricing/">DeepSeek 官方峰值价格</a> 和保守汇率计算，实际扣费以供应商账单为准。</p>
+<p>这一轮交付见 <a href="../过程/server-OPS.md"><code>OPS.md</code></a>，断点保存在本地 <code>PROGRESS.md</code>。<code>scripts/verify_profile.py --run</code> 只发送两次真实 DeepSeek 文本调用，固定独立 SQLite 账本先记录 <code>started</code>，未知结果拒绝重发，成功结果复用；总保守预留不超过 0.10 元。密钥仅通过钥匙串注入子进程环境，常驻 Mock 服务不切真实模式。估价按 <a href="https://api-docs.deepseek.com/quick_start/pricing/">DeepSeek 官方峰值价格</a> 和保守汇率计算，实际扣费以供应商账单为准。</p>
 <h2 id="配置与真实费用">配置与真实费用<a class="headerlink" href="#配置与真实费用" title="Permanent link">¶</a></h2>
 <p>配置只从进程环境读取，应用不自动加载 <code>.env</code>。Compose 可用 <code>.env.example</code> 查看无密钥示例；实际模型密钥、数据库密码和 JWT secret 只注入启动进程，不写文件或提交。模型密钥按任务约定从个人钥匙串注入，不打印到终端、日志或证据。</p>
 <table>
@@ -373,7 +373,7 @@ uv<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>python<
 uv<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>python<span style="color: #BBB"> </span>scripts/verify_anchor.py<span style="color: #BBB"> </span>--run<span style="color: #BBB"> </span>--offline
 </code></pre></div>
 
-<p>首次真实验证仅在已将个人钥匙串凭证注入子进程后运行 <code>scripts/verify_anchor.py --run</code>。它使用独立 SQLite 业务库与请求账本，固定 <code>evidence/anchor-real</code>，R1/R2 各不超过 2 元、总闸 5 元；每次调用先持久化 <code>started</code>，未知结果拒绝重提，成功结果复用，离线模式不新增预留。常驻服务始终保持 Mock。真实验证只执行每组一个方向预览和三镜头，未运行的预览在实验私有库标为失败；其余镜头的并行领取由 PostgreSQL Mock 测试验证。夜晚参考是脚本原创的霓虹街景插画，风格会相应影响结果。结果、调用账本和对比图见 <code>evidence/anchor-real/anchor-real.json</code>，交接结论见 <a href="../../server/ANCHOR.md">ANCHOR.md</a>。</p>
+<p>首次真实验证仅在已将个人钥匙串凭证注入子进程后运行 <code>scripts/verify_anchor.py --run</code>。它使用独立 SQLite 业务库与请求账本，固定 <code>evidence/anchor-real</code>，R1/R2 各不超过 2 元、总闸 5 元；每次调用先持久化 <code>started</code>，未知结果拒绝重提，成功结果复用，离线模式不新增预留。常驻服务始终保持 Mock。真实验证只执行每组一个方向预览和三镜头，未运行的预览在实验私有库标为失败；其余镜头的并行领取由 PostgreSQL Mock 测试验证。夜晚参考是脚本原创的霓虹街景插画，风格会相应影响结果。结果、调用账本和对比图见 <code>evidence/anchor-real/anchor-real.json</code>，交接结论见 <a href="../过程/server-ANCHOR.md">ANCHOR.md</a>。</p>
 <h2 id="第八轮改图结果可信闭环">第八轮：改图结果可信闭环<a class="headerlink" href="#第八轮改图结果可信闭环" title="Permanent link">¶</a></h2>
 <p><code>approve_images</code> 遇到 <code>edit_check.passed=false</code> 的成功图片时返回 <code>unverified_image</code>，消息包含镜头号和核对原因。用户确认后在同一 action 中传 <code>accept_unverified: [image_id]</code>；笔记的 <code>accepted_unverified_ids</code> 保存实际采用的未通过图片，普通文字修订保留该记录，重新选图重新确认。视频首帧仍须来自当前 <code>note.image_ids</code>，并通过同样的采用校验；质检未通过仍保持任务 <code>succeeded</code>，不会自动重新付费。</p>
 <p>文案上下文逐图分开 <code>requested_change</code> 和 <code>confirmed_visual_facts</code>。只有核对明确通过或本次手动采用的修改进入事实；其余沿用原衣服和原画面描述。提示词要求较晚确认的修改覆盖较早描述，禁止将未确认修改写成已完成事实。note 阶段重新 <code>approve_images</code> 会重写笔记并更新选图顺序。</p>

@@ -40,7 +40,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
 @media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
 </style></head>
-<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">app/README.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a></div></div>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">app/README.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a></div></div>
 <div class="wrap"><nav class="toc"><div class="toc">
 <ul>
 <li><a href="#主要页面">主要页面</a></li>
@@ -59,7 +59,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </ul>
 </div>
 </nav><main><h1 id="衣序-穿搭笔记工作台">衣序 · 穿搭笔记工作台<a class="headerlink" href="#衣序-穿搭笔记工作台" title="Permanent link">¶</a></h1>
-<p>Expo SDK 58、expo-router、strict TypeScript 的 iOS / Android / web 演示应用。唯一接口约定是 <a href="设计.html"><code>../docs/设计.md</code></a>（图片交互见第 8 节），真实联调任务见 <a href="../codex/APP_LIVE_PROMPT.md"><code>../docs/codex/APP_LIVE_PROMPT.md</code></a>，实际结论见本地 <code>LIVE.md</code>。假服务可以完整演示品牌合作项目、衣服分析、方向预览、脚本历史与恢复、图片还原分、改图版本、成本、笔记和短视频，不调用真实模型。</p>
+<p>Expo SDK 58、expo-router、strict TypeScript 的 iOS / Android / web 演示应用。唯一接口约定是 <a href="设计.html"><code>../docs/设计.md</code></a>（图片交互见第 8 节），真实联调任务见 <a href="../codex/APP_LIVE_PROMPT.md"><code>../docs/codex/APP_LIVE_PROMPT.md</code></a>，实际结论见本地 <code>../docs/过程/app-LIVE.md</code>。假服务可以完整演示品牌合作项目、衣服分析、方向预览、脚本历史与恢复、图片还原分、改图版本、成本、笔记和短视频，不调用真实模型。</p>
 <h2 id="主要页面">主要页面<a class="headerlink" href="#主要页面" title="Permanent link">¶</a></h2>
 <table>
 <thead>
@@ -157,7 +157,7 @@ npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>mock
 
 <p>Release 仍需网络连接 API，仍受 Personal Team 的 7 天有效期限制。7 天后重新连接手机，保持同一个 Apple ID、Team 和 Bundle Identifier，再执行 <code>npx expo run:ios --device --port 19300</code>（或上面的 Release 命令）重新签名安装；通常无需先删 App。若删除 App，本地登录和设置会丢失。</p>
 <p>默认 API 为 <code>https://47.97.153.127:8443</code>，登录页也能进入“设置”修改。若改用电脑假服务，填写 <code>http://192.168.1.23:19301</code> 之类的局域网地址。<strong>手机中的 <code>localhost</code> 指手机本身，不能用来连接电脑。</strong> 切换服务地址后需要重新登录。可先在手机浏览器访问电脑假服务的 <code>/api/health</code>：收到 401 说明已连通，登录后携带 Bearer token 才能返回健康状态；连接失败时检查 Wi-Fi 隔离和端口防火墙。</p>
-<p>本次只完成原生工程生成和配置检查，没有连接 iPhone、签名、读取钥匙串或打开模拟器。实际验证结果见 <code>FINAL.md</code>。</p>
+<p>本次只完成原生工程生成和配置检查，没有连接 iPhone、签名、读取钥匙串或打开模拟器。实际验证结果见 <code>../docs/过程/app-FINAL.md</code>。</p>
 <h2 id="web真实后端与演示路径">web、真实后端与演示路径<a class="headerlink" href="#web真实后端与演示路径" title="Permanent link">¶</a></h2>
 <p>浏览器模式：</p>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>web
@@ -186,7 +186,7 @@ npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>mock
 <li>图片和视频基图来自本仓库 <code>../docs/spike/</code> 的素材。假服务改图把所选像素调成明显橙色（整张改为整图色调变化），输出 PNG；框选外及笔刷蒙版覆盖外的解码像素保持相同，便于检查区域提交是否正确。首次用户局部改固定返回 <code>edit_check.passed=false</code>，后续重试通过；计数及区域、轨迹、引用随本地数据持久化。这些是交互演示，不执行模型生成、指令核对或真实试衣。视频使用已有 MP4，支持 Range 请求以便播放、拖动。</li>
 </ul>
 <p>客户端通过集中式 <code>src/api/</code> 管理接口与类型，用纯 JS 的 XHR 增量读取 SSE，避免额外原生模块，兼顾 Expo Go 和 web。React Context 负责会话，服务端 state 负责项目恢复；同 ID 卡片由较新的对象覆盖，轮询合并任务结果。官方 Expo 模块处理照片、文件、剪贴板和视频，保留之后 prebuild / EAS 打包的路径。</p>
-<p>续接先读 <code>PROGRESS.md</code>，再对照当前代码与 <code>FINAL.md</code>；不要把历史待办当成已经通过的验收结果。<code>FINAL.md</code> 记录当前轮次的实际结论、接口差异、限制和截图清单。</p>
+<p>续接先读 <code>../docs/过程/app-PROGRESS.md</code>，再对照当前代码与 <code>../docs/过程/app-FINAL.md</code>；不要把历史待办当成已经通过的验收结果。<code>../docs/过程/app-FINAL.md</code> 记录当前轮次的实际结论、接口差异、限制和截图清单。</p>
 <h2 id="验证与截图">验证与截图<a class="headerlink" href="#验证与截图" title="Permanent link">¶</a></h2>
 <div class="codehilite" style="background: #f0f0f0"><pre style="line-height: 125%;"><span></span><code>npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>verify
 </code></pre></div>
@@ -206,7 +206,7 @@ npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>export
 npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>test:e2e
 </code></pre></div>
 
-<p>配置优先使用本机 <code>/Applications/Google Chrome.app</code>，始终以无头模式启动独立临时会话；也可以用 <code>PLAYWRIGHT_CHROMIUM_EXECUTABLE</code> 指定浏览器路径。其他机器使用上面下载的 Chromium。自动化用 <code>expo start --web --no-dev --minify</code> 提供页面，不打开可见窗口。截图保存在 <code>screenshots/</code>，按步骤编号；<code>screenshots/evidence.json</code> 记录排序、状态请求和播放结果，实际验证结论见 <code>FINAL.md</code>。</p>
+<p>配置优先使用本机 <code>/Applications/Google Chrome.app</code>，始终以无头模式启动独立临时会话；也可以用 <code>PLAYWRIGHT_CHROMIUM_EXECUTABLE</code> 指定浏览器路径。其他机器使用上面下载的 Chromium。自动化用 <code>expo start --web --no-dev --minify</code> 提供页面，不打开可见窗口。截图保存在 <code>screenshots/</code>，按步骤编号；<code>screenshots/evidence.json</code> 记录排序、状态请求和播放结果，实际验证结论见 <code>../docs/过程/app-FINAL.md</code>。</p>
 <p>主服务端口为 <code>19300</code> / <code>19301</code>，集成测试只在 <code>19410–19499</code> 中选择空闲端口，不停止占用端口的进程；测试临时数据也留在本 worktree 的 <code>mock-server/.data/tests/</code> 并在测试后清理。</p>
 <h2 id="档案发布与通知">档案、发布与通知<a class="headerlink" href="#档案发布与通知" title="Permanent link">¶</a></h2>
 <p>首次打开完成三屏引导；设置里的“我的形象”可上传多张本人照片、设默认、移除和保存身高/体型/偏好，昵称一并保存。照片预览按服务和账号保存在本机；接口只有资产 ID，所以换设备会显示占位，可重新上传。旧服务没有 profile 或返回 404 时提示未开通，上传衣服、项目和对话保持可用。</p>
@@ -224,7 +224,7 @@ npm<span style="color: #BBB"> </span>run<span style="color: #BBB"> </span>test:e
 </code></pre></div>
 
 <p>首次通过 App 注册 <code>live-</code> 测试账号、上传 <code>docs/spike/inputs.jpg</code> 拆出的衣服和模特图并建立项目。每个步骤的截图、耗时及脱敏响应保存在 <code>screenshots-live/run-N/</code>。登录资料、已发送动作和完成步骤原子保存到被 Git 忽略的 <code>screenshots-live/checkpoint.json</code>，各轮另存 <code>private/run-N.json</code>，文件权限为 <code>0600</code>；不要提交或分享这些文件。再次执行相同命令会在同一项目上续跑；遇到已发出但结果未知的动作先读取状态，避免重复计费。</p>
-<p>需要最终从注册开始完整复跑时，显式加 <code>LIVE_NEW_RUN=1</code>，最多允许 3 个完整项目。不要删除计数断点来绕过上限。最终实际结论、耗时、App 修复和服务端待办见 <code>LIVE.md</code>；旧 <code>FINAL.md</code> 仅证明假服务流程。真实用例不修改 <code>server/</code>，服务端问题只保留请求、响应和复现证据。</p>
+<p>需要最终从注册开始完整复跑时，显式加 <code>LIVE_NEW_RUN=1</code>，最多允许 3 个完整项目。不要删除计数断点来绕过上限。最终实际结论、耗时、App 修复和服务端待办见 <code>../docs/过程/app-LIVE.md</code>；旧 <code>../docs/过程/app-FINAL.md</code> 仅证明假服务流程。真实用例不修改 <code>server/</code>，服务端问题只保留请求、响应和复现证据。</p>
 <p>默认点击方向卡片；<code>LIVE_DIRECTION_MODE=text</code> 改为在聊天框选择第一个方向。<code>LIVE_INSPECT_CUFF=1</code> 会先保存 <code>08-cuff-inspect.png</code>，等人工查看后在本地忽略文件 <code>screenshots-live/cuff-selection.json</code> 写入当前袖口中心的原图归一化坐标 <code>{"x":0.3,"y":0.4}</code>，再由查看器真实涂抹提交；每次要求新写入的坐标文件。未启用时用 <code>LIVE_CUFF_X/Y</code> 或默认坐标，需据截图核对实际选区。</p>
 <p>服务端明确拒绝后仍保留已发动作标记。修复服务端后，先刷新原项目核对阶段、确认项和任务，再由接续者检查 <code>sse-evidence.json</code> 与 <code>failure-NN.json</code>；仅确认未生效的动作可移走对应 <code>checkpoint.sent</code> 项并记录重试原因。不要清除整个断点或自动重放结果未知的生成请求。</p>
 <h2 id="以后打包与-testflight">以后打包与 TestFlight<a class="headerlink" href="#以后打包与-testflight" title="Permanent link">¶</a></h2>

@@ -13,7 +13,7 @@
 - 证据：`verification/polish/summary.json`、`verify.txt`、`prebuild.txt`、`e2e.json/txt`、`contrast.json`、`screenshots.json`、5 张 contact-sheet；截图目录另含流程和可访问性 JSON。
 - 图标/启动图：已目视检查本地素材，保留现有品牌衣架、透明启动图与留白；没有进行真机启动页检查。
 - 已知限制：真机帧率、触感、系统键盘/刘海/相册、动态字体与启动观感待验；既有查看器手势仍含 runOnJS(true)，本轮未重构几何与手势逻辑。
-- 接续：在 app/ 使用 Node22，运行 `npm run test:e2e`；截图与对比度证据可由 `node scripts/polish-evidence.mjs` 重建；详细断点见 `PROGRESS.md`。
-- 初始 verification 四份 WIP 已按字节恢复；本轮结果独立存放；原 screenshots-live/run-1、run-2 保留。POLISH.md 按报告规则留本地。
+- 接续：在 app/ 使用 Node22，运行 `npm run test:e2e`；截图与对比度证据可由 `node scripts/polish-evidence.mjs` 重建；详细断点见 `app-PROGRESS.md`。
+- 初始 verification 四份 WIP 已按字节恢复；本轮结果独立存放；原 screenshots-live/run-1、run-2 保留。app-POLISH.md 留在过程记录里。
 - 仅 feat/app，未 push/合并，未提交 ios/；全程本地假服务，无线上模型调用、钥匙串或前公司环境访问；01:29–01:49，约20分钟。
 - 代码提交：`87fd9e6`（统一界面样式并打磨交互反馈）；验收证据提交 `7b2290f`。

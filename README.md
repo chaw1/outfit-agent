@@ -15,7 +15,7 @@
 | 3 | **开发感受** | [docs/开发感受.md](docs/开发感受.md) |
 | 4 | **代码**：服务端、App、管理端，以及验收证据与部署 | [server/](server/) · [app/](app/) · [docs/验收与部署.md](docs/验收与部署.md) |
 
-全部文档的 HTML 阅读版（带目录与流程图）：[docs/html/index.html](docs/html/index.html)。演示流程见 [docs/演示脚本.md](docs/演示脚本.md)。
+全部文档的 HTML 阅读版（带目录与流程图）：[docs/html/index.html](docs/html/index.html)。
 
 ## 技术栈
 

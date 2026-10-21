@@ -40,7 +40,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
 @media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
 </style></head>
-<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/工程规范.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="演示脚本.html">演示脚本</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/工程规范.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="设计.html">设计约定</a> <a href="UI设计稿.html">UI 设计稿</a> <a href="设计系统.html">设计系统</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="验收与部署.html">验收索引与部署</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
 <div class="wrap"><nav class="toc"><div class="toc">
 <ul>
 <li><a href="#目录与分层">目录与分层</a></li>
@@ -181,7 +181,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 </tbody>
 </table>
-<p>从底层纯逻辑单测开始，涉及数据库/并发/HTTP 再用集成，跨页面和流程用假服务 Playwright。Mock 证据不等于真实模型质量，也不等于真机发布验收。真实模型与线上测试必须单独明确授权，本轮不运行。</p>
+<p>从底层纯逻辑单测开始，涉及数据库/并发/HTTP 再用集成，跨页面和流程用假服务 Playwright。Mock 证据不等于真实模型质量，也不等于真机发布验收。真实模型与线上测试需单独授权后才运行。</p>
 <p>服务端集成前启动本项目 Mock 栈：<code>cd server &amp;&amp; docker compose up -d --build</code>。本机已有 API/Worker/PG 时复用，不抢占其他 worktree 的端口。测试固定本机 API :18080、PostgreSQL :18432，并校验 Mock；<code>REQUIRE_INTEGRATION=1</code> 使缺栈成为失败，避免静默跳过。迁移测试在独立随机 <code>outfit_test_*</code> 库执行，finally 只删除自己创建的库，禁止把已有库当残留清理。</p>
 <p>覆盖率由 dev 依赖 pytest-cov 提供，配置在 <code>server/pyproject.toml</code>；<code>make check</code> 额外输出 <code>server/artifacts/coverage.xml</code>，终端列出未覆盖行，不设阈值。统计口径是 pytest 进程内执行的 app 代码，外置 Uvicorn/Worker 的 HTTP 行为虽经集成验证，其进程内行覆盖率没有自动合并。<code>.coverage</code>、XML 和 htmlcov 产物不提交。</p>
 <h2 id="门禁与-ci">门禁与 CI<a class="headerlink" href="#门禁与-ci" title="Permanent link">¶</a></h2>
@@ -219,7 +219,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <p>类型检查必须能在干净 checkout 中运行。<code>.expo/types/</code> 是本地生成文件，不应成为页面代码通过 <code>tsc</code> 的隐含前置条件；路由判断不依赖只有本地缓存才存在的元组长度。</p>
 <h2 id="发布健康与回滚">发布、健康与回滚<a class="headerlink" href="#发布健康与回滚" title="Permanent link">¶</a></h2>
 <p>发布前先运行本地检查，核对迁移链及新旧 schema/数据兼容，保留数据库与媒体卷备份和上一个镜像 SHA。不得用容器删除或卷删除代替升级。</p>
-<p>现有入口为 <code>cd server &amp;&amp; ./deploy/deploy-ecs.sh</code>：本机构建 linux/amd64 镜像，以短提交 SHA 和 latest 标记，上传到配置的 ECS，再运行 Compose。它会连接远端，只有目标环境已明确授权才可执行；本轮仅检查脚本，不部署。</p>
+<p>现有入口为 <code>cd server &amp;&amp; ./deploy/deploy-ecs.sh</code>：本机构建 linux/amd64 镜像，以短提交 SHA 和 latest 标记，上传到配置的 ECS，再运行 Compose。它会连接远端，只有目标环境已明确授权才可执行。</p>
 <p>迁移在 <code>server/Dockerfile</code> 的启动命令里先执行 <code>alembic upgrade head</code>，成功后才启动 Uvicorn。部署脚本最后执行 compose ps；健康检查另外读取目标 <code>/api/health</code> 并检查 <code>ok</code> 与 Mock/真实模式符合预期，再验关键流程。Compose 已配置 API/PG healthcheck，<code>server/scripts/wait_health.py</code> 用于等待本机健康。健康接口检查数据库连接及配置，不验证上游模型服务可用性。</p>
 <p>镜像回退需要人工将保留的旧 SHA 镜像标为 <code>outfit-agent-server:latest</code>，再用目标机已有的 <code>compose.yaml</code>、<code>compose.production.yaml</code>、<code>compose.image.yaml</code> 执行 <code>docker compose ... up -d</code>（完整参数同部署脚本），然后重复健康及关键流程检查。仓库没有自动回滚脚本；镜像回退不会自动撤销数据迁移。先判断旧版本是否兼容新 schema，不兼容则按已验证的数据备份恢复方案处理；不盲目执行有损 downgrade。</p>
 <h2 id="可观测与安全">可观测与安全<a class="headerlink" href="#可观测与安全" title="Permanent link">¶</a></h2>
@@ -382,7 +382,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 <tr>
 <td><code>app/main.py:396</code> SIM102</td>
-<td>1；嵌套条件后续可合并，本轮不碰入口</td>
+<td>1；嵌套条件后续合并</td>
 </tr>
 <tr>
 <td><code>app/observability.py:207,210</code> SIM105/S110</td>
@@ -427,9 +427,9 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tbody>
 </table>
 <p>这些文件级例外也可能放过同文件同规则的新问题，评审须主动检查；消债后删除对应例外，不扩大豁免。<code>import/order</code> 由零告警门禁阻断；硬编码色值和魔法间距已由设计系统规则治理，基础组件目录的规则豁免仍需人工评审。</p>
-<p>现有超时债务：<code>app/src/lib/media.ts:14</code> 的 Web 媒体下载直接使用 fetch，缺显式超时。本轮只记录，后续在业务轮次补可取消下载和错误反馈；新增代码仍遵守显式超时要求。</p>
+<p>现有超时债务：<code>app/src/lib/media.ts:14</code> 的 Web 媒体下载直接使用 fetch，缺显式超时。先记录，后续在业务轮次补可取消下载和错误反馈；新增代码仍遵守显式超时要求。</p>
 <h2 id="初次落地质量快照历史">初次落地质量快照（历史）<a class="headerlink" href="#初次落地质量快照历史" title="Permanent link">¶</a></h2>
-<p>日期：2026-10-21（Asia/Shanghai）。本轮在 <code>feat/engineering</code> 本地验证，数字只代表该分支，不引用历史 README 的测试数。</p>
+<p>日期：2026-10-21（Asia/Shanghai）。快照在工程规范分支本地验证，数字只代表该分支，不引用历史 README 的测试数。</p>
 <table>
 <thead>
 <tr>
@@ -488,5 +488,5 @@ pre.mermaid { background: var(--surface); text-align: center; }
 </tr>
 </tbody>
 </table>
-<p>集成测试使用本 worktree 源码、独立数据库和媒体目录。共享 :18080 的 IPv4 栈属于并行轮次，本轮 API 仅监听 ::1，测试进程将 localhost:18080 限制为 IPv6，拒绝回退到另一栈；没有更改业务源码或断言。覆盖率 XML 留在忽略目录 <code>server/artifacts/coverage.xml</code>。</p>
-<p>并行 worktree 验证要先核对服务端口归属。共享 node_modules 时还可能复用其他 worktree 的 Metro Router 转换缓存，不能只看监听进程 cwd；本轮设置独立 <code>EXPO_METRO_CACHE_OUTPUT_DIR</code>、<code>TMPDIR</code>，并在浏览器开跑前验证 source map 的 46 个应用源码均来自本 worktree。19300/19301 被并行轮占用，浏览器使用 19600/19601 和临时测试副本，仅替换 8 处端口 URL；逐文件逆替换与原文完全一致，原测试文件及全部断言未改。隔离证据、JSON 报告和日志留在 <code>server/artifacts/eng-round11-playwright-isolated/</code> 及相邻日志中。</p></main></div></body></html>
+<p>集成测试使用本 worktree 源码、独立数据库和媒体目录。共享 :18080 的 IPv4 栈属于并行轮次，该次 API 仅监听 ::1，测试进程将 localhost:18080 限制为 IPv6，拒绝回退到另一栈；没有更改业务源码或断言。覆盖率 XML 留在忽略目录 <code>server/artifacts/coverage.xml</code>。</p>
+<p>并行 worktree 验证要先核对服务端口归属。共享 node_modules 时还可能复用其他 worktree 的 Metro Router 转换缓存，不能只看监听进程 cwd；验证时设置独立 <code>EXPO_METRO_CACHE_OUTPUT_DIR</code>、<code>TMPDIR</code>，并在浏览器开跑前验证 source map 的 46 个应用源码均来自本 worktree。19300/19301 被并行轮占用，浏览器使用 19600/19601 和临时测试副本，仅替换 8 处端口 URL；逐文件逆替换与原文完全一致，原测试文件及全部断言未改。隔离证据、JSON 报告和日志留在 <code>server/artifacts/eng-round11-playwright-isolated/</code> 及相邻日志中。</p></main></div></body></html>
