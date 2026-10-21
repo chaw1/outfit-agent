@@ -100,12 +100,21 @@ class ProjectInput(StrictInput):
 Stage = Literal["brief", "direction", "script", "images", "note", "video", "done"]
 
 
+class ProjectProgress(BaseModel):
+    status: Literal["waiting_you", "generating", "ready", "done", "failed", "idle"]
+    label: str
+    running: int = Field(ge=0)
+    total: int = Field(ge=0)
+    updated_at: datetime
+
+
 class ProjectOutput(BaseModel):
     id: str
     title: str
     brand: str
     brief: str
     stage: Stage
+    progress: ProjectProgress
     reference_asset_ids: list[str] = Field(default_factory=list)
     cover_url: str | None = None
     created_at: datetime

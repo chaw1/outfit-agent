@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, object_session
 from app.costs import AUTO_FIX_ALLOWANCE, image_cost_cny, video_cost_cny, with_points
 from app.media import signed_url
 from app.models import Asset, Job, Message, Project, UsageLedger, User
+from app.progress import project_progress
 from app.runtime_settings import user_budget
 from app.schemas import Profile
 
@@ -41,20 +42,21 @@ def pending_action_dict(state: dict) -> dict | None:
 
 
 def project_dict(project: Project, session: Session) -> dict:
-    covers = session.scalars(
+    jobs = session.scalars(
         select(Job)
-        .where(
-            Job.project_id == project.id, Job.status == "succeeded", Job.kind.in_(["image", "edit"])
-        )
+        .where(Job.project_id == project.id)
         .order_by(Job.created_at)
     ).all()
-    cover = next((job for job in covers if job.payload.get("purpose") != "preview"), None)
+    cover = next((job for job in jobs if job.status == "succeeded"
+                  and job.kind in {"image", "edit"}
+                  and job.payload.get("purpose") != "preview"), None)
     return {
         "id": project.id,
         "title": project.title,
         "brand": project.brand,
         "brief": project.brief,
         "stage": project.stage,
+        "progress": project_progress(project, jobs),
         "reference_asset_ids": list(project.reference_asset_ids or []),
         "cover_url": signed_url(cover.result_asset_id) if cover and cover.result_asset_id else None,
         "created_at": project.created_at.isoformat(),

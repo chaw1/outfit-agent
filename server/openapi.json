@@ -3994,6 +3994,9 @@
             ],
             "title": "Stage"
           },
+          "progress": {
+            "$ref": "#/components/schemas/ProjectProgress"
+          },
           "reference_asset_ids": {
             "items": {
               "type": "string"
@@ -4030,10 +4033,55 @@
           "brand",
           "brief",
           "stage",
+          "progress",
           "created_at",
           "updated_at"
         ],
         "title": "ProjectOutput"
+      },
+      "ProjectProgress": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting_you",
+              "generating",
+              "ready",
+              "done",
+              "failed",
+              "idle"
+            ],
+            "title": "Status"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "running": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Running"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "label",
+          "running",
+          "total",
+          "updated_at"
+        ],
+        "title": "ProjectProgress"
       },
       "QueueCounts": {
         "properties": {
