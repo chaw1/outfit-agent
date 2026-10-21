@@ -31,6 +31,13 @@ class User(Base):
     tier: Mapped[str] = mapped_column(String(20), default="free", server_default="free")
     disabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     profile: Mapped[dict] = mapped_column(json_type, default=dict, server_default="{}")
+    legal_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    legal_agreed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    recovery_code_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
+    password_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

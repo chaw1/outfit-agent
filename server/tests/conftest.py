@@ -20,8 +20,8 @@ from scripts.e2e import API  # noqa: E402
 def base_url():
     value = os.environ.get("API_BASE_URL", "http://127.0.0.1:18080").rstrip("/")
     parsed = urlsplit(value)
-    assert parsed.hostname in {"127.0.0.1", "localhost"} and parsed.port == 18080, (
-        "Integration checks are restricted to this project's local API on port 18080"
+    assert parsed.hostname in {"127.0.0.1", "localhost"} and parsed.port in {18080, 18081}, (
+        "Integration checks require this project's local Mock API on port 18080 or 18081"
     )
     try:
         response = httpx.get(f"{value}/api/health", timeout=3, trust_env=False)
