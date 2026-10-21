@@ -24,6 +24,9 @@ from app.workflow import fingerprint
 
 class AgentState(TypedDict, total=False):
     stage: str
+    mode: str
+    style_tags: list[str]
+    auto: dict | None
     brief: dict
     garments: list[dict]
     references: list[dict]
@@ -66,7 +69,7 @@ def _history(event: dict, result: dict) -> list[dict]:
     turn_id = event["turn_id"]
     user_text = event.get("text") or json.dumps(event.get("action"), ensure_ascii=False)
     created_at = datetime.fromisoformat(event["created_at"])
-    return [
+    messages = [
         {
             "role": "user",
             "content": user_text,
@@ -100,6 +103,7 @@ def _history(event: dict, result: dict) -> list[dict]:
             },
         },
     ]
+    return messages[1:] if event.get("automatic") else messages
 
 
 def build_graph(checkpointer: Any, workflow: Any = None):
@@ -201,6 +205,7 @@ def run_turn(
     workflow: Any = None,
     emit: Callable[[str, dict], None] | None = None,
     refs: list[str] | None = None,
+    automatic: bool = False,
 ) -> dict:
     workflow = workflow or getattr(graph, "workflow", None)
     if workflow is None:
@@ -214,6 +219,7 @@ def run_turn(
         "refs": list(refs or []),
         "turn_id": str(uuid4()),
         "created_at": datetime.now(UTC).isoformat(timespec="microseconds"),
+        "automatic": automatic,
     }
     _load_script_history(graph, project.id, workflow)
     workflow.restore_jobs(state)

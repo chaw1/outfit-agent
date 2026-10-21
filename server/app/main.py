@@ -5,7 +5,6 @@ import json
 import logging
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
@@ -23,8 +22,9 @@ from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException
 
 from app.admin import router as admin_router
+from app.auto_mode import auto_info, take_over
 from app.config import settings
-from app.costs import points, with_points
+from app.costs import auto_quote, points, with_points
 from app.db import SessionLocal
 from app.errors import AppError
 from app.graph import build_graph, get_graph_state, run_turn, script_versions
@@ -34,17 +34,20 @@ from app.models import Asset, Job, Message, Project, User, utcnow
 from app.observability import RequestObservabilityMiddleware, bind_project, bind_user
 from app.profile import default_model_asset_id, patch_user
 from app.project_cleanup import cleanup_project
+from app.providers import ProviderError
 from app.rate_limits import RequestProtectionMiddleware, limit_messages, limit_upload
 from app.runtime_settings import user_budget
 from app.schemas import (
     AssetOutput,
     AuthOutput,
+    AutoQuote,
     ErrorOutput,
     HealthOutput,
     JobOutput,
     LoginInput,
     MessageInput,
     MessageOutput,
+    ModeInput,
     ProjectInput,
     ProjectOutput,
     RegisterInput,
@@ -70,6 +73,7 @@ from app.views import (
     project_cost_cny,
     project_dict,
     refresh_cards,
+    restore_messages,
     user_dict,
 )
 from app.workflow import Workflow
@@ -315,6 +319,11 @@ def get_media(
     )
 
 
+@app.get("/api/quotes/auto", response_model=AutoQuote)
+def quote_auto(user: User = Depends(current_user)):
+    return auto_quote()
+
+
 @app.post("/api/projects", response_model=ProjectOutput)
 def create_project(
     body: ProjectInput,
@@ -378,51 +387,6 @@ def graph_for(session: Session, project: Project):
     return app.state.graph, workflow
 
 
-def restore_messages(session: Session, project_id: str, state: dict) -> str | None:
-    """Checkpoint messages are the durable source; business rows are a projection."""
-    latest_assistant_id = None
-    existing_ids = set(session.scalars(select(Message.id).where(Message.project_id == project_id)))
-    for message in state.get("messages", []):
-        metadata = getattr(message, "additional_kwargs", {}).get("display")
-        if not metadata or not getattr(message, "id", None):
-            continue
-        role = {"human": "user", "ai": "assistant"}.get(message.type)
-        if not role:
-            continue
-        message_id = str(uuid5(NAMESPACE_URL, message.id))
-        if role == "assistant":
-            latest_assistant_id = message_id
-        existing = session.get(Message, message_id) if message_id in existing_ids else None
-        content = metadata.get("text", message.content)
-        if "text" not in metadata and role == "user" and metadata.get("action"):
-            if content == json.dumps(metadata["action"], ensure_ascii=False):
-                content = ""
-        if existing:
-            # Same-id rewrites live in checkpoints too, including crash recovery.
-            if role == "assistant":
-                existing.text = content
-                existing.trace = metadata.get("trace")
-                existing.can_regenerate = metadata.get("can_regenerate", False)
-            continue
-        session.add(
-            Message(
-                id=message_id,
-                project_id=project_id,
-                role=role,
-                text=content,
-                cards=metadata.get("cards", []),
-                action=metadata.get("action"),
-                refs=metadata.get("refs", []),
-                trace=metadata.get("trace"),
-                can_regenerate=metadata.get("can_regenerate", False),
-                created_at=datetime.fromisoformat(metadata["created_at"]),
-            )
-        )
-        existing_ids.add(message_id)
-    session.flush()
-    return latest_assistant_id
-
-
 @app.get("/api/projects/{project_id}/state", response_model=StateOutput)
 def get_state(
     project_id: str, user: User = Depends(current_user), session: Session = Depends(get_session)
@@ -454,7 +418,8 @@ def get_state(
                 video["poster_url"] = asset_dict(session.get(Asset, source))["url"]
     stage = (
         "done"
-        if state.get("stage") in {"video", "done"} and video and video.get("status") == "succeeded"
+        if project.mode != "auto" and state.get("stage") in {"video", "done"}
+        and video and video.get("status") == "succeeded"
         else state.get("stage", project.stage)
     )
     if can_repair and project.stage != stage:
@@ -478,6 +443,9 @@ def get_state(
     session.commit()
     return {
         "stage": stage,
+        "mode": project.mode,
+        "style_tags": list(project.style_tags or []),
+        "auto": auto_info(project, {**state, "stage": stage}),
         "garments": garments,
         "directions": directions,
         "chosen_direction_id": state.get("chosen_direction_id"),
@@ -486,13 +454,26 @@ def get_state(
         "note": note,
         "video": video,
         "active_jobs": [job_dict(job) for job in jobs],
-        "pending_action": pending_action_dict(state),
+        "pending_action": None if project.mode == "auto" else pending_action_dict(state),
         "budget": with_points(user_budget(user, session)),
         "cost_cny": cost,
         "cost_points": points(cost),
         "last_message_id": latest_message_id,
         "script_versions": script_versions(graph, project_id),
     }
+
+
+@app.post("/api/projects/{project_id}/mode", response_model=StateOutput)
+def change_mode(
+    project_id: str, body: ModeInput, user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    project_lock(session, project_id)
+    project = owned_project(session, project_id, user.id)
+    graph, _ = graph_for(session, project)
+    take_over(session, project, graph)
+    session.commit()
+    return get_state(project_id, user, session)
 
 
 @app.get("/api/projects/{project_id}/messages", response_model=list[MessageOutput])
@@ -588,6 +569,16 @@ def process_turn(project_id: str, user_id: str, body: MessageInput, emit=None) -
             return events
         except Exception as exc:
             session.rollback()
+            if isinstance(exc, ProviderError) or (
+                isinstance(exc, AppError)
+                and exc.code in {"BUDGET_EXCEEDED", "provider_invalid_response"}
+            ):
+                project_lock(session, project_id)
+                project = session.get(Project, project_id, populate_existing=True)
+                if project and not project.deleted_at and project.mode == "auto":
+                    graph, _ = graph_for(session, project)
+                    take_over(session, project, graph, reason=exc.message)
+                    session.commit()
             if not isinstance(exc, AppError):
                 log_exception(log, "Conversation failed", exc)
             if hasattr(exc, "code") and hasattr(exc, "message"):

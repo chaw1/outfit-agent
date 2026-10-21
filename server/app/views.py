@@ -1,5 +1,7 @@
 import hashlib
 import json
+from datetime import datetime
+from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, object_session
@@ -56,6 +58,8 @@ def project_dict(project: Project, session: Session) -> dict:
         "brand": project.brand,
         "brief": project.brief,
         "stage": project.stage,
+        "mode": project.mode,
+        "style_tags": list(project.style_tags or []),
         "progress": project_progress(project, jobs),
         "reference_asset_ids": list(project.reference_asset_ids or []),
         "cover_url": signed_url(cover.result_asset_id) if cover and cover.result_asset_id else None,
@@ -202,3 +206,48 @@ def message_dict(message: Message, session: Session) -> dict:
         "can_regenerate": message.can_regenerate,
         "created_at": message.created_at.isoformat(),
     }
+
+
+def restore_messages(session: Session, project_id: str, state: dict) -> str | None:
+    """Checkpoint messages are the durable source; business rows are a projection."""
+    latest_assistant_id = None
+    existing_ids = set(session.scalars(select(Message.id).where(Message.project_id == project_id)))
+    for message in state.get("messages", []):
+        metadata = getattr(message, "additional_kwargs", {}).get("display")
+        if not metadata or not getattr(message, "id", None):
+            continue
+        role = {"human": "user", "ai": "assistant"}.get(message.type)
+        if not role:
+            continue
+        message_id = str(uuid5(NAMESPACE_URL, message.id))
+        if role == "assistant":
+            latest_assistant_id = message_id
+        existing = session.get(Message, message_id) if message_id in existing_ids else None
+        content = metadata.get("text", message.content)
+        if "text" not in metadata and role == "user" and metadata.get("action"):
+            if content == json.dumps(metadata["action"], ensure_ascii=False):
+                content = ""
+        if existing:
+            # Same-id rewrites live in checkpoints too, including crash recovery.
+            if role == "assistant":
+                existing.text = content
+                existing.trace = metadata.get("trace")
+                existing.can_regenerate = metadata.get("can_regenerate", False)
+            continue
+        session.add(
+            Message(
+                id=message_id,
+                project_id=project_id,
+                role=role,
+                text=content,
+                cards=metadata.get("cards", []),
+                action=metadata.get("action"),
+                refs=metadata.get("refs", []),
+                trace=metadata.get("trace"),
+                can_regenerate=metadata.get("can_regenerate", False),
+                created_at=datetime.fromisoformat(metadata["created_at"]),
+            )
+        )
+        existing_ids.add(message_id)
+    session.flush()
+    return latest_assistant_id

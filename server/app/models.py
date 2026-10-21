@@ -41,6 +41,8 @@ class Project(Base):
     title: Mapped[str] = mapped_column(String(200))
     brand: Mapped[str] = mapped_column(String(200))
     brief: Mapped[str] = mapped_column(Text)
+    mode: Mapped[str] = mapped_column(String(20), default="guided", server_default="guided")
+    style_tags: Mapped[list] = mapped_column(json_type, default=list, server_default="[]")
     stage: Mapped[str] = mapped_column(String(20), default="brief")
     garment_asset_ids: Mapped[list] = mapped_column(json_type, default=list)
     model_asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)

@@ -88,6 +88,10 @@ class ProjectInput(StrictInput):
     garment_asset_ids: list[str] = Field(min_length=1, max_length=10)
     model_asset_id: str | None = None
     reference_asset_ids: list[str] = Field(default_factory=list, max_length=3)
+    mode: Literal["guided", "auto"] = "guided"
+    style_tags: list[Annotated[str, Field(min_length=1, max_length=12)]] = Field(
+        default_factory=list, max_length=6,
+    )
 
     @field_validator("reference_asset_ids")
     @classmethod
@@ -114,6 +118,8 @@ class ProjectOutput(BaseModel):
     brand: str
     brief: str
     stage: Stage
+    mode: Literal["guided", "auto"] = "guided"
+    style_tags: list[str] = Field(default_factory=list)
     progress: ProjectProgress
     reference_asset_ids: list[str] = Field(default_factory=list)
     cover_url: str | None = None
@@ -321,8 +327,33 @@ class BudgetOutput(BaseModel):
     remaining_points: float
 
 
+class ModeInput(StrictInput):
+    mode: Literal["guided"]
+
+
+class AutoQuoteItem(BaseModel):
+    label: str
+    points: float = Field(gt=0)
+
+
+class AutoQuote(BaseModel):
+    estimate_points: float = Field(gt=0)
+    breakdown: list[AutoQuoteItem]
+
+
+class AutoState(BaseModel):
+    active: bool
+    step: Literal["directions", "script", "images", "note", "video", "done"]
+    label: str
+    started_at: datetime
+    estimate_points: float
+
+
 class StateOutput(BaseModel):
     stage: Stage
+    mode: Literal["guided", "auto"] = "guided"
+    style_tags: list[str] = Field(default_factory=list)
+    auto: AutoState | None = None
     garments: list[dict]
     directions: list[dict]
     chosen_direction_id: str | None = None

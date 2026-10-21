@@ -58,3 +58,12 @@ def test_confirmation_cards_and_user_budget_use_same_rate(flow):
     ]:
         pending = pending_action_dict(state)
         assert pending["estimated_cost_points"] == points(pending["estimated_cost_cny"])
+
+
+def test_auto_quote_uses_shared_cost_constants(monkeypatch):
+    from app import costs
+    monkeypatch.setattr(costs, "IMAGE_ESTIMATE_CNY", Decimal("0.7"))
+    monkeypatch.setattr(costs, "VIDEO_ESTIMATE_CNY", Decimal("2"))
+    quote = costs.auto_quote()
+    assert [item["points"] for item in quote["breakdown"]] == [21, 25.2, 20]
+    assert quote["estimate_points"] == 66.2

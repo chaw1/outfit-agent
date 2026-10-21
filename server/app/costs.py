@@ -35,3 +35,14 @@ def image_cost_cny(images: int = 1) -> Decimal:
 
 def video_cost_cny() -> Decimal:
     return VIDEO_ESTIMATE_CNY
+
+
+def auto_quote() -> dict:
+    breakdown = [
+        {"label": "方向预览 3 张", "points": points(image_cost_cny(3))},
+        {"label": "正式出图 3 张（含 20% 自动修复预留）",
+         "points": points(image_cost_cny(3) * AUTO_FIX_ALLOWANCE)},
+        {"label": "5 秒视频 1 条", "points": points(video_cost_cny())},
+    ]
+    return {"estimate_points": round(sum(item["points"] for item in breakdown), 1),
+            "breakdown": breakdown}

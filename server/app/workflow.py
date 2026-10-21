@@ -166,6 +166,8 @@ class Workflow:
             context["reference_style_summary"] = self._reference_prompt(state)
         context.update(
             brand=self.project.brand,
+            mode=self.project.mode,
+            style_tags=list(self.project.style_tags or []),
             stage=state.get("stage", "brief"),
             max_outfit_assets_per_shot=2 if self.project.model_asset_id else 3,
             script_versions=self.script_versions,
@@ -419,9 +421,13 @@ class Workflow:
         }
         if references:
             state["references"] = references
-        name, result = self.providers.select_tool(
-            sorted(ALLOWED_TOOLS["brief"]), self._context(state), event.get("text", "")
-        )
+        if self.project.mode == "auto":
+            name = "propose_directions"
+            result = self._text_tool("brief", name, state, event.get("text", ""))
+        else:
+            name, result = self.providers.select_tool(
+                sorted(ALLOWED_TOOLS["brief"]), self._context(state), event.get("text", "")
+            )
         self._allow("brief", name)
         if name == "chat":
             if result.get("blocked_tool"):
@@ -449,6 +455,10 @@ class Workflow:
             directions
         ):
             raise AppError("provider_invalid_response", "方向生成没有完成，请再试一次。", 502)
+        recommended = next((i for i, item in enumerate(directions)
+                            if item.get("recommended") is True), 0)
+        directions = [dict(item, recommended=index == recommended)
+                      for index, item in enumerate(directions)]
         if not fresh:
             return directions
         turn_id = self.providers.trace_context.get("turn_id", "")
@@ -713,6 +723,7 @@ class Workflow:
             payload = {
                 "purpose": "preview",
                 "direction_id": direction["id"],
+                "preview_group": fingerprint([item["id"] for item in state["directions"]]),
                 "prompt": prompt,
                 "reference_asset_ids": refs,
                 "garment_asset_ids": clothes,
@@ -949,6 +960,9 @@ class Workflow:
         self, state: dict, text: str, cards: list, jobs: list | None = None,
         *, reused: bool | None = None,
     ) -> dict:
+        state.update(mode=self.project.mode, style_tags=list(self.project.style_tags or []))
+        if self.project.mode == "auto":
+            state["pending_action"] = None
         self.project.stage = state["stage"]
         self.project.updated_at = utcnow()
         state["images"] = image_items(self.session, self.project.id)
