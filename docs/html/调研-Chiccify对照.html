@@ -339,12 +339,12 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <li>模型：自研 Chic-Image；FaceFusion 换脸；FLUX LoRA 专属模特；视频 Seedance 2.5 / 可灵 / Veo / Vidu。</li>
 </ul>
 <h2 id="5-今天最值得补的-5-点18-小时两个-codex-并行">5. 今天最值得补的 5 点（18 小时、两个 Codex 并行）<a class="headerlink" href="#5-今天最值得补的-5-点18-小时两个-codex-并行" title="Permanent link">¶</a></h2>
-<p>按「面试官观感提升 ÷ 实现成本」排序：</p>
+<p>按「产品观感提升 ÷ 实现成本」排序：</p>
 <ol>
 <li><strong>方向卡"换一组"+ 灵感图可多选为参考</strong>（观感高 / 成本低）。方向卡已有 1 张预览图；加"换一组方向"按钮（重跑 direction 节点，旧的保留可回看）和"参考图"槽位（新建项目时可传 1 张博主喜欢的图，进方向与脚本 prompt）。这直接对应它的"① 选灵感"。</li>
 <li><strong>Agent 消息的过程透明</strong>（观感高 / 成本低）。每条智能体消息下折叠一行"用了：看图 · 出方向 · 预览图 ×3 ｜ 耗时 14s ｜ 花费 ¥1.5"，数据来自已有 usage_ledger 和 jobs；阶段进度语改成 Chiccify 那种有人味的句子（"正在扫描服饰细节…"）。服务端只需在 message 上加 <code>trace?: {tools, elapsed_ms, cost_cny}</code>。</li>
 <li><strong>花钱前的"预估扣费 → 确认"气泡 + 失败自动退费</strong>（观感高 / 成本低）。确认脚本时显示"将生成 6 张，预计 ¥9.6，今日剩余预算 ¥40"；任务失败时 ledger 写负项并在消息里说"第 3 张失败，已退回 ¥1.6"。管理端已有预算，只差前台展示和退费记录。</li>
-<li><strong>发布面板向小红书表单靠拢 + 草稿</strong>（观感中高 / 成本中）。笔记页改成：标题（20 字计数）、正文、话题 chips、"原创 / AI 生成内容"两个勾选、"存草稿"（本地）、再接已有的"准备发布"。面试官一看就知道是对着小红书做的。</li>
+<li><strong>发布面板向小红书表单靠拢 + 草稿</strong>（观感中高 / 成本中）。笔记页改成：标题（20 字计数）、正文、话题 chips、"原创 / AI 生成内容"两个勾选、"存草稿"（本地）、再接已有的"准备发布"。一看就知道是对着小红书做的。</li>
 <li><strong>"一键出片"开关</strong>（观感中 / 成本低）。新建项目时勾"全自动：不用我确认，直接出成稿"，状态机自动放行 direction→script→images→note，中途仍受预算拦截；对比它的"沉浸编导 vs 一键出片"两模式，正好演示我们状态机"确认门可配置"。</li>
 </ol>
 <p>不建议今天碰：自动发布助手、专属模特训练、修图工具矩阵、资产中心、10 秒多模型视频。</p>
@@ -352,6 +352,5 @@ pre.mermaid { background: var(--surface); text-align: center; }
 <ul>
 <li>官方：https://musegate.tech/ 、https://chiccify.musegate.tech/ 、https://chicguru.musegate.tech/ 、https://chicvideo.musegate.tech/ 、https://chicdesign.musegate.tech/ （SPA 代码包解出的 UI 文案，存于 scratchpad/fetch/js/*.zh.txt）</li>
 <li>媒体：Z Potentials 访谈 https://news.qq.com/rain/a/20260227A0313Z00 （同文 https://m.sohu.com/a/990524732_122063396 ）；知乎深度稿 https://zhuanlan.zhihu.com/p/2078809721633518033 ；搜狐毛衫派案例 https://www.sohu.com/a/1000136228_121123527 ；活动行公司介绍 https://www.huodongxing.com/event/9803179469900 ；目录站 https://ai-bot.cn/musegate/</li>
-<li>本地笔记：~/Downloads/面试/霖润/00-霖润总览.html、面试问题攻略.html（早前登录观察）</li>
 <li>未找到：App Store / 小程序条目、公开定价页、帮助文档、用户评价、招聘 JD 原文（搜索引擎无收录）。</li>
 </ul></main></div></body></html>
