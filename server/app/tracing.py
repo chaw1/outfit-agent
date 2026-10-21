@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.costs import points
 from app.models import UsageLedger
 from app.runtime_settings import default_runtime_settings, get_runtime_settings
 
@@ -38,5 +39,6 @@ def dialogue_trace(hub, tool: str, duration_ms: int, refs: list[str]) -> dict:
     return {
         "tool": tool, "model": model, "duration_ms": max(0, duration_ms),
         "cost_cny": float(sum((row.estimated_cny for row in rows), Decimal(0))),
+        "cost_points": points(sum((row.estimated_cny for row in rows), Decimal(0))),
         "refs": list(refs), "steps": steps,
     }

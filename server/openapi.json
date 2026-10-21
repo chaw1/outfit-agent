@@ -1888,6 +1888,99 @@
         ]
       }
     },
+    "/api/quotes/auto": {
+      "get": {
+        "summary": "Quote Auto",
+        "operationId": "quote_auto_api_quotes_auto_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoQuote"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request Entity Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
     "/api/projects": {
       "get": {
         "summary": "List Projects",
@@ -2389,6 +2482,120 @@
         }
       }
     },
+    "/api/projects/{project_id}/mode": {
+      "post": {
+        "summary": "Change Mode",
+        "operationId": "change_mode_api_projects__project_id__mode_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StateOutput"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            },
+            "description": "Unsupported Media Type"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOutput"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
     "/api/projects/{project_id}/messages": {
       "get": {
         "summary": "List Messages",
@@ -2778,6 +2985,17 @@
           "cancelled": {
             "type": "boolean",
             "title": "Cancelled"
+          },
+          "photo_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Prompt"
           }
         },
         "type": "object",
@@ -3037,6 +3255,89 @@
         ],
         "title": "AuthOutput"
       },
+      "AutoQuote": {
+        "properties": {
+          "estimate_points": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Estimate Points"
+          },
+          "breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/AutoQuoteItem"
+            },
+            "type": "array",
+            "title": "Breakdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "estimate_points",
+          "breakdown"
+        ],
+        "title": "AutoQuote"
+      },
+      "AutoQuoteItem": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "points": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "points"
+        ],
+        "title": "AutoQuoteItem"
+      },
+      "AutoState": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "step": {
+            "type": "string",
+            "enum": [
+              "directions",
+              "script",
+              "images",
+              "note",
+              "video",
+              "done"
+            ],
+            "title": "Step"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "estimate_points": {
+            "type": "number",
+            "title": "Estimate Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active",
+          "step",
+          "label",
+          "started_at",
+          "estimate_points"
+        ],
+        "title": "AutoState"
+      },
       "Body_upload_asset_api_assets_post": {
         "properties": {
           "file": {
@@ -3074,6 +3375,18 @@
           "remaining_cny": {
             "type": "number",
             "title": "Remaining Cny"
+          },
+          "daily_budget_points": {
+            "type": "number",
+            "title": "Daily Budget Points"
+          },
+          "today_cost_points": {
+            "type": "number",
+            "title": "Today Cost Points"
+          },
+          "remaining_points": {
+            "type": "number",
+            "title": "Remaining Points"
           }
         },
         "type": "object",
@@ -3081,7 +3394,10 @@
           "tier",
           "daily_budget_cny",
           "today_cost_cny",
-          "remaining_cny"
+          "remaining_cny",
+          "daily_budget_points",
+          "today_cost_points",
+          "remaining_points"
         ],
         "title": "BudgetOutput"
       },
@@ -3609,6 +3925,12 @@
             "minimum": 0.0,
             "title": "Cost Cny"
           },
+          "cost_points": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Cost Points",
+            "default": 0
+          },
           "refs": {
             "items": {
               "type": "string"
@@ -3632,6 +3954,21 @@
           "cost_cny"
         ],
         "title": "MessageTrace"
+      },
+      "ModeInput": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "guided",
+            "title": "Mode"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "ModeInput"
       },
       "Models": {
         "properties": {
@@ -3758,6 +4095,17 @@
               }
             ],
             "title": "Estimated Cost Cny"
+          },
+          "estimated_cost_points": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Cost Points"
           }
         },
         "type": "object",
@@ -3919,6 +4267,25 @@
             "type": "array",
             "maxItems": 3,
             "title": "Reference Asset Ids"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "guided",
+              "auto"
+            ],
+            "title": "Mode",
+            "default": "guided"
+          },
+          "style_tags": {
+            "items": {
+              "type": "string",
+              "maxLength": 12,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Style Tags"
           }
         },
         "additionalProperties": false,
@@ -3962,6 +4329,25 @@
             ],
             "title": "Stage"
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "guided",
+              "auto"
+            ],
+            "title": "Mode",
+            "default": "guided"
+          },
+          "style_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Style Tags"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ProjectProgress"
+          },
           "reference_asset_ids": {
             "items": {
               "type": "string"
@@ -3998,10 +4384,55 @@
           "brand",
           "brief",
           "stage",
+          "progress",
           "created_at",
           "updated_at"
         ],
         "title": "ProjectOutput"
+      },
+      "ProjectProgress": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting_you",
+              "generating",
+              "ready",
+              "done",
+              "failed",
+              "idle"
+            ],
+            "title": "Status"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "running": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Running"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "label",
+          "running",
+          "total",
+          "updated_at"
+        ],
+        "title": "ProjectProgress"
       },
       "QueueCounts": {
         "properties": {
@@ -4196,6 +4627,32 @@
             ],
             "title": "Stage"
           },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "guided",
+              "auto"
+            ],
+            "title": "Mode",
+            "default": "guided"
+          },
+          "style_tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Style Tags"
+          },
+          "auto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutoState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "garments": {
             "items": {
               "additionalProperties": true,
@@ -4287,6 +4744,11 @@
           "cost_cny": {
             "type": "number",
             "title": "Cost Cny",
+            "default": 0
+          },
+          "cost_points": {
+            "type": "number",
+            "title": "Cost Points",
             "default": 0
           },
           "last_message_id": {
@@ -4503,6 +4965,16 @@
           "today_cost_cny": {
             "type": "number",
             "title": "Today Cost Cny",
+            "default": 0
+          },
+          "daily_budget_points": {
+            "type": "number",
+            "title": "Daily Budget Points",
+            "default": 0
+          },
+          "today_cost_points": {
+            "type": "number",
+            "title": "Today Cost Points",
             "default": 0
           },
           "profile": {

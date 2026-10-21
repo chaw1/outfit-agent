@@ -58,6 +58,8 @@ class UserOutput(BaseModel):
     tier: str = "free"
     daily_budget_cny: float = 0
     today_cost_cny: float = 0
+    daily_budget_points: float = 0
+    today_cost_points: float = 0
     profile: Profile = Field(default_factory=Profile)
 
 
@@ -86,6 +88,10 @@ class ProjectInput(StrictInput):
     garment_asset_ids: list[str] = Field(min_length=1, max_length=10)
     model_asset_id: str | None = None
     reference_asset_ids: list[str] = Field(default_factory=list, max_length=3)
+    mode: Literal["guided", "auto"] = "guided"
+    style_tags: list[Annotated[str, Field(min_length=1, max_length=12)]] = Field(
+        default_factory=list, max_length=6,
+    )
 
     @field_validator("reference_asset_ids")
     @classmethod
@@ -98,12 +104,23 @@ class ProjectInput(StrictInput):
 Stage = Literal["brief", "direction", "script", "images", "note", "video", "done"]
 
 
+class ProjectProgress(BaseModel):
+    status: Literal["waiting_you", "generating", "ready", "done", "failed", "idle"]
+    label: str
+    running: int = Field(ge=0)
+    total: int = Field(ge=0)
+    updated_at: datetime
+
+
 class ProjectOutput(BaseModel):
     id: str
     title: str
     brand: str
     brief: str
     stage: Stage
+    mode: Literal["guided", "auto"] = "guided"
+    style_tags: list[str] = Field(default_factory=list)
+    progress: ProjectProgress
     reference_asset_ids: list[str] = Field(default_factory=list)
     cover_url: str | None = None
     created_at: datetime
@@ -263,6 +280,7 @@ class MessageTrace(BaseModel):
     model: str
     duration_ms: int = Field(ge=0)
     cost_cny: float = Field(ge=0)
+    cost_points: float = Field(default=0, ge=0)
     refs: list[str] = Field(default_factory=list)
     steps: list[TraceStep] = Field(default_factory=list)
 
@@ -296,6 +314,7 @@ class PendingAction(BaseModel):
     type: Literal["choose_direction", "confirm_script", "confirm_video"]
     prompt: str
     estimated_cost_cny: float | None = None
+    estimated_cost_points: float | None = None
 
 
 class BudgetOutput(BaseModel):
@@ -303,10 +322,38 @@ class BudgetOutput(BaseModel):
     daily_budget_cny: float
     today_cost_cny: float
     remaining_cny: float
+    daily_budget_points: float
+    today_cost_points: float
+    remaining_points: float
+
+
+class ModeInput(StrictInput):
+    mode: Literal["guided"]
+
+
+class AutoQuoteItem(BaseModel):
+    label: str
+    points: float = Field(gt=0)
+
+
+class AutoQuote(BaseModel):
+    estimate_points: float = Field(gt=0)
+    breakdown: list[AutoQuoteItem]
+
+
+class AutoState(BaseModel):
+    active: bool
+    step: Literal["directions", "script", "images", "note", "video", "done"]
+    label: str
+    started_at: datetime
+    estimate_points: float
 
 
 class StateOutput(BaseModel):
     stage: Stage
+    mode: Literal["guided", "auto"] = "guided"
+    style_tags: list[str] = Field(default_factory=list)
+    auto: AutoState | None = None
     garments: list[dict]
     directions: list[dict]
     chosen_direction_id: str | None = None
@@ -317,6 +364,7 @@ class StateOutput(BaseModel):
     active_jobs: list[JobOutput]
     pending_action: PendingAction | None = None
     cost_cny: float = 0
+    cost_points: float = 0
     last_message_id: str | None = None
     script_versions: list[dict] = Field(default_factory=list)
     budget: BudgetOutput | None = None
