@@ -224,9 +224,11 @@ def restore_messages(session: Session, project_id: str, state: dict) -> str | No
             latest_assistant_id = message_id
         existing = session.get(Message, message_id) if message_id in existing_ids else None
         content = metadata.get("text", message.content)
-        if "text" not in metadata and role == "user" and metadata.get("action"):
-            if content == json.dumps(metadata["action"], ensure_ascii=False):
-                content = ""
+        if (
+            "text" not in metadata and role == "user" and metadata.get("action")
+            and content == json.dumps(metadata["action"], ensure_ascii=False)
+        ):
+            content = ""
         if existing:
             # Same-id rewrites live in checkpoints too, including crash recovery.
             if role == "assistant":

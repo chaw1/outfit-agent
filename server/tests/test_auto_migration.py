@@ -21,8 +21,8 @@ def test_auto_migration_backfills_old_rows_and_preserves_projects_on_downgrade(
     )
 
     def migrate(command, revision):
-        result = subprocess.run(
-            ["uv", "run", "alembic", command, revision], cwd=root, env=env,
+        result = subprocess.run(  # noqa: S603
+            ["uv", "run", "alembic", command, revision], cwd=root, env=env,  # noqa: S607
             capture_output=True, text=True, timeout=60,
         )
         assert result.returncode == 0, result.stderr
