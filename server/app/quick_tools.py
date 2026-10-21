@@ -63,4 +63,4 @@ def upscale_fallback(source: Asset) -> GeneratedMedia:
         raise ValueError("原图过大，无法生成 2 倍高清图")
     image = image.resize((image.width * 2, image.height * 2), Image.Resampling.LANCZOS)
     image = image.filter(ImageFilter.UnsharpMask(radius=1.2, percent=45, threshold=3))
-    return _png(image, source.model or "pillow-lanczos")
+    return _png(image, "pillow-lanczos")

@@ -1,5 +1,7 @@
 import io
+from contextlib import nullcontext
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -11,7 +13,7 @@ from app import worker
 from app.config import settings
 from app.media import asset_path
 from app.models import Asset, Job, Project
-from app.providers import GeneratedMedia, ProviderHub
+from app.providers import GeneratedMedia, ProviderError, ProviderHub
 from app.quick_tools import (
     OUTPAINT_INSTRUCTION,
     UPSCALE_INSTRUCTION,
@@ -126,6 +128,8 @@ def test_upscale_persists_exact_double_size_and_inherits_score(editbench, monkey
         assert "edit_check" not in job.result
         with Image.open(asset_path(session.get(Asset, job.result_asset_id))) as image:
             assert image.size == (1024, 1536)
+        if method == "pillow_lanczos":
+            assert session.get(Asset, job.result_asset_id).model == "pillow-lanczos"
         assert image_items(session, ids[1])[-1]["upscale_method"] == method
 
 
@@ -162,6 +166,18 @@ def test_upscale_adapter_uses_exact_size_only_when_supported(editbench, monkeypa
         monkeypatch.setattr(hub, "_model", lambda kind: "wan2.7-image-pro")
         assert hub.upscale(UPSCALE_INSTRUCTION, source) is None
         assert len(calls) == 1
+
+
+def test_upscale_rejects_oversized_target_before_rendering(editbench, monkeypatch):
+    factory, ids = editbench
+    with factory() as session:
+        hub = ProviderHub(session, ids[1])
+        monkeypatch.setattr("app.providers.Image.open", lambda *args: nullcontext(
+            SimpleNamespace(width=5000, height=5000),
+        ))
+        monkeypatch.setattr(hub, "image", lambda *args, **kwargs: pytest.fail("不应请求超大图片"))
+        with pytest.raises(ProviderError, match="原图过大"):
+            hub.upscale(UPSCALE_INSTRUCTION, session.get(Asset, ids[3]))
 
 
 def test_preset_validation_and_replay_identity(editbench):

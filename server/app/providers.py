@@ -1197,6 +1197,8 @@ class ProviderHub:
         """Only request sizes explicitly supported by this adapter; no paid probing."""
         with Image.open(asset_path(source)) as image:
             width, height = image.width * 2, image.height * 2
+        if width * height > 40_000_000:
+            raise ProviderError("原图过大，无法生成 2 倍高清图。")
         model = self._model("image")
         if not self.mock and not (
             model.startswith("doubao-seedream") and 921_600 <= width * height <= 4_620_000
