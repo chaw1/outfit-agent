@@ -1287,3 +1287,45 @@ test('projects without references or a person keep parallel generation and omit 
     assert.ok(!(await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body.some((message) => /人像一致性|封面一致性/.test(message.text)));
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });
+
+test('project metadata patches validate ownership and lengths, preserve recency and persist pin order', async () => {
+  const dataDir = await temporaryData('outfit-project-patch-');
+  let time = Date.now();
+  let { server, base } = await startServer(dataDir, { clock: () => time });
+  try {
+    const owner = await register(base, 'pin-owner');
+    const other = await register(base, 'pin-other');
+    const asset = await upload(base, owner.token);
+    type Studio = Project & { title: string; pinned: boolean; updated_at: string };
+    const projects: Studio[] = [];
+    for (const title of ['旧片场', '中间片场', '新片场']) {
+      time += 1000;
+      const created = await request<Studio>(base, '/api/projects', { token: owner.token, body: { title, brand: '个人品牌', brief: '测试', garment_asset_ids: [asset.id] } });
+      assert.equal(created.body.pinned, false);
+      projects.push(created.body);
+    }
+    const [old, middle, recent] = projects;
+    const route = `/api/projects/${old.id}`;
+    const patch = (body: Record<string, unknown>, token = owner.token) => request<Studio>(base, route, { method: 'PATCH', token, body });
+    assert.equal((await patch({ pinned: true }, other.token)).response.status, 404);
+    for (const body of [{ title: '' }, { title: '   ' }, { title: '衣'.repeat(41) }, { title: null }, { pinned: null }, { pinned: 'true' }, { pinned: 1 }, { brief: '越界' }]) {
+      assert.equal((await patch(body)).response.status, 422);
+    }
+    const changed = await patch({ title: ' 🧵'.trim().repeat(40), pinned: true });
+    assert.equal(changed.response.status, 200);
+    assert.equal(changed.body.updated_at, old.updated_at);
+    assert.equal(changed.body.pinned, true);
+    assert.equal(Array.from(changed.body.title).length, 40);
+    const listIds = async () => (await request<Studio[]>(base, '/api/projects', { token: owner.token })).body.map(item => item.id);
+    assert.deepEqual(await listIds(), [old.id, recent.id, middle.id]);
+    assert.equal((await patch({ title: '  重命名后的片场  ' })).body.title, '重命名后的片场');
+    assert.equal((await patch({})).body.pinned, true);
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, { clock: () => time }));
+    assert.deepEqual(await listIds(), [old.id, recent.id, middle.id]);
+    assert.equal((await patch({ pinned: false })).body.title, '重命名后的片场');
+    assert.deepEqual(await listIds(), [recent.id, middle.id, old.id]);
+    await request(base, route, { method: 'DELETE', token: owner.token });
+    assert.equal((await patch({ title: '已删除' })).response.status, 404);
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});

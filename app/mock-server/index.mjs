@@ -229,7 +229,7 @@ export async function createMockServer(options = {}) {
   }
   function publicProject(project, base) {
     const { id, title, brand, brief, stage, created_at, updated_at, coverAssetId } = project;
-    return { id, title, brand, brief: project.analyzedBrief || brief, stage, mode: project.mode, style_tags: [...project.style_tags], progress: projectProgress(project), ...(project.referenceAssetIds ? { reference_asset_ids: [...project.referenceAssetIds] } : {}), ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
+    return { id, title, pinned: Boolean(project.pinned), brand, brief: project.analyzedBrief || brief, stage, mode: project.mode, style_tags: [...project.style_tags], progress: projectProgress(project), ...(project.referenceAssetIds ? { reference_asset_ids: [...project.referenceAssetIds] } : {}), ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
   }
   function projectProgress(project) {
     const state = project.state;
@@ -1222,7 +1222,7 @@ export async function createMockServer(options = {}) {
         const asset = { id, ownerId: user.id, kind, width, height, mime: file.type, created_at: now(), source: 'upload', filename };
         db.assets.push(asset); await persist(); json(res, 200, publicAsset(asset, base)); return;
       }
-      if (url.pathname === '/api/projects' && req.method === 'GET') { json(res, 200, db.projects.filter((item) => item.ownerId === user.id).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).map((item) => publicProject(item, base))); return; }
+      if (url.pathname === '/api/projects' && req.method === 'GET') { json(res, 200, db.projects.filter((item) => item.ownerId === user.id).sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.updated_at.localeCompare(a.updated_at)).map((item) => publicProject(item, base))); return; }
       if (url.pathname === '/api/projects' && req.method === 'POST') {
         const body = await readJson(req);
         const title = typeof body.title === 'string' ? body.title.trim() : '';
@@ -1251,6 +1251,15 @@ export async function createMockServer(options = {}) {
       if (projectMatch) {
         const project = getProject(decodeId(projectMatch[1]), user);
         if (!projectMatch[2] && req.method === 'GET') { json(res, 200, publicProject(project, base)); return; }
+        if (!projectMatch[2] && req.method === 'PATCH') {
+          const body = await readJson(req);
+          if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some((key) => !['title', 'pinned'].includes(key))) throw failure(422, 'INVALID_PROJECT_PATCH', '只能修改名称和置顶状态');
+          if (body.title !== undefined && (typeof body.title !== 'string' || !body.title.trim() || [...body.title.trim()].length > 40)) throw failure(422, 'INVALID_TITLE', '名称需要 1–40 个字');
+          if (body.pinned !== undefined && typeof body.pinned !== 'boolean') throw failure(422, 'INVALID_PINNED', '置顶状态需要是布尔值');
+          if (body.title !== undefined) project.title = body.title.trim();
+          if (body.pinned !== undefined) project.pinned = body.pinned;
+          await persist(); json(res, 200, publicProject(project, base)); return;
+        }
         if (!projectMatch[2] && req.method === 'DELETE') {
           await removeAssets(removeProjectRecords([project], user.id));
           await persist(); res.writeHead(204); res.end(); return;

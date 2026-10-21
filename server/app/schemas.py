@@ -101,6 +101,18 @@ class ProjectInput(StrictInput):
         return value
 
 
+class ProjectPatch(StrictInput):
+    title: str | None = Field(default=None, min_length=1, max_length=40)
+    pinned: bool | None = Field(default=None, strict=True)
+
+    @field_validator("title", "pinned", mode="before")
+    @classmethod
+    def provided_value(cls, value):
+        if value is None:
+            raise ValueError("名称和置顶状态不能为 null。")
+        return value.strip() if isinstance(value, str) else value
+
+
 Stage = Literal["brief", "direction", "script", "images", "note", "video", "done"]
 
 
@@ -114,6 +126,7 @@ class ProjectProgress(BaseModel):
 
 class ProjectOutput(BaseModel):
     id: str
+    pinned: bool = False
     title: str
     brand: str
     brief: str

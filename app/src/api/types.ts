@@ -79,6 +79,7 @@ export interface Asset {
 
 export interface Project {
   id: string;
+  pinned?: boolean;
   title: string;
   brand: string;
   brief: string;

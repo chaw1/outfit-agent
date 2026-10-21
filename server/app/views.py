@@ -55,6 +55,7 @@ def project_dict(project: Project, session: Session) -> dict:
     return {
         "id": project.id,
         "title": project.title,
+        "pinned": bool(project.pinned),
         "brand": project.brand,
         "brief": project.brief,
         "stage": project.stage,
