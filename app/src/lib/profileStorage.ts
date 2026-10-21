@@ -14,8 +14,16 @@ export async function readPhotoCache(key: string): Promise<ProfilePhoto[]> {
     const file = new File(Paths.document, `${filename(key)}.json`);
     if (!file.exists) return [];
     const saved = JSON.parse(await file.text()) as { key?: string; photos?: unknown };
-    return saved.key === key ? parsePhotoCache(JSON.stringify(saved.photos)) : [];
+    return saved.key === key ? parsePhotoCache(JSON.stringify(saved.photos)).map(relocate) : [];
   } catch { return []; }
+}
+
+/** iOS 每次更新 App 都会换沙盒路径，缓存里的绝对路径要按当前 Documents 重新定位；文件没了就交给服务端兜底。 */
+function relocate(photo: ProfilePhoto): ProfilePhoto {
+  if (!photo.url?.startsWith('file:')) return photo;
+  const name = photo.url.split('?')[0].split('/').pop() || '';
+  const file = name ? new File(Paths.document, name) : null;
+  return file?.exists ? { id: photo.id, url: file.uri } : { id: photo.id };
 }
 
 export async function writePhotoCache(key: string, photos: ProfilePhoto[]): Promise<void> {

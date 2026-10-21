@@ -5,6 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ApiError } from '../api/client';
 import type { User, UserProfile } from '../api/types';
 import { useSession } from '../context/Session';
+import { loadLibraryModels, useLibraryModels } from '../lib/assets';
 import { parseHeight, profilePhotos, setDefaultPhoto } from '../lib/profile';
 import { colors, radius, space, type } from '../theme';
 import { previewUrl } from '../lib/previewUrl';
@@ -12,6 +13,9 @@ import { Badge, Button, FadeImage, Field, Notice, ProgressStrip, Toast, errorTex
 
 export function ProfileEditor({ user }: { user: User & { profile: UserProfile } }) {
   const { api, photos, updateMe, cacheProfilePhoto } = useSession();
+  const library = useLibraryModels();
+  // 本地缓存可能因重装、换设备或「存为模特」而缺图：服务端素材库里的签名链接兜底。
+  const previews = [...photos, ...(library.models || [])];
   const [nickname, setNickname] = useState(user.nickname);
   const [ids, setIds] = useState(user.profile.model_asset_ids);
   const [height, setHeight] = useState(user.profile.height_cm?.toString() || '');
@@ -41,6 +45,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
         await cacheProfilePhoto(asset, item.uri);
         setIds(previous => [...previous, asset.id]);
       }
+      void loadLibraryModels(api, true);
     } catch (e) { setError(`照片没传好：${errorText(e)}`); }
     finally { setBusy(false); setUploadProgress(null); }
   }
@@ -68,7 +73,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
     </View>
     <Field label="昵称" value={nickname} maxLength={40} disabled={busy} onChangeText={value => { setNickname(value); changed(); }} />
     <View style={{ gap: space.md }}><Text style={styles.label}>本人照片 · 第一张为默认</Text>
-      <View style={localStyles.photoGrid}>{profilePhotos(ids, photos).map((photo, index) => <View key={photo.id} style={localStyles.photoCard}>
+      <View style={localStyles.photoGrid}>{profilePhotos(ids, previews).map((photo, index) => <View key={photo.id} style={localStyles.photoCard}>
         <View>
           {photo.url ? <FadeImage accessibilityLabel={`本人照片 ${index + 1}`} source={{ uri: previewUrl(photo.url, 360) }} style={localStyles.portrait} /> : <View style={[localStyles.portrait, localStyles.placeholder]}><Ionicons name="person-outline" size={30} color={colors.muted} /><Text style={localStyles.placeholderText}>照片已保存{ '\n' }本机暂无预览</Text></View>}
           {index === 0 && <View style={localStyles.defaultBadge}><Badge label="默认形象" tone="brand" /></View>}
