@@ -1,0 +1,76 @@
+{
+  "result": "passed",
+  "entry": "file://docs/design/index.html",
+  "browser": "installed Chrome",
+  "screenCount": 35,
+  "screenSize": "390x844",
+  "consoleErrors": [],
+  "externalRequests": [],
+  "failedRequests": [],
+  "brokenImages": [],
+  "horizontalOverflow": [],
+  "shortButtons": [],
+  "persistentAutoTakeover": true,
+  "initialVersionBarVisible": true,
+  "themeSwitch": "paper / studio / scene defaults passed; viewer remains studio",
+  "responsiveWidths": [
+    390,
+    720,
+    1440
+  ],
+  "contrast": [
+    {
+      "id": "home",
+      "primary": 17.98,
+      "secondary": 10.17
+    },
+    {
+      "id": "script",
+      "primary": 14.75,
+      "secondary": 5.23
+    }
+  ],
+  "assets": [
+    {
+      "name": "studio-01.jpg",
+      "bytes": 46804
+    },
+    {
+      "name": "studio-02.jpg",
+      "bytes": 57246
+    },
+    {
+      "name": "studio-03.jpg",
+      "bytes": 54330
+    },
+    {
+      "name": "studio-04.jpg",
+      "bytes": 61729
+    },
+    {
+      "name": "studio-05.jpg",
+      "bytes": 62089
+    },
+    {
+      "name": "studio-06.jpg",
+      "bytes": 98441
+    },
+    {
+      "name": "studio-07.jpg",
+      "bytes": 59740
+    },
+    {
+      "name": "studio-08.jpg",
+      "bytes": 64431
+    },
+    {
+      "name": "studio-09.jpg",
+      "bytes": 62085
+    },
+    {
+      "name": "studio-10.jpg",
+      "bytes": 59719
+    }
+  ],
+  "screenshots": 40
+}
