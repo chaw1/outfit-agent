@@ -21,6 +21,8 @@ export default defineConfig({
   reporter: [['list'], ['json', { outputFile: 'test-results/e2e.json' }]],
   use: {
     baseURL: webBase,
+    // 假服务用例默认已通过首次隐私提示；round10 自行覆盖以验证门控本身。
+    storageState: { cookies: [], origins: [{ origin: webBase, localStorage: [{ name: 'outfit.privacy-consent', value: '2026-10-21' }] }] },
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
     isMobile: true,

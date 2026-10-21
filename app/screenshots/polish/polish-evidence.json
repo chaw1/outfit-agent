@@ -1,6 +1,6 @@
 {
-  "completedAt": "2026-10-21T02:26:08.645Z",
-  "projectId": "project_5ac7329c-39b4-4e97-8369-174952ba9b9e",
+  "completedAt": "2026-10-21T02:46:24.879Z",
+  "projectId": "project_918059eb-6620-44c5-b0de-afb24b51be63",
   "viewport": {
     "width": 390,
     "height": 844
@@ -439,7 +439,7 @@
       "file": "67-settings-profile-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 33
+        "adjustedTextNodes": 37
       },
       "viewport": {
         "width": 390,
@@ -488,7 +488,7 @@
       "file": "68-settings-service-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 33
+        "adjustedTextNodes": 37
       },
       "viewport": {
         "width": 390,
@@ -508,6 +508,14 @@
         {
           "role": "button",
           "name": "保存服务器地址",
+          "testID": null,
+          "width": 342,
+          "height": 52,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "账号与安全",
           "testID": null,
           "width": 342,
           "height": 52,
@@ -1120,7 +1128,7 @@
       "reachable": true,
       "bounds": {
         "x": 24,
-        "y": 489.15625,
+        "y": 430.15625,
         "width": 342,
         "height": 52
       }

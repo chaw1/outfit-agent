@@ -1,6 +1,6 @@
 {
   "references0": {
-    "projectId": "project_f6d10af9-98c0-446d-80b4-b3dbc7d1fd6a",
+    "projectId": "project_48b6f81f-eeb5-4e89-9b45-0ba2fc172f17",
     "count": 0,
     "uploadKinds": [
       "garment"
@@ -10,20 +10,20 @@
     "pageErrors": []
   },
   "references1": {
-    "projectId": "project_b7431ea8-8b3c-4958-a651-17d16fedcc90",
+    "projectId": "project_6443d853-8789-48f8-be73-a6a80a86b269",
     "count": 1,
     "uploadKinds": [
       "garment",
       "reference"
     ],
     "createdReferenceIds": [
-      "asset_1a55540c-3573-4aa1-8a87-0d5618919297"
+      "asset_2114169f-d733-4219-aae3-3a93602c4803"
     ],
     "cardPresent": true,
     "pageErrors": []
   },
   "references2": {
-    "projectId": "project_b7b46418-1af3-4988-b7c9-bf7e45f5af02",
+    "projectId": "project_c6b68dda-06d5-4276-ae67-f55cc55b367b",
     "count": 2,
     "uploadKinds": [
       "garment",
@@ -31,24 +31,24 @@
       "reference"
     ],
     "createdReferenceIds": [
-      "asset_2992c29f-f47c-4da2-b319-d22ad4c20cc1",
-      "asset_04c52b49-5332-4704-aebb-c394e0c32246"
+      "asset_d11fc750-4588-4dfc-9e2f-fd1d68fb76c3",
+      "asset_ad970972-0abb-465e-b14a-36b5714bada8"
     ],
     "cardPresent": true,
     "pageErrors": []
   },
   "flow": {
-    "projectId": "project_c2ec085c-b9b2-4fde-8dbf-d37819b8d17f",
+    "projectId": "project_f17cc4a9-5a85-4997-8fcc-c2d2a46e2b0a",
     "referencesLimit": 3,
     "overflowIgnored": true,
     "removeAndReplace": true,
     "selectedReferenceIds": [
-      "asset_342a6a76-77e2-47af-82ae-745b4d89c1cc",
-      "asset_cfc06d74-94be-4266-b9a6-14d6be473f12",
-      "asset_4b0ba7a5-bc7c-41cf-85c1-96266a99e2ee"
+      "asset_a29f9f8c-ae86-4b38-8ae1-00068e7f058f",
+      "asset_aa0b216a-8580-4580-99ef-c26558e980c7",
+      "asset_a95c4058-fc02-47d9-90c9-d85ffb2e20ce"
     ],
-    "referenceCardId": "project_c2ec085c-b9b2-4fde-8dbf-d37819b8d17f_references",
-    "modelId": "asset_71b2d08e-6fee-48fe-b7b9-3384aa414618",
+    "referenceCardId": "project_f17cc4a9-5a85-4997-8fcc-c2d2a46e2b0a_references",
+    "modelId": "asset_92e4663c-c2ec-4ce1-9d65-a69ad9aeb670",
     "uploadKinds": [
       "garment",
       "reference",
@@ -57,8 +57,8 @@
       "reference",
       "model"
     ],
-    "imageId": "image_868ce5a6-a748-4531-bed0-988ad6b50021",
-    "anchorId": "image_9248f416-3028-4c3c-bb82-67dc2a67a134",
+    "imageId": "image_a32c8c70-1e1d-4b5a-a938-e7644aaf04c8",
+    "anchorId": "image_2637d5cb-e721-4979-88e8-67785b5fd88b",
     "personScore": 92,
     "anchorScore": 94,
     "zeroPersonScoreVisible": true,

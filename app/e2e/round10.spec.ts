@@ -19,6 +19,8 @@ async function screenshot(page: Page, file: string) {
   await page.screenshot({ path: path.join(screenshots, file), animations: 'disabled' });
 }
 
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test('第十轮：隐私、注册、账号安全与注销完整闭环', async ({ page, request }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', error => pageErrors.push(error.message));
@@ -55,7 +57,7 @@ test('第十轮：隐私、注册、账号安全与注销完整闭环', async ({
   for (let index = 1; index <= 3; index += 1) {
     await expect(page.getByTestId(`onboarding-${index}`)).toBeVisible();
     if (index === 1) await screenshot(page, '113-onboarding-after-consent.png');
-    await page.getByRole('button', { name: index === 3 ? '开始创作' : '下一步', exact: true }).click();
+    await page.getByRole('button', { name: index === 3 ? '进入片场' : '下一步', exact: true }).click();
   }
   expect(await page.evaluate(key => localStorage.getItem(key), PRIVACY_CONSENT_KEY)).toBe(LEGAL_VERSION);
   await page.reload();
@@ -98,7 +100,7 @@ test('第十轮：隐私、注册、账号安全与注销完整闭环', async ({
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(registration.recovery_code);
   await screenshot(page, '116-registration-recovery-code.png');
   await page.getByRole('button', { name: '我已保存', exact: true }).click();
-  await expect(page.getByRole('button', { name: '新建品牌合作', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '拍一组新片', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('outfit.session'))).toBe(registration.token);
 
   await page.getByRole('button', { name: '设置', exact: true }).click();
@@ -139,7 +141,7 @@ test('第十轮：隐私、注册、账号安全与注销完整闭环', async ({
   expect(await page.evaluate(() => sessionStorage.getItem('outfit.session'))).toBeNull();
   await loginPassword.fill(changedPassword);
   await page.getByRole('button', { name: '登录，继续创作', exact: true }).click();
-  await expect(page.getByRole('button', { name: '新建品牌合作', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '拍一组新片', exact: true })).toBeVisible();
   await screenshot(page, '121-password-login-verified.png');
   await page.getByRole('button', { name: '设置', exact: true }).click();
   await page.getByRole('button', { name: '退出登录', exact: true }).click();
@@ -166,7 +168,7 @@ test('第十轮：隐私、注册、账号安全与注销完整闭环', async ({
   await expect(page.getByText('请先安全保存恢复码，再点“我已保存”。', { exact: true })).toBeVisible();
   await screenshot(page, '118-password-reset-new-recovery-code.png');
   await page.getByRole('button', { name: '我已保存', exact: true }).click();
-  await expect(page.getByRole('button', { name: '新建品牌合作', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '拍一组新片', exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('outfit.session'))).toBe(recovery.token);
   await screenshot(page, '119-recovered-account.png');
 

@@ -1,0 +1,7 @@
+已完成，按顺序完成 5 次本地提交，最新为 `52b335f`，未 push。
+
+- [高保真设计板](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-design/docs/design/index.html)
+- [UI 设计稿](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-design/docs/UI设计稿.md)
+- [交付摘要](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-design/docs/codex/runs/design-spec-final.txt)
+
+共 35 个手机画布、40 张截图。离线浏览验证通过：主题切换有效，控制台错误、外部请求和缺失图片均为零。

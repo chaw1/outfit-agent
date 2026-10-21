@@ -30,7 +30,6 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
     screenshots.push({ file, ...page.viewportSize()! });
   }
   await page.goto('/');
-  await page.getByRole('button', { name: '同意并继续', exact: true }).click();
   for (let index = 1; index <= 3; index += 1) {
     await expect(page.getByTestId(`onboarding-${index}`)).toBeVisible();
     await shot(`${35 + index}-onboarding-${index}.png`);

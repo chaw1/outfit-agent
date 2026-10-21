@@ -48,7 +48,6 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.exposeFunction('recordShare', (payload: { title: string; text: string }) => shares.push(payload));
   await page.addInitScript(() => Object.defineProperty(navigator, 'share', { configurable: true, value: (payload: { title: string; text: string }) => (window as unknown as { recordShare: (payload: unknown) => Promise<void> }).recordShare(payload) }));
   await page.goto('/');
-  await page.getByRole('button', { name: '同意并继续', exact: true }).click();
   await expect(page.getByTestId('onboarding-1')).toBeVisible();
   await page.getByRole('button', { name: '下一步', exact: true }).click();
   await page.getByRole('button', { name: '下一步', exact: true }).click();
