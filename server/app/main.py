@@ -17,10 +17,10 @@ from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from sqlalchemy import select
 from sqlalchemy import text as sql_text
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from starlette.exceptions import HTTPException
 
+from app.account import router as account_router
 from app.admin import router as admin_router
 from app.auto_mode import auto_info, take_over
 from app.config import settings
@@ -50,7 +50,6 @@ from app.schemas import (
     ModeInput,
     ProjectInput,
     ProjectOutput,
-    RegisterInput,
     StateOutput,
     UserOutput,
     UserProfilePatch,
@@ -58,7 +57,6 @@ from app.schemas import (
 from app.security import (
     current_user,
     get_session,
-    hash_password,
     issue_token,
     media_signature,
     verify_password,
@@ -124,6 +122,7 @@ app.add_middleware(
     expose_headers=["X-Request-Id"],
 )
 app.include_router(admin_router)
+app.include_router(account_router)
 
 
 @app.middleware("http")
@@ -229,27 +228,12 @@ def health(session: Session = Depends(get_session)):
     }
 
 
-@app.post("/api/auth/register", response_model=AuthOutput)
-def register(body: RegisterInput, request: Request, session: Session = Depends(get_session)):
-    user = User(
-        username=body.username,
-        password_hash=hash_password(body.password),
-        nickname=body.nickname or body.username,
-    )
-    session.add(user)
-    try:
-        session.commit()
-    except IntegrityError as exc:
-        session.rollback()
-        raise AppError("USERNAME_TAKEN", "用户名已被使用", 409) from exc
-    bind_user(request, user.id, session)
-    return {"token": issue_token(user.id), "user": user_dict(user, session)}
-
-
 @app.post("/api/auth/login", response_model=AuthOutput)
 def login(body: LoginInput, request: Request, session: Session = Depends(get_session)):
-    user = session.scalar(select(User).where(User.username == body.username))
-    if user is None or not verify_password(body.password, user.password_hash):
+    user = session.scalar(
+        select(User).where(User.username == body.username).with_for_update(read=True)
+    )
+    if user is None or user.deleted_at or not verify_password(body.password, user.password_hash):
         raise AppError("INVALID_CREDENTIALS", "用户名或密码错误", 401)
     bind_user(request, user.id, session)
     if user.disabled:

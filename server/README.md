@@ -272,7 +272,7 @@ docker compose -f compose.yaml -f deploy/compose.production.yaml up -d --build -
 
 宿主 nginx 的现有 TLS 入口代理到 `http://127.0.0.1:18080`，关闭 SSE buffering、允许 16 MB 请求体，并为长连接设置足够 read timeout；证书、TLS server 和宿主 nginx 不在这个 Compose 中。App API 根地址是 `https://47.97.153.127:8443/api`，媒体使用返回的绝对签名 URL。部署后由负责人检查公网健康、SSE、媒体下载及容器重启后的持久性；数据库和 API 端口不直接向公网发布。
 
-自有域名新环境也可选择现存 [`deploy/compose.caddy.yaml`](deploy/compose.caddy.yaml) 与 [`deploy/Caddyfile`](deploy/Caddyfile)：设置 `DOMAIN/PUBLIC_BASE_URL`，在正确 DNS 和 80/443 可用后启动 Caddy overlay，走内部 `api:8000` 自动管理证书；这属于替代部署方案，不与宿主 nginx 生产 overlay 混用。此仓库提供管理端，未内置账号找回、对象存储和多机部署。
+自有域名新环境也可选择现存 [`deploy/compose.caddy.yaml`](deploy/compose.caddy.yaml) 与 [`deploy/Caddyfile`](deploy/Caddyfile)：设置 `DOMAIN/PUBLIC_BASE_URL`，在正确 DNS 和 80/443 可用后启动 Caddy overlay，走内部 `api:8000` 自动管理证书；这属于替代部署方案，不与宿主 nginx 生产 overlay 混用。此仓库提供管理端和恢复码找回账号，未内置对象存储和多机部署。
 
 
 ## 第六轮：回复过程与文字重写
@@ -350,3 +350,37 @@ Worker 每次队列事务提交后推进一步；队列空时也扫描 auto，�
 摄影扩写在预览及正式图入队前以确定性规则完成，不增加模型调用：12 个共用中文风格词分别映射焦段、光线、构图、抓拍瞬间与质感；多词以首个为主、其余补充质感。参考图分析中的构图和光线优先覆盖默认摄影语言。扩写保存在 `job.payload.photo_prompt`，并追加到原出图 `prompt`，管理端队列可展开查看；原衣服还原描述、封面锚点、普通改图和局部像素逻辑保留。
 
 例：镜头“街角走动”、风格“街头胶片”会扩写为“焦段：35mm；光线：街道自然光；构图：低角度、路人前景遮挡、不居中；瞬间：过街回头的抓拍瞬间；质感：明显胶片颗粒、轻微动态模糊、真实皮肤纹理、不磨皮。不要棚拍白底、不要对称居中、不要塑料感皮肤。”若有霓虹参考图，则使用参考的霓虹光线与构图。这里按设计 §14.3 保留明确否定句“不要棚拍白底”，不将它作为正向摄影要求。Mock 验证规则、传递链路和衣服保护，成图观感需另行真实样张验收。
+
+## 第十轮：账号闭环
+
+本轮遵循设计第 15 节。新增路由和请求/响应模型位于 `app/account.py`；原注册处理迁入该模块，登录返回格式和旧请求的行为保留。三份法律正文位于 `app/legal/`，统一版本 `2026-10-21`，面向“衣序（演示版）”，无需登录即可查询。
+
+| 接口 | 请求 | 成功响应 |
+|---|---|---|
+| `GET /api/legal` | 无需登录 | `[{kind, title, version}]` |
+| `GET /api/legal/{kind}` | `terms` / `privacy` / `disclaimer` | `{kind, title, version, markdown}` |
+| `POST /api/auth/register` | 原用户名、密码、昵称；新增可选 `agreed_legal_version` | `{token, user, recovery_code}` |
+| `POST /api/auth/recover` | `{username, recovery_code, new_password}` | `{token, user, recovery_code}`，旧登录及旧恢复码立即失效 |
+| `POST /api/me/recovery-code` | 登录后传 `{password}` | `{recovery_code}`，旧恢复码立即失效 |
+| `POST /api/me/password` | 登录后传 `{current_password, new_password}` | `{token, user}`，此前所有 token 立即失效 |
+| `DELETE /api/me` | 登录后传 `{password}` | `204`，清理项目和媒体、释放原用户名、作废登录 |
+
+新客户端注册应显式传同意的版本。老客户端省略或传空字符串仍可注册，对应 `users.legal_version/legal_agreed_at` 均为空；显式同意则记录版本与 UTC 时间。迁移 `0011_account_closure.py` 从 `0009` 升级，新增字段均可空，已有账号、密码及项目保留。与并行第九轮的 `0010` 合并时，需要重新连接迁移链。
+
+恢复码由安全随机源生成 12 位字母数字，显示为 `xxxx-xxxx-xxxx`；允许输入大写或省略连字符。服务端只保存加盐 bcrypt hash，明文只在注册、成功找回或主动重新生成时返回，响应带 `Cache-Control: no-store`；登录、个人资料及管理查询均不返回明文或 hash。用户应自行离线保存：当前没有短信或邮箱找回，密码与恢复码都丢失时无法自助找回。旧账号可在已登录且能提供当前密码时生成恢复码。修改密码保留现有恢复码，成功找回会同时换发恢复码。
+
+找回失败统一返回 `401 RECOVERY_FAILED`，不区分用户名不存在、旧码、错误码、已注销或禁用账号。复用数据库原子限流，按用户名统计全部找回尝试，默认每 60 秒 5 次；超限返回 `429 RATE_LIMITED` 和 `Retry-After`。可通过 `RATE_LIMIT_RECOVER` 及既有窗口变量调整。新密码沿用至少 8 字符、最多 72 字节的规则。改密时间与 JWT `iat` 使用微秒精度，兼容旧整数时间 token，并覆盖同一秒内的失效判定；当前设备使用响应的新 token 继续登录。
+
+注销在一个事务中软删除用户及全部项目，清空昵称、档案和项目素材引用/需求，删除项目消息、任务、所有 checkpoint namespace、生成资产及未关联项目的上传原图。保留注销标记、项目墓碑、协议同意审计、消耗账本和既有运行记录。用户名通常改为 `deleted-<id 前 8 位>`；若该名称已被占用，追加随机后缀，原用户名仍释放。管理端新增 `deleted_at` 字段及“已注销”标签，启用开关不能恢复已注销账号。
+
+文件在事务提交后立即清理；临时文件系统错误保留在既有 `media_cleanup:` 队列，由 Worker 重试。其他账号仍引用同一路径时保留文件；清理失败不会误回滚已完成的注销。在途生成不能重新写回已删除项目，但已经提交给上游的请求无法撤回。短信/邮箱验证码未实现：接入已审核的短信签名与模板、验证码服务及可信手机号绑定后，`recover` 可增加 `phone + sms_code` 分支，核验并消费验证码后复用现有改密、token 作废及恢复码轮换流程，并按账号/手机号限流；当前不接受这两个字段，也不支持手机号注册。
+
+零费用验证使用已同步的 `.venv`，无需重建。测试仅允许本机 `18080/18081` Mock API 和 `18432` PostgreSQL；`18081` 可用于并行 worktree 的独立 API/Worker，配合自有数据库及绝对路径 `MEDIA_DIR`，避免占用已有服务。`TEST_DATABASE_URL` 应与该 Mock API 的业务库一致，迁移与并发测试会另外创建并清理随机隔离库。
+
+```bash
+.venv/bin/ruff check .
+REQUIRE_INTEGRATION=1 .venv/bin/python -m pytest -q
+.venv/bin/python scripts/e2e.py --mode mock --output artifacts/round10/mock-e2e.json
+# 独立服务在 18081 时，pytest 增加 API_BASE_URL=http://127.0.0.1:18081，
+# e2e 增加 --base-url http://127.0.0.1:18081。
+```

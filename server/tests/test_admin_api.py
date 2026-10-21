@@ -87,6 +87,30 @@ def test_empty_admin_token_closes_every_admin_surface(admin_api, monkeypatch):
     assert client.post("/api/admin/login", content="broken-json").status_code == 404
 
 
+def test_deleted_user_status_is_visible_and_enabling_cannot_restore_login(
+    admin_api, tmp_path, monkeypatch,
+):
+    client, factory, user_id, _ = admin_api
+    monkeypatch.setattr(settings, "media_dir", tmp_path / "media")
+    token = issue_token(user_id)
+    user_headers = {"Authorization": "Bearer " + token}
+    deleted = client.request("DELETE", "/api/me", headers=user_headers, json={
+        "password": "test-password-123",
+    })
+    assert deleted.status_code == 204
+    row = next(user for user in client.get("/api/admin/users").json() if user["id"] == user_id)
+    assert row["deleted_at"] and row["username"] == "deleted-" + user_id[:8]
+    assert row["project_count"] == 0
+    assert "已注销" in client.get("/admin").text
+    assert client.patch("/api/admin/users/" + user_id, json={"disabled": False}).status_code == 200
+    assert client.get("/api/me", headers=user_headers).status_code == 401
+    assert client.post("/api/auth/login", json={
+        "username": row["username"], "password": "test-password-123",
+    }).status_code == 401
+    with factory() as session:
+        assert session.get(User, user_id).deleted_at is not None
+
+
 def test_overview_usage_filter_dates_and_safe_csv(admin_api):
     client, factory, user_id, project_id = admin_api
     with factory() as session:
