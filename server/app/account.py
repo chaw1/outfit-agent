@@ -45,6 +45,11 @@ class PasswordInput(StrictInput):
     password: str
 
 
+class PasswordChangeInput(StrictInput):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
+
+
 class RecoveryCodeOutput(BaseModel):
     recovery_code: str
 
@@ -144,6 +149,20 @@ def regenerate_recovery_code(
     session.commit()
     response.headers["Cache-Control"] = "no-store"
     return {"recovery_code": recovery_code}
+
+
+@router.post("/api/me/password", response_model=AuthOutput)
+def change_password(
+    body: PasswordChangeInput, response: Response, user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    user = locked_user(session, user.id)
+    check_password(user, body.current_password)
+    replace_password(user, body.new_password)
+    token = issue_token(user.id)
+    session.commit()
+    response.headers["Cache-Control"] = "no-store"
+    return {"token": token, "user": user_dict(user, session)}
 
 
 class LegalSummary(BaseModel):

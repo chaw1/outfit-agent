@@ -212,3 +212,66 @@ def test_legacy_user_without_code_can_set_one_after_password_verification(accoun
         "new_password": "recovered-password",
     })
     assert response.status_code == 200
+
+
+def test_password_change_revokes_same_second_tokens_and_retains_recovery_hash(
+    account_api, monkeypatch,
+):
+    client, factory = account_api
+    registered = register(client)
+    logged_in = client.post("/api/auth/login", json={
+        "username": "account-owner", "password": "initial-password",
+    }).json()
+    original_hash = None
+    with factory() as session:
+        original_hash = session.get(User, registered["user"]["id"]).recovery_code_hash
+    denied = client.post("/api/me/password", json={
+        "current_password": "wrong-password", "new_password": "changed-password",
+    })
+    assert denied.status_code == 401
+    assert client.get("/api/me").status_code == 200
+    claims = jwt.decode(logged_in["token"], settings.jwt_secret, algorithms=["HS256"])
+    cutoff = datetime.fromtimestamp(claims["iat"], UTC) + timedelta(microseconds=1)
+    monkeypatch.setattr(account, "utcnow", lambda: cutoff)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cutoff + timedelta(microseconds=1)
+
+    monkeypatch.setattr(security, "datetime", Clock)
+    changed = client.post("/api/me/password", json={
+        "current_password": "initial-password", "new_password": "changed-password",
+    })
+    assert changed.status_code == 200
+    assert changed.headers["cache-control"] == "no-store"
+    assert "recovery_code" not in changed.text
+    for token in (registered["token"], logged_in["token"]):
+        assert client.get("/api/me", headers={
+            "Authorization": "Bearer " + token,
+        }).status_code == 401
+    client.headers["Authorization"] = "Bearer " + changed.json()["token"]
+    assert client.get("/api/me").status_code == 200
+    assert client.post("/api/auth/login", json={
+        "username": "account-owner", "password": "initial-password",
+    }).status_code == 401
+    assert client.post("/api/auth/login", json={
+        "username": "account-owner", "password": "changed-password",
+    }).status_code == 200
+    with factory() as session:
+        assert session.get(User, registered["user"]["id"]).recovery_code_hash == original_hash
+
+
+def test_invalid_new_password_rolls_back_without_revoking_session(account_api):
+    client, factory = account_api
+    registered = register(client)
+    response = client.post("/api/me/password", json={
+        "current_password": "initial-password", "new_password": "密" * 25,
+    })
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "INVALID_PASSWORD"
+    assert client.get("/api/me").status_code == 200
+    with factory() as session:
+        user = session.get(User, registered["user"]["id"])
+        assert user.password_updated_at is None
+        assert verify_password("initial-password", user.password_hash)
