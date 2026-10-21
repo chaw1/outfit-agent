@@ -1,7 +1,7 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-iOS Bundled 4865ms node_modules/expo-router/entry.js (2057 modules)
+iOS Bundled 5189ms node_modules/expo-router/entry.js (2057 modules)
 
 › Assets (52):
 assets/inspiration/studio-01.jpg (126KB)

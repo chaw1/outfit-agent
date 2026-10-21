@@ -1,5 +1,5 @@
 {
-  "startedAt": "2026-10-21T04:34:55.387Z",
+  "startedAt": "2026-10-21T04:36:26.236Z",
   "node": "v22.23.1",
   "sdk": "58",
   "checks": [
@@ -7,61 +7,61 @@
       "name": "tokens",
       "command": "npm run tokens:check",
       "exitCode": 0,
-      "durationMs": 168,
+      "durationMs": 176,
       "outputSha256": "f06915eeaac2889d6d301d2ccadc4cbf4c2fe6cc135c3e109ca3095e58b41c7f"
     },
     {
       "name": "typecheck",
       "command": "npx tsc --noEmit",
       "exitCode": 0,
-      "durationMs": 2930,
+      "durationMs": 3189,
       "outputSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "name": "lint",
       "command": "npm run lint",
       "exitCode": 0,
-      "durationMs": 6279,
+      "durationMs": 7349,
       "outputSha256": "b826f21556da195160a9d44d45746d2d93ddfc94ace5eed2fb11d60be9ff6419"
     },
     {
       "name": "tests",
       "command": "npm test",
       "exitCode": 0,
-      "durationMs": 6248,
-      "outputSha256": "d5ccb72ad319cd14813429a7c4628d319524fa85ebb280abe958fc69c56fb669",
+      "durationMs": 6499,
+      "outputSha256": "a80838c9bd5cae83f2627f98974649a50e27ac6b8f9abdc20b422b0f4f6928b6",
       "testsPassed": 207
     },
     {
       "name": "ios",
       "command": "npx expo export --platform ios --output-dir dist/ios",
       "exitCode": 0,
-      "durationMs": 5801,
-      "outputSha256": "059c17ca2e828cb7a07da3e7b8db7c9681b871a93ae4357061184eed6066c4eb",
+      "durationMs": 6351,
+      "outputSha256": "de1fc1643dc4d4f3bef37c13f2d16b99ae8a559cdb214c24ae2565a48a42be86",
       "bundleSha256": "72fb2333642da09f34ae968af5d44a01c89db81f7df8c9e2dcad1f7d8d76c1e8"
     },
     {
       "name": "android",
       "command": "npx expo export --platform android --output-dir dist/android",
       "exitCode": 0,
-      "durationMs": 5726,
-      "outputSha256": "d7323866b9cf434fbb1fff78017859bd374aa62fbdeb54be104a50f2e8084476",
+      "durationMs": 6255,
+      "outputSha256": "3b259a71f68d96382c581559ec7cd62434182cbc383e80f491b3fdac456bcbc2",
       "bundleSha256": "c7a6406bd87869200236fcac4f24b80fbb421626d5edbd176925cb64dc1f17d0"
     },
     {
       "name": "web",
       "command": "npx expo export --platform web --output-dir dist/web",
       "exitCode": 0,
-      "durationMs": 1896,
-      "outputSha256": "06f18c91417c78b3007fae2aafb20582283990a08bd67bf11add0a4cc000160c"
+      "durationMs": 1884,
+      "outputSha256": "80bcaa64f74153fb6097a162cffe7da12f409a6101ebbef94dd58ec5aad3d58e"
     },
     {
       "name": "design-export",
       "command": "node scripts/check-design-export.mjs dist/ios dist/android dist/web",
       "exitCode": 0,
-      "durationMs": 62,
+      "durationMs": 83,
       "outputSha256": "6fbc2ed48f0ea736bf2d7272467699c42693398f2cafc1e4b368f4b96d60f403"
     }
   ],
-  "updatedAt": "2026-10-21T04:35:24.503Z"
+  "updatedAt": "2026-10-21T04:36:58.029Z"
 }
