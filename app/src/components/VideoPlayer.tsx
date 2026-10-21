@@ -25,6 +25,7 @@ export function VideoPlayer({ uri, posterUrl, testID = 'video-player' }: VideoPl
 
 function VideoSurface({ uri, posterUrl, testID }: VideoPlayerProps) {
   const [started, setStarted] = useState(false);
+  const [ready, setReady] = useState(false);
   const [initialUri] = useState(uri);
   const [playbackError, setPlaybackError] = useState(false);
   const [reloading, setReloading] = useState(false);
@@ -39,7 +40,7 @@ function VideoSurface({ uri, posterUrl, testID }: VideoPlayerProps) {
   useEffect(() => { latestUri.current = uri; }, [uri]);
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status }) => {
-      if (status === 'readyToPlay') setPlaybackError(false);
+      if (status === 'readyToPlay') { setPlaybackError(false); setReady(true); }
       if (status !== 'error') return;
       if (latestUri.current !== loadedUri.current) {
         loadedUri.current = latestUri.current;
@@ -73,18 +74,20 @@ function VideoSurface({ uri, posterUrl, testID }: VideoPlayerProps) {
         testID={testID}
         accessibilityLabel="穿搭短视频，点击播放"
       />
-      {posterUrl && !started && !playbackError ? <Pressable
+      {posterUrl && (!started || !ready) && !playbackError ? <Pressable
         accessibilityRole="button"
-        accessibilityLabel="播放穿搭短视频"
-        testID="play-video"
+        accessibilityLabel={started ? '短片正在加载' : '播放穿搭短视频'}
+        accessibilityState={{ busy: started && !ready }}
+        testID={started ? 'video-loading' : 'play-video'}
+        disabled={started}
         onPress={() => { setStarted(true); player.play(); }}
         style={({ pressed }) => [styles.poster, pressed && styles.posterPressed]}
       >
         <FadeImage source={{ uri: previewUrl(posterUrl, 1080) }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         <View style={styles.posterShade} />
         <View style={styles.videoBadge}><Badge label="AI生成" tone="inverse" /></View>
-        <View style={styles.play}><Ionicons name="play" size={25} color={colors.white} /></View>
-        <Text style={styles.playLabel}>轻点播放穿搭短片</Text>
+        <View style={styles.play}>{started ? <ActivityIndicator size="small" color={colors.white} /> : <Ionicons name="play" size={25} color={colors.white} />}</View>
+        <Text style={styles.playLabel}>{started ? '短片加载中，马上开始' : '轻点播放穿搭短片'}</Text>
       </Pressable> : null}
       {playbackError || reloading ? <View style={styles.errorOverlay}>
         <Ionicons name="videocam-outline" size={32} color={colors.viewerMuted} />

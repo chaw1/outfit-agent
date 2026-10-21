@@ -36,7 +36,7 @@ function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url
     <Text style={styles.placeholderText}>图片暂时没能加载</Text>
     <Pressable accessibilityRole="button" accessibilityLabel={`重新加载第 ${index + 1} 张图片`} testID={`retry-preview-${id}`} onPress={() => { setFailedUrl(undefined); onRefresh(); }}><Text style={{ ...type.caption, color: colors.redText, padding: space.md, minHeight: 44 }}>重新加载</Text></Pressable>
   </View>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} disabled={disabled} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.82 : 1 }]}><FadeImage source={{ uri: url }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`查看笔记第 ${index + 1} 张图片`} disabled={disabled} onPress={() => interaction.open(id)} onLongPress={() => interaction.menu(id)} style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.82 : 1 }]}><FadeImage source={{ uri: previewUrl(url, 720) }} style={styles.carouselImage} resizeMode="cover" testID={`preview-image-${id}`} accessibilityLabel={`笔记第 ${index + 1} 张图片${index === 0 ? '，封面' : ''}`} onError={() => setFailedUrl(url)} /></Pressable>;
 }
 
 export default function NotePreview() {
@@ -49,13 +49,15 @@ export default function NotePreview() {
 function PreviewPage({ projectId }: { projectId?: string }) {
   const { api, user } = useSession();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { width, height: windowHeight } = useWindowDimensions();
+  // 笔记像小红书一样：图片占屏幕上半，标题和正文不用往下滑就能看到。
+  const carouselMaxWidth = Math.round(windowHeight * 0.52 * 3 / 4);
   const [state, setState] = useState<ProjectState | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [notFound, setNotFound] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [carouselWidth, setCarouselWidth] = useState(Math.min(width, 520));
+  const [carouselWidth, setCarouselWidth] = useState(Math.min(width, 520, carouselMaxWidth));
   const [page, setPage] = useState(0);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -331,7 +333,14 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <Button title="采用新版本" disabled={preparing || saving} onPress={() => resolveDraft(false)} testID="adopt-server-note" />
           </View>
         </View> : null}
-        <View onLayout={(event) => setCarouselWidth(event.nativeEvent.layout.width)} style={styles.carouselFrame}>
+        <View style={styles.authorHeader}>
+          <View style={styles.authorRow}>
+            <View style={styles.avatar}><Text style={styles.avatarText}>{nickname.slice(0, 1).toUpperCase()}</Text></View>
+            <View style={styles.authorInfo}><Text style={styles.authorName}>{nickname}</Text><Text style={styles.authorCaption}>我的穿搭日记</Text></View>
+            <Badge label="准备发布" tone="success" />
+          </View>
+        </View>
+        <View onLayout={(event) => setCarouselWidth(Math.min(event.nativeEvent.layout.width, carouselMaxWidth))} style={styles.carouselFrame}>
           <ScrollView
             ref={carouselRef}
             horizontal
@@ -339,6 +348,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             showsHorizontalScrollIndicator={false}
             testID="preview-carousel"
             accessibilityLabel="笔记图片轮播，左右滑动查看"
+            style={{ width: carouselWidth, alignSelf: 'center' }}
             scrollEventThrottle={100}
             onScroll={(event) => setPage(Math.round(event.nativeEvent.contentOffset.x / carouselWidth))}
           >
@@ -354,11 +364,6 @@ function PreviewPage({ projectId }: { projectId?: string }) {
         {images.length > 1 ? <View style={styles.dots}>{images.map((image, index) => <View key={image.id} style={[styles.dot, page === index && styles.dotActive]} />)}</View> : null}
         <AnimatedEntry style={styles.noteContent}>
           {images[page]?.source ? <ImageRevisionInfo image={images[page].source} /> : null}
-          <View style={styles.authorRow}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{nickname.slice(0, 1).toUpperCase()}</Text></View>
-            <View style={styles.authorInfo}><Text style={styles.authorName}>{nickname}</Text><Text style={styles.authorCaption}>我的穿搭日记</Text></View>
-            <Badge label="准备发布" tone="success" />
-          </View>
           <View style={styles.formSection}>
             <Field label="标题" value={note.title} placeholder="写一个让人想点开的标题" editable={!preparing && !saving} onChangeText={title => updateDraft({ title: limitTitle(title) })} testID="note-title" style={styles.noteTitle} />
             <Text testID="note-title-count" accessibilityLabel={`标题 ${titleCount} 字，最多 ${NOTE_TITLE_LIMIT} 字`} style={[styles.titleCount, !titleValid && styles.actionError]}>{titleCount}/{NOTE_TITLE_LIMIT}</Text>
@@ -427,7 +432,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
 const styles = StyleSheet.create({
   scrollContent: { paddingBottom: space.lg },
   notice: { margin: space.lg },
-  carouselFrame: { alignSelf: 'center', width: '100%', backgroundColor: colors.imagePlaceholder, minHeight: 44, borderBottomLeftRadius: radius.lg, borderBottomRightRadius: radius.lg, overflow: 'hidden' },
+  carouselFrame: { alignSelf: 'center', width: '100%', backgroundColor: colors.imagePlaceholder, minHeight: 44, borderRadius: radius.lg, overflow: 'hidden' },
   carouselImage: { width: '100%', height: '100%' },
   imagePlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.md },
   placeholderText: { ...type.caption, color: colors.muted },
@@ -438,6 +443,7 @@ const styles = StyleSheet.create({
   dot: { height: space.xs, width: space.xs, borderRadius: radius.sm, backgroundColor: colors.border },
   dotActive: { width: space.lg, backgroundColor: colors.red },
   noteContent: { paddingHorizontal: space.xl, paddingTop: space.xl, gap: space.xl },
+  authorHeader: { paddingHorizontal: space.xl, paddingVertical: space.md },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   avatar: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.blush, justifyContent: 'center', alignItems: 'center' },
   avatarText: { ...type.subtitle, color: colors.redText, fontWeight: '700' },

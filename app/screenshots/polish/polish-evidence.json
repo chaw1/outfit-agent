@@ -1,6 +1,6 @@
 {
-  "completedAt": "2026-10-21T04:22:53.097Z",
-  "projectId": "project_0c290055-acbe-44da-b253-ab4acca7ac6c",
+  "completedAt": "2026-10-21T05:19:27.246Z",
+  "projectId": "project_30f7149f-8515-4cd3-b9ea-1d86612b9e59",
   "viewport": {
     "width": 390,
     "height": 844
@@ -868,8 +868,8 @@
           "role": "button",
           "name": "查看笔记第 1 张图片",
           "testID": null,
-          "width": 390,
-          "height": 520,
+          "width": 329,
+          "height": 438.66,
           "disabled": false
         },
         {
@@ -1166,7 +1166,7 @@
       "reachable": true,
       "bounds": {
         "x": 155.609375,
-        "y": 356.296875,
+        "y": 383.625,
         "width": 78.78125,
         "height": 44.703125
       }
@@ -1176,7 +1176,7 @@
       "reachable": true,
       "bounds": {
         "x": 41,
-        "y": 447.125,
+        "y": 447.78125,
         "width": 308,
         "height": 44
       }

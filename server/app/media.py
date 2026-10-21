@@ -1,4 +1,8 @@
 import io
+import logging
+import shutil
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -15,6 +19,8 @@ from app.project_cleanup import track_generated_file
 from app.security import media_signature
 
 register_heif_opener(thumbnails=False)
+logger = logging.getLogger(__name__)
+
 
 def signed_url(asset_id: str, exp: int | None = None) -> str:
     # Round the expiry upward: a URL is stable throughout a six-hour window and
@@ -136,9 +142,12 @@ def store_generated(
     data, mime = media.data, media.mime
     if media.mime.startswith("image/"):
         width, height, _ = inspect_image(media.data)
-        data, mime = label_generated_image(
-            media.data, media.model, draw_label=not preserve_visible_label
-        ), "image/png"
+        data, mime = (
+            label_generated_image(media.data, media.model, draw_label=not preserve_visible_label),
+            "image/png",
+        )
+    elif mime == "video/mp4":
+        data = compress_video(data)
     relative = persist_bytes(data, mime)
     track_generated_file(session, relative)
     asset = Asset(
@@ -156,7 +165,73 @@ def store_generated(
     )
     session.add(asset)
     session.flush()
+    warm_previews(asset)
     return asset
+
+
+def warm_previews(asset: Asset) -> None:
+    """Generated images are opened on phones right away: build the preview sizes now."""
+    if not asset.mime.startswith("image/"):
+        return
+    for width in PREVIEW_WIDTHS:
+        try:
+            preview_path(asset, width)
+        except Exception:
+            logger.warning("preview warm-up failed for %s at %s", asset.id, width)
+
+
+VIDEO_FFMPEG_ARGS = (
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-crf",
+    "27",
+    "-maxrate",
+    "1800k",
+    "-bufsize",
+    "3600k",
+    "-pix_fmt",
+    "yuv420p",
+    "-c:a",
+    "aac",
+    "-b:a",
+    "96k",
+    "-movflags",
+    "+faststart",
+)
+
+
+def compress_video(data: bytes) -> bytes:
+    """Re-encode generated clips for phone playback on slow links; keep the original on failure."""
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        return data
+    with tempfile.TemporaryDirectory() as folder:
+        source = Path(folder) / "source.mp4"
+        target = Path(folder) / "target.mp4"
+        source.write_bytes(data)
+        try:
+            subprocess.run(  # noqa: S603 - fixed ffmpeg binary, temp-file paths only
+                [
+                    ffmpeg,
+                    "-y",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(source),
+                    *VIDEO_FFMPEG_ARGS,
+                    str(target),
+                ],
+                check=True,
+                timeout=120,
+                capture_output=True,
+            )
+        except (subprocess.SubprocessError, OSError):
+            logger.warning("video compression failed; storing the original clip")
+            return data
+        compressed = target.read_bytes()
+    return compressed if 0 < len(compressed) < len(data) else data
 
 
 def label_generated_image(data: bytes, model: str, *, draw_label: bool = True) -> bytes:

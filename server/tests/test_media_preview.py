@@ -1,13 +1,15 @@
 """On-demand JPEG previews for image assets (手机列表与缩略图用)."""
 
 import io
+import shutil
+import subprocess
 
 import pytest
 from PIL import Image
 
 from app.config import settings
 from app.errors import AppError
-from app.media import PREVIEW_WIDTHS, persist_bytes, preview_path
+from app.media import PREVIEW_WIDTHS, compress_video, persist_bytes, preview_path, warm_previews
 from app.models import Asset
 
 
@@ -57,3 +59,50 @@ def test_media_route_serves_preview(api):
         assert image.width <= 360
     assert len(preview.content) <= len(original.content)
     assert api.client.get(f"{uploaded['url']}&w=999").status_code == 422
+
+
+def test_warm_previews_builds_every_width_once(media_dir):
+    path = persist_bytes(_png(1536, 2048), "image/png")
+    asset = Asset(id="warm", user_id="u", kind="image", mime="image/png", path=path)
+    warm_previews(asset)
+    stems = sorted(p.name for p in media_dir.glob("*.w*.jpg"))
+    assert len(stems) == len(PREVIEW_WIDTHS)
+    warm_previews(Asset(id="v", user_id="u", kind="video", mime="video/mp4", path="missing.mp4"))
+
+
+@pytest.mark.skipif(
+    shutil.which("ffmpeg") is None, reason="ffmpeg is only required inside the server image"
+)
+def test_compress_video_shrinks_generated_clip(tmp_path):
+    source = tmp_path / "clip.mp4"
+    ffmpeg = shutil.which("ffmpeg")
+    subprocess.run(  # noqa: S603 - local ffmpeg synthesises the fixture
+        [
+            ffmpeg,
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=720x1280:rate=24",
+            "-t",
+            "2",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "10",
+            "-pix_fmt",
+            "yuv420p",
+            str(source),
+        ],
+        check=True,
+        timeout=120,
+    )
+    original = source.read_bytes()
+    compressed = compress_video(original)
+    assert 0 < len(compressed) < len(original)
+    assert compressed[4:8] == b"ftyp"
+    assert compress_video(b"not a video") == b"not a video"

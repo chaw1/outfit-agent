@@ -41,13 +41,20 @@ def _retain_committed_files(session: Session) -> None:
     session.info.pop(_CREATED_FILES, None)
 
 
+def remove_media_file(path: Path) -> None:
+    """Delete a stored media file together with the preview sizes derived from it."""
+    path.unlink(missing_ok=True)
+    for preview in path.parent.glob(f"{path.stem}.w*.jpg"):
+        preview.unlink(missing_ok=True)
+
+
 @event.listens_for(Session, "after_transaction_end")
 def _remove_uncommitted_files(session: Session, transaction) -> None:
     if transaction.parent is not None:
         return
     for path in session.info.pop(_CREATED_FILES, set()):
         try:
-            path.unlink(missing_ok=True)
+            remove_media_file(path)
         except OSError:
             logger.exception("未提交媒体文件清理失败")
 
@@ -72,7 +79,7 @@ def drain_media_cleanup(session: Session, *, project_id: str | None = None) -> N
             if path is None:
                 continue
             try:
-                path.unlink(missing_ok=True)
+                remove_media_file(path)
             except OSError:
                 pending.append(relative)
                 logger.exception("项目媒体文件清理失败，将在下次 Worker 轮询重试")
