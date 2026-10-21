@@ -16,6 +16,8 @@ import type { Message, OutfitImage, ProjectState } from '../../api/types';
 import { ImageInteractions, useImageInteractions } from '../../components/ImageInteractions';
 import { feedback } from '../../lib/haptics';
 import { canRephrase } from '../../lib/conversation';
+import { quickPrompts } from '../../lib/quickPrompts';
+import { Chip } from '../../components/ds';
 import { useSession } from '../../context/Session';
 import { MessageTrace } from '../../components/MessageTrace';
 
@@ -99,6 +101,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
     void send({ text: value, ...(refs.length ? { refs } : {}) });
   }
   const automatic = (state?.mode ?? project?.mode) === 'auto';
+  const prompts = quickPrompts(state);
   const projectPoints = pointsValue(state?.cost_points, state?.cost_cny);
   const stageOrder = ['direction', 'script', 'images', 'note'];
   const finished = ['video', 'done'].includes(state?.stage || '');
@@ -146,6 +149,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
           return <View key={imageId} style={styles.composerReference}><ReferenceThumbnail image={image} testID={`chat-ref-${imageId}`} /><Pressable testID={`remove-chat-ref-${imageId}`} accessibilityRole="button" accessibilityLabel="移除引用图片" onPress={() => { feedback(); setRefs(previous => previous.filter(value => value !== imageId)); }} style={({ pressed }) => [styles.removeReference, pressed && styles.pressed]}><Ionicons name="close-circle" size={20} color={colors.muted} /></Pressable></View>;
         })}</ScrollView> : null}
         {!automatic && state?.pending_action && <View style={styles.pendingAction}><View style={styles.pendingDot} /><Text style={styles.pendingText} numberOfLines={2}>{state.pending_action.prompt}</Text></View>}
+        {!automatic && !busy && prompts.length ? <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickPrompts} testID="quick-prompts">{prompts.map(prompt => <Chip key={prompt} label={prompt} onPress={() => { feedback(); setText(''); setRefs([]); void send({ text: prompt }); }} />)}</ScrollView> : null}
         <View style={styles.inputRow}>
           <TextInput ref={input} accessibilityLabel="发给穿搭搭子" testID="chat-input" placeholder="说说你的想法，随时都能聊…" placeholderTextColor={colors.muted} value={text} onChangeText={setText} multiline maxLength={4000} style={styles.input} />
           <Pressable accessibilityRole="button" accessibilityLabel="发送消息" accessibilityState={{ disabled: busy || !text.trim() }} testID="send-message" disabled={busy || !text.trim()} onPress={submit} style={({ pressed }) => [styles.sendButton, (busy || !text.trim()) && styles.disabled, pressed && styles.pressed]}><Ionicons name="arrow-up" size={22} color={colors.white} /></Pressable>
@@ -201,6 +205,7 @@ const styles = StyleSheet.create({
   failureText: { ...typography.caption, color: colors.danger },
   composer: { borderTopWidth: 1, borderTopColor: colors.border, padding: space.md, paddingHorizontal: space.lg, gap: space.sm, backgroundColor: colors.white },
   composerReferences: { gap: space.md, paddingTop: space.xs },
+  quickPrompts: { gap: space.sm, paddingVertical: space.xs },
   composerReference: { flexDirection: 'row', gap: space.xs, alignItems: 'flex-start' },
   removeReference: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   pendingAction: { flexDirection: 'row', alignItems: 'center', gap: space.sm },

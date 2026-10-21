@@ -1,0 +1,95 @@
+审查范围为 `2026-10-21 10:00` 后的提交，以 `bf5fe65 → 9bb7125` 的最终代码为准。已读指定文档及工程规范，完成静态追踪和不联网的内存桩验证。未修改文件、提交或访问远程服务；原有 5 个验证产物修改保持不变。
+
+**报告未写入文件：消息中没有提供 `-o` 路径，当前会话也只有读取权限。以下为完整报告。**
+
+1. **P1｜删除在用的生成模特，会破坏排队任务或让后续出图换人**
+
+   位置：[assets_library.py:146](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/assets_library.py:146)、[worker.py:627](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/worker.py:627)。引入：`d9c2c11`。
+
+   保存成片模特、用于新项目后，再去素材库删除它，服务端会清空项目的 `model_asset_id` 并删除资产。但已入队任务的 payload 仍引用该资产，Worker 取素材时失败；尚未入队的后续出图则失去指定人物。确认弹窗只说“从我的模特与默认出镜中移除”，没有说明会影响项目。
+
+   **建议修法：**参照衣服的在用保护返回 409 并列出项目；或仅隐藏素材库条目，保留项目所需的素材副本。
+
+   **确定度：高。**项目引用、队列快照和删除路径之间存在明确冲突。
+
+2. **P1｜“再做一条短片”实际上不能生成第二条**
+
+   位置：[workflow.py:366](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/workflow.py:366)、[workflow.py:969](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/workflow.py:969)、[Cards.tsx:257](/Users/jiawei/Projects/jiawei-personal/outfit-agent/app/src/components/Cards.tsx:257)。引入：`f2fa486`、`5b58a07`。
+
+   完成视频后再次选图，选择不同首帧会被旧视频的重复确认校验拒绝；选择相同首帧，去重键仍是“项目＋图片＋提示词”，直接取回旧成功任务。界面却承诺“确认后开始生成”。
+
+   **建议修法：**区分“新制作”和“同一次请求重放”，为新制作增加 attempt/revision；补同图、换图两条二次制作测试。今晚来不及接通，可以先撤掉入口和承诺。
+
+   **确定度：高。**当前方法的内存桩已验证：换图报错，同图返回旧视频。
+
+3. **P1｜原生上传绕过了 120 秒超时，弱网时开拍可能长期不可用**
+
+   位置：[client.ts:180](/Users/jiawei/Projects/jiawei-personal/outfit-agent/app/src/api/client.ts:180)、[upload.native.ts:7](/Users/jiawei/Projects/jiawei-personal/outfit-agent/app/src/lib/upload.native.ts:7)、[new.tsx:156](/Users/jiawei/Projects/jiawei-personal/outfit-agent/app/src/app/projects/new.tsx:156)。引入：`b4b7bd6`。
+
+   新原生分支直接等待 `uploadAsync`，没有经过统一 `request()` 的超时控制，也没有取消接口。上传迟迟不结束时，页面保持上传态，“开拍”一直禁用。这违反工程规范规定的上传限时。
+
+   **建议修法：**用可取消的上传任务实现 120 秒截止时间，超时取消底层任务、清理计时器并恢复页面操作；不要只让外层 Promise 超时而后台继续上传。
+
+   **确定度：高。**内存桩设置上传超时 10ms，80ms 后原生分支仍未结束；真机实际等待时长未实测。
+
+4. **P2｜账号页输错当前密码，会被直接退出登录**
+
+   位置：[account.py:77](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/account.py:77)、[client.ts:118](/Users/jiawei/Projects/jiawei-personal/outfit-agent/app/src/api/client.ts:118)、[Session.tsx:63](/Users/jiawei/Projects/jiawei-personal/outfit-agent/app/src/context/Session.tsx:63)。引入：`d0f6c98` 及后续账号接口。
+
+   修改密码、重新生成恢复码、注销账号共用的密码校验返回 `401 INVALID_CREDENTIALS`。客户端把已认证请求的所有 401 当作登录失效，立即清 token，用户无法原地纠正。假服务相同场景返回 `400 INVALID_PASSWORD`，因此页面测试掩盖了线上差异。
+
+   **建议修法：**业务密码验证失败统一返回 `400/422 INVALID_PASSWORD`；401 留给会话失效。同步真实服务和假服务契约，补错误密码场景。
+
+   **确定度：高。**用真实错误结构经过当前客户端，已触发退出回调。
+
+5. **P2｜固定 3:4 出图误伤局部编辑的比例契约**
+
+   位置：[providers.py:1183](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/providers.py:1183)、[worker.py:657](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/worker.py:657)、[local_edit.py:249](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/local_edit.py:249)。引入：`8d128b3`。
+
+   所有图片请求现在都固定返回 `1536×2048`，但局部编辑仍允许任意比例裁剪，合成时直接缩放回裁剪画布。例如方形裁剪会对候选图进行非等比缩放，增加局部形状失真风险；Worker 注释仍明确依赖“最后一张参考图决定比例”。
+
+   **建议修法：**让 Provider 接收输出尺寸参数；正式成片固定 3:4，局部修改跟随裁剪画布比例，必要时补边并做对应逆变换。
+
+   **确定度：比例冲突高确定。**具体模型画面的影响未实测，不能据此归因历史袖口修改失败。
+
+6. **P2｜预览图首次并发生成，会把正常图片请求变成 404**
+
+   位置：[media.py:309](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/media.py:309)。引入：`bc65e97`。
+
+   同一素材、同一宽度的并发请求使用相同临时文件。两个请求都通过缓存不存在检查后，一个先完成 `replace()`，另一个再移动该临时文件就会失败，并被转换成“文件不存在”。上传素材及尚未生成预览的历史素材均可能触发。
+
+   **建议修法：**每次生成使用独立临时文件，再原子替换目标；或按素材与尺寸加锁，并在锁内重新检查缓存。
+
+   **确定度：高。**使用当前函数和内存文件适配器模拟并发，重现一个成功、一个 `MEDIA_NOT_FOUND/404`。
+
+7. **P2｜上传模特显示“已删除”，重新进入素材库却复活**
+
+   位置：[assets_library.py:142](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/assets_library.py:142)、[assets_library.py:115](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/assets_library.py:115)、[AssetLibrary.tsx:131](/Users/jiawei/Projects/jiawei-personal/outfit-agent/app/src/components/AssetLibrary.tsx:131)。引入：`d9c2c11`、`08d86d3`。
+
+   后端仅从 profile 移除上传模特，列表仍返回全部 `kind=model` 资产。前端先本地移除并提示“已删除”，切换标签或重新进入后，该素材再次出现。
+
+   **建议修法：**增加独立的素材库隐藏状态，保留历史项目引用；如果本意只是移出出镜档案，就统一修改动作、提示及列表行为。
+
+   **确定度：高。**现有服务端测试甚至固定了删除后仍被列表返回的状态，前端测试没有刷新验证。
+
+8. **P2｜“文件不存在就跳过测试”会掩盖真实素材库回归**
+
+   位置：[test_assets_library_http.py:85](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/tests/test_assets_library_http.py:85)。引入：`9bb7125`。
+
+   `file_for()` 只要找不到文件就 `pytest.skip()`，没有先确认确实属于目录不共享的环境。因此，真正的复制文件失败也能变成跳过；`REQUIRE_INTEGRATION=1` 无法阻止。第一条用例会跳过后续跨项目复用、删除来源项目后保留副本、注销物理清理等验证。
+
+   **建议修法：**在 fixture 开始时显式检查环境前提；受测文件缺失必须断言失败。复制与保留尽量通过 HTTP 下载验证，物理清理放在明确共享目录的集成任务中。
+
+   **确定度：高。**这是本轮工程规范评审中最值得修正的门禁问题。
+
+9. **P2｜管理端自动刷新会清掉正在输入的筛选条件**
+
+   位置：[index.html:57](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/admin_static/index.html:57)、[index.html:77](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/admin_static/index.html:77)、[index.html:113](/Users/jiawei/Projects/jiawei-personal/outfit-agent/server/app/admin_static/index.html:113)。引入：`d8dedce`。
+
+   每 10 秒调用 `render('jobs')`，先整体替换页面。搜索词、状态和数量仅在提交时保存，用户尚未提交的输入及焦点会被刷新清掉，展开的摄影脚本也会关闭。
+
+   **建议修法：**自动刷新只更新任务列表与时间，保留筛选表单；输入过程中暂停刷新，并避免重叠请求。
+
+   **确定度：高。**定时刷新、整页替换和状态保存时机可以直接确定这一行为。
+
+**今晚演示前必须修的三件事：① 给在用模特加删除保护，保证后台出片不被素材管理破坏；② 接通二次短片的新制作与幂等逻辑，或撤掉不可用入口；③ 给原生上传补齐超时、取消和页面恢复，并在 iOS 真机上用限速、断网验证。**

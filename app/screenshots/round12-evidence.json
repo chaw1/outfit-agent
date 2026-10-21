@@ -1,15 +1,15 @@
 {
   "reuse": {
-    "savedFromCard": "asset_473546cb-4099-426e-801f-86c720eabef4",
-    "savedFromViewer": "asset_576b9a36-c8d7-4711-bddf-e8f321c7381b",
+    "savedFromCard": "asset_31324efc-c177-4be8-bc42-da573353dbe2",
+    "savedFromViewer": "asset_c6356084-7cf3-46de-a22e-ee33b0f78e48",
     "requests": [
-      "image_052194b5-58d9-4199-86f1-51838b729b8e",
-      "image_aac110a9-7139-4c9b-9738-37aa41035d89"
+      "image_040ca865-cfc2-4307-afd7-9718e092f75e",
+      "image_3d2d27cc-1476-42e4-97d7-0c19f7687fb7"
     ],
     "modelCount": 3,
-    "submittedModel": "asset_473546cb-4099-426e-801f-86c720eabef4",
+    "submittedModel": "asset_31324efc-c177-4be8-bc42-da573353dbe2",
     "reusedGarment": [
-      "asset_a64bfdaa-20ff-44ec-b305-1e6068a0f39f"
+      "asset_200d31b4-bdaf-41fa-a70e-ce6b76ee341b"
     ],
     "uploads": 0,
     "pageErrors": []
