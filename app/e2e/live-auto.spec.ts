@@ -108,12 +108,18 @@ test('真实服务一键出片：注册、开拍、自动推进到全套完成�
       await page.getByTestId('mode-auto').click();
       await expect(page.getByTestId('mode-description')).toContainText('全套图文和视频一次出好');
       await page.getByLabel('项目名称', { exact: true }).fill(checkpoint.projectTitle);
-      await page.getByLabel('这次想拍什么', { exact: true }).fill('米白亚麻衬衫，保留面料、纽扣和胸袋细节，去掉吊牌。自然窗光、松弛通勤，做三张照片的完整图文和短视频。');
-      const garment = await sharp(path.resolve('../docs/spike/inputs.jpg')).extract({ left: 0, top: 0, width: 450, height: 600 }).jpeg({ quality: 95 }).toBuffer();
-      const chooser = page.waitForEvent('filechooser');
-      await page.getByTestId('upload-garments').click();
-      await (await chooser).setFiles({ name: 'auto-shirt.jpg', mimeType: 'image/jpeg', buffer: garment });
-      await expect(page.getByRole('button', { name: '移除衣服图 1', exact: true })).toBeVisible();
+      await page.getByLabel('这次想拍什么', { exact: true }).fill(process.env.LIVE_BRIEF || '米白亚麻衬衫，保留面料、纽扣和胸袋细节，去掉吊牌。自然窗光、松弛通勤，做三张照片的完整图文和短视频。');
+      // 默认用调研期的衬衫样张；LIVE_GARMENTS 可传自己的衣服图（逗号分隔路径）走同一条链路。
+      const garmentFiles = (process.env.LIVE_GARMENTS || '').split(',').map(item => item.trim()).filter(Boolean);
+      const garments = garmentFiles.length > 0
+        ? await Promise.all(garmentFiles.map(async file => ({ name: path.basename(file), mimeType: 'image/jpeg', buffer: await sharp(file).jpeg({ quality: 95 }).toBuffer() })))
+        : [{ name: 'auto-shirt.jpg', mimeType: 'image/jpeg', buffer: await sharp(path.resolve('../docs/spike/inputs.jpg')).extract({ left: 0, top: 0, width: 450, height: 600 }).jpeg({ quality: 95 }).toBuffer() }];
+      for (const [index, garment] of garments.entries()) {
+        const chooser = page.waitForEvent('filechooser');
+        await page.getByTestId('upload-garments').click();
+        await (await chooser).setFiles(garment);
+        await expect(page.getByRole('button', { name: `移除衣服图 ${index + 1}`, exact: true })).toBeVisible({ timeout: 60_000 });
+      }
       await expect(page.getByTestId('start-shooting')).toHaveText(/开拍，全自动 · 约 [\d.]+ 点/);
       await expect(page.getByTestId('start-shooting')).toBeEnabled();
       await shot('02-auto-ready');
@@ -147,9 +153,16 @@ test('真实服务一键出片：注册、开拍、自动推进到全套完成�
         const current = state;
         const step = current.auto?.step;
         if (step && !observed.has(step)) {
-          await expect(page.getByTestId('auto-current-step'), `步骤 ${step} 必须先在真实页面出现才能截图`).toHaveText(current.auto!.label, { timeout: Math.min(15_000, Math.max(1, deadline - Date.now())) });
-          await page.getByTestId('auto-progress').scrollIntoViewIfNeeded();
-          await shot(`03-step-${step}`);
+          // 页面每 5 秒刷新一次；写笔记这类几秒就完成的步骤可能在页面刷新前已被下一步替代，这时只记录服务端观察到的步骤。
+          try {
+            await expect(page.getByTestId('auto-current-step'), `步骤 ${step} 必须先在真实页面出现才能截图`).toHaveText(current.auto!.label, { timeout: Math.min(15_000, Math.max(1, deadline - Date.now())) });
+            await page.getByTestId('auto-progress').scrollIntoViewIfNeeded();
+            await shot(`03-step-${step}`);
+          } catch (error) {
+            const latest = await page.request.get(`${base}/api/projects/${encodeURIComponent(checkpoint.projectId!)}/state`, { headers: { Authorization: `Bearer ${checkpoint.session}` } });
+            const moved = latest.ok() && ((await latest.json()) as ProjectState).auto?.step !== step;
+            if (!moved) throw error;
+          }
           observed.add(step);
           await evidence();
         }

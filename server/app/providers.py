@@ -1176,7 +1176,8 @@ class ProviderHub:
                         json={
                             "model": self._model("image"),
                             "input": {"messages": [{"role": "user", "content": content}]},
-                            "parameters": {"n": 1, "size": "2K", "watermark": False},
+                            # 固定 3:4 竖图（小红书口径）；不传则跟随最后一张参考图的比例。
+                            "parameters": {"n": 1, "size": "1536*2048", "watermark": False},
                         },
                     )
                 )

@@ -772,7 +772,7 @@ class Workflow:
             prompt = (
                 "小红书穿搭摄影，保持参考图中模特身份。"
                 if self.project.model_asset_id
-                else "小红书穿搭摄影，使用成年虚构模特。"
+                else "小红书穿搭摄影，使用成年虚构模特：东亚面孔、小红书博主气质，自然妆容。"
             )
             prompt += self._garment_prompt(state, shot["outfit_asset_ids"])
             prompt += f"场景：{shot['scene']}；动作：{shot['pose']}；镜头：{shot['camera']}。"
