@@ -142,7 +142,8 @@ class Workflow:
             check = version.result.get("edit_check") or {}
             if change and (check.get("passed") is True or version.id in accepted):
                 facts.append(change)
-        return list(dict.fromkeys(facts))
+        # Keep the latest occurrence so a repeated edit can supersede its reversal.
+        return list(reversed(dict.fromkeys(reversed(facts))))
 
     def _context(self, state: dict) -> dict:
         keys = (

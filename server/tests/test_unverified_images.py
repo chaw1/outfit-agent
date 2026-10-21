@@ -147,6 +147,34 @@ def test_video_source_must_belong_to_current_note_selection(flow):
     assert payload["image_asset_id"] == session.get(Job, failed_id).result_asset_id
 
 
+def test_legacy_note_without_adoption_cannot_use_unverified_video_source(flow):
+    _, project, _, graph = flow
+    ids = generated_images(flow)
+    failed_id = completed_edit(flow, ids[0])
+    run_turn(graph, project, None, {
+        "type": "approve_images", "image_ids": [failed_id], "accept_unverified": [failed_id],
+    })
+    legacy_note = deepcopy(get_graph_state(graph, project.id)["note"])
+    legacy_note.pop("accepted_unverified_ids")
+    graph.update_state(
+        {"configurable": {"thread_id": project.id}},
+        {"note": legacy_note},
+        as_node="execute_stage_tool",
+    )
+    before_calls = list(graph.workflow.providers.calls)
+
+    with pytest.raises(AppError) as error:
+        run_turn(graph, project, None, {"type": "confirm_video", "image_id": failed_id})
+
+    assert error.value.code == "unverified_image"
+    assert FAILED_REASON in error.value.message
+    assert graph.workflow.providers.calls == before_calls
+    state = get_graph_state(graph, project.id)
+    assert state["note"] == legacy_note
+    assert state.get("video") is None
+    assert state["stage"] == "note"
+
+
 @pytest.mark.parametrize("target_stage", ["video", "done"])
 def test_finalized_note_text_rewrite_retains_explicit_adoption(flow, target_stage):
     session, project, _, graph = flow
@@ -186,6 +214,12 @@ def test_legacy_or_verified_images_still_approve_without_acceptance(flow, passed
     })["cards"][0]
     assert note["image_ids"] == [edit_id, ids[1]]
     assert note.get("accepted_unverified_ids", []) == []
+    assert isinstance(note["title"], str) and 1 <= len(note["title"]) <= 20
+    assert isinstance(note["body"], str) and note["body"].strip()
+    assert isinstance(note["tags"], list) and 5 <= len(note["tags"]) <= 8
+    assert all(isinstance(tag, str) and tag.strip() for tag in note["tags"])
+    if passed is None:
+        assert REQUESTED_CHANGE not in note["body"]
 
 
 def test_free_text_model_cannot_invent_unverified_adoption(flow, monkeypatch):
@@ -253,6 +287,19 @@ def test_passing_child_does_not_turn_failed_ancestor_request_into_visual_fact(fl
     assert edited["requested_change"] == passed_change
     assert any(passed_change in fact for fact in edited["confirmed_visual_facts"])
     assert all(REQUESTED_CHANGE not in fact for fact in edited["confirmed_visual_facts"])
+
+
+def test_confirmed_facts_keep_latest_repeated_change_after_opposite_edit(flow):
+    _, project, _, graph = flow
+    ids = generated_images(flow)
+    tucked_id = completed_edit(flow, ids[0], passed=True)
+    untucked_id = completed_edit(flow, tucked_id, passed=True, instruction="衣摆放下来")
+    latest_id = completed_edit(flow, untucked_id, passed=True)
+
+    context = graph.workflow._context(get_graph_state(graph, project.id))
+    latest = next(item for item in context["images"] if item["id"] == latest_id)
+    assert latest["requested_change"] == REQUESTED_CHANGE
+    assert latest["confirmed_visual_facts"][-1] == REQUESTED_CHANGE
 
 
 @pytest.mark.parametrize("passed", [False, True])
