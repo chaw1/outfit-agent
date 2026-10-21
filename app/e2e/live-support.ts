@@ -33,7 +33,9 @@ export function selectLiveRun(previous: LiveCheckpoint | undefined, base: string
   if (previous && previous.base !== base) throw new Error('断点属于其他服务；请人工确认归属并归档断点后再继续。');
   if (previous && !fresh) return previous;
   const run = (previous?.run ?? 0) + 1;
-  if (run > 3) throw new Error('线上完整链路最多 3 遍，已到上限。');
+  // 默认最多 3 遍，防止误跑花钱；最终回归需要更多时显式传 LIVE_MAX_RUNS。
+  const maxRuns = Number(process.env.LIVE_MAX_RUNS || 3);
+  if (run > maxRuns) throw new Error(`线上完整链路最多 ${maxRuns} 遍，已到上限；确需再跑请显式设置 LIVE_MAX_RUNS。`);
   const unique = Date.now().toString(36);
   return {
     schema: 1, run, base, username: `live-${unique}`, password: `Live-${unique}-${Math.random().toString(36).slice(2)}!`,
