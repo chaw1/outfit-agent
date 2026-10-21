@@ -5,6 +5,7 @@ import { AppState, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Tex
 import type { Project } from '../api/types';
 import { InspirationWall } from '../components/InspirationWall';
 import { AssetLibraryEntry } from '../components/AssetLibrary';
+import { StudioGlow } from '../components/ds/StudioGlow';
 import { AnimatedEntry, Badge, Button, FadeImage, Field, IconButton, LoadingSkeleton, Page, StatePanel, Toast, errorText, stageNames, styles } from '../components/ui';
 import { useSession } from '../context/Session';
 import { notificationOwner } from '../lib/completionTracker';
@@ -90,6 +91,7 @@ export default function Projects() {
   }
   const inspiration = <AnimatedEntry><View style={{ gap: space.lg }}><View style={[styles.row, { justifyContent: 'space-between', alignItems: 'flex-end' }]}><Text style={local.section}>灵感墙</Text><Text style={local.eyebrow}>TAKE A LITTLE INSPIRATION</Text></View><Text style={{ ...type.body, color: studio.muted }}>一件衣服，可以有很多种主角感。</Text><InspirationWall /></View></AnimatedEntry>;
   return <Page tone="studio">
+    <StudioGlow />
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingTop: space.lg }]} refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} tintColor={studio.ink} />}>
       <View style={[styles.row, { justifyContent: 'space-between', gap: space.md }]}>
         <View style={{ flex: 1, gap: space.sm }}><Text numberOfLines={1} style={local.eyebrow}>衣序 · {dateLabel()}</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ ...type.display, color: studio.ink }}>{greeting()}</Text><View style={[styles.row, { gap: space.xs, flexWrap: 'wrap' }]}><Text style={{ ...type.caption, color: studio.muted }}>{user?.nickname ? `${user.nickname}的片场` : '我的片场'}</Text>{active.length ? <Text style={{ ...type.caption, color: studio.muted }}>· {active.length} 组片正在拍</Text> : null}</View></View>
