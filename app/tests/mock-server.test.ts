@@ -16,7 +16,7 @@ interface Job { id: string; kind: string; status: string; result_asset_id?: stri
 interface State {
   stage: string;
   images: Image[];
-  directions: { id: string; name: string; scene: string; mood: string; why: string; preview_status?: string; preview_url?: string }[];
+  directions: { id: string; name: string; scene: string; mood: string; why: string; preview_status?: string; preview_url?: string; previews?: { id: string; status: string; variant: string; url?: string }[] }[];
   garments: { asset_id: string; url: string }[];
   script?: { status: string; cover: { scene: string }; shots: { scene: string; pose: string; camera: string; caption: string }[] };
   note?: { image_ids: string[]; accepted_unverified_ids?: string[]; title: string; body: string; tags: string[]; cost_cny?: number; cost_points?: number; ai_label: string };
@@ -452,14 +452,14 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     await send(base, project.id, account.token, { text: '换成通勤，舒服随性一点' });
     let state = await getState();
     assert.equal(state.directions[0].id, 'direction_work');
-    assert.equal(state.active_jobs.length, 3);
+    assert.equal(state.active_jobs.length, 9);
     await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: state.directions[0].id, private_field: 'must-not-be-serialized' } });
     await send(base, project.id, account.token, { text: '封面换到办公室，自然一点' });
     await send(base, project.id, account.token, { text: '第二张换到公园背景' });
     state = await getState();
     assert.match(state.script!.cover.scene, /办公室/);
     assert.match(state.script!.shots[1].scene, /公园/);
-    assert.equal(state.active_jobs.length, 3);
+    assert.equal(state.active_jobs.length, 9);
     const history = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
     assert.deepEqual(Object.keys(history.find((item) => item.action)?.action || {}).sort(), ['direction_id', 'type']);
     const events = await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
@@ -526,8 +526,8 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     assert.equal(state.images.at(-1)!.status, 'succeeded');
     await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: imageIds } });
     state = await getState();
-    assert.equal(state.stage, 'note');
-    assert.equal(state.video, undefined);
+    assert.equal(state.stage, 'done');
+    assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     const refreshedHistory = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
     const savedVideo = refreshedHistory.flatMap((item) => item.cards).findLast((item) => item.type === 'video' && item.status === 'succeeded');
     assert.ok(savedVideo?.url);
@@ -536,17 +536,17 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     const pendingBeforeEdit = state.pending_action;
     await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: imageIds[0], instruction: '背景更明亮' } });
     state = await getState();
-    assert.equal(state.stage, 'note');
+    assert.equal(state.stage, 'done');
     assert.deepEqual(state.note, noteBeforeEdit);
     assert.deepEqual(state.pending_action, pendingBeforeEdit);
-    assert.equal(state.video, undefined);
+    assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     assert.equal(state.images.at(-1)!.status, 'queued');
     time += 250;
     state = await getState();
-    assert.equal(state.stage, 'note');
+    assert.equal(state.stage, 'done');
     assert.deepEqual(state.note, { ...noteBeforeEdit, cost_cny: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 100, cost_points: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 10 });
     assert.deepEqual(state.pending_action, pendingBeforeEdit);
-    assert.equal(state.video, undefined);
+    assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
     assert.equal(state.images.at(-1)!.status, 'succeeded');
     const preservedHistory = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
     assert.ok(preservedHistory.flatMap((item) => item.cards).filter((item) => item.type === 'note').every((item) => 'image_ids' in item));
@@ -578,7 +578,7 @@ test('second-round fixtures preview directions, announce once, auto-fix one vers
     const responseId = directions.at(-1)!.data.message_id;
     state = await getState();
     assert.equal(state.last_message_id, responseId);
-    assert.equal(state.active_jobs.length, 3);
+    assert.equal(state.active_jobs.length, 9);
     assert.ok(state.active_jobs.every((job) => job.kind === 'image'));
     assert.ok(state.directions.every((direction) => direction.preview_status === 'queued' && !direction.preview_url));
     time += 35;
@@ -588,13 +588,13 @@ test('second-round fixtures preview directions, announce once, auto-fix one vers
     time += 200;
     state = await getState();
     assert.ok(state.directions.every((direction) => direction.preview_status === 'succeeded' && direction.preview_url));
-    assert.equal(state.cost_cny, 1.5);
+    assert.equal(state.cost_cny, 4.5);
     assert.equal(state.active_jobs.length, 0);
     assert.notEqual(state.last_message_id, responseId);
     assert.equal((await fetch(state.directions[0].preview_url!)).status, 200);
     let messages = await getMessages();
     assert.equal(messages.at(-1)!.id, state.last_message_id);
-    assert.match(messages.at(-1)!.text, /灵感预览图都准备好了/);
+    assert.match(messages.at(-1)!.text, /三张灵感图都准备好了/);
     const previewMessageCount = messages.length;
     await Promise.all([getState(), getMessages(), getState()]);
     assert.equal((await getMessages()).length, previewMessageCount);
@@ -628,7 +628,7 @@ test('second-round fixtures preview directions, announce once, auto-fix one vers
     assert.deepEqual(state.images.find((image) => image.id === repair.id)?.fidelity, { score: 92, diffs: [], auto_fixed: true });
     assert.equal(state.images.length, 4);
     assert.ok(state.images.every((image) => image.status === 'succeeded' && image.script_version === 2));
-    assert.equal(state.cost_cny, 3.5);
+    assert.equal(state.cost_cny, 6.5);
     messages = await getMessages();
     assert.equal(messages.at(-1)!.id, state.last_message_id);
     assert.match(messages.at(-1)!.text, /3 张都好了.*自动补了一版/);
@@ -666,7 +666,7 @@ test('second-round fixtures preview directions, announce once, auto-fix one vers
     time += 200;
     state = await getState();
     assert.equal(state.images.length, 8);
-    assert.equal(state.cost_cny, 5.5);
+    assert.equal(state.cost_cny, 8.5);
     assert.equal(state.images.filter((image) => image.fidelity?.auto_fixed).length, 2);
     assert.ok(!JSON.stringify(state).includes('automatic'));
     assert.ok(!JSON.stringify(state).includes('autoFixAttempted'));
@@ -827,7 +827,7 @@ test('eighth-round approval requires explicit failed-check consent and rewrites 
     const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
     const getMessages = async () => (await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body;
     const directions = await send(base, project.id, account.token, { text: '先给我几个方向' });
-    assert.equal(directions.find((event) => event.type === 'card' && event.data.type === 'directions')?.data.regenerate_estimate_cny, 1.5);
+    assert.equal(directions.find((event) => event.type === 'card' && event.data.type === 'directions')?.data.regenerate_estimate_cny, 4.5);
     await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: (await getState()).directions[0].id } });
     await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
     time += 250;
@@ -872,7 +872,7 @@ test('eighth-round approval requires explicit failed-check consent and rewrites 
     ({ server, base } = await startServer(dataDir, options));
     assert.deepEqual((await getState()).note, state.note);
     const replayedDirections = (await getMessages()).flatMap((message) => message.cards).find((card) => card.type === 'directions') as Card & { regenerate_estimate_cny?: number };
-    assert.equal(replayedDirections.regenerate_estimate_cny, 1.5);
+    assert.equal(replayedDirections.regenerate_estimate_cny, 4.5);
     await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: original.id, instruction: '背景亮一点', attempt: 'verified-version' } });
     time += 250;
     state = await getState();
@@ -990,7 +990,7 @@ test('sixth-round streams and restores traces, replaces directions with previews
     const firstCard = first.find((event) => event.type === 'card' && event.data.type === 'directions')!.data;
     time += 250;
     let state = await getState();
-    assert.equal(state.cost_cny, 1.5);
+    assert.equal(state.cost_cny, 4.5);
     const oldDirections = structuredClone(state.directions);
     const second = await sendTraced({ text: '换一组方向，保留我刚才说的偏好' }, 'propose_directions');
     const nextCard = second.find((event) => event.type === 'card' && event.data.type === 'directions')!.data;
@@ -1004,12 +1004,12 @@ test('sixth-round streams and restores traces, replaces directions with previews
     state = await getState();
     assert.ok(state.directions.every((direction) => direction.preview_status === 'succeeded' && direction.preview_url));
     assert.equal((await fetch(state.directions[0].preview_url!)).status, 200);
-    assert.equal((await getMessages()).at(-1)?.trace?.cost_cny, 1.5);
-    assert.match((await getMessages()).at(-1)?.trace?.steps[0].label || '', /方向预览 3 张/);
+    assert.equal((await getMessages()).at(-1)?.trace?.cost_cny, 4.5);
+    assert.match((await getMessages()).at(-1)?.trace?.steps[0].label || '', /方向预览 9 张/);
     await sendTraced({ action: { type: 'choose_direction', direction_id: state.directions[0].id } }, 'write_script');
     state = await getState();
     assert.equal(state.pending_action?.estimated_cost_cny, 1.8);
-    assert.equal(state.budget?.remaining_cny, 17);
+    assert.equal(state.budget?.remaining_cny, 11);
     const safeReply = (await getMessages()).at(-1)!;
     const regenerated = await sendTraced({ action: { type: 'regenerate_reply', message_id: safeReply.id } }, 'chat');
     assert.equal(regenerated.at(-1)?.data.message_id, safeReply.id);
@@ -1028,7 +1028,7 @@ test('sixth-round streams and restores traces, replaces directions with previews
     assert.equal(completed.trace?.duration_ms, 500, 'worker trace includes the sequential automatic repair');
     assert.ok(completed.trace?.steps.some((step) => step.label === '出图 3 张'));
     assert.ok(completed.trace?.steps.some((step) => step.label === '自动修复 1 张'));
-    assert.deepEqual(state.budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 5, remaining_cny: 15, daily_budget_points: 200, today_cost_points: 50, remaining_points: 150 });
+    assert.deepEqual(state.budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 11, remaining_cny: 9, daily_budget_points: 200, today_cost_points: 110, remaining_points: 90 });
     const image = state.images[0];
     await sendTraced({ action: { type: 'edit_image', image_id: image.id, instruction: '背景更明亮' }, refs: [image.id] }, 'edit_image');
     assert.deepEqual((await getMessages()).at(-1)?.trace?.refs, [image.id]);
@@ -1075,9 +1075,9 @@ test('sixth-round budget rejects paid actions atomically, reserves queued jobs, 
       await writeFile(file, JSON.stringify(db));
       ({ server, base } = await startServer(dataDir, options));
     };
-    await setLimit(2.5);
+    await setLimit(5.5);
     await send(base, project.id, account.token, { text: '给我三个方向' });
-    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 2.5, today_cost_cny: 0, remaining_cny: 1, daily_budget_points: 25, today_cost_points: 0, remaining_points: 10 });
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 5.5, today_cost_cny: 0, remaining_cny: 1, daily_budget_points: 55, today_cost_points: 0, remaining_points: 10 });
     assert.equal((await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny, 0, 'queued reservations are not billed as successful usage');
     const otherState = (await request<State>(base, `/api/projects/${another.id}/state`, { token: account.token })).body;
     assert.equal(otherState.budget?.remaining_cny, 1, 'all projects display the same account-wide available balance');
@@ -1093,14 +1093,14 @@ test('sixth-round budget rejects paid actions atomically, reserves queued jobs, 
     assert.match(String(denied[0].data.message), /今日点数不够了/);
     assert.deepEqual(await getState(), state);
     assert.deepEqual(await getMessages(), historyBefore);
-    await setLimit(3.4);
+    await setLimit(6.4);
     await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
-    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 3.4, today_cost_cny: 1.5, remaining_cny: 0.4, daily_budget_points: 34, today_cost_points: 15, remaining_points: 4 });
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 6.4, today_cost_cny: 4.5, remaining_cny: 0.4, daily_budget_points: 64, today_cost_points: 45, remaining_points: 4 });
     time += 250;
     state = await getState();
     assert.equal(state.images.length, 3, 'automatic repair must fit the remaining budget');
     assert.equal(state.active_jobs.length, 0);
-    assert.equal(state.budget?.today_cost_cny, 3);
+    assert.equal(state.budget?.today_cost_cny, 6);
     assert.equal(state.budget?.remaining_cny, 0.4);
     const image = state.images[0];
     assert.equal((await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: image.id, instruction: '背景亮一点' } }))[0].data.code, 'BUDGET_EXCEEDED');
@@ -1110,13 +1110,13 @@ test('sixth-round budget rejects paid actions atomically, reserves queued jobs, 
     assert.equal((await send(base, project.id, account.token, { action: { type: 'confirm_video', image_id: image.id } }))[0].data.code, 'BUDGET_EXCEEDED');
     assert.deepEqual(await getState(), noteState);
     time += 86_400_000;
-    assert.equal((await getState()).budget?.remaining_cny, 3.4);
+    assert.equal((await getState()).budget?.remaining_cny, 6.4);
     await send(base, project.id, account.token, { action: { type: 'confirm_video', image_id: image.id } });
     time += 250;
     state = await getState();
     assert.equal(state.budget?.today_cost_cny, 1.5);
-    assert.equal(state.budget?.remaining_cny, 1.9);
-    assert.equal(state.cost_cny, 4.5, 'project ledger keeps lifetime spend while daily usage resets');
+    assert.equal(state.budget?.remaining_cny, 4.9);
+    assert.equal(state.cost_cny, 7.5, 'project ledger keeps lifetime spend while daily usage resets');
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });
 
@@ -1158,7 +1158,7 @@ test('reference ownership, limit and style survive SSE, history and restart; cov
     let state = await getState();
     assert.ok(state.directions.every((direction) => direction.why.includes('参考图风格') && direction.mood.includes('参考图')));
     const previews = (await stored()).assets.filter((asset) => asset.projectId === project.id);
-    assert.equal(previews.length, 3);
+    assert.equal(previews.length, 9);
     assert.ok(previews.every((asset) => /参考图风格.*方向预览/.test(asset.prompt || '')));
     const generatedReference = await request(base, '/api/projects', { token: owner.token, body: { ...input, reference_asset_ids: [previews[0].id] } });
     assert.equal(generatedReference.response.status, 400, 'generated assets cannot be reused as uploaded references');
@@ -1285,5 +1285,53 @@ test('projects without references or a person keep parallel generation and omit 
     const completed = await getState();
     assert.ok(completed.images.every((image) => image.anchor_id === undefined && image.fidelity?.person_score === undefined && image.fidelity?.anchor_score === undefined));
     assert.ok(!(await request<Message[]>(base, `/api/projects/${project.id}/messages`, { token: account.token })).body.some((message) => /人像一致性|封面一致性/.test(message.text)));
+  } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
+});
+
+test('three previews update independently; one retry survives restart and selected mood reaches the cover', async () => {
+  const dataDir = await temporaryData('outfit-three-previews-');
+  const fixturesDir = path.join(dataDir, 'fixtures');
+  await mkdir(fixturesDir);
+  let time = Date.now();
+  const options = { clock: () => time, fixturesDir };
+  let { server, base } = await startServer(dataDir, options);
+  try {
+    const account = await register(base, 'three-previews');
+    const garment = await upload(base, account.token);
+    const model = await upload(base, account.token, 'model');
+    const project = (await request<Project>(base, '/api/projects', { token: account.token, body: { title: '三张灵感', brand: '自由创作', brief: '咖啡馆自然光', garment_asset_ids: [garment.id], model_asset_id: model.id } })).body;
+    const getState = async () => (await request<State>(base, `/api/projects/${project.id}/state`, { token: account.token })).body;
+    await send(base, project.id, account.token, { text: '找方向' });
+    let state = await getState();
+    assert.equal(state.active_jobs.length, 9);
+    assert.ok(state.directions.every(direction => direction.previews?.length === 3));
+    time += 250;
+    state = await getState();
+    assert.ok(state.directions.every(direction => direction.previews?.every(preview => preview.status === 'failed')));
+    await copyFile(path.resolve(import.meta.dirname, '../../docs/spike/t-wan-v.jpg'), path.join(fixturesDir, 't-wan-v.jpg'));
+    const direction = state.directions[0];
+    const preview = direction.previews![2];
+    const action = { type: 'retry_preview', direction_id: direction.id, preview_id: preview.id, attempt: 'single-retry' };
+    await send(base, project.id, account.token, { action });
+    await send(base, project.id, account.token, { action });
+    assert.equal((await getState()).active_jobs.length, 1);
+    await closeServer(server);
+    ({ server, base } = await startServer(dataDir, options));
+    time += 250;
+    state = await getState();
+    assert.deepEqual(state.directions[0].previews!.map(item => item.status), ['failed', 'failed', 'succeeded']);
+    assert.ok(state.directions[0].previews![2].url);
+    await send(base, project.id, account.token, { action });
+    assert.equal((await getState()).active_jobs.length, 0);
+    const stored = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as { projects: { state: State }[]; jobs: { directionId?: string; previewId?: string; attempt?: string; result_asset_id?: string; reference_asset_ids?: string[]; imageId?: string }[] };
+    assert.equal(stored.jobs.length, 10);
+    const selectedAsset = stored.jobs.find(job => job.attempt === action.attempt)!.result_asset_id;
+    await send(base, project.id, account.token, { action: { type: 'choose_direction', direction_id: direction.id, preview_id: preview.id } });
+    state = await getState();
+    assert.match(state.script!.shots[0].camera, /坐姿侧光/);
+    await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
+    const confirmed = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as typeof stored;
+    const cover = confirmed.jobs.find(job => job.imageId === confirmed.projects[0].state.images[0].id)!;
+    assert.deepEqual(cover.reference_asset_ids, [garment.id, selectedAsset, model.id]);
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });

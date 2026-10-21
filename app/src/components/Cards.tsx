@@ -13,7 +13,8 @@ import { feedback } from '../lib/haptics';
 import { confirmationCost, formatPoints, pointsValue, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
 import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
 import { previewUrl } from '../lib/previewUrl';
-import { AnimatedEntry, Badge, Button as ActionButton, FadeImage, ProgressStrip, Skeleton } from './ui';
+import { chooseDirectionPreview, selectedPreview } from '../lib/directionPreviews';
+import { AnimatedEntry, Badge, Button as ActionButton, FadeImage, ProgressStrip } from './ui';
 import { VideoPlayer } from './VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationInfo';
 import { ScriptHistory } from './ScriptHistory';
@@ -21,6 +22,7 @@ import { Chip } from './ds';
 import { useImageInteractions } from './ImageInteractions';
 import { CostEstimate } from './CostEstimate';
 import { SaveAsModel } from './SaveAsModel';
+import { DirectionPreviews } from './DirectionPreviews';
 
 type CardsProps = {
   cards: Card[];
@@ -58,8 +60,12 @@ function Button({ title, onPress, disabled, testID, secondary = false, icon }: {
   return <ActionButton title={title} onPress={onPress} disabled={disabled} testID={testID} variant={secondary ? 'secondary' : 'primary'} icon={icon} />;
 }
 
-function DirectionOption({ direction, selected, picked, enabled, onPress }: {
+function DirectionOption({ direction, selected, picked, enabled, onPress, previewId, retryPoints, onSelectPreview, onAction }: {
   direction: Direction;
+  previewId: string;
+  retryPoints?: number;
+  onSelectPreview: (id: string) => void;
+  onAction: (action: Action) => void;
   selected: boolean;
   picked: boolean;
   enabled: boolean;
@@ -67,51 +73,34 @@ function DirectionOption({ direction, selected, picked, enabled, onPress }: {
 }) {
   const palette = Array.isArray(direction.palette) ? direction.palette.join(' · ') : direction.palette;
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={!enabled}
-      accessibilityRole="button"
-      accessibilityLabel={`选择方向：${direction.name}`}
-      accessibilityState={{ selected: selected || picked, disabled: !enabled }}
-      testID={`direction-${direction.id}`}
-      style={({ pressed }) => [styles.direction, (selected || picked) && styles.directionSelected, pressed && enabled && styles.pressed]}
-    >
-      <DirectionPreview direction={direction} />
-      <View style={styles.rowBetween}>
-        <Text style={styles.directionName}>{direction.name}</Text>
-        <View style={[styles.radio, (selected || picked) && styles.radioSelected]}>
-          {selected || picked ? <Icon name="checkmark" size={12} color={colors.white} /> : null}
+    <View style={[styles.direction, (selected || picked) && styles.directionSelected]}>
+      <DirectionPreviews direction={direction} selectedId={previewId} enabled={enabled} retryPoints={retryPoints} onSelect={onSelectPreview} onAction={onAction} />
+      <Pressable
+        onPress={onPress}
+        disabled={!enabled}
+        accessibilityRole="button"
+        accessibilityLabel={`选择方向：${direction.name}`}
+        accessibilityState={{ selected: selected || picked, disabled: !enabled }}
+        testID={`direction-${direction.id}`}
+        style={({ pressed }) => [pressed && enabled && styles.pressed]}
+      >
+        <View style={styles.rowBetween}>
+          <Text style={styles.directionName}>{direction.name}</Text>
+          <View style={[styles.radio, (selected || picked) && styles.radioSelected]}>
+            {selected || picked ? <Icon name="checkmark" size={12} color={colors.white} /> : null}
+          </View>
         </View>
-      </View>
-      <Text style={styles.directionScene}>{direction.scene} · {direction.mood}</Text>
-      <Text style={styles.directionWhy}>{direction.why}</Text>
-      {palette ? <View style={styles.palette}><Icon name="color-palette-outline" size={12} /><Text style={styles.paletteText}>{palette}</Text></View> : null}
-      {direction.styling ? <View style={styles.palette}><Icon name="shirt-outline" size={12} /><Text style={styles.paletteText} testID={`direction-styling-${direction.id}`}>搭配：{direction.styling}</Text></View> : null}
-      {direction.sample_title ? <Text style={styles.sampleTitle}>“{direction.sample_title}”</Text> : null}
-      <Text style={[styles.directionAction, selected && { color: colors.green }]}>
-        {selected ? '已选这个方向' : picked ? '已选中 · 在下方确认' : enabled ? '点一下选中' : '方向已确认'}
-      </Text>
-    </Pressable>
+        <Text style={styles.directionScene}>{direction.scene} · {direction.mood}</Text>
+        <Text style={styles.directionWhy}>{direction.why}</Text>
+        {palette ? <View style={styles.palette}><Icon name="color-palette-outline" size={12} /><Text style={styles.paletteText}>{palette}</Text></View> : null}
+        {direction.styling ? <View style={styles.palette}><Icon name="shirt-outline" size={12} /><Text style={styles.paletteText} testID={`direction-styling-${direction.id}`}>搭配：{direction.styling}</Text></View> : null}
+        {direction.sample_title ? <Text style={styles.sampleTitle}>“{direction.sample_title}”</Text> : null}
+        <Text style={[styles.directionAction, selected && { color: colors.green }]}>
+          {selected ? '已选这个方向' : picked ? '已选中 · 在下方确认' : enabled ? '点一下选中' : '方向已确认'}
+        </Text>
+      </Pressable>
+    </View>
   );
-}
-
-function DirectionPreview({ direction }: { direction: Direction }) {
-  const [failedUrl, setFailedUrl] = useState<string>();
-  const [loadedUrl, setLoadedUrl] = useState<string>();
-  const url = direction.preview_url;
-  const failed = direction.preview_status === 'failed' || Boolean(url && failedUrl === url) || (direction.preview_status === 'succeeded' && !url);
-  const ready = Boolean(url && !failed && (!direction.preview_status || direction.preview_status === 'succeeded'));
-  const running = direction.preview_status === 'running';
-  return <View style={styles.directionPreview} testID={`direction-preview-${direction.id}`}>
-    {ready && url ? <>
-      <FadeImage source={{ uri: previewUrl(url) }} style={styles.previewImage} resizeMode="cover" accessibilityLabel={`${direction.name}灵感预览`} testID={`preview-image-${direction.id}`} onLoad={() => setLoadedUrl(url)} onError={() => setFailedUrl(url)} />
-      {loadedUrl !== url ? <View style={StyleSheet.absoluteFill}><Skeleton width="100%" height="100%" /></View> : null}
-      <View style={styles.previewLabel}><Badge label="灵感预览" /></View>
-    </> : <View style={styles.previewPlaceholder} testID={`preview-placeholder-${direction.id}`}>
-      {failed || !direction.preview_status ? <Icon name={failed ? 'image-outline' : 'color-palette-outline'} color={colors.muted} size={24} /> : null}
-      {!failed && direction.preview_status ? <ProgressStrip title={running ? '正在描绘这份灵感…' : '灵感图已排队，马上开始'} /> : <Text style={styles.previewStatus}>{failed ? '灵感图暂时没成功，可先按文字选方向' : '灵感预览暂未提供'}</Text>}
-    </View>}
-  </View>;
 }
 
 function useImageVersions(items: OutfitImage[], state?: ProjectState) {
@@ -358,6 +347,7 @@ function DirectionsCard({ card, state, busy, onAction, onText }: {
 }) {
   // 两步选方向：先点卡片选中（本地高亮），再点确认按钮才真的发出去，误触不会直接进下一步。
   const [picked, setPicked] = useState<string | null>(null);
+  const [previewPicks, setPreviewPicks] = useState<Record<string, string>>({});
   const regeneratePoints = pointsValue(card.regenerate_estimate_points, card.regenerate_estimate_cny);
   const automatic = state?.mode === 'auto';
   const enabled = !automatic && !busy && (!state || (!state.chosen_direction_id && (state.pending_action?.type === 'choose_direction' || (state.pending_action === undefined && state.stage === 'direction'))));
@@ -365,14 +355,14 @@ function DirectionsCard({ card, state, busy, onAction, onText }: {
   const current = enabled && picked ? card.options.find(option => option.id === picked) : undefined;
   return <View style={styles.card}>
     <CardHeading icon="compass-outline" title="找一个心动的方向" detail={`${card.options.length} 个提案`} />
-    <Text style={styles.intro}>{automatic ? '正在为这组片选出最合适的方向，也可以在对话里聊聊想法。' : '先点一个选中，确认后才开始写脚本；也可以在对话里聊聊想法。'}</Text>
-    {card.options.map((option) => <DirectionOption key={option.id} direction={option} selected={chosen === option.id} picked={!chosen && picked === option.id} enabled={enabled} onPress={() => { feedback(); setPicked(previous => previous === option.id ? null : option.id); }} />)}
+    <Text style={styles.intro}>{automatic ? '正在为这组片选出最合适的方向，也可以在对话里聊聊想法。' : '每个方向有三张灵感图，左右滑动挑一张；确认后按这张的感觉写脚本。'}</Text>
+    {card.options.map((option) => <DirectionOption key={option.id} direction={option} selected={chosen === option.id} picked={!chosen && picked === option.id} enabled={enabled} previewId={selectedPreview(option, chosen === option.id ? state?.chosen_preview_id : previewPicks[option.id]).id} retryPoints={regeneratePoints === undefined ? undefined : regeneratePoints / 9} onAction={onAction} onSelectPreview={id => { feedback(); setPicked(option.id); setPreviewPicks(previous => ({ ...previous, [option.id]: id })); }} onPress={() => { feedback(); setPicked(previous => previous === option.id ? null : option.id); }} />)}
     {current ? <View testID="direction-confirm-bar" style={styles.directionConfirm}>
-      <Text style={styles.directionConfirmText}>已选中「{current.name}」，确认后开始写脚本。</Text>
-      <Button title={`就选「${current.name}」`} icon="checkmark" testID="confirm-direction" onPress={() => { setPicked(null); onAction({ type: 'choose_direction', direction_id: current.id }); }} />
+      <Text style={styles.directionConfirmText}>已选中「{current.name}」 · {selectedPreview(current, previewPicks[current.id]).variant}，确认后开始写脚本。</Text>
+      <Button title="按这张的感觉拍" icon="checkmark" testID="confirm-direction" disabled={!!current.previews?.length && selectedPreview(current, previewPicks[current.id]).status !== 'succeeded'} onPress={() => { setPicked(null); onAction(chooseDirectionPreview(current, previewPicks[current.id])); }} />
     </View> : null}
     {!automatic ? <Button title="换一组" secondary icon="refresh-outline" disabled={!enabled} testID="regenerate-directions" onPress={() => onText(REGENERATE_DIRECTIONS_TEXT)} /> : null}
-    {regeneratePoints !== undefined ? <Text testID="regenerate-estimate" style={styles.intro}>约 {formatPoints(regeneratePoints)} · 含 2–3 张预览</Text> : null}
+    {regeneratePoints !== undefined ? <Text testID="regenerate-estimate" style={styles.intro}>约 {formatPoints(regeneratePoints)} · 含 6–9 张预览，每方向 3 张</Text> : null}
   </View>;
 }
 
@@ -482,11 +472,6 @@ const styles = StyleSheet.create({
   shotEdit: { flexDirection: 'row', alignItems: 'center', gap: space.xs, alignSelf: 'flex-start', marginTop: space.sm, minHeight: layout.touch },
   shotEditText: { ...typography.caption, color: colors.redText, fontWeight: '600' },
   shotTools: { flexDirection: 'row', gap: space.sm, paddingVertical: space.xs },
-  directionPreview: { aspectRatio: 1.7, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.imagePlaceholder, marginBottom: space.md },
-  previewImage: { width: '100%', height: '100%' },
-  previewPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: space.md, gap: space.sm },
-  previewStatus: { ...typography.caption, color: colors.muted, textAlign: 'center' },
-  previewLabel: { position: 'absolute', bottom: space.sm, left: space.sm },
   directionName: { ...typography.subtitle, fontWeight: '700', color: colors.ink, flex: 1 },
   directionScene: { ...typography.caption, color: colors.redText, marginTop: space.sm, marginBottom: space.sm },
   directionWhy: { ...typography.caption, color: colors.muted },
