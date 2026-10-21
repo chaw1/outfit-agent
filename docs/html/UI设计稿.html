@@ -40,7 +40,7 @@ pre.mermaid { background: var(--surface); text-align: center; }
 @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; max-height: none; border-bottom: 1px solid var(--line); padding-bottom: 12px; } }
 @media print { .top, nav.toc { display: none; } .wrap { display: block; padding: 0; } }
 </style><script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "neutral" });</script></head>
-<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/UI设计稿.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="规划-模特库与人像一致性.html">规划</a> <a href="设计.html">设计约定</a> <a href="设计系统.html">设计系统</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="功能清单.html">功能清单</a> <a href="验收与部署.html">验收索引与部署</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
+<body><div class="top"><span class="brand">衣序 · 文档</span><span class="crumb">docs/UI设计稿.md</span><div class="nav"><a href="index.html">目录</a> <a href="README.html">README</a> <a href="调研.html">调研</a> <a href="调研-Chiccify对照.html">调研</a> <a href="规划-模特库与人像一致性.html">规划</a> <a href="设计.html">设计约定</a> <a href="设计系统.html">设计系统</a> <a href="design-README.html">设计板</a> <a href="工程规范.html">工程规范与 ADR 索引</a> <a href="CONTRIBUTING.html">贡献指南</a> <a href="功能清单.html">功能清单</a> <a href="验收与部署.html">验收索引与部署</a> <a href="评审-独立评估.html">独立评审</a> <a href="开发记录.html">开发记录</a> <a href="开发感受.html">开发感受</a> <a href="server-README.html">服务端 README</a> <a href="app-README.html">App README</a></div></div>
 <div class="wrap"><nav class="toc"><div class="toc">
 <ul>
 <li><a href="#1-设计目标与原则">1. 设计目标与原则</a></li>
@@ -475,7 +475,7 @@ flowchart TD
 <!-- pages:start -->
 <h2 id="4-页面设计">4. 页面设计<a class="headerlink" href="#4-页面设计" title="Permanent link">¶</a></h2>
 <p>以下 35 节与设计板画布一一对应。配图是设计定格，按钮、选区与播放条用于评审布局；浏览器可滚动长内容，只有顶部主题预览可交互。每节列出空、加载、错误、成功、点数不足；不扣点的页面明确写出不适用，避免为了凑状态引入功能。旁注只摘录关键变体，完整处理以下表为准。</p>
-<p>主题切换对照：<a href="../design/shots/theme-paper.png">首页的 paper 预览</a>、<a href="../design/shots/theme-studio.png">编导间的 studio 预览</a>。<a href="../design/verification.json">浏览器检查记录</a>与<a href="../design/README.md">复现方式</a>随稿交付。</p>
+<p>主题切换对照：<a href="../design/shots/theme-paper.png">首页的 paper 预览</a>、<a href="../design/shots/theme-studio.png">编导间的 studio 预览</a>。<a href="../design/verification.json">浏览器检查记录</a>与<a href="design-README.html">复现方式</a>随稿交付。</p>
 <h3 id="41-隐私提示">4.1 隐私提示<a class="headerlink" href="#41-隐私提示" title="Permanent link">¶</a></h3>
 <p><strong>目标：</strong> 在首次引导前说明资料用途，由用户决定是否继续。</p>
 <p><strong>布局：</strong> studio 主题；上方两张灵感成片拼贴；品牌引语、隐私提示与资料用途说明；协议文字入口；底部同意并继续与暂不使用。</p>
@@ -1979,7 +1979,7 @@ flowchart TD
 </tr>
 <tr>
 <td>可复现证据</td>
-<td><a href="../design/shots">40 张截图</a>、<a href="../design/verification.json">浏览器记录</a>、<a href="../design/README.md">脚本说明</a></td>
+<td><a href="../design/shots">40 张截图</a>、<a href="../design/verification.json">浏览器记录</a>、<a href="design-README.html">脚本说明</a></td>
 <td>实现阶段另做 paper/studio × 320/390 视觉回归、真机、读屏与动态字体验收</td>
 </tr>
 </tbody>

@@ -30,6 +30,7 @@ ORDER = [
     ("docs/设计.md", "设计约定：范围、分期与接口契约"),
     ("docs/UI设计稿.md", "UI 设计稿：信息架构、流程与页面"),
     ("docs/设计系统.md", "设计系统：衣序 DS"),
+    ("docs/design/README.md", "设计板：使用与复现方式"),
     ("docs/工程规范.md", "工程规范与 ADR 索引"),
     ("CONTRIBUTING.md", "贡献指南"),
     ("docs/功能清单.md", "功能清单"),
