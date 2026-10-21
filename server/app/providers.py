@@ -790,50 +790,87 @@ class ProviderHub:
                     result = self._mock_text(name, context, instruction)
                 self._validate_text(name, result, context, selection=selection)
                 return (name, result), {}, Decimal(0)
-            with self._client() as client:
-                response = self._json(
-                    client.post(
-                        f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
-                        headers=self._headers(settings.deepseek_api_key),
-                        json={
-                            "model": self._model("text"),
-                            "thinking": {"type": "disabled"},
-                            "messages": [
-                                {"role": "system", "content": SYSTEM_PROMPT},
-                                {"role": "user", "content": user_content},
-                            ],
-                            "tools": [
-                                {
-                                    "type": "function",
-                                    "function": {
-                                        "name": name,
-                                        "description": TOOL_DESCRIPTIONS[name],
-                                        "parameters": schemas[name],
-                                    },
-                                }
-                                for name in names
-                            ],
-                            "tool_choice": "required",
-                            "parallel_tool_calls": False,
-                            "max_tokens": 3500,
-                        },
+            # 模型偶尔会少填必填字段或没按工具返回；这种输出问题自动再问一次，
+            # 第二次仍不合格才把错误抛给用户。两次的用量与费用合并记账。
+            usage_total: dict = {}
+            cost_total = Decimal(0)
+            priced = False
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ]
+            for attempt in range(2):
+                with self._client() as client:
+                    response = self._json(
+                        client.post(
+                            f"{settings.deepseek_base_url.rstrip('/')}/chat/completions",
+                            headers=self._headers(settings.deepseek_api_key),
+                            json={
+                                "model": self._model("text"),
+                                "thinking": {"type": "disabled"},
+                                "messages": messages,
+                                "tools": [
+                                    {
+                                        "type": "function",
+                                        "function": {
+                                            "name": name,
+                                            "description": TOOL_DESCRIPTIONS[name],
+                                            "parameters": schemas[name],
+                                        },
+                                    }
+                                    for name in names
+                                ],
+                                "tool_choice": "required",
+                                "parallel_tool_calls": False,
+                                "max_tokens": 3500,
+                            },
+                        )
                     )
-                )
-            calls = response["choices"][0]["message"].get("tool_calls", [])
-            if len(calls) != 1 or calls[0]["function"]["name"] not in names:
-                raise ProviderError("对话模型未按当前阶段返回工具结果。")
-            name = calls[0]["function"]["name"]
-            result = json.loads(calls[0]["function"]["arguments"])
-            self._validate_text(name, result, context, selection=selection)
-            usage = response.get("usage", {})
-            # Peak list prices, no cache discount, conservatively USD/CNY 7.5.
-            cost = Decimal(usage.get("prompt_tokens", 0)) * Decimal("0.3") + Decimal(
-                usage.get("completion_tokens", 0)
-            ) * Decimal("1.2")
-            cost = cost * Decimal("7.5") / 1_000_000 if "prompt_tokens" in usage else None
-            return (name, result), usage, cost
+                usage = response.get("usage", {})
+                for key, value in usage.items():
+                    if isinstance(value, int):
+                        usage_total[key] = usage_total.get(key, 0) + value
+                if "prompt_tokens" in usage:
+                    priced = True
+                    # Peak list prices, no cache discount, conservatively USD/CNY 7.5.
+                    cost_total += (
+                        Decimal(usage.get("prompt_tokens", 0)) * Decimal("0.3")
+                        + Decimal(usage.get("completion_tokens", 0)) * Decimal("1.2")
+                    ) * Decimal("7.5") / 1_000_000
+                try:
+                    calls = response["choices"][0]["message"].get("tool_calls", [])
+                    if len(calls) != 1 or calls[0]["function"]["name"] not in names:
+                        raise ProviderError("对话模型未按当前阶段返回工具结果。")
+                    name = calls[0]["function"]["name"]
+                    try:
+                        result = json.loads(calls[0]["function"]["arguments"])
+                    except ValueError as error:
+                        raise ProviderError("对话模型返回字段不完整。") from error
+                    self._validate_text(name, result, context, selection=selection)
+                except ProviderError as error:
+                    if attempt or not self._retryable_output(error):
+                        raise
+                    log.warning("text_output_retry error=%s tools=%s", error, names)
+                    messages = [
+                        *messages,
+                        {
+                            "role": "user",
+                            "content": (
+                                f"上一次返回不合格：{error}。请重新只调用一个当前允许的工具，"
+                                "严格按参数结构完整填写所有必填字段，不要增加结构外的字段。"
+                            ),
+                        },
+                    ]
+                    continue
+                return (name, result), usage_total, cost_total if priced else None
+            raise ProviderError("对话模型返回字段不完整。")  # pragma: no cover
 
         return self._call("text", str(reserve), operation)
+
+    @staticmethod
+    def _retryable_output(error: ProviderError) -> bool:
+        """Only the model's own output defects earn a second call; user-input problems do not."""
+        return str(error).startswith("对话模型")
 
     @staticmethod
     def _validate_text(name: str, result: dict, context: dict, *, selection: bool = False) -> None:
@@ -847,12 +884,11 @@ class ProviderHub:
         def check(schema, value, path="结果"):
             kind = schema["type"]
             if kind == "object":
-                if (
-                    not isinstance(value, dict)
-                    or not set(schema["required"]).issubset(value)
-                    or not set(value).issubset(schema["properties"])
-                ):
+                if not isinstance(value, dict) or not set(schema["required"]).issubset(value):
                     raise ProviderError("对话模型返回字段不完整。")
+                # 结构外多出来的字段直接丢弃，不因此整次作废。
+                for extra in [key for key in value if key not in schema["properties"]]:
+                    value.pop(extra)
                 for key, item in value.items():
                     check(schema["properties"][key], item, key)
             elif kind == "array":
