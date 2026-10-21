@@ -1,9 +1,15 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-| (node:31427) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (node:39130) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 | (Use `node --trace-warnings ...` to show where the warning was created)
-Android Bundled 4862ms ../../outfit-agent/app/node_modules/expo-router/entry.js (2006 modules)
+| (node:39130) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:39130) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:39130) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android Bundled 5432ms ../../outfit-agent/app/node_modules/expo-router/entry.js (2009 modules)
 
 › Assets (46):
 ../../outfit-agent/app/node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/AntDesign.ttf (130KB)
@@ -42,7 +48,7 @@ Android Bundled 4862ms ../../outfit-agent/app/node_modules/expo-router/entry.js 
 assets/editorial.jpg (141KB)
 
 › android bundles (1):
-_expo/static/js/android/entry-c73664cc3d21685dd8bc6998ab5e9619.hbc (5.1MB)
+_expo/static/js/android/entry-7772ef957448b5e6ba346324d64b848b.hbc (5.1MB)
 
 › Files (1):
 metadata.json (3KB)

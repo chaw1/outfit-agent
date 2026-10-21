@@ -45,6 +45,7 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
   await page.getByLabel('密码', { exact: true }).fill('Demo-only-2026');
   await page.getByRole('checkbox', { name: '我已阅读并同意《用户协议》和《隐私政策》' }).check();
   await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
+  await page.getByRole('button', { name: '我已保存', exact: true }).click();
   await expect(page.getByText('档案小序的创作间', { exact: true })).toBeVisible();
   const token = await page.evaluate(() => sessionStorage.getItem('outfit.session'));
   expect(token).toBeTruthy();

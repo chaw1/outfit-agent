@@ -229,6 +229,7 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
       await page.getByLabel('密码', { exact: true }).fill(checkpoint.password);
       await page.getByRole('checkbox', { name: '我已阅读并同意《用户协议》和《隐私政策》' }).check();
       await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
+      await page.getByRole('button', { name: '我已保存', exact: true }).click();
       await expect(page.getByRole('button', { name: '新建品牌合作', exact: true })).toBeVisible();
       checkpoint.registered = true; checkpoint.session = await page.evaluate(() => sessionStorage.getItem('outfit.session') ?? undefined);
     });

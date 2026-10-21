@@ -30,7 +30,9 @@ export type LegalKind = 'terms' | 'privacy' | 'disclaimer';
 export interface LegalSummary { kind: LegalKind; title: string; version: string }
 export interface LegalDocument extends LegalSummary { markdown: string }
 
-export interface AuthResponse { token: string; user: User }
+export interface AuthResponse { token: string; user: User; recovery_code?: string }
+export interface RecoveryAuthResponse extends AuthResponse { recovery_code: string }
+export interface RecoverInput { username: string; recovery_code: string; new_password: string }
 export interface LoginInput { username: string; password: string }
 export interface RegisterInput extends LoginInput { nickname?: string; agreed_legal_version?: string }
 

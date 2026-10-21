@@ -61,6 +61,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await shot(page, '01-register.png');
   await page.getByRole('checkbox', { name: '我已阅读并同意《用户协议》和《隐私政策》' }).check();
   await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
+  await page.getByRole('button', { name: '我已保存', exact: true }).click();
   await expect(page.getByText('小序的创作间')).toBeVisible();
   await shot(page, '02-projects-empty.png');
   await page.getByRole('button', { name: '新建品牌合作', exact: true }).click();
