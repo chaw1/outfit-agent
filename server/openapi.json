@@ -2913,6 +2913,14 @@
             "maxItems": 20,
             "minItems": 1,
             "title": "Image Ids"
+          },
+          "accept_unverified": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Accept Unverified"
           }
         },
         "additionalProperties": false,
@@ -3168,6 +3176,19 @@
                 "type": "null"
               }
             ]
+          },
+          "attempt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt"
           }
         },
         "additionalProperties": false,
@@ -3350,6 +3371,17 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "reused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reused"
           }
         },
         "type": "object",

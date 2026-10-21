@@ -169,6 +169,8 @@ def refresh_cards(cards: list, session: Session, project_id: str) -> list:
             card["items"] = image_items(session, project_id)
         elif card.get("type") == "directions":
             card["options"] = direction_items(session, project_id, card.get("options", []))
+            # A fresh group may contain two or three previews; quote the upper count.
+            card["regenerate_estimate_cny"] = float(image_cost_cny(3))
         elif card.get("type") == "note":
             card["cost_cny"] = project_cost_cny(session, project_id)
             card["ai_label"] = "内容含 AI 生成图片，发布时请勾选平台的 AI 内容声明。"

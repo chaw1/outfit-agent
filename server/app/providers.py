@@ -184,10 +184,18 @@ outfit_asset_ids 必须引用上下文的衣服资产 ID，
 例如“换成通勤风”要重写场景、动作、文案；status 始终 draft 等博主确认。
 笔记标题不超过 20 个字，正文有自然分段和适量表情，话题标签 5–8 个，
 image_ids 严格使用用户选择的图片 ID 和顺序。
-write_note 必须逐张查看已选 images 的 instruction，按最终选图与本轮用户 instruction 写正文；
-事实优先级：本轮用户修正 > 已选图片的改图 instruction > 旧 script、旧笔记和原图描述。
-例如已选 v2 要求“衬衫塞进裤腰”，正文就应写塞进裤腰，不能沿用旧稿“衬衫外放”。
-用户要求改穿搭、场景或风格，必须实际改写正文相应段落，不能只改标题和标签。
+write_note 必须逐张区分已选 images 的 requested_change（用户要求怎么改）和
+confirmed_visual_facts（可确认的画面事实），只按后者与原衣服分析写画面细节。
+confirmed_visual_facts 按原画面、已确认修改由早到晚排列；后续修改覆盖较早描述，
+互相矛盾的旧状态不能同时写进正文。
+只有 edit_check.passed === true 或被用户主动采用的改图指令才能列入画面事实；
+没有核对通过的修改不要写进文案；用户主动采用且列入 confirmed_visual_facts 的除外。
+edit_check 缺失也不代表改图请求已完成，不能把 requested_change 或 instruction 当事实。
+例如用户要求“衬衫塞进裤腰”，但核对未通过且未主动采用，正文不能写已经塞进裤腰，
+应按原衣服和可确认的原画面描述；旧 script、旧笔记与 confirmed_visual_facts 冲突时更正旧稿。
+本轮用户 instruction 可以修改语气、结构和明确提供的事实，不能把未确认的改图愿望写成事实。
+用户要求改写笔记里的穿搭、场景或风格，在已确认事实范围内实际改写相应段落，
+不能只改标题和标签，也不能将未确认的画面修改写成事实。
 没有用户明确提供的亲身体验，禁止杜撰“我穿了一整天”“坐一天也舒服”“肩颈不勒”
 “透气不闷”“亲肤”等试穿感受或功能结论；自然口吻不等于编造经历。
 围绕衣服分析和已选图片可确认的配色、版型、衣摆处理与搭配建议来写，
@@ -1664,19 +1672,42 @@ class ProviderHub:
         previous_note = context.get("note") or {}
         title_match = re.search(r"标题(?:改成|改为|换成|换为)[：:\s]*([^\n，。！!]+)", instruction)
         title = title_match.group(1).strip("‘’“”\"' ")[:20] if title_match else None
+        images_by_id = {image["id"]: image for image in context.get("images", [])}
+        selected_images = [
+            images_by_id[image_id] for image_id in image_ids if image_id in images_by_id
+        ]
+        has_visual_facts = any("confirmed_visual_facts" in image for image in selected_images)
+        visual_facts = list(dict.fromkeys(
+            fact.strip()
+            for image in selected_images
+            for fact in image.get("confirmed_visual_facts", [])
+            if isinstance(fact, str) and fact.strip()
+        ))
+        unconfirmed_changes = [
+            image["requested_change"] for image in selected_images
+            if image.get("requested_change")
+            and image["requested_change"] not in image.get("confirmed_visual_facts", [])
+        ]
+        visual_description = "；".join(visual_facts)
+        body = (
+            "最近很喜欢这种不费力的搭配 ☁️\n\n"
+            + (visual_description + "。\n\n" if visual_description else "")
+            + "日常搭配，也留一点小细节给自己 🌿\n\n品牌合作分享，穿搭感受因人而异。"
+        )
         result = {
             "title": "今天穿得轻松一点",
-            "body": (
-                "最近很喜欢这种不费力的搭配 ☁️\n\n奶油白配浅蓝，看着就很清爽。"
-                "把袖口轻轻挽起，出门买杯咖啡，连脚步都慢了下来。\n\n"
-                "舒服、自在，也留一点小细节给自己 🌿\n\n品牌合作分享，穿搭感受因人而异。"
-            ),
+            "body": body,
             "tags": ["夏日穿搭", "日常穿搭", "松弛感", "简约穿搭", "穿搭灵感", "品牌合作"],
             "image_ids": image_ids,
         }
         if previous_note:
             result = {**previous_note, "image_ids": image_ids}
-            if instruction and not title:
+            unsafe_previous = any(
+                change in previous_note.get("body", "") for change in unconfirmed_changes
+            )
+            if has_visual_facts and (not title or unsafe_previous):
+                result["body"] = body
+            elif instruction and not title:
                 result["body"] = result["body"] + "\n\n" + instruction.split("：")[-1]
         if title:
             result["title"] = title
