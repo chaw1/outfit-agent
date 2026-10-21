@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
-import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { SlideInDown, cancelAnimation, useAnimatedStyle, useSharedValue, useReducedMotion, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AutoProgress } from '../../components/AutoProgress';
@@ -41,6 +41,22 @@ function StageStep({ stage, index, active, completed }: { stage: string; index: 
     <Animated.View style={[styles.stepTrack, (active || completed) && styles.stepTrackActive, animatedStyle]} />
     <View style={styles.stepLabelRow}><Text style={[styles.stepNumber, active && styles.activeText]}>{completed && !active ? '✓' : String(index + 1).padStart(2, '0')}</Text><Text style={[styles.stepLabel, active && styles.activeText]}>{stageNames[stage]}</Text></View>
   </View>;
+}
+
+// 等回复的那几秒给一句具体的话，让人知道它在干什么，而不是一个空气泡。
+function thinkingLabel(state?: ProjectState): string {
+  switch (state?.pending_action?.type) {
+    case 'choose_direction': return '正在按这个方向写脚本…';
+    case 'confirm_script': return '正在改脚本…';
+    default: break;
+  }
+  switch (state?.stage) {
+    case 'brief':
+    case 'direction': return '正在看衣服、想方向…';
+    case 'script': return '正在写脚本…';
+    case 'note': return '正在写笔记…';
+    default: return '正在想，马上回你…';
+  }
 }
 
 function messageText(message: Message, state?: ProjectState) {
@@ -141,6 +157,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         {messages.map((message, index) => <AnimatedEntry key={message.id} delay={Math.min(index * 30, 120)} style={[styles.message, message.role === 'user' ? styles.userMessage : styles.assistantMessage]}>
           {message.role === 'assistant' && <View style={styles.assistantIdentity}><View style={styles.assistantIcon}><Ionicons name="sparkles-outline" size={13} color={colors.redText} /></View><Text style={styles.identityText}>衣序 · 你的穿搭搭子</Text></View>}
           {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={({ pressed }) => [styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble, pressed && styles.pressed]}><Text selectable style={styles.messageText}>{messageText(message, state)}</Text></Pressable> : busy && message.role === 'assistant' ? <ProgressStrip title="正在整理你的灵感…" /> : null}
+          {message.role === 'assistant' && busy && index === messages.length - 1 && !messageText(message, state) ? <View testID="assistant-thinking" accessibilityRole="progressbar" accessibilityLabel="衣序正在想" style={[styles.bubble, styles.assistantBubble, styles.thinking]}><ActivityIndicator size="small" color={colors.redText} /><Text style={styles.thinkingText}>{thinkingLabel(state)}</Text></View> : null}
           <MessageTrace message={message} />
           {!busy && canRephrase(message, messages, state) ? <Pressable testID="rephrase-message" accessibilityRole="button" accessibilityLabel="换个说法" onPress={() => { void send({ action: { type: 'regenerate_reply', message_id: message.id } }); }} style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}><Ionicons name="refresh-outline" size={14} color={colors.redText} /><Text style={styles.textActionLabel}>换个说法</Text></Pressable> : null}
           {message.refs?.length ? <View style={styles.messageReferences}>{message.refs.map(imageId => {
@@ -205,6 +222,8 @@ const styles = StyleSheet.create({
   bubble: { maxWidth: '94%', minWidth: 44, minHeight: 44, padding: space.lg, borderRadius: radius.md, borderWidth: 1 },
   userBubble: { backgroundColor: colors.blush, borderColor: colors.blush, borderTopRightRadius: radius.sm },
   assistantBubble: { backgroundColor: colors.white, borderColor: colors.border, borderTopLeftRadius: radius.sm },
+  thinking: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  thinkingText: { ...typography.caption, color: colors.muted },
   messageText: { ...typography.body, color: colors.ink },
   textAction: { minHeight: 44, minWidth: 44, flexDirection: 'row', alignItems: 'center', gap: space.xs, paddingHorizontal: space.sm, alignSelf: 'flex-start' },
   textActionLabel: { ...typography.caption, color: colors.redText, fontWeight: '600' },
