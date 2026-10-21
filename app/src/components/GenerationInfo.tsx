@@ -1,8 +1,7 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NoteData, OutfitImage } from '../api/types';
-import { colors, layout, radius, space, type as typography } from '../theme';
+import { colors, radius, space, type as typography } from '../theme';
 import { formatPoints, pointsValue } from '../lib/transparency';
 import { Badge } from './ui';
 
@@ -19,11 +18,9 @@ export function FidelityBadge({ image, style, testIDPrefix = '' }: { image: Outf
 }
 
 export function ImageRevisionInfo({ image }: { image: OutfitImage }) {
-  const [expanded, setExpanded] = useState(false);
   return <View style={styles.revision}>
     {image.fidelity?.auto_fixed ? <View testID={`auto-fixed-${image.id}`} style={styles.fixed}><Badge label="已自动修一版" tone="success" /></View> : null}
     {image.instruction ? <Text style={styles.detail}>{image.instruction}</Text> : null}
-    {image.fidelity?.diffs.length ? <Pressable accessibilityRole="button" accessibilityLabel={expanded ? '收起差异点' : '展开差异点'} accessibilityState={{ expanded }} aria-expanded={expanded} onPress={() => setExpanded(value => !value)} style={({ pressed }) => [styles.diffs, pressed && styles.pressed]}><Text testID={`fidelity-diffs-${image.id}`} numberOfLines={expanded ? undefined : 2} style={styles.detail}>差异点：{image.fidelity.diffs.join('；')}</Text><View style={styles.expand}><Text style={styles.expandText}>{expanded ? '收起' : '展开差异点'}</Text><Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color={colors.redText} /></View></Pressable> : null}
     {image.edit_check ? <View style={styles.check}><Ionicons name={image.edit_check.passed ? 'checkmark-circle-outline' : 'alert-circle-outline'} size={15} color={image.edit_check.passed ? colors.green : colors.danger} /><Text testID={`edit-check-${image.id}`} style={[styles.detail, styles.checkText, { color: image.edit_check.passed ? colors.green : colors.danger }]}>{image.edit_check.passed ? '已按要求改好' : '可能没改到位'}：{image.edit_check.reason}</Text></View> : null}
   </View>;
 }
@@ -41,10 +38,6 @@ const styles = StyleSheet.create({
   revision: { gap: space.sm, marginTop: space.sm },
   fixed: { alignSelf: 'flex-start' },
   detail: { ...typography.caption, color: colors.muted },
-  diffs: { minHeight: layout.touch, gap: space.xs, paddingVertical: space.xs },
-  pressed: { opacity: .7 },
-  expand: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 24 },
-  expandText: { ...typography.caption, color: colors.redText, fontWeight: '600' },
   check: { flexDirection: 'row', alignItems: 'flex-start', gap: space.xs },
   checkText: { flex: 1 },
   disclosure: { backgroundColor: colors.paper, borderRadius: radius.sm, padding: space.md, gap: space.sm, marginBottom: space.md },

@@ -30,7 +30,7 @@ from app.db import SessionLocal
 from app.errors import AppError
 from app.graph import build_graph, get_graph_state, run_turn, script_versions
 from app.log_errors import log_exception
-from app.media import asset_dict, asset_path, store_upload
+from app.media import asset_dict, asset_path, preview_path, store_upload
 from app.models import Asset, Job, Message, Project, User, utcnow
 from app.observability import RequestObservabilityMiddleware, bind_project, bind_user
 from app.profile import default_model_asset_id, patch_user
@@ -279,6 +279,7 @@ def get_media(
     asset_id: str,
     exp: int = Query(...),
     sig: str = Query(...),
+    w: int | None = Query(default=None, description="图片预览宽度，仅 360 / 720 / 1080"),
     session: Session = Depends(get_session),
 ):
     valid_sig = (
@@ -298,9 +299,12 @@ def get_media(
     path = asset_path(asset)
     if not path.is_file():
         raise AppError("NOT_FOUND", "文件不存在", 404)
+    media_type = asset.mime
+    if w is not None and asset.mime.startswith("image/"):
+        path, media_type = preview_path(asset, w), "image/jpeg"
     return FileResponse(
         path,
-        media_type=asset.mime,
+        media_type=media_type,
         headers={"Cache-Control": f"private, max-age={max(0, exp - int(time.time()))}"},
     )
 

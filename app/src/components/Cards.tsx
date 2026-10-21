@@ -12,6 +12,7 @@ import type { Action, Card, Direction, OutfitImage, ProjectState } from '../api/
 import { feedback } from '../lib/haptics';
 import { confirmationCost, formatPoints, pointsValue, REGENERATE_DIRECTIONS_TEXT } from '../lib/transparency';
 import { isUnverified, replaceShotVersion } from '../lib/imageSelection';
+import { previewUrl } from '../lib/previewUrl';
 import { AnimatedEntry, Badge, Button as ActionButton, FadeImage, ProgressStrip, Skeleton } from './ui';
 import { VideoPlayer } from './VideoPlayer';
 import { FidelityBadge, ImageRevisionInfo, NoteDisclosure } from './GenerationInfo';
@@ -99,7 +100,7 @@ function DirectionPreview({ direction }: { direction: Direction }) {
   const running = direction.preview_status === 'running';
   return <View style={styles.directionPreview} testID={`direction-preview-${direction.id}`}>
     {ready && url ? <>
-      <FadeImage source={{ uri: url }} style={styles.previewImage} resizeMode="cover" accessibilityLabel={`${direction.name}灵感预览`} testID={`preview-image-${direction.id}`} onLoad={() => setLoadedUrl(url)} onError={() => setFailedUrl(url)} />
+      <FadeImage source={{ uri: previewUrl(url) }} style={styles.previewImage} resizeMode="cover" accessibilityLabel={`${direction.name}灵感预览`} testID={`preview-image-${direction.id}`} onLoad={() => setLoadedUrl(url)} onError={() => setFailedUrl(url)} />
       {loadedUrl !== url ? <View style={StyleSheet.absoluteFill}><Skeleton width="100%" height="100%" /></View> : null}
       <View style={styles.previewLabel}><Badge label="灵感预览" /></View>
     </> : <View style={styles.previewPlaceholder} testID={`preview-placeholder-${direction.id}`}>
@@ -181,7 +182,7 @@ function ImageGrid({ items, state, busy }: {
                 testID={`image-select-${item.id}`}
                 style={({ pressed }) => [styles.imageFrame, selectedIndex >= 0 && styles.imageFrameSelected, pressed && styles.pressed]}
               >
-                {item.url && item.status === 'succeeded' ? <FadeImage source={{ uri: item.url }} style={styles.generatedImage} resizeMode="cover" accessibilityLabel={`穿搭镜头 ${shotIds.indexOf(item.shot_id) + 1}`} /> : (
+                {item.url && item.status === 'succeeded' ? <FadeImage source={{ uri: previewUrl(item.url) }} style={styles.generatedImage} resizeMode="cover" accessibilityLabel={`穿搭镜头 ${shotIds.indexOf(item.shot_id) + 1}`} /> : (
                   <View style={styles.generating}>
                     {item.status === 'failed' ? <><Icon name="alert-circle-outline" color={colors.danger} size={26} /><Text style={styles.generatingTitle}>这张暂时没成功</Text><Text style={styles.generatingDetail}>{item.error ?? '在对话里告诉我，我们再试一次'}</Text></> : <ProgressStrip title={item.status === 'running' ? '画面生成中' : '等待生成'} detail={item.status === 'running' ? '好看的细节，值得等一等' : '马上就轮到这一张'} />}
                   </View>
@@ -305,14 +306,14 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
       <CardHeading icon="images-outline" title="这次的风格参考" detail={`${card.items.length} 张参考图`} />
       <Text style={styles.intro}>从场景、光线和构图里，找到这组画面的氛围。</Text>
       {card.items.map((item, index) => <View key={item.asset_id} testID={`reference-item-${item.asset_id}`} style={styles.garmentRow}>
-        <FadeImage source={{ uri: item.url }} style={styles.garmentImage} resizeMode="cover" accessibilityLabel={`风格参考图 ${index + 1}`} />
+        <FadeImage source={{ uri: previewUrl(item.url, 360) }} style={styles.garmentImage} resizeMode="cover" accessibilityLabel={`风格参考图 ${index + 1}`} />
         <View style={styles.garmentInfo}><Text style={styles.garmentTitle}>参考图 {String(index + 1).padStart(2, '0')}</Text><View style={styles.tags}>{item.style_tags.map((tag, tagIndex) => <View key={`${tagIndex}-${tag}`} style={styles.garmentTag}><Text style={styles.garmentTagText}>{tag}</Text></View>)}</View></View>
       </View>)}
     </View> : null;
     if (card.type === 'garments') return <View key={card.id} style={styles.card}>
       <CardHeading icon="shirt-outline" title="先认识一下这件衣服" detail={`${card.items.length} 件单品`} />
       {card.items.map((item) => <View key={item.asset_id} style={styles.garmentRow}>
-        <FadeImage source={{ uri: item.url }} style={styles.garmentImage} resizeMode="cover" accessibilityLabel={`${item.color}${item.category}`} />
+        <FadeImage source={{ uri: previewUrl(item.url, 360) }} style={styles.garmentImage} resizeMode="cover" accessibilityLabel={`${item.color}${item.category}`} />
         <View style={styles.garmentInfo}><Text style={styles.garmentTitle}>{item.color} · {item.category}</Text><Text style={styles.garmentMaterial}>{item.material}</Text><View style={styles.tags}>{item.style_tags.map((tag) => <View key={tag} style={styles.garmentTag}><Text style={styles.garmentTagText}>{tag}</Text></View>)}</View></View>
       </View>)}
     </View>;
@@ -350,7 +351,7 @@ export function Cards({ cards, state, busy, onAction, onText, onPreview }: Cards
       return <View key={card.id} style={styles.card}>
         <CardHeading icon="videocam-outline" title={done ? '穿搭，会动了' : '你的穿搭短片'} detail="5s" />
         {done && video.url ? <VideoPlayer uri={video.url} posterUrl={video.poster_url} /> : <View style={styles.videoWaiting}>
-          {video.poster_url ? <FadeImage source={{ uri: video.poster_url }} style={styles.videoPoster} /> : null}
+          {video.poster_url ? <FadeImage source={{ uri: previewUrl(video.poster_url) }} style={styles.videoPoster} /> : null}
           <View style={styles.videoWaitingContent}>{video.status === 'failed' ? <><Icon name="alert-circle-outline" size={28} color={colors.danger} /><Text style={styles.videoWaitingTitle}>视频这次没能完成</Text><Text style={styles.smallText}>别担心，笔记和图片都还在。</Text></> : <ProgressStrip title={video.status === 'queued' ? '短片已加入队列' : '正在让画面动起来'} detail="可以先看笔记，视频好了会出现在这里。" />}</View>
         </View>}
         {video.status === 'failed' ? <VideoRetry state={state} busy={busy} onAction={onAction} /> : null}

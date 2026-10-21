@@ -11,6 +11,7 @@ import { prepareEditSubmission, rejectedResult, reusedResult, type EditSubmissio
 import { feedback } from '../lib/haptics';
 import { clamp, constrainTransform, containRect, editActionForResult, IDENTITY_TRANSFORM, imageVersionFamily, regionFromPoints, screenToImage, zoomAtPoint, type ImageTransform, type Point, type Size } from '../lib/imageGeometry';
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
+import { previewUrl } from '../lib/previewUrl';
 import { FidelityBadge } from './GenerationInfo';
 import { Badge, FadeImage, ProgressStrip } from './ui';
 import { SaveAsModel } from './SaveAsModel';
@@ -382,7 +383,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
   }
 
   if (!current) return null;
-  const currentImage = <FadeImage key={current.url} source={{ uri: current.url }} style={StyleSheet.absoluteFill} resizeMode="contain" accessibilityLabel={`镜头 ${shotNumber} 第 ${current.version} 版`} onLoad={event => {
+  const currentImage = <FadeImage key={current.url} source={{ uri: previewUrl(current.url, 1080) }} style={StyleSheet.absoluteFill} resizeMode="contain" accessibilityLabel={`镜头 ${shotNumber} 第 ${current.version} 版`} onLoad={event => {
     const source = event.nativeEvent.source;
     if (source?.width > 0 && source?.height > 0) setImageSize(previous => previous.width === source.width && previous.height === source.height ? previous : { width: source.width, height: source.height });
   }} onError={() => setFailedUrl(current.url)} />;
@@ -405,7 +406,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
             setViewport(previous => previous.width === width && previous.height === height ? previous : { width, height });
           }}>
             {comparing && parent?.url ? <>
-              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, imageStyle]}><FadeImage source={{ uri: parent.url }} style={StyleSheet.absoluteFill} resizeMode="contain" /></Animated.View>
+              <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, imageStyle]}><FadeImage source={{ uri: previewUrl(parent.url, 1080) }} style={StyleSheet.absoluteFill} resizeMode="contain" /></Animated.View>
               <View pointerEvents="none" style={[styles.comparisonClip, { width: viewport.width * compare }]}><Animated.View style={[{ width: viewport.width, height: viewport.height }, imageStyle]}>{currentImage}</Animated.View></View>
               <View pointerEvents="none" style={[styles.compareLine, { left: viewport.width * compare }]}><View style={styles.compareHandle}><Ionicons name="code-outline" size={20} color={colors.ink} /></View></View>
               <Text pointerEvents="none" style={[styles.compareLabel, { left: space.md }]}>修改后 v{current.version}</Text><Text pointerEvents="none" style={[styles.compareLabel, { right: space.md }]}>修改前 v{parent.version}</Text>
@@ -439,7 +440,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
               versionLayouts.current.set(image.id, { x, width });
               if (image.id === current.id) versionsScroll.current?.scrollTo({ x: Math.max(0, x + width / 2 - viewport.width / 2), animated: true });
             }} onPress={() => selectImage(image.id)} style={({ pressed }) => [styles.version, image.id === current.id && styles.versionSelected, pressed && styles.pressed]}>
-              {image.url ? <FadeImage source={{ uri: image.url }} style={styles.versionImage} /> : <View style={styles.versionPlaceholder}>{image.status === 'failed' ? <Ionicons name="alert-circle-outline" color={colors.red} size={20} /> : <ActivityIndicator size="small" color={colors.red} />}</View>}
+              {image.url ? <FadeImage source={{ uri: previewUrl(image.url, 360) }} style={styles.versionImage} /> : <View style={styles.versionPlaceholder}>{image.status === 'failed' ? <Ionicons name="alert-circle-outline" color={colors.red} size={20} /> : <ActivityIndicator size="small" color={colors.red} />}</View>}
               <Badge tone={image.id === current.id ? 'brand' : 'inverse'} label={`v${image.version}${image.status === 'succeeded' ? '' : image.status === 'failed' ? ' · 失败' : ' · 生成中'}`} />
               {image.edit_check?.passed === false ? <Badge tone="danger" label="未改到位" /> : null}
             </Pressable>)}

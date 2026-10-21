@@ -10,6 +10,7 @@ import { rejectedResult } from '../lib/editAttempt';
 import { feedback } from '../lib/haptics';
 import { saveImages } from '../lib/media';
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
+import { previewUrl } from '../lib/previewUrl';
 import { ImageViewer } from './ImageViewer';
 import { Badge, Button, FadeImage, Toast, errorText } from './ui';
 
@@ -127,7 +128,7 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, s
         <Animated.View entering={FadeInDown.duration(motion.normal).reduceMotion(ReduceMotion.System)} exiting={FadeOutDown.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.sheet}>
         <SafeAreaView edges={['bottom']} testID="image-menu">
           <View style={styles.handle} />
-          <View style={styles.titleRow}>{menuImage?.url ? <FadeImage source={{ uri: menuImage.url }} style={styles.thumbnail} /> : null}<View style={styles.heading}><Text style={styles.title}>这张图，接着怎么改？</Text><View style={styles.metadata}><Badge label={`v${menuImage?.version ?? 1}`} /><Text style={styles.detail}>原版和新版本都会保留</Text></View></View></View>
+          <View style={styles.titleRow}>{menuImage?.url ? <FadeImage source={{ uri: previewUrl(menuImage.url, 360) }} style={styles.thumbnail} /> : null}<View style={styles.heading}><Text style={styles.title}>这张图，接着怎么改？</Text><View style={styles.metadata}><Badge label={`v${menuImage?.version ?? 1}`} /><Text style={styles.detail}>原版和新版本都会保留</Text></View></View></View>
           {(['local', 'whole', 'reference', 'compare', 'save'] as const).map(key => {
             const labels = { local: '局部改', whole: '整张改', reference: '引用到对话', compare: '对比版本', save: saving ? '正在保存…' : '保存到相册' };
             const icons = { local: 'brush-outline', whole: 'color-wand-outline', reference: 'chatbubble-ellipses-outline', compare: 'git-compare-outline', save: 'download-outline' } as const;

@@ -7,6 +7,7 @@ import type { User, UserProfile } from '../api/types';
 import { useSession } from '../context/Session';
 import { parseHeight, profilePhotos, setDefaultPhoto } from '../lib/profile';
 import { colors, radius, space, type } from '../theme';
+import { previewUrl } from '../lib/previewUrl';
 import { Badge, Button, FadeImage, Field, Notice, ProgressStrip, Toast, errorText, styles } from './ui';
 
 export function ProfileEditor({ user }: { user: User & { profile: UserProfile } }) {
@@ -68,7 +69,7 @@ export function ProfileEditor({ user }: { user: User & { profile: UserProfile } 
     <View style={{ gap: space.md }}><Text style={styles.label}>本人照片 · 第一张为默认</Text>
       <View style={localStyles.photoGrid}>{profilePhotos(ids, photos).map((photo, index) => <View key={photo.id} style={localStyles.photoCard}>
         <View>
-          {photo.url ? <FadeImage accessibilityLabel={`本人照片 ${index + 1}`} source={{ uri: photo.url }} style={localStyles.portrait} /> : <View style={[localStyles.portrait, localStyles.placeholder]}><Ionicons name="person-outline" size={30} color={colors.muted} /><Text style={localStyles.placeholderText}>照片已保存{ '\n' }本机暂无预览</Text></View>}
+          {photo.url ? <FadeImage accessibilityLabel={`本人照片 ${index + 1}`} source={{ uri: previewUrl(photo.url, 360) }} style={localStyles.portrait} /> : <View style={[localStyles.portrait, localStyles.placeholder]}><Ionicons name="person-outline" size={30} color={colors.muted} /><Text style={localStyles.placeholderText}>照片已保存{ '\n' }本机暂无预览</Text></View>}
           {index === 0 && <View style={localStyles.defaultBadge}><Badge label="默认形象" tone="brand" /></View>}
         </View>
         <View style={localStyles.photoActions}>

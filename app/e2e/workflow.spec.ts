@@ -187,17 +187,6 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByTestId('generation-notice')).toBeVisible();
   await shot(page, '52-foreground-generation-notice.png', page.getByTestId('generation-notice'));
   await page.getByRole('button', { name: '关闭生成提示', exact: true }).click();
-  const diffs = page.getByTestId(/^fidelity-diffs-/).first();
-  await expect(diffs).toBeVisible();
-  const differencesButton = diffs.locator('..');
-  await expect(differencesButton).toHaveAttribute('aria-expanded', 'false');
-  await expect(diffs).toHaveCSS('-webkit-line-clamp', '2');
-  await differencesButton.click();
-  await expect(differencesButton).toHaveAttribute('aria-expanded', 'true');
-  await expect(diffs).toHaveCSS('-webkit-line-clamp', 'none');
-  await shot(page, '47-fidelity-diffs-expanded.png', diffs);
-  await differencesButton.click();
-  await expect(differencesButton).toHaveAttribute('aria-expanded', 'false');
   // Generated media already contains its watermark; no second label is painted by the app.
   await expect(page.getByText('AI生成', { exact: true })).toHaveCount(0);
   const retainedIds = latestState!.images.map(image => image.id);

@@ -13,6 +13,7 @@ import { STYLE_TAGS, styleBatch, toggleStyleTag } from '../../lib/styleTags';
 import { useSession } from '../../context/Session';
 import { GarmentPicker, ModelSourceLabel } from '../../components/AssetLibrary';
 import { useLibraryModels } from '../../lib/assets';
+import { previewUrl } from '../../lib/previewUrl';
 
 export default function NewProject() {
   const { api, user, photos } = useSession();
@@ -104,7 +105,7 @@ export default function NewProject() {
         <View style={localStyles.section}>
           <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}><Text style={localStyles.sectionTitle}>衣服（必填）</Text><Badge label="至少 1 张 · 支持多选" /></View>
           {!!garments.length && <View style={localStyles.thumbnails}>{garments.map((item, index) => <View key={item.id} style={localStyles.garment}>
-            <FadeImage source={{ uri: item.url }} style={localStyles.garmentImage} />
+            <FadeImage source={{ uri: previewUrl(item.url, 360) }} style={localStyles.garmentImage} />
             <Pressable accessibilityRole="button" accessibilityLabel={`移除衣服图 ${index + 1}`} disabled={!!uploading || busy} onPress={() => setGarments(previous => previous.filter(asset => asset.id !== item.id))} style={({ pressed }) => [localStyles.removeImage, pressed && localStyles.pressed]}><View style={localStyles.removeGlyph}><Ionicons name="close" size={16} color={studio.ink} /></View></Pressable>
           </View>)}</View>}
           <Pressable accessibilityRole="button" accessibilityLabel="上传衣服图" testID="upload-garments" disabled={!!uploading || busy} onPress={() => void pick('garment')} style={({ pressed }) => [localStyles.uploadArea, pressed && localStyles.uploadPressed, (!!uploading || busy) && { opacity: 0.6 }]}>
@@ -118,18 +119,18 @@ export default function NewProject() {
           <View style={styles.row}><Text style={localStyles.sectionTitle}>出镜的人</Text><Badge label="选填" /></View>
           <Text style={localStyles.subtitle}>{savedPhotos.length ? '已默认带上档案里的本人照片，也可以选择另一张。' : '上传你的照片作为模特；留空就用默认模特。'}</Text>
           {!!savedPhotos.length && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.md }}>{savedPhotos.map((photo, index) => <Pressable key={photo.id} accessibilityRole="button" accessibilityLabel={`选择档案照片 ${index + 1}`} accessibilityState={{ selected: selectedModelId === photo.id }} aria-selected={selectedModelId === photo.id} onPress={() => setModelChoice(photo.id)} style={({ pressed }) => [localStyles.profilePhoto, selectedModelId === photo.id && localStyles.profileSelected, pressed && localStyles.pressed]}>
-            {photo.url ? <FadeImage source={{ uri: photo.url }} style={localStyles.profileImage} /> : <View style={[localStyles.profileImage, localStyles.profilePlaceholder]}><Ionicons name="person-outline" size={24} color={studio.muted} /></View>}
+            {photo.url ? <FadeImage source={{ uri: previewUrl(photo.url, 360) }} style={localStyles.profileImage} /> : <View style={[localStyles.profileImage, localStyles.profilePlaceholder]}><Ionicons name="person-outline" size={24} color={studio.muted} /></View>}
             <Text style={[localStyles.caption, { textAlign: 'center', color: selectedModelId === photo.id ? studio.accent : studio.muted }]}>{index === 0 ? '档案默认' : `照片 ${index + 1}`}{selectedModelId === photo.id ? ' ✓' : ''}</Text>
             <ModelSourceLabel id={photo.id} />
           </Pressable>)}</ScrollView>}
-          {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={[styles.row, { flexWrap: 'wrap' }]}>{selectedModel.url && <FadeImage source={{ uri: selectedModel.url }} style={localStyles.profileImage} />}<Text style={localStyles.subtitle}>这组片的本人照片</Text><ModelSourceLabel source={model?.source} /><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
+          {selectedModelId && !savedPhotos.some(photo => photo.id === selectedModelId) && selectedModel && <View style={[styles.row, { flexWrap: 'wrap' }]}>{selectedModel.url && <FadeImage source={{ uri: previewUrl(selectedModel.url, 360) }} style={localStyles.profileImage} />}<Text style={localStyles.subtitle}>这组片的本人照片</Text><ModelSourceLabel source={model?.source} /><Button title="移除照片" variant="ghost" onPress={() => { setModel(null); setModelChoice(undefined); }} /></View>}
           <Button title={uploading === 'model' ? '正在上传…' : selectedModelId ? '更换我的照片' : '上传我的照片'} icon="person-outline" variant="secondary" disabled={!!uploading || busy} onPress={() => void pick('model')} />
         </View>
         <View style={localStyles.section}>
           <View style={[styles.row, { justifyContent: 'space-between', flexWrap: 'wrap' }]}><Text style={localStyles.sectionTitle}>参考图（选填）</Text><Text testID="reference-count" style={localStyles.caption}>{references.length}/3</Text></View>
           <Text style={localStyles.subtitle}>{mode === 'auto' ? '一键出片建议带上参考，光线和构图更有方向。' : '带上喜欢的场景、光线或构图。'}</Text>
           {!!references.length && <View style={localStyles.thumbnails}>{references.map((item, index) => <View key={item.id} testID={`reference-asset-${item.id}`} style={localStyles.garment}>
-            <FadeImage source={{ uri: item.url }} style={localStyles.garmentImage} accessibilityLabel={`参考图 ${index + 1}`} />
+            <FadeImage source={{ uri: previewUrl(item.url, 360) }} style={localStyles.garmentImage} accessibilityLabel={`参考图 ${index + 1}`} />
             <Pressable accessibilityRole="button" accessibilityLabel={`移除参考图 ${index + 1}`} disabled={!!uploading || busy} onPress={() => setReferences(previous => previous.filter(asset => asset.id !== item.id))} style={({ pressed }) => [localStyles.removeImage, pressed && localStyles.pressed]}><View style={localStyles.removeGlyph}><Ionicons name="close" size={16} color={studio.ink} /></View></Pressable>
           </View>)}</View>}
           <Button title={uploading === 'reference' ? '正在上传参考图…' : references.length === 3 ? '已添加 3 张参考图' : '添加参考图'} icon="images-outline" variant="secondary" testID="upload-references" disabled={!!uploading || busy || references.length >= 3} onPress={() => void pick('reference')} />

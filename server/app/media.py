@@ -209,3 +209,31 @@ def _generated_png(image: Image.Image, model: str) -> bytes:
     output = io.BytesIO()
     image.save(output, "PNG", pnginfo=metadata)
     return output.getvalue()
+
+
+PREVIEW_WIDTHS = (360, 720, 1080)
+
+
+def preview_path(asset: Asset, width: int) -> Path:
+    """Return a cached JPEG preview of an image asset, generating it on first use.
+
+    手机列表与缩略图不需要 3–4 MB 的 PNG 原图；按需缩成固定几档宽度的 JPEG，
+    文件放在原图旁边（`<name>.w720.jpg`），随原图一起被清理。
+    """
+    if width not in PREVIEW_WIDTHS:
+        raise AppError("INVALID_PREVIEW", "不支持的预览尺寸", 422)
+    original = asset_path(asset)
+    target = original.with_name(f"{original.stem}.w{width}.jpg")
+    if target.is_file():
+        return target
+    try:
+        with Image.open(original) as image:
+            image = image.convert("RGB")
+            if image.width > width:
+                image.thumbnail((width, int(image.height * width / image.width) + 1))
+            temporary = target.with_suffix(".tmp")
+            image.save(temporary, format="JPEG", quality=86, optimize=True)
+            temporary.replace(target)
+    except (UnidentifiedImageError, OSError) as exc:
+        raise AppError("MEDIA_NOT_FOUND", "文件不存在", 404) from exc
+    return target

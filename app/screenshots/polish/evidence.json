@@ -1,17 +1,17 @@
 {
   "viewport": "390×844",
-  "passedAt": "2026-10-21T04:29:55.758Z",
-  "firstEditedImage": "image_23f08e89-e162-4106-a9b3-173b5e09a6ec",
+  "passedAt": "2026-10-21T05:04:39.385Z",
+  "firstEditedImage": "image_26c44d79-2242-4741-a688-5e63a5132ed4",
   "imageInteractions": {
-    "firstId": "image_23f08e89-e162-4106-a9b3-173b5e09a6ec",
-    "wholeImageId": "image_10b4daef-d398-4b46-8e83-dd1ebed6c12d",
-    "localImageId": "image_e303970a-f5a3-4053-8543-fa1b2abe2735",
-    "retryImageId": "image_b9e094cf-cba0-4234-9933-d2b33704b44e",
-    "rectangleImageId": "image_bc4a7eda-fd74-4edf-9578-5e28c419cc7d",
+    "firstId": "image_26c44d79-2242-4741-a688-5e63a5132ed4",
+    "wholeImageId": "image_3478d3e5-9fbb-4fb7-b4f5-bb4f1e934db8",
+    "localImageId": "image_1f13640d-1e43-4905-9ad1-71a27ea2b97e",
+    "retryImageId": "image_d273101b-6dcf-41a2-987e-a33c489ede4a",
+    "rectangleImageId": "image_e459553a-1f8f-4084-abed-977523d1ba11",
     "brushMessage": {
       "action": {
         "type": "edit_image",
-        "image_id": "image_10b4daef-d398-4b46-8e83-dd1ebed6c12d",
+        "image_id": "image_3478d3e5-9fbb-4fb7-b4f5-bb4f1e934db8",
         "instruction": "袖口放下来",
         "mask_strokes": {
           "brush": 0.13624564046152068,
@@ -84,15 +84,15 @@
             ]
           ]
         },
-        "attempt": "967bffd6-fa05-451b-8fec-9017af3ac15a"
+        "attempt": "867e082e-5a29-4e0f-bd96-b35a9cd93802"
       }
     },
     "retryMessage": {
       "action": {
         "type": "edit_image",
-        "image_id": "image_10b4daef-d398-4b46-8e83-dd1ebed6c12d",
+        "image_id": "image_3478d3e5-9fbb-4fb7-b4f5-bb4f1e934db8",
         "instruction": "袖口放下来",
-        "attempt": "37ff2da1-f7ff-4d8c-be2f-ae26623a66f4",
+        "attempt": "30bbf441-f267-4f54-b537-57d7d7e146a0",
         "mask_strokes": {
           "brush": 0.13624564046152068,
           "strokes": [
@@ -169,7 +169,7 @@
     "rectangleMessage": {
       "action": {
         "type": "edit_image",
-        "image_id": "image_b9e094cf-cba0-4234-9933-d2b33704b44e",
+        "image_id": "image_d273101b-6dcf-41a2-987e-a33c489ede4a",
         "instruction": "背景亮一点",
         "region": {
           "x": 0.27490273956813394,
@@ -177,30 +177,30 @@
           "w": 0.5488326373267266,
           "h": 0.21875
         },
-        "attempt": "44e90cf1-372f-4f21-8fa7-eebbe189b025"
+        "attempt": "b4245848-282d-46f1-ad2d-7f20650f928a"
       }
     },
     "referenceMessage": {
       "text": "这张袖口现在合适了，保留这个自然的感觉。",
       "refs": [
-        "image_bc4a7eda-fd74-4edf-9578-5e28c419cc7d"
+        "image_e459553a-1f8f-4084-abed-977523d1ba11"
       ]
     }
   },
   "selectedOrder": [
-    "image_0faf587b-6f6e-4ec7-844a-5e0e09d9b785",
-    "image_bc4a7eda-fd74-4edf-9578-5e28c419cc7d",
-    "image_0c6b5c18-e987-435c-b888-9e9347fc0af9"
+    "image_dfdf0d99-f454-43a8-86f6-c28fa9872314",
+    "image_e459553a-1f8f-4084-abed-977523d1ba11",
+    "image_14ea3da6-240c-44ac-8f58-2c814d0a855e"
   ],
-  "stateRequests": 116,
+  "stateRequests": 117,
   "historyRequests": 44,
   "proactiveMessage": true,
-  "restoredCheckpoint": "checkpoint_4c9267a4-9cd8-4c89-bc24-18da06ca3331",
+  "restoredCheckpoint": "checkpoint_79ef85f5-0255-438c-b712-3b3597d46042",
   "retainedImageIds": [
-    "image_26c41bd4-7bab-4c7d-a570-1e8dca027e17",
-    "image_1614a87c-823d-438f-981c-72a3eff70ddd",
-    "image_af744f32-4525-4062-9e7b-70680b0f8d3a",
-    "image_0e08d5d0-5657-4801-9c23-f7e063a81eb8"
+    "image_1ca6b352-9278-4480-bf0b-590bc5272135",
+    "image_9b2f339a-d621-489f-9eb2-4acaec9f98e1",
+    "image_323be075-6e4c-4434-afa6-a0656a21942b",
+    "image_abf38cd0-202c-4e29-89ea-775b24e73e58"
   ],
   "previewImages": true,
   "autoFixedFidelity": 92,
@@ -209,17 +209,17 @@
   "videoPlayed": true,
   "publishing": {
     "downloads": [
-      "outfit-image_bc4a7eda-fd74-4edf-9578-5e28c419cc7d.png",
-      "outfit-image_0faf587b-6f6e-4ec7-844a-5e0e09d9b785.jpg",
-      "outfit-image_bc4a7eda-fd74-4edf-9578-5e28c419cc7d.png",
-      "outfit-image_0c6b5c18-e987-435c-b888-9e9347fc0af9.png",
-      "outfit-video-job_bd0b1787-ff80-4a33-a705-2bed23b62c59.mp4"
+      "outfit-image_e459553a-1f8f-4084-abed-977523d1ba11.png",
+      "outfit-image_dfdf0d99-f454-43a8-86f6-c28fa9872314.jpg",
+      "outfit-image_e459553a-1f8f-4084-abed-977523d1ba11.png",
+      "outfit-image_14ea3da6-240c-44ac-8f58-2c814d0a855e.png",
+      "outfit-video-job_8417d4e1-dcc9-49fa-8432-477bb2a8da28.mp4"
     ],
     "shares": 3,
     "orderedIds": [
-      "image_0faf587b-6f6e-4ec7-844a-5e0e09d9b785",
-      "image_bc4a7eda-fd74-4edf-9578-5e28c419cc7d",
-      "image_0c6b5c18-e987-435c-b888-9e9347fc0af9"
+      "image_dfdf0d99-f454-43a8-86f6-c28fa9872314",
+      "image_e459553a-1f8f-4084-abed-977523d1ba11",
+      "image_14ea3da6-240c-44ac-8f58-2c814d0a855e"
     ],
     "partialRetry": true,
     "resumedNoDuplicates": true

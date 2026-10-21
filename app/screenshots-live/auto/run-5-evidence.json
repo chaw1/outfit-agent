@@ -1,0 +1,269 @@
+{
+  "base": "https://47.97.153.127:8443/",
+  "projectId": "ac28b640-2890-4fd0-9855-d58bca8c4a6a",
+  "startedAt": "2026-10-21T04:52:04.799Z",
+  "completedAt": "2026-10-21T04:56:19.200Z",
+  "observedSteps": [
+    "directions",
+    "script",
+    "images",
+    "note",
+    "video",
+    "done"
+  ],
+  "latestState": {
+    "stage": "done",
+    "mode": "auto",
+    "style_tags": [
+      "松弛通勤"
+    ],
+    "auto": {
+      "active": false,
+      "step": "done",
+      "label": "全套已出好",
+      "started_at": "2026-10-21T04:52:10.643809Z",
+      "estimate_points": 48
+    },
+    "garments": [
+      {
+        "asset_id": "130dd026-046a-4d9b-a333-fe6f408caaa1",
+        "category": "衬衫",
+        "color": "米白",
+        "material": "亚麻",
+        "style_tags": [
+          "短袖",
+          "宽松版型",
+          "翻领",
+          "单胸袋",
+          "纽扣前开"
+        ],
+        "url": "https://47.97.153.127:8443/media/130dd026-046a-4d9b-a333-fe6f408caaa1"
+      }
+    ],
+    "directions": [
+      {
+        "id": "direction-1",
+        "name": "窗边办公桌的早间通勤",
+        "scene": "上午的书桌前，侧窗自然光斜进来，桌面有笔记本与一杯水，虚化的浅色墙面作背景",
+        "mood": "安静、从容、刚开工的松弛感",
+        "palette": [
+          "米白",
+          "浅木色",
+          "柔和灰白"
+        ],
+        "why": "最贴 brief 的自然窗光与松弛通勤，衬衫的翻领、单胸袋在侧光下细节清晰，三张能覆盖全身、半身和细节",
+        "sample_title": "米白亚麻衬衫，上班穿得松弛",
+        "recommended": true,
+        "preview_status": "succeeded",
+        "preview_url": "https://47.97.153.127:8443/media/6c5f5d4b-1156-4853-8ff8-178d7feae698"
+      },
+      {
+        "id": "direction-2",
+        "name": "白墙楼梯口的出门前",
+        "scene": "公寓楼道拐角的浅色白墙与暖灰台阶，靠墙站立的自然光环境",
+        "mood": "干净、利落、出门前的轻快",
+        "palette": [
+          "米白",
+          "暖灰",
+          "淡奶油"
+        ],
+        "why": "用建筑感背景替代办公场景，宽松版型的轮廓在靠墙站立时更完整，适合想看版型的人",
+        "sample_title": "通勤只穿一件亚麻衬衫",
+        "recommended": false,
+        "preview_status": "succeeded",
+        "preview_url": "https://47.97.153.127:8443/media/64c3b925-d2bd-4ef7-82c9-566c3bf5b805"
+      },
+      {
+        "id": "direction-3",
+        "name": "午后咖啡馆靠窗位",
+        "scene": "咖啡馆窗边的木桌，桌面有杯子与手写纸片，窗外绿植透光成散景",
+        "mood": "放松、生活化、下班后的喘息",
+        "palette": [
+          "米白",
+          "抹茶绿",
+          "丁香棕"
+        ],
+        "why": "把通勤衬衫拉进生活场景，绿植散景给米白添一点颜色层次，适合做图文里更有氛围的一帧",
+        "sample_title": "下班后，衬衫还没换",
+        "recommended": false,
+        "preview_status": "succeeded",
+        "preview_url": "https://47.97.153.127:8443/media/90391c32-3220-4a7d-9dc8-bd9738fb9b25"
+      }
+    ],
+    "chosen_direction_id": "direction-1",
+    "script": {
+      "status": "confirmed",
+      "title_ideas": [
+        "米白亚麻衬衫，上班穿得松弛",
+        "窗边这束光，刚好照到胸袋",
+        "一件亚麻衬衫的通勤早晨"
+      ],
+      "cover": {
+        "scene": "上午书桌前，侧窗自然光斜入，桌面放着笔记本和一杯水，背景是虚化的浅色墙面",
+        "pose": "半身坐姿，身体微侧向窗，一只手搭在桌面，视线看向窗外",
+        "text_overlay": "松弛通勤，一件亚麻衬衫就够了"
+      },
+      "shots": [
+        {
+          "id": "shot-1",
+          "scene": "书桌前全身，侧窗光从左侧斜进来，桌面笔记本和一杯水，浅色墙面虚化",
+          "outfit_asset_ids": [
+            "130dd026-046a-4d9b-a333-fe6f408caaa1"
+          ],
+          "pose": "站姿半靠着桌沿，衬衫自然垂下，双手轻垂或一手搭桌边",
+          "camera": "平视中远景，稍微收一点广角，把桌面和窗光都收进画面",
+          "caption": "早上的光刚好落在桌前，衬衫就这样松着穿。"
+        },
+        {
+          "id": "shot-2",
+          "scene": "同一张书桌，人坐下，侧窗光打在肩线和翻领上",
+          "outfit_asset_ids": [
+            "130dd026-046a-4d9b-a333-fe6f408caaa1"
+          ],
+          "pose": "坐姿，身体侧向窗，一手轻扶桌沿，姿态放松不摆拍",
+          "camera": "半身平视，浅景深，背景墙面留白",
+          "caption": "宽松版型，坐下来也不会绷着。"
+        },
+        {
+          "id": "shot-3",
+          "scene": "靠近书桌的细节特写，侧光让亚麻纹理与纽扣更明显",
+          "outfit_asset_ids": [
+            "130dd026-046a-4d9b-a333-fe6f408caaa1"
+          ],
+          "pose": "只拍胸前局部，手指轻搭在门襟处，胸袋位于画面偏右",
+          "camera": "近景特写，45度侧光，对焦在胸袋与纽扣",
+          "caption": "翻领、单胸袋、前襟纽扣，亚麻的纹理在自然光里看得清。"
+        }
+      ],
+      "video": {
+        "prompt": "5秒短视频：上午书桌旁，侧窗自然光斜入，同一位模特穿着米白宽松短袖亚麻衬衫（翻领、单胸袋、纽扣前开），从站立半靠桌沿缓缓转向窗边，再轻扶桌面坐下，镜头缓慢推近到胸袋与纽扣细节，浅木色桌面、笔记本与一杯水入画，背景是虚化的柔和灰白墙面，整体松弛安静的通勤氛围。",
+        "duration": 5
+      },
+      "version": 1
+    },
+    "images": [
+      {
+        "id": "c8b1ab7c-d15c-520e-9376-cda1bf1700a6",
+        "shot_id": "shot-1",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/4d55f89b-e439-471d-bd23-a70acdcba5c1",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "无吊牌、价签、织标贴纸等杂物残留，符合要求；",
+            "衣服本体所有可见细节（版型、纽扣、口袋、面料纹理、颜色）高度还原；",
+            "人物姿势与背景变化不扣分。"
+          ],
+          "score": 98,
+          "auto_fixed": false
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1
+      },
+      {
+        "id": "a90b42d5-eb76-519a-af6b-2a48c82de4ba",
+        "shot_id": "shot-2",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/c74383b6-bd77-446d-993e-c53ce32b4c11",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "生成图中衣服本体完整还原：品类为亚麻短袖衬衫，版型宽松，米白色，面料纹理自然，5颗同色纽扣，左胸贴袋存在且形态一致；",
+            "原衣吊牌已正确移除，成品无任何标签、纸片、织标贴纸残留；",
+            "无错颜色、错版型、缺件问题。"
+          ],
+          "score": 98,
+          "auto_fixed": false,
+          "anchor_score": 95
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1,
+        "anchor_id": "c8b1ab7c-d15c-520e-9376-cda1bf1700a6"
+      },
+      {
+        "id": "262aadc9-29a1-5529-8c71-560be20c3643",
+        "shot_id": "shot-3",
+        "status": "succeeded",
+        "url": "https://47.97.153.127:8443/media/d6bfab16-edea-4d82-9082-4ecfb8846c5b",
+        "version": 1,
+        "parent_id": null,
+        "instruction": null,
+        "error": null,
+        "fidelity": {
+          "diffs": [
+            "服装本体还原高度精准：品类（亚麻短袖衬衫）、版型（宽松直身+翻领+单胸袋）、颜色（浅米白）、面料纹理（亚麻粗粝感）、纽扣（5颗米白圆扣）、口袋（左胸贴袋）全部一致；",
+            "原图吊牌已正确移除，生成图无任何标签、纸片、织标贴纸残留；",
+            "袖口卷边缝线轻微模糊，不影响整体还原质量"
+          ],
+          "score": 98,
+          "auto_fixed": false,
+          "anchor_score": 95
+        },
+        "region": null,
+        "edit_check": null,
+        "script_version": 1,
+        "anchor_id": "c8b1ab7c-d15c-520e-9376-cda1bf1700a6"
+      }
+    ],
+    "note": {
+      "title": "米白亚麻衬衫，上班穿得松弛",
+      "body": "早上的光刚好落在桌前，这件衬衫就那样松着穿☀️\n\n窗边的自然光斜进来，米白在浅木色桌面上显得很柔和。宽松直身的版型，肩线顺下来不局促，站着半靠桌沿也不会觉得衣服在身上撑着。\n\n坐下来的时候，翻领自然摊开，前襟的纽扣排在光里很清楚🔘 衬衫没有塞进裤腰，垂下来的衣摆让整个人看着更松弛一点。\n\n细节是最耐看的部分：左胸一个贴袋，五颗同色圆扣，亚麻的纹理在 45 度侧光下能看清那种粗粝的走向🧵 没有多余的装饰，全靠版型和面料撑住。\n\n搭配上其实很简单，米白配浅木色、灰白就是安全的组合，下装选同色系的浅色更顺，鞋子走平底乐福或帆布都行，通勤一整天也稳当。想再利落一点，把袖口卷起一折就够。\n\n一件衬衫，从早上的书桌到办公室，都不用费心换✨",
+      "tags": [
+        "松弛通勤穿搭",
+        "亚麻衬衫",
+        "米白衬衫",
+        "通勤日常",
+        "衬衫穿搭",
+        "自然光穿搭",
+        "极简通勤"
+      ],
+      "image_ids": [
+        "c8b1ab7c-d15c-520e-9376-cda1bf1700a6",
+        "a90b42d5-eb76-519a-af6b-2a48c82de4ba",
+        "262aadc9-29a1-5529-8c71-560be20c3643"
+      ],
+      "accepted_unverified_ids": [],
+      "ai_label": "内容含 AI 生成图片，发布时请勾选平台的 AI 内容声明。",
+      "cost_cny": 4.5874,
+      "cost_points": 45.9
+    },
+    "video": {
+      "status": "succeeded",
+      "job_id": "2af32bb8-9afe-5425-8f64-6c30352e5b91",
+      "url": "https://47.97.153.127:8443/media/07d830f4-7467-452c-9832-2fb7decce6ea",
+      "poster_url": "https://47.97.153.127:8443/media/4d55f89b-e439-471d-bd23-a70acdcba5c1"
+    },
+    "active_jobs": [],
+    "pending_action": null,
+    "cost_cny": 4.5874,
+    "cost_points": 45.9,
+    "last_message_id": "a12a9365-57b4-5476-a298-670b9db218e4",
+    "script_versions": [
+      {
+        "version": 1,
+        "checkpoint_id": "1f1cd0b4-2207-674a-8006-f55f4898cba2",
+        "created_at": "2026-10-21T04:52:46.295398+00:00",
+        "summary": "米白亚麻衬衫，上班穿得松弛 / 窗边这束光，刚好照到胸袋",
+        "current": true
+      }
+    ],
+    "budget": {
+      "tier": "free",
+      "daily_budget_cny": 100000,
+      "today_cost_cny": 4.5874,
+      "remaining_cny": 99995.4126,
+      "daily_budget_points": 1000000,
+      "today_cost_points": 45.9,
+      "remaining_points": 999954.1
+    }
+  },
+  "pageErrors": []
+}

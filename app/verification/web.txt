@@ -1,7 +1,7 @@
 Using src/app as the root directory for Expo Router.
 Starting Metro Bundler
 
-Web Bundled 394ms node_modules/expo-router/entry.js (1487 modules)
+Web Bundled 363ms node_modules/expo-router/entry.js (1568 modules)
 
 › Assets (47):
 assets/inspiration/studio-01.57b9611f3aae3ec0937fd1cd44705582.jpg (126KB)
@@ -47,22 +47,22 @@ node_modules/expo-router/assets/sitemap.412dd9275b6b48ad28f5e3d81bb1f626.png (46
 node_modules/expo-router/assets/unmatched.20e71bdf79e3a97bf55fd9e164041578.png (4.8KB)
 
 › web bundles (16):
-_expo/static/js/web/__common-74261fc80158b2629511a9ddb3cda01e.js (1.8MB)
+_expo/static/js/web/__common-cc39f3e678477701d5fc436233ab5cef.js (1.8MB)
 _expo/static/js/web/__expo-metro-runtime-8c088df87a31e4e6accd81c554ec290d.js (3.8KB)
 _expo/static/js/web/_layout-a2ef0e5ca68d200a5be4610b7821843b.js (16KB)
-_expo/static/js/web/[id]-1ad3fee2a5596f3f31439c5d0db35f1f.js (40KB)
-_expo/static/js/web/[id]-e85c747182b7d1a7883412be1ebd3d3f.js (77KB)
-_expo/static/js/web/[kind]-bb6851301b9260c449ce117b8691f7c5.js (2KB)
+_expo/static/js/web/[id]-1d50197111396b261e6cbcc64d9ffd67.js (40KB)
+_expo/static/js/web/[id]-ffad0a98b03dfb88bda7f0752a31bea8.js (77KB)
+_expo/static/js/web/[kind]-e6a80fc8477f41921c9e468f7fc23c08.js (2KB)
 _expo/static/js/web/about-33644122bdc26ccee3e64591c6f36b2f.js (4.2KB)
 _expo/static/js/web/account-c2efd271b28acc68cfc084059a52232a.js (5.1KB)
 _expo/static/js/web/assets-f656fa4795f50205f95bf3621256b56f.js (451B)
 _expo/static/js/web/delete-27e3586664e3e5eddabe6cbbc5edf756.js (2.4KB)
-_expo/static/js/web/entry-94c346a505919a4c34ac1f4f727d8575.js (1.1MB)
+_expo/static/js/web/entry-07fbd98c529329409b2042774778c528.js (1.1MB)
 _expo/static/js/web/forgot-e29228b4480bb0e30e8b424d861b12d5.js (2.8KB)
-_expo/static/js/web/index-3f2e9b31ea693ef758334d1f94fddb5b.js (16KB)
-_expo/static/js/web/login-9cc5057e172e906c37375bc839aa63e6.js (7KB)
-_expo/static/js/web/new-4aa8fd772c3bf4eadb7c4f71d2a7c632.js (20KB)
-_expo/static/js/web/settings-77ebe0ea9c079395bf0781fa9221aea6.js (12KB)
+_expo/static/js/web/index-0cf106216a5ff3463cc9d6c28e288e02.js (16KB)
+_expo/static/js/web/login-584aeac66ddc13410995a0bf5cd19168.js (7KB)
+_expo/static/js/web/new-975113c4b6a9abf22566ef70b7232eca.js (20KB)
+_expo/static/js/web/settings-8365955697c7442a09a2a7df1165cdc0.js (13KB)
 
 › Files (3):
 favicon.ico (15KB)

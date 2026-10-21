@@ -25,6 +25,7 @@ import { readPublishCheckpoint, writePublishCheckpoint } from '../../lib/publish
 import { observeGeneration } from '../../lib/notificationRuntime';
 import { applyNoteDraft, changeNoteDraft, cleanTag, draftFromNote, hasNoteDraftConflict, keepNoteDraft, limitTitle, moveDraftImage, NOTE_TITLE_LIMIT, readNoteDraft, readPreviousNoteDraft, reconcileNoteDraft, titleLength, writeNoteDraft, writePreviousNoteDraft, type NoteDraft } from '../../lib/noteDraft';
 import { localDraftStorage } from '../../lib/noteDraftStorage';
+import { previewUrl } from '../../lib/previewUrl';
 
 function PreviewImage({ id, url, index, onRefresh, disabled }: { id: string; url?: string; index: number; onRefresh: () => void; disabled?: boolean }) {
   const [failedUrl, setFailedUrl] = useState<string>();
@@ -373,7 +374,7 @@ function PreviewPage({ projectId }: { projectId?: string }) {
             <View style={styles.videoHeading}><Ionicons name="images-outline" size={18} color={colors.red} /><Text style={styles.videoTitle}>图片顺序</Text></View>
             <Text style={styles.checklistHint}>第一张作为封面，保存和发布时按这个顺序。</Text>
             {images.map((image, index) => <View key={image.id} style={styles.orderRow} testID={`note-image-order-${image.id}`}>
-              {image.url ? <FadeImage source={{ uri: image.url }} style={styles.orderThumbnail} /> : <View style={styles.orderThumbnail}><Ionicons name="image-outline" size={22} color={colors.muted} /></View>}
+              {image.url ? <FadeImage source={{ uri: previewUrl(image.url, 360) }} style={styles.orderThumbnail} /> : <View style={styles.orderThumbnail}><Ionicons name="image-outline" size={22} color={colors.muted} /></View>}
               <Text style={styles.orderLabel}>图片 {index + 1}{index === 0 ? ' · 封面' : ''}{image.manuallyAccepted ? ' · 手动采用' : ''}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 前移`} accessibilityState={{ disabled: index === 0 || preparing || saving }} disabled={index === 0 || preparing || saving} onPress={() => reorderImage(index, -1)} testID={`move-note-image-${image.id}-earlier`} style={[styles.orderButton, (index === 0 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-up" size={18} color={colors.redText} /></Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={`图片 ${index + 1} 后移`} accessibilityState={{ disabled: index === images.length - 1 || preparing || saving }} disabled={index === images.length - 1 || preparing || saving} onPress={() => reorderImage(index, 1)} testID={`move-note-image-${image.id}-later`} style={[styles.orderButton, (index === images.length - 1 || preparing || saving) && styles.disabledControl]}><Ionicons name="arrow-down" size={18} color={colors.redText} /></Pressable>

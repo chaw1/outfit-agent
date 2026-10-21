@@ -3,6 +3,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, layout, radius, space, type as typography } from '../theme';
+import { previewUrl } from '../lib/previewUrl';
 import { Badge, FadeImage } from './ui';
 
 type VideoPlayerProps = {
@@ -79,7 +80,7 @@ function VideoSurface({ uri, posterUrl, testID }: VideoPlayerProps) {
         onPress={() => { setStarted(true); player.play(); }}
         style={({ pressed }) => [styles.poster, pressed && styles.posterPressed]}
       >
-        <FadeImage source={{ uri: posterUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        <FadeImage source={{ uri: previewUrl(posterUrl, 1080) }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         <View style={styles.posterShade} />
         <View style={styles.videoBadge}><Badge label="AI生成" tone="inverse" /></View>
         <View style={styles.play}><Ionicons name="play" size={25} color={colors.white} /></View>

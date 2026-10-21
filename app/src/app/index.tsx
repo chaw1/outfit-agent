@@ -12,6 +12,7 @@ import { recentCompletions, subscribeCompletions } from '../lib/completionFeed';
 import { filterProjects } from '../lib/profile';
 import { inProgressProjects, otherProjects } from '../lib/projectProgress';
 import { layout, radius, space, studio, type } from '../theme';
+import { previewUrl } from '../lib/previewUrl';
 
 export default function Projects() {
   const { api, token, user, baseUrl } = useSession();
@@ -80,7 +81,7 @@ export default function Projects() {
   const others = otherProjects(visibleItems);
   function projectCard(item: Project, index: number, ongoing: boolean) {
     return <AnimatedEntry key={item.id} delay={index * 40}><Pressable testID={ongoing ? `progress-${item.id}` : `project-${item.id}`} accessibilityRole="button" accessibilityLabel={`打开这组片 ${item.title}`} onLongPress={() => chooseCandidate(item)} delayLongPress={500} onPress={() => { if (!candidateRef.current) openProject(item.id); }} style={({ pressed }) => ({ flexDirection: 'row', borderWidth: 1, borderColor: pressed ? studio.accent : studio.line, backgroundColor: pressed ? studio.surface : studio.glass, borderRadius: radius.md, padding: space.md, gap: space.md, alignItems: 'center', transform: [{ scale: pressed ? 0.985 : 1 }] })}>
-      {item.cover_url ? <FadeImage source={{ uri: item.cover_url }} style={local.cover} resizeMode="cover" accessibilityLabel={`${item.title}封面`} /> : <View style={[local.cover, { alignItems: 'center', justifyContent: 'center' }]}><Ionicons name="shirt-outline" size={26} color={studio.muted} /></View>}
+      {item.cover_url ? <FadeImage source={{ uri: previewUrl(item.cover_url) }} style={local.cover} resizeMode="cover" accessibilityLabel={`${item.title}封面`} /> : <View style={[local.cover, { alignItems: 'center', justifyContent: 'center' }]}><Ionicons name="shirt-outline" size={26} color={studio.muted} /></View>}
       <View style={{ flex: 1, gap: space.sm }}><Text style={{ ...type.badge, color: studio.muted, letterSpacing: 1 }}>{item.brand}</Text><Text numberOfLines={2} style={{ ...type.subtitle, color: studio.ink }}>{item.title}</Text>{ongoing ? <Text style={{ ...type.caption, color: item.progress?.status === 'generating' ? studio.generating : studio.muted }}>{item.progress?.label}</Text> : <Badge label={item.progress?.label || stageNames[item.stage]} tone={['done', 'note'].includes(item.stage) ? 'success' : 'neutral'} />}{!ongoing && <Text style={{ ...type.caption, color: studio.subtle }}>{new Date(item.updated_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 更新</Text>}</View>
       {ongoing && <Text style={{ ...type.label, color: studio.ink }}>继续</Text>}
       <Pressable accessibilityRole="button" accessibilityLabel={`删除这组片 ${item.title}`} onPress={event => { event.stopPropagation(); chooseCandidate(item); }} style={({ pressed }) => ({ minWidth: layout.touch, minHeight: layout.touch, borderRadius: radius.sm, backgroundColor: pressed ? studio.softAccent : 'transparent', alignItems: 'center', justifyContent: 'center' })}><Ionicons name="trash-outline" size={18} color={studio.muted} /></Pressable>

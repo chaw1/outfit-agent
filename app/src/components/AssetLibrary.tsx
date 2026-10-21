@@ -6,6 +6,7 @@ import type { Asset } from '../api/types';
 import { useSession } from '../context/Session';
 import { hideAssetLibrary, loadLibraryModels, useLibraryModels, type LibraryAsset, type LibraryKind } from '../lib/assets';
 import { colors, layout, radius, space, studio, type } from '../theme';
+import { previewUrl } from '../lib/previewUrl';
 import { Badge, Button, FadeImage, Header, IconButton, Notice, Page, Skeleton, StatePanel, Toast, errorText } from './ui';
 
 const tabs: { kind: LibraryKind; title: string }[] = [{ kind: 'model', title: '我的模特' }, { kind: 'garment', title: '我的衣服' }, { kind: 'image', title: '我的成片' }];
@@ -73,7 +74,7 @@ export function GarmentPicker({ selectedIds, onSelect, disabled = false }: { sel
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}><Page tone="studio"><Header title="我的衣服" onBack={() => setOpen(false)} /><ScrollView contentContainerStyle={local.content}>
       {!!error && <Notice text={error} onRetry={() => setRetry(value => value + 1)} />}
       {loading ? <View accessibilityRole="progressbar" accessibilityLabel="正在加载我的衣服"><Skeleton height={layout.touch * 3} /></View> : !items.length && !error ? <StatePanel icon="shirt-outline" title="我的衣服" description="拍过的片都会留在这里" /> : null}
-      {!loading && items.map(item => <Pressable key={item.id} testID={`pick-garment-${item.id}`} accessibilityRole="button" accessibilityLabel={`选择我的衣服 ${item.name || item.project_title || '这件衣服'}`} accessibilityState={{ disabled: selectedIds.includes(item.id), selected: selectedIds.includes(item.id) }} disabled={selectedIds.includes(item.id)} onPress={() => { onSelect({ ...item, kind: 'garment' }); setOpen(false); }} style={({ pressed }) => [local.pickerCard, pressed && local.pressed]}><FadeImage source={{ uri: item.url }} style={local.pickerImage} resizeMode="cover" /><View style={local.pickerDescription}><Text style={local.name}>{item.name || item.project_title || '我的衣服'}</Text><Text style={local.body}>{selectedIds.includes(item.id) ? '已添加' : '用这件拍一组新片'}</Text></View></Pressable>)}
+      {!loading && items.map(item => <Pressable key={item.id} testID={`pick-garment-${item.id}`} accessibilityRole="button" accessibilityLabel={`选择我的衣服 ${item.name || item.project_title || '这件衣服'}`} accessibilityState={{ disabled: selectedIds.includes(item.id), selected: selectedIds.includes(item.id) }} disabled={selectedIds.includes(item.id)} onPress={() => { onSelect({ ...item, kind: 'garment' }); setOpen(false); }} style={({ pressed }) => [local.pickerCard, pressed && local.pressed]}><FadeImage source={{ uri: previewUrl(item.url) }} style={local.pickerImage} resizeMode="cover" /><View style={local.pickerDescription}><Text style={local.name}>{item.name || item.project_title || '我的衣服'}</Text><Text style={local.body}>{selectedIds.includes(item.id) ? '已添加' : '用这件拍一组新片'}</Text></View></Pressable>)}
     </ScrollView></Page></Modal>
   </View>;
 }
@@ -143,7 +144,7 @@ export function AssetLibrary() {
       {loading && !items.length ? <View accessibilityRole="progressbar" accessibilityLabel="正在加载素材库" style={local.grid}>{[0, 1].map(index => <Skeleton key={index} width={tileWidth} height={tileWidth / layout.thumbnailRatio} />)}</View> : null}
       {!loading && !items.length && !error ? <StatePanel icon={kind === 'garment' ? 'shirt-outline' : kind === 'model' ? 'person-outline' : 'images-outline'} title={tabs.find(tab => tab.kind === kind)!.title} description="拍过的片都会留在这里" /> : null}
       <View style={local.grid}>{items.map(item => <View key={item.id} testID={`library-${item.id}`} style={[local.tile, { width: tileWidth }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`查看${title(item)}`} onPress={() => setPreview(item)} style={local.imageFrame} testID={`library-image-${item.id}`}><FadeImage source={{ uri: item.url }} style={local.image} resizeMode="cover" accessibilityLabel={title(item)} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`查看${title(item)}`} onPress={() => setPreview(item)} style={local.imageFrame} testID={`library-image-${item.id}`}><FadeImage source={{ uri: previewUrl(item.url) }} style={local.image} resizeMode="cover" accessibilityLabel={title(item)} /></Pressable>
         <View style={local.details}><View style={local.labels}><Badge label={item.source === 'generated' ? '成片' : '上传'} />{kind === 'model' && user?.profile?.model_asset_ids[0] === item.id ? <Badge label="默认" tone="brand" /> : null}</View><Text numberOfLines={2} style={local.name}>{title(item)}</Text>
           {kind === 'model' ? <><Button title="设为默认" variant="secondary" disabled={busy || user?.profile?.model_asset_ids[0] === item.id} onPress={() => void makeDefault(item)} /><Button title="删除" variant="ghost" disabled={busy} onPress={() => setCandidate(item)} /></> : null}
           {kind === 'garment' ? <><Button title="用这件拍一组新片" variant="secondary" onPress={() => router.push({ pathname: '/projects/new', params: { garment: item.id } })} /><Button title="删除" variant="ghost" disabled={busy} onPress={() => setCandidate(item)} /></> : null}
