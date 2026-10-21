@@ -27,6 +27,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from app.config import settings
 from app.costs import image_cost_cny, video_cost_cny
 from app.errors import AppError
+from app.media import erase_label
 from app.models import Asset, Project, UsageLedger
 from app.observability import log_model
 from app.runtime_settings import (
@@ -445,6 +446,8 @@ class ProviderHub:
                 image.paste(rgba, mask=rgba.getchannel("A"))
             else:
                 image = image.convert("RGB")
+            if asset.source == "generated" and not vision:
+                image = erase_label(image)
             longest_side = 1024 if vision else 1536
             image.thumbnail((longest_side, longest_side))
             output = io.BytesIO()

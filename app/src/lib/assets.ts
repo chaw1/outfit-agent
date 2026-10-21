@@ -3,7 +3,7 @@ import { ApiClient, ApiError } from '../api/client';
 import type { Asset, OutfitImage, User } from '../api/types';
 import { useSession } from '../context/Session';
 
-export type LibraryKind = 'model' | 'garment' | 'image';
+export type LibraryKind = 'model' | 'garment' | 'image' | 'video';
 export interface LibraryAsset extends Omit<Asset, 'kind'> {
   kind: LibraryKind | 'reference';
   project_id: string | null;
@@ -11,6 +11,8 @@ export interface LibraryAsset extends Omit<Asset, 'kind'> {
   name?: string;
   analysis?: { name?: string };
   in_profile: boolean;
+  /** 短片的封面图（首帧），只在 kind=video 时出现。 */
+  poster_url?: string | null;
 }
 export interface AssetPage { items: LibraryAsset[]; total: number }
 export interface SavedModel { asset: Asset & { analysis?: { name?: string } }; user: User }

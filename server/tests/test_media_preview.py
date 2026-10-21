@@ -118,3 +118,16 @@ def test_concurrent_first_previews_both_succeed(media_dir):
         results = list(pool.map(lambda _: preview_path(asset, 360), range(4)))
     assert all(item.is_file() for item in results)
     assert not list(media_dir.rglob("*.tmp"))
+
+
+def test_erase_label_removes_disclosure_box_before_reuse_as_reference():
+    from app.media import erase_label, label_bounds, label_generated_image
+
+    labelled = label_generated_image(_png(1536, 2048), "mock-image")
+    with Image.open(io.BytesIO(labelled)) as image:
+        image = image.convert("RGB")
+        left, top, right, bottom = label_bounds(image.size)
+        assert image.getpixel(((left + right) // 2, (top + bottom) // 2)) != (240, 200, 60)
+        cleaned = erase_label(image)
+        assert cleaned.getpixel(((left + right) // 2, (top + bottom) // 2)) == (240, 200, 60)
+        assert cleaned.getpixel((left - 2, top - 2)) == (240, 200, 60)

@@ -1123,8 +1123,13 @@ export async function createMockServer(options = {}) {
         const kind = url.searchParams.get('kind');
         const limit = Number(url.searchParams.get('limit') ?? 30);
         const offset = Number(url.searchParams.get('offset') ?? 0);
-        if (!['model', 'garment', 'image'].includes(kind) || !Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0) throw failure(422, 'INVALID_ASSET_QUERY', '请选择我的模特、我的衣服或我的成片，并填写有效分页');
-        const items = kind === 'image'
+        if (!['model', 'garment', 'image', 'video'].includes(kind) || !Number.isInteger(limit) || limit < 1 || limit > 100 || !Number.isInteger(offset) || offset < 0) throw failure(422, 'INVALID_ASSET_QUERY', '请选择我的模特、我的衣服或我的成片，并填写有效分页');
+        const items = kind === 'video'
+          ? db.projects.filter((project) => project.ownerId === user.id && project.state.video?.status === 'succeeded' && project.state.video.assetId).flatMap((project) => {
+            const asset = db.assets.find((item) => item.id === project.state.video.assetId && item.ownerId === user.id);
+            return asset ? [{ ...libraryAsset(asset, user, base, project, 'video'), poster_url: project.state.video.posterAssetId ? mediaUrl(project.state.video.posterAssetId, base) : null }] : [];
+          })
+          : kind === 'image'
           ? db.projects.filter((project) => project.ownerId === user.id).flatMap((project) => project.state.images.filter((image) => image.status === 'succeeded' && image.assetId).flatMap((image) => {
             const asset = db.assets.find((item) => item.id === image.assetId && item.ownerId === user.id);
             return asset ? [libraryAsset(asset, user, base, project, 'image')] : [];

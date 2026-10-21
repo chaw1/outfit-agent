@@ -66,6 +66,17 @@ def library_api(tmp_path, monkeypatch):
                                 project_id=project.id, kind=kind, status=status,
                                 result_asset_id=asset_id, dedupe_key=f"{user.id}-{suffix}",
                                 payload={"image_id": f"{user.id}-{suffix}", "purpose": purpose}))
+        for user in (owner, other):
+            poster_id, video_id = f"{user.id}-image-asset", f"{user.id}-video-asset"
+            (settings.media_dir / f"{video_id}.mp4").write_bytes(b"fake-mp4")
+            session.add(Asset(id=video_id, user_id=user.id, project_id=f"{user.id}-project",
+                              kind="reference", source="generated", path=f"{video_id}.mp4",
+                              mime="video/mp4"))
+            session.flush()
+            session.add(Job(id=f"{user.id}-video", user_id=user.id,
+                            project_id=f"{user.id}-project", kind="video", status="succeeded",
+                            result_asset_id=video_id, dedupe_key=f"{user.id}-video",
+                            payload={"image_asset_id": poster_id, "poster_asset_id": poster_id}))
         for kind in ("model", "garment"):
             path = f"upload-{kind}.png"
             (settings.media_dir / path).write_bytes(image_bytes)
@@ -465,3 +476,18 @@ def test_library_routes_require_login(library_api):
     response = client.post("/api/me/models/from-image", json={"image_id": "owner-image"})
     assert response.status_code == 401
     assert client.delete("/api/me/assets/upload-garment").status_code == 401
+
+
+def test_library_lists_own_completed_videos_with_poster_and_refuses_delete(library_api):
+    env = library_api
+    listing = env.client.get("/api/me/assets", params={"kind": "video"}).json()
+    assert listing["total"] == 1
+    item = listing["items"][0]
+    assert item["id"] == "owner-video-asset" and item["project_title"] == "操场那组"
+    assert item["url"].startswith("http")
+    assert item["poster_url"] and "owner-image-asset" in item["poster_url"]
+    assert env.client.delete("/api/me/assets/owner-video-asset").status_code == 409
+    with env.factory() as session:
+        session.get(Project, "owner-project").deleted_at = utcnow()
+        session.commit()
+    assert env.client.get("/api/me/assets", params={"kind": "video"}).json()["total"] == 0

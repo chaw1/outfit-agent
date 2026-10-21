@@ -265,6 +265,21 @@ def label_generated_image(data: bytes, model: str, *, draw_label: bool = True) -
     return _generated_png(image, model)
 
 
+def erase_label(image: Image.Image) -> Image.Image:
+    """Cover the disclosure box with the strip right above it (mirrored).
+
+    成片再拿去当改图 / 视频首帧的参考时，右下角的标识会被模型当成画面内容照着画，
+    改一版叠一层。参考图先把这个固定区域抹掉，成品落盘时再统一盖一次标识。
+    """
+    left, top, right, bottom = label_bounds(image.size)
+    height = bottom - top
+    if height <= 0 or top - height < 0:
+        return image
+    patch = image.crop((left, top - height, right, top)).transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+    image.paste(patch, (left, top))
+    return image
+
+
 def label_bounds(size: tuple[int, int]) -> tuple[int, int, int, int]:
     """The inherited disclosure occupies this exact pixel box on every version."""
     width, height = size

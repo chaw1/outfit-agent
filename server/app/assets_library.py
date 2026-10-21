@@ -28,6 +28,7 @@ class LibraryAssetOutput(AssetOutput):
     project_title: str | None
     name: str | None = None
     in_profile: bool
+    poster_url: str | None = None
 
 
 class ModelFromImageOutput(BaseModel):
@@ -50,6 +51,17 @@ def completed_images(user_id: str):
         Job.user_id == user_id, Job.kind.in_(["image", "edit"]), Job.status == "succeeded",
         or_(Job.payload["purpose"].as_string().is_(None),
             Job.payload["purpose"].as_string() != "preview"),
+        Project.user_id == user_id, Project.deleted_at.is_(None),
+    )
+
+
+def completed_videos(user_id: str):
+    """成片短片：只列生成成功、所属项目未删除的视频任务。"""
+    return select(Asset, Project, Job).join(Job, Job.result_asset_id == Asset.id).join(
+        Project, Project.id == Job.project_id,
+    ).where(
+        Asset.user_id == user_id, Asset.source == "generated", Asset.mime.startswith("video/"),
+        Job.user_id == user_id, Job.kind == "video", Job.status == "succeeded",
         Project.user_id == user_id, Project.deleted_at.is_(None),
     )
 
@@ -108,10 +120,26 @@ def model_from_image(
 
 @router.get("/api/me/assets", response_model=LibraryAssetsOutput)
 def list_assets(
-    kind: Literal["model", "garment", "image"],
+    kind: Literal["model", "garment", "image", "video"],
     limit: int = Query(default=50, ge=1, le=100), offset: int = Query(default=0, ge=0),
     user: User = Depends(current_user), session: Session = Depends(get_session),
 ):
+    if kind == "video":
+        query = completed_videos(user.id)
+        total = session.scalar(select(func.count()).select_from(
+            query.with_only_columns(Asset.id).distinct().subquery(),
+        ))
+        rows = session.execute(query.distinct().order_by(
+            Asset.created_at.desc(), Asset.id.desc(),
+        ).limit(limit).offset(offset)).all()
+        items = []
+        for asset, project, job in rows:
+            poster = session.get(Asset, job.payload.get("poster_asset_id") or "")
+            items.append({
+                **library_asset(asset, project, user),
+                "poster_url": asset_dict(poster)["url"] if poster else None,
+            })
+        return {"items": items, "total": total}
     query = completed_images(user.id) if kind == "image" else select(Asset, Project).outerjoin(
         Project, and_(Project.id == Asset.project_id, Project.user_id == user.id),
     ).where(
@@ -172,7 +200,7 @@ def delete_asset(
                 "ASSET_IN_USE", "这件衣服正在被以下项目使用：" + "、".join(titles) + "。", 409,
             )
     else:
-        raise AppError("PROJECT_ASSET", "成片随项目保存，请到项目中删除这组片。", 409)
+        raise AppError("PROJECT_ASSET", "成片和短片随项目保存，请到项目中删除这组片。", 409)
 
     session.execute(update(Asset).where(Asset.parent_id == asset.id).values(parent_id=None))
     session.execute(update(Job).where(Job.result_asset_id == asset.id).values(result_asset_id=None))

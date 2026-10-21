@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -8,8 +9,9 @@ import { hideAssetLibrary, loadLibraryModels, useLibraryModels, type LibraryAsse
 import { colors, layout, radius, space, studio, type } from '../theme';
 import { previewUrl } from '../lib/previewUrl';
 import { Badge, Button, FadeImage, Header, IconButton, Notice, Page, Skeleton, StatePanel, Toast, errorText } from './ui';
+import { VideoPlayer } from './VideoPlayer';
 
-const tabs: { kind: LibraryKind; title: string }[] = [{ kind: 'model', title: '我的模特' }, { kind: 'garment', title: '我的衣服' }, { kind: 'image', title: '我的成片' }];
+const tabs: { kind: LibraryKind; title: string }[] = [{ kind: 'model', title: '我的模特' }, { kind: 'garment', title: '我的衣服' }, { kind: 'image', title: '我的成片' }, { kind: 'video', title: '我的短片' }];
 const PAGE_SIZE = 30;
 
 export function AssetLibraryEntry({ compact = false }: { compact?: boolean }) {
@@ -134,7 +136,7 @@ export function AssetLibrary() {
     } catch (failure) { if (isCurrentSession(token, baseUrl)) { setError(errorText(failure)); setCandidate(undefined); } }
     finally { setBusy(false); }
   }
-  const title = (item: LibraryAsset) => item.name || item.analysis?.name || item.project_title || (item.kind === 'model' ? '我的模特' : item.kind === 'garment' ? '我的衣服' : '我的成片');
+  const title = (item: LibraryAsset) => item.name || item.analysis?.name || item.project_title || (item.kind === 'model' ? '我的模特' : item.kind === 'garment' ? '我的衣服' : item.kind === 'video' ? '我的短片' : '我的成片');
   if (library.supported === false) return <View style={local.content}><StatePanel icon="images-outline" title="当前服务未开通素材库" description="拍过的片都会留在这里" /></View>;
   return <View style={local.root}>
     <View accessibilityRole="tablist" style={local.tabs}>{tabs.map(tab => <Pressable key={tab.kind} accessibilityRole="tab" accessibilityLabel={tab.title} accessibilityState={{ selected: kind === tab.kind }} aria-selected={kind === tab.kind} testID={`library-tab-${tab.kind}`} onPress={() => { if (kind !== tab.kind) { setKind(tab.kind); setNotice(''); } }} style={({ pressed }) => [local.tab, kind === tab.kind && local.tabSelected, pressed && local.pressed]}><Text style={[local.tabText, kind === tab.kind && local.selectedText]}>{tab.title}</Text></Pressable>)}</View>
@@ -142,19 +144,19 @@ export function AssetLibrary() {
       {!!notice && <Toast text={notice} onDismiss={() => setNotice('')} />}
       {!!error && <Notice text={error} onRetry={() => void load(items.length ? items.length : 0)} />}
       {loading && !items.length ? <View accessibilityRole="progressbar" accessibilityLabel="正在加载素材库" style={local.grid}>{[0, 1].map(index => <Skeleton key={index} width={tileWidth} height={tileWidth / layout.thumbnailRatio} />)}</View> : null}
-      {!loading && !items.length && !error ? <StatePanel icon={kind === 'garment' ? 'shirt-outline' : kind === 'model' ? 'person-outline' : 'images-outline'} title={tabs.find(tab => tab.kind === kind)!.title} description="拍过的片都会留在这里" /> : null}
+      {!loading && !items.length && !error ? <StatePanel icon={kind === 'garment' ? 'shirt-outline' : kind === 'model' ? 'person-outline' : kind === 'video' ? 'videocam-outline' : 'images-outline'} title={tabs.find(tab => tab.kind === kind)!.title} description="拍过的片都会留在这里" /> : null}
       <View style={local.grid}>{items.map(item => <View key={item.id} testID={`library-${item.id}`} style={[local.tile, { width: tileWidth }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`查看${title(item)}`} onPress={() => setPreview(item)} style={local.imageFrame} testID={`library-image-${item.id}`}><FadeImage source={{ uri: previewUrl(item.url) }} style={local.image} resizeMode="cover" accessibilityLabel={title(item)} /></Pressable>
-        <View style={local.details}><View style={local.labels}><Badge label={item.source === 'generated' ? '成片' : '上传'} />{kind === 'model' && user?.profile?.model_asset_ids[0] === item.id ? <Badge label="默认" tone="brand" /> : null}</View><Text numberOfLines={2} style={local.name}>{title(item)}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={`查看${title(item)}`} onPress={() => setPreview(item)} style={local.imageFrame} testID={`library-image-${item.id}`}><FadeImage source={{ uri: previewUrl(item.kind === 'video' ? (item.poster_url || item.url) : item.url) }} style={local.image} resizeMode="cover" accessibilityLabel={title(item)} />{item.kind === 'video' ? <View style={local.playBadge}><Ionicons name="play" size={16} color={colors.white} /></View> : null}</Pressable>
+        <View style={local.details}><View style={local.labels}><Badge label={item.kind === 'video' ? '5 秒短片' : item.source === 'generated' ? '成片' : '上传'} />{kind === 'model' && user?.profile?.model_asset_ids[0] === item.id ? <Badge label="默认" tone="brand" /> : null}</View><Text numberOfLines={2} style={local.name}>{title(item)}</Text>
           {kind === 'model' ? <><Button title="设为默认" variant="secondary" disabled={busy || user?.profile?.model_asset_ids[0] === item.id} onPress={() => void makeDefault(item)} /><Button title="删除" variant="ghost" disabled={busy} onPress={() => setCandidate(item)} /></> : null}
           {kind === 'garment' ? <><Button title="用这件拍一组新片" variant="secondary" onPress={() => router.push({ pathname: '/projects/new', params: { garment: item.id } })} /><Button title="删除" variant="ghost" disabled={busy} onPress={() => setCandidate(item)} /></> : null}
-          {kind === 'image' && item.project_id ? <Button title="回到这组片" variant="secondary" onPress={() => router.push({ pathname: '/projects/[id]', params: { id: item.project_id! } })} /> : null}
+          {(kind === 'image' || kind === 'video') && item.project_id ? <Button title="回到这组片" variant="secondary" onPress={() => router.push({ pathname: '/projects/[id]', params: { id: item.project_id! } })} /> : null}
         </View>
       </View>)}</View>
       {items.length < total && items.length > 0 ? <Button title="再看一些" variant="secondary" loading={loading} onPress={() => void load(items.length)} /> : null}
     </ScrollView>
     <Modal visible={!!candidate} transparent animationType="fade" onRequestClose={() => { if (!busy) setCandidate(undefined); }}><View style={local.shade}><View accessibilityViewIsModal testID="library-delete-confirmation" style={local.dialog}><Text style={local.dialogTitle}>确认删除{candidate?.kind === 'model' ? '这位模特' : '这件衣服'}？</Text><Text style={local.body}>{candidate?.kind === 'model' ? (candidate.source === 'generated' ? '会从我的模特与默认出镜中移除并删除文件；正在被片场使用的模特不能删。' : '会从我的模特与默认出镜中移除，已拍的片不受影响。') : '没有被片场使用的衣服可以删除。'}</Text><Button title="确认删除" variant="danger" loading={busy} onPress={() => void remove()} /><Button title="取消" variant="secondary" disabled={busy} onPress={() => setCandidate(undefined)} /></View></View></Modal>
-    <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(undefined)}><View style={local.shade}><View accessibilityViewIsModal testID="library-preview" style={local.preview}><Text style={local.dialogTitle}>{preview ? title(preview) : ''}</Text>{preview && <FadeImage source={{ uri: preview.url }} style={local.previewImage} resizeMode="contain" accessibilityLabel="素材库大图" />}{preview?.project_id ? <Button title="回到这组片" variant="secondary" onPress={() => { const id = preview.project_id!; setPreview(undefined); router.push({ pathname: '/projects/[id]', params: { id } }); }} /> : null}<Button title="关闭大图" variant="ghost" onPress={() => setPreview(undefined)} /></View></View></Modal>
+    <Modal visible={!!preview} transparent animationType="fade" onRequestClose={() => setPreview(undefined)}><View style={local.shade}><View accessibilityViewIsModal testID="library-preview" style={local.preview}><Text style={local.dialogTitle}>{preview ? title(preview) : ''}</Text>{preview && (preview.kind === 'video' ? <VideoPlayer uri={preview.url} posterUrl={preview.poster_url || undefined} autoPlay /> : <FadeImage source={{ uri: preview.url }} style={local.previewImage} resizeMode="contain" accessibilityLabel="素材库大图" />)}{preview?.project_id ? <Button title="回到这组片" variant="secondary" onPress={() => { const id = preview.project_id!; setPreview(undefined); router.push({ pathname: '/projects/[id]', params: { id } }); }} /> : null}<Button title={preview?.kind === 'video' ? '关闭' : '关闭大图'} variant="ghost" onPress={() => setPreview(undefined)} /></View></View></Modal>
   </View>;
 }
 
@@ -166,6 +168,7 @@ const local = StyleSheet.create({
   pickerDescription: { flex: 1, gap: space.sm },
   root: { flex: 1 },
   tabs: { flexDirection: 'row', padding: space.lg, gap: space.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: studio.line },
+  playBadge: { position: 'absolute', right: space.sm, bottom: space.sm, width: 32, height: 32, borderRadius: radius.md, backgroundColor: colors.red, alignItems: 'center', justifyContent: 'center', paddingLeft: space.xs },
   tab: { flex: 1, minHeight: layout.touch, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, backgroundColor: studio.canvas, paddingHorizontal: space.xs },
   tabSelected: { backgroundColor: studio.softAccent },
   tabText: { ...type.label, color: studio.muted },
