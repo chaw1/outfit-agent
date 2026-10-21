@@ -179,6 +179,9 @@ export interface OutfitImage {
   script_version?: number;
   region?: ImageRegion;
   edit_check?: EditCheck;
+  preset?: 'background' | 'outpaint' | 'upscale';
+  direction?: 'top' | 'bottom' | 'horizontal' | 'all';
+  upscale_method?: 'provider_redraw' | 'pillow_lanczos';
 }
 
 export type Image = OutfitImage;
@@ -207,14 +210,14 @@ export type Card = (
 export type Action =
   | { type: 'choose_direction'; direction_id: string }
   | { type: 'confirm_script' }
-  | { type: 'edit_image'; image_id: string; instruction: string; region?: ImageRegion; mask_strokes?: ImageMaskStrokes; attempt?: string }
+  | { type: 'edit_image'; image_id: string; instruction: string; region?: ImageRegion; mask_strokes?: ImageMaskStrokes; attempt?: string; preset?: 'background' | 'outpaint' | 'upscale'; background?: string; direction?: 'top' | 'bottom' | 'horizontal' | 'all' }
   | { type: 'approve_images'; image_ids: string[]; accept_unverified?: string[] }
   | { type: 'confirm_video'; image_id: string }
   | { type: 'restore_script'; checkpoint_id: string }
   | { type: 'regenerate_reply'; message_id: string };
 
 export interface MessageTrace {
-  tool: 'chat' | 'propose_directions' | 'write_script' | 'revise_script' | 'edit_image' | 'write_note' | 'generate_images' | 'generate_video' | 'restore_script';
+  tool: 'chat' | 'propose_directions' | 'write_script' | 'revise_script' | 'edit_image' | 'write_note' | 'generate_images' | 'generate_video' | 'restore_script' | 'background' | 'outpaint' | 'upscale';
   model: string;
   duration_ms: number;
   cost_cny: number;

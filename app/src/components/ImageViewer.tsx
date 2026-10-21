@@ -12,11 +12,14 @@ import { feedback } from '../lib/haptics';
 import { clamp, constrainTransform, containRect, editActionForResult, IDENTITY_TRANSFORM, imageVersionFamily, regionFromPoints, screenToImage, zoomAtPoint, type ImageTransform, type Point, type Size } from '../lib/imageGeometry';
 import { colors, layout, motion, radius, space, type as typography } from '../theme';
 import { previewUrl } from '../lib/previewUrl';
+import { useSession } from '../context/Session';
+import { BACKGROUND_SCENES, OUTPAINT_DIRECTIONS, QUICK_TOOL_NAMES, quickToolAction, type OutpaintDirection, type QuickTool } from '../lib/quickTools';
+import { formatPoints, pointsValue } from '../lib/transparency';
 import { FidelityBadge } from './GenerationInfo';
 import { Badge, FadeImage, ProgressStrip } from './ui';
 import { SaveAsModel } from './SaveAsModel';
 
-export type ViewerMode = 'view' | 'local' | 'whole' | 'compare';
+export type ViewerMode = 'view' | 'local' | 'whole' | 'compare' | QuickTool;
 type DrawingTool = 'brush' | 'rectangle' | 'pan';
 type EditAction = Extract<Action, { type: 'edit_image' }>;
 export interface ImageViewerProps {
@@ -65,6 +68,21 @@ function TrackSlider({ value, min = 0, max = 1, label, testID, onChange }: { val
 }
 
 export function ImageViewer({ images, editActions = [], initialImageId, initialMode = 'view', busy = false, canEdit = true, stage, pendingAction, adoptedImageIds = [], onAdopt, confirmationOverlay, onDismissConfirmation, onClose, onStartNew, onAction, onReference }: ImageViewerProps) {
+  const { api, user } = useSession();
+  const [scene, setScene] = useState<string>(BACKGROUND_SCENES[0]);
+  const [direction, setDirection] = useState<OutpaintDirection>('all');
+  const [quickConfirmation, setQuickConfirmation] = useState<EditAction>();
+  const [editEstimate, setEditEstimate] = useState<number>();
+  const [quoteError, setQuoteError] = useState('');
+  const [quoteRetry, setQuoteRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    void api.editQuote().then(quote => {
+      if (!Number.isFinite(quote.estimate_points) || quote.estimate_points < 0) throw new Error('invalid quote');
+      if (active) { setEditEstimate(quote.estimate_points); setQuoteError(''); }
+    }).catch(() => { if (active) setQuoteError('估点暂时没取到，请重试。'); });
+    return () => { active = false; };
+  }, [api, quoteRetry]);
   const [currentId, setCurrentId] = useState(initialImageId);
   const inNote = ['note', 'video', 'done'].includes(stage ?? '');
   const [mode, setMode] = useState<ViewerMode>(canEdit ? initialMode : initialMode === 'local' || initialMode === 'whole' ? 'view' : initialMode);
@@ -104,7 +122,11 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
   const parent = images.find(image => image.id === current?.parent_id && image.status === 'succeeded' && image.url);
   const rect = useMemo(() => containRect(imageSize, viewport), [imageSize, viewport]);
   const localEditing = mode === 'local';
-  const editing = localEditing || mode === 'whole';
+  const quickTool = mode in QUICK_TOOL_NAMES ? mode as QuickTool : undefined;
+  const editing = localEditing || mode === 'whole' || Boolean(quickTool);
+  const budget = pointsValue(user?.daily_budget_points, user?.daily_budget_cny);
+  const used = pointsValue(user?.today_cost_points, user?.today_cost_cny) ?? 0;
+  const insufficient = budget !== undefined && editEstimate !== undefined && budget - used < editEstimate;
   const compactKeyboard = editing && keyboardVisible;
   const comparing = mode === 'compare' && Boolean(parent?.url);
   const pendingImage = pending ? images.find(image => image.parent_id === pending.parentId && !pending.knownIds.has(image.id)) : undefined;
@@ -314,6 +336,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
 
   function changeMode(next: ViewerMode) {
     setMode(next);
+    setQuickConfirmation(undefined);
     setError(undefined);
     if (next === 'compare') setCompare(.5);
     if (next === 'local' || next === 'whole') setInstruction('');
@@ -326,7 +349,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
     feedback();
   }
 
-  async function sendEdit(action?: EditAction) {
+  async function sendEdit(action?: EditAction, fresh = Boolean(action)) {
     if (!current || generationBusy || !canEdit) return;
     let payload = action;
     if (!payload) {
@@ -337,7 +360,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
       if (localEditing && selectionTool === 'rectangle' && region) payload.region = { ...region };
       else if (localEditing) payload.mask_strokes = { brush, strokes: strokes.map(stroke => stroke.map(point => ({ ...point }))) };
     }
-    const submission = prepareEditSubmission(payload, transportRetry.current, Boolean(action));
+    const submission = prepareEditSubmission(payload, transportRetry.current, fresh);
     payload = submission.action;
     transportRetry.current = submission;
     setSubmitting(true);
@@ -367,7 +390,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
     if (!current?.parent_id || !current.instruction) return undefined;
     const previous = resultActions.current.get(current.id) ?? editActionForResult(images, editActions, current.id);
     if (previous) return { ...previous };
-    return { type: 'edit_image', image_id: current.parent_id, instruction: current.instruction, ...(current.region ? { region: { ...current.region } } : {}) };
+    return { type: 'edit_image', image_id: current.parent_id, instruction: current.instruction, ...(current.region ? { region: { ...current.region } } : {}), ...(current.preset ? { preset: current.preset } : {}), ...(current.direction ? { direction: current.direction } : {}) };
   }
 
   function rephrase() {
@@ -447,6 +470,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
             }} onPress={() => selectImage(image.id)} style={({ pressed }) => [styles.version, image.id === current.id && styles.versionSelected, pressed && styles.pressed]}>
               {image.url ? <FadeImage source={{ uri: previewUrl(image.url, 360) }} style={styles.versionImage} /> : <View style={styles.versionPlaceholder}>{image.status === 'failed' ? <Ionicons name="alert-circle-outline" color={colors.red} size={20} /> : <ActivityIndicator size="small" color={colors.red} />}</View>}
               <Badge tone={image.id === current.id ? 'brand' : 'inverse'} label={`v${image.version}${image.status === 'succeeded' ? '' : image.status === 'failed' ? ' · 失败' : ' · 生成中'}`} />
+              {image.preset ? <Text testID={`viewer-version-preset-${image.id}`} style={styles.hint}>{QUICK_TOOL_NAMES[image.preset]}</Text> : null}
               {image.edit_check?.passed === false ? <Badge tone="danger" label="未改到位" /> : null}
             </Pressable>)}
             {pending && !pendingImage ? <View testID="viewer-pending-version" style={styles.version}><View style={styles.versionPlaceholder}><ActivityIndicator size="small" color={colors.red} /></View><Badge tone="inverse" label="新版本 · 排队中" /></View> : null}
@@ -462,7 +486,27 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
 
           {!editing && <SaveAsModel key={current.id} image={current} />}
           <Animated.View key={editing ? 'editing' : 'viewing'} entering={FadeInDown.duration(motion.fast).reduceMotion(ReduceMotion.System)} style={styles.bottom}>
-            {editing ? <>
+            {quickTool ? <View testID={`viewer-${quickTool}-panel`} style={styles.quickPanel}>
+              <View style={styles.editHeading}><Text style={styles.title}>{quickConfirmation ? `确认${QUICK_TOOL_NAMES[quickTool]}` : QUICK_TOOL_NAMES[quickTool]}</Text><ToolButton title="取消" testID="viewer-cancel-quick" onPress={() => changeMode('view')} /></View>
+              {quickConfirmation ? <>
+                <Text style={styles.hint}>{quickConfirmation.instruction}</Text>
+                <Text testID="viewer-quick-estimate" style={styles.title}>预计 {formatPoints(editEstimate ?? 0)} · 按一次改图估算</Text>
+                <Text style={styles.hint}>原版保留，新版生成后可对比选择。</Text>
+                <ToolButton title={`确认${QUICK_TOOL_NAMES[quickTool]}`} testID="viewer-confirm-quick" disabled={generationBusy || insufficient || editEstimate === undefined} onPress={() => { void sendEdit(quickConfirmation, false); }} />
+                <ToolButton title="返回调整" testID="viewer-adjust-quick" onPress={() => setQuickConfirmation(undefined)} />
+              </> : <>
+                {quickTool === 'background' ? <>
+                  <View style={styles.quickOptions}>{BACKGROUND_SCENES.map((item, index) => <ToolButton key={item} title={item} testID={`viewer-background-scene-${index}`} selected={scene === item} onPress={() => setScene(item)} />)}</View>
+                  <TextInput testID="viewer-background-custom" accessibilityLabel="自定义背景场景" placeholder="或自己写一句场景…" placeholderTextColor={colors.viewerMuted} value={scene} onChangeText={setScene} maxLength={500} style={styles.input} />
+                </> : quickTool === 'outpaint' ? <>
+                  <Text style={styles.hint}>选择想补全的画面方向，成片保持 3:4。</Text>
+                  <View style={styles.quickOptions}>{OUTPAINT_DIRECTIONS.map(item => <ToolButton key={item.value} title={item.label} testID={`viewer-outpaint-${item.value}`} selected={direction === item.value} onPress={() => setDirection(item.value)} />)}</View>
+                </> : <Text style={styles.hint}>生成 2 倍尺寸的高清版本，沿用原版还原分。模型不支持时使用本地放大与轻锐化。</Text>}
+                {quoteError ? <ToolButton title={quoteError} testID="viewer-retry-quote" onPress={() => setQuoteRetry(value => value + 1)} /> : <Text style={styles.hint}>{editEstimate === undefined ? '正在估点…' : `预计 ${formatPoints(editEstimate)} · 原版保留`}</Text>}
+                <ToolButton title="查看预估并继续" testID="viewer-review-quick" disabled={editEstimate === undefined || generationBusy || insufficient || (quickTool === 'background' && !scene.trim())} onPress={() => setQuickConfirmation(quickToolAction(current.id, quickTool, scene, direction))} />
+              </>}
+              {insufficient ? <Text style={styles.hint}>今日点数不够了，明天 00:00 恢复</Text> : null}
+            </View> : editing ? <>
               <View style={styles.editHeading}><Text style={styles.title}>{localEditing ? '圈出想改的地方' : '整张图片怎么改'}</Text><ToolButton title="取消" testID="viewer-cancel-edit" onPress={() => changeMode('view')} /></View>
               {localEditing ? <>
                 <View style={styles.drawingTools}><ToolButton title="涂抹" icon="brush-outline" testID="viewer-mode-brush" selected={tool === 'brush'} onPress={() => { setTool('brush'); setSelectionTool('brush'); feedback(); }} /><ToolButton title="框选" icon="scan-outline" testID="viewer-mode-rectangle" selected={tool === 'rectangle'} onPress={() => { setTool('rectangle'); setSelectionTool('rectangle'); feedback(); }} /><ToolButton title="移动" icon="hand-left-outline" testID="viewer-mode-pan" selected={tool === 'pan'} onPress={() => { setTool('pan'); feedback(); }} /><ToolButton title="撤销" testID="viewer-undo" disabled={selectionTool === 'rectangle' ? !region : !strokes.length} onPress={() => { if (selectionTool === 'rectangle') setRegion(null); else { strokeRef.current = strokeRef.current.slice(0, -1); setStrokes(strokeRef.current); } feedback(); }} /><ToolButton title="清空" testID="viewer-clear" disabled={!region && !strokes.length} onPress={() => { clearSelection(); feedback(); }} /></View>
@@ -474,7 +518,10 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
                 {QUICK_EDITS.map((text, index) => ({ text, index })).sort((a, b) => Number(recommendedEdits.includes(b.index)) - Number(recommendedEdits.includes(a.index)) || a.index - b.index).map(({ text, index }) => <Pressable key={text} testID={`edit-suggestion-${index}`} accessibilityRole="button" accessibilityLabel={text} onPress={() => { if (index < QUICK_EDITS.length - 1) setInstruction(text); input.current?.focus(); feedback(); }} style={({ pressed }) => [styles.suggestion, recommendedEdits.includes(index) && styles.suggestionRecommended, pressed && styles.pressed]}><Text style={styles.suggestionText}>{text}</Text></Pressable>)}
               </ScrollView>
               <View style={styles.inputRow}><TextInput ref={input} testID="edit-instruction" accessibilityLabel="改图要求" placeholder="说说这里想怎么改…" placeholderTextColor={colors.viewerMuted} value={instruction} onChangeText={setInstruction} style={styles.input} multiline maxLength={2000} editable={!generationBusy} /><Pressable testID="submit-edit" accessibilityRole="button" accessibilityLabel="提交改图" accessibilityState={{ disabled: generationBusy || !instruction.trim() || invalidSelection }} disabled={generationBusy || !instruction.trim() || invalidSelection} onPress={() => { void sendEdit(); }} style={({ pressed }) => [styles.submit, (generationBusy || !instruction.trim() || invalidSelection) && styles.disabled, pressed && styles.pressed]}>{generationBusy ? <ActivityIndicator color={colors.white} /> : <Ionicons name="arrow-up" size={23} color={colors.white} />}</Pressable></View>
-            </> : <View style={styles.mainActions}><ToolButton title="局部改" icon="brush-outline" testID="viewer-mode-local" disabled={!canEdit || generationBusy || !rect || failedUrl === current.url} onPress={() => changeMode('local')} /><ToolButton title="整张改" icon="color-wand-outline" testID="viewer-mode-whole" disabled={!canEdit || generationBusy || !current.url} onPress={() => changeMode('whole')} /><ToolButton title={comparing ? '结束对比' : '对比版本'} icon="git-compare-outline" testID="viewer-compare-toggle" disabled={!parent?.url} selected={comparing} onPress={() => changeMode(comparing ? 'view' : 'compare')} /></View>}
+            </> : <>
+              <View style={styles.mainActions}><ToolButton title="局部改" icon="brush-outline" testID="viewer-mode-local" disabled={!canEdit || generationBusy || !rect || failedUrl === current.url} onPress={() => changeMode('local')} /><ToolButton title="整张改" icon="color-wand-outline" testID="viewer-mode-whole" disabled={!canEdit || generationBusy || !current.url} onPress={() => changeMode('whole')} /><ToolButton title={comparing ? '结束对比' : '对比版本'} icon="git-compare-outline" testID="viewer-compare-toggle" disabled={!parent?.url} selected={comparing} onPress={() => changeMode(comparing ? 'view' : 'compare')} /></View>
+              <View style={styles.mainActions}>{(['background', 'outpaint', 'upscale'] as const).map(preset => <ToolButton key={preset} title={QUICK_TOOL_NAMES[preset]} icon={preset === 'background' ? 'image-outline' : preset === 'outpaint' ? 'expand-outline' : 'sparkles-outline'} testID={`viewer-mode-${preset}`} disabled={!canEdit || generationBusy || !current.url} onPress={() => changeMode(preset)} />)}</View>
+            </>}
             {!canEdit && !comparing && !localEditing ? <View style={styles.locked}><Text testID="viewer-locked-hint" style={[styles.hint, styles.lockedHint]}>一键出片还在跑，先不改图；想改就点「我来接手」，或者用这件衣服再拍一组。</Text>{onStartNew ? <ToolButton title="用这件衣服再拍一组" icon="add-circle-outline" testID="viewer-start-new" onPress={onStartNew} /> : null}</View> : null}
             {pending && !editing ? <View testID="viewer-generation-status" style={styles.generationStatus}><ProgressStrip title="新版本生成中，完成后自动对比" /></View> : null}
           </Animated.View>
@@ -512,7 +559,7 @@ const styles = StyleSheet.create({
   selectedText: { color: colors.white },
   disabled: { opacity: .35 },
   pressed: { opacity: .75, transform: [{ scale: .97 }] },
-  versionScroll: { flexGrow: 0, maxHeight: 112, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.viewerLine },
+  versionScroll: { flexGrow: 0, maxHeight: 132, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.viewerLine },
   versionStrip: { paddingHorizontal: space.lg, paddingVertical: space.sm, gap: space.sm },
   version: { padding: space.xs, borderRadius: radius.md, borderWidth: 1, borderColor: 'transparent', minWidth: 64, minHeight: 88, alignItems: 'center', gap: space.xs },
   versionSelected: { borderColor: colors.red, backgroundColor: colors.viewerSelected },
@@ -529,6 +576,8 @@ const styles = StyleSheet.create({
   error: { ...typography.caption, color: colors.white, backgroundColor: colors.viewerSelected, borderRadius: radius.sm, marginHorizontal: space.lg, marginVertical: space.sm, padding: space.md },
   bottom: { paddingHorizontal: space.lg, paddingBottom: space.md, paddingTop: space.sm, borderTopColor: colors.viewerLine, borderTopWidth: StyleSheet.hairlineWidth },
   mainActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around' },
+  quickPanel: { gap: space.sm },
+  quickOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   generationStatus: { paddingTop: space.sm },
   editHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   drawingTools: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.none },

@@ -15,6 +15,7 @@ const activeStatuses = new Set(['queued', 'running']);
 const newId = (prefix) => `${prefix}_${randomUUID()}`;
 const failure = (status, code, message) => Object.assign(new Error(message), { status, code });
 const PRICES = { preview: 0.5, image: 0.5, edit: 0.5, video: 1.5 };
+const PRESET_NAMES = { background: '换背景', outpaint: '扩图', upscale: '高清' };
 const money = (value) => Math.round(value * 100) / 100;
 const points = (value) => Math.round(value * 100) / 10;
 const AUTO_LABELS = { directions: '正在找拍摄方向', script: '正在写拍摄脚本', images: '正在出图', note: '正在整理图文', video: '正在生成视频', done: '全套已出好' };
@@ -154,7 +155,7 @@ export async function createMockServer(options = {}) {
   }
   const scriptEstimate = (project) => money((project.state.script?.shots.length || 0) * PRICES.image * 1.2);
   function makeTrace(tool, refs = [], detail = {}) {
-    const labels = { chat: '整理回复', propose_directions: '给出方向', write_script: '写脚本', revise_script: '修改脚本', edit_image: '提交改图', write_note: '写笔记', generate_images: '提交出图', generate_video: '提交视频', restore_script: '恢复脚本' };
+    const labels = { chat: '整理回复', propose_directions: '给出方向', write_script: '写脚本', revise_script: '修改脚本', edit_image: '提交改图', write_note: '写笔记', generate_images: '提交出图', generate_video: '提交视频', restore_script: '恢复脚本', ...PRESET_NAMES };
     const duration_ms = detail.duration_ms ?? (['write_script', 'revise_script'].includes(tool) ? 4800 : tool === 'propose_directions' ? 3100 : 1200);
     return withPoints({ tool, model: detail.model || 'local-mock', duration_ms, cost_cny: detail.cost_cny ?? 0, refs: [...refs], steps: detail.steps || [{ label: labels[tool], duration_ms }] });
   }
@@ -466,6 +467,14 @@ export async function createMockServer(options = {}) {
     };
     if (job.kind === 'edit' && parentImage?.assetId) {
       const originalAsset = db.assets.find((item) => item.id === parentImage.assetId);
+      if (image.preset === 'upscale') {
+        asset.width = originalAsset.width * 2; asset.height = originalAsset.height * 2;
+        asset.mime = 'image/png'; asset.filename = `${asset.id}.png`;
+        delete asset.fixture;
+        await sharp(assetPath(originalAsset)).resize(asset.width, asset.height, { kernel: 'lanczos3' }).sharpen().png().toFile(assetPath(asset));
+        db.assets.push(asset);
+        return asset;
+      }
       const { data, info } = await sharp(assetPath(originalAsset)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
       const { width, height, channels } = info;
       const selection = image.editSelection || {};
@@ -533,7 +542,7 @@ export async function createMockServer(options = {}) {
           if (direction) { direction.preview_status = 'succeeded'; direction.previewAssetId = asset.id; }
           if (image) {
             image.status = 'succeeded'; image.assetId = asset.id;
-            if (job.kind === 'edit') image.edit_check = job.editCheckShouldFail
+            if (job.kind === 'edit' && image.preset !== 'upscale') image.edit_check = job.editCheckShouldFail
               ? { passed: false, reason: '演示检查：选区细节仍未改到位，请再试一次或换个说法。' }
               : { passed: true, reason: image.region ? '圈选区域已按指令完成处理，区域外保持原图。' : '已完成整张图片的修改，并保留上一版。' };
             const needsFix = job.kind === 'image' && image.shot_id === 'shot_3' && !image.autoFixAttempted;
@@ -542,6 +551,11 @@ export async function createMockServer(options = {}) {
               : { score: image.automatic ? 92 : 96, diffs: [], auto_fixed: Boolean(image.automatic) };
             if (project.modelAssetId) image.fidelity.person_score = 92;
             if (image.anchor_id) image.fidelity.anchor_score = 94;
+            if (image.preset === 'upscale') {
+              const original = project.state.images.find((item) => item.id === image.parent_id);
+              image.fidelity = original?.fidelity ? structuredClone(original.fidelity) : undefined;
+              image.upscale_method = 'pillow_lanczos';
+            }
             if (needsFix && money(availableBudget(project) - jobCost(job)) >= PRICES.edit) {
               image.autoFixAttempted = true;
               const repaired = {
@@ -625,12 +639,12 @@ export async function createMockServer(options = {}) {
         }
         const successful = jobs.filter((job) => job.status === 'succeeded');
         const duration_ms = Math.max(0, Math.max(...jobs.map((job) => Date.parse(job.updated_at))) - Math.min(...jobs.map((job) => Date.parse(job.created_at))));
-        const tool = first.directionId ? 'propose_directions' : first.kind === 'video' ? 'generate_video' : first.kind === 'edit' ? 'edit_image' : 'generate_images';
+        const tool = first.directionId ? 'propose_directions' : first.kind === 'video' ? 'generate_video' : first.kind === 'edit' ? first.preset || 'edit_image' : 'generate_images';
         const primaryJobs = jobs.filter((job) => first.kind === 'edit' || job.kind !== 'edit');
         const primaryDuration = Math.max(0, ...primaryJobs.map((job) => Date.parse(job.updated_at) - Date.parse(job.created_at)));
         const steps = first.kind === 'video'
           ? [{ label: `生成视频 ${successful.length} 条`, duration_ms }]
-          : [{ label: `${first.directionId ? '方向预览' : first.kind === 'edit' ? '改图' : '出图'} ${successful.filter((job) => job.kind !== 'edit').length || successful.length} 张`, duration_ms: primaryDuration }, ...(autoFixed ? [{ label: '自动修复 1 张', duration_ms: jobs.filter((job) => job.kind === 'edit').reduce((sum, job) => sum + Date.parse(job.updated_at) - Date.parse(job.created_at), 0) }] : [])];
+          : [{ label: `${first.directionId ? '方向预览' : first.kind === 'edit' ? PRESET_NAMES[first.preset] || '改图' : '出图'} ${successful.filter((job) => job.kind !== 'edit').length || successful.length} 张`, duration_ms: primaryDuration }, ...(autoFixed ? [{ label: '自动修复 1 张', duration_ms: jobs.filter((job) => job.kind === 'edit').reduce((sum, job) => sum + Date.parse(job.updated_at) - Date.parse(job.created_at), 0) }] : [])];
         announce(project, text, [type], base, makeTrace(tool, jobs.map((job) => job.imageId || job.result_asset_id).filter(Boolean), { duration_ms, cost_cny: money(successful.reduce((sum, job) => sum + jobCost(job), 0)), model: 'local-fixture', steps }));
       }
     }
@@ -758,7 +772,7 @@ export async function createMockServer(options = {}) {
     return draft;
   }
   function normalizedAction(action) {
-    const fields = { choose_direction: ['direction_id'], confirm_script: [], edit_image: ['image_id', 'instruction', 'attempt'], approve_images: ['image_ids', 'accept_unverified'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
+    const fields = { choose_direction: ['direction_id'], confirm_script: [], edit_image: ['image_id', 'instruction', 'attempt', 'preset', 'background', 'direction'], approve_images: ['image_ids', 'accept_unverified'], confirm_video: ['image_id'], restore_script: ['checkpoint_id'] };
     return { type: action.type, ...Object.fromEntries(fields[action.type].map((key) => [key, action[key]])), ...(action.type === 'edit_image' ? editSelection(action) : {}) };
   }
   function processMessage(project, body, base, automatic = false) {
@@ -833,12 +847,22 @@ export async function createMockServer(options = {}) {
         case 'edit_image': {
           if (!['images', 'note', 'video', 'done'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '等图片生成完成后，就可以告诉我怎么改');
           const original = state.images.find((item) => item.id === action.image_id && item.status === 'succeeded');
-          const instruction = typeof action.instruction === 'string' ? action.instruction.trim() : '';
+          let instruction = typeof action.instruction === 'string' ? action.instruction.trim() : '';
           if (!original || !instruction) throw failure(400, 'INVALID_EDIT', '请选择一张已完成的图片，并写下修改想法');
           const selection = editSelection(action);
           if (action.attempt !== undefined && (typeof action.attempt !== 'string' || !action.attempt.length || action.attempt.length > 64)) throw failure(400, 'INVALID_ATTEMPT', '这次改图的尝试编号需要是 1–64 个字符');
-          tool = 'edit_image';
-          const editKey = action.attempt === undefined ? undefined : createHash('sha256').update(JSON.stringify([original.id, instruction, selection, action.attempt])).digest('hex');
+          if (action.preset !== undefined && !Object.hasOwn(PRESET_NAMES, action.preset)) throw failure(422, 'INVALID_PRESET', '请选择有效的快捷动作');
+          if (action.preset && Object.keys(selection).length) throw failure(422, 'INVALID_PRESET', '快捷动作不能同时使用局部选区');
+          if (action.direction !== undefined && (action.preset !== 'outpaint' || !['top', 'bottom', 'horizontal', 'all'].includes(action.direction))) throw failure(422, 'INVALID_DIRECTION', '请选择有效的扩图方向');
+          if (action.preset === 'background') {
+            const scene = (action.background || instruction).trim().replace(/^只换背景为 /, '').replace(/，人物、服装、姿势、光线方向保持不变$/, '');
+            if (!scene) throw failure(422, 'INVALID_BACKGROUND', '请填写背景场景');
+            instruction = `只换背景为 ${scene}，人物、服装、姿势、光线方向保持不变`;
+          } else if (action.preset === 'outpaint') instruction = '补全画面边缘的场景，人物与服装不变';
+          else if (action.preset === 'upscale') instruction = '将原图高清重绘为 2 倍尺寸，人物、服装、姿势与场景保持不变';
+          const presetFields = action.preset ? { preset: action.preset, ...(action.preset === 'outpaint' ? { direction: action.direction || 'all' } : {}) } : {};
+          tool = action.preset || 'edit_image';
+          const editKey = action.attempt === undefined ? undefined : createHash('sha256').update(JSON.stringify([original.id, instruction, selection, action.attempt, presetFields])).digest('hex');
           const existing = editKey && db.jobs.find((job) => job.project_id === project.id && job.editKey === editKey);
           if (existing) {
             reused = true;
@@ -854,9 +878,9 @@ export async function createMockServer(options = {}) {
           const region = selectionBounds(selection, source.width, source.height);
           const editCheckShouldFail = isLocal && !project.localEditCheckDemonstrated;
           if (isLocal) project.localEditCheckDemonstrated = true;
-          const image = { id: newId('image'), shot_id: original.shot_id, status: 'queued', version: Math.max(...state.images.filter((item) => item.shot_id === original.shot_id).map((item) => item.version)) + 1, parent_id: original.id, instruction, script_version: original.script_version, ...(original.anchor_id ? { anchor_id: original.anchor_id } : {}), ...(region ? { region } : {}), editSelection: selection };
+          const image = { id: newId('image'), shot_id: original.shot_id, status: 'queued', version: Math.max(...state.images.filter((item) => item.shot_id === original.shot_id).map((item) => item.version)) + 1, parent_id: original.id, instruction, script_version: original.script_version, ...(original.anchor_id ? { anchor_id: original.anchor_id } : {}), ...(region ? { region } : {}), editSelection: selection, ...presetFields };
           state.images.push(image);
-          jobs.push({ ...queueJob(project, 'edit', image, 0, { editCheckShouldFail, ...(editKey ? { editKey } : {}) }), reused });
+          jobs.push({ ...queueJob(project, 'edit', image, 0, { editCheckShouldFail, ...presetFields, ...(editKey ? { editKey } : {}) }), reused });
           types = ['images'];
           reply = `收到，我按“${instruction}”修改这张，原图会保留，你可以对比后再选。`;
           break;
@@ -1164,6 +1188,7 @@ export async function createMockServer(options = {}) {
         res.writeHead(204); res.end(); return;
       }
       if (url.pathname === '/api/quotes/auto' && req.method === 'GET') { json(res, 200, autoQuote()); return; }
+      if (url.pathname === '/api/quotes/edit' && req.method === 'GET') { json(res, 200, { estimate_points: points(PRICES.edit), breakdown: [{ label: '改图 1 张', points: points(PRICES.edit) }] }); return; }
       if (url.pathname === '/api/me' && req.method === 'DELETE') {
         const body = await readJson(req);
         if (typeof body.password !== 'string' || !bcrypt.compareSync(passwordInput(body.password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '密码不正确，请重新输入');

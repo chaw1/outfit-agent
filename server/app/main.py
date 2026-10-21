@@ -25,7 +25,7 @@ from app.admin import router as admin_router
 from app.assets_library import router as assets_library_router
 from app.auto_mode import auto_info, take_over
 from app.config import settings
-from app.costs import auto_quote, points, with_points
+from app.costs import auto_quote, image_cost_cny, points, with_points
 from app.db import SessionLocal
 from app.errors import AppError
 from app.graph import build_graph, get_graph_state, run_turn, script_versions
@@ -324,6 +324,12 @@ def get_media(
 @app.get("/api/quotes/auto", response_model=AutoQuote)
 def quote_auto(user: User = Depends(current_user)):
     return auto_quote()
+
+
+@app.get("/api/quotes/edit", response_model=AutoQuote)
+def quote_edit(user: User = Depends(current_user)):
+    estimate = points(image_cost_cny())
+    return {"estimate_points": estimate, "breakdown": [{"label": "改图 1 张", "points": estimate}]}
 
 
 @app.post("/api/projects", response_model=ProjectOutput)

@@ -111,7 +111,7 @@ test('真实服务一键出片：注册、开拍、自动推进到全套完成�
       await page.getByLabel('项目名称', { exact: true }).fill(checkpoint.projectTitle);
       await page.getByLabel('这次想拍什么', { exact: true }).fill(process.env.LIVE_BRIEF || '米白亚麻衬衫，保留面料、纽扣和胸袋细节，去掉吊牌。自然窗光、松弛通勤，做三张照片的完整图文和短视频。');
       // 默认用调研期的衬衫样张；LIVE_GARMENTS 可传自己的衣服图（逗号分隔路径）走同一条链路。
-      const garmentFiles = (process.env.LIVE_GARMENTS || '').split(',').map(item => item.trim()).filter(Boolean);
+      const garmentFiles = String(process.env.LIVE_GARMENTS || '').split(',').map(item => item.trim()).filter(Boolean);
       const garments = garmentFiles.length > 0
         ? await Promise.all(garmentFiles.map(async file => ({ name: path.basename(file), mimeType: 'image/jpeg', buffer: await sharp(file).jpeg({ quality: 95 }).toBuffer() })))
         : [{ name: 'auto-shirt.jpg', mimeType: 'image/jpeg', buffer: await sharp(path.resolve('../docs/spike/inputs.jpg')).extract({ left: 0, top: 0, width: 450, height: 600 }).jpeg({ quality: 95 }).toBuffer() }];

@@ -101,6 +101,10 @@ def image_items(session: Session, project_id: str) -> list[dict]:
             "fidelity": job.result.get("fidelity"),
             "region": job.result.get("region", job.payload.get("region")),
             "edit_check": job.result.get("edit_check"),
+            **({"preset": job.payload["preset"]} if job.payload.get("preset") else {}),
+            **({"direction": job.payload["direction"]} if job.payload.get("direction") else {}),
+            **({"upscale_method": job.result["upscale_method"]}
+               if job.result.get("upscale_method") else {}),
             "script_version": job.payload.get("script_version"),
             **({"anchor_id": job.payload["anchor_id"]} if job.payload.get("anchor_id") else {}),
         }

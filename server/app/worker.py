@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import logging
 import signal
 import threading
@@ -39,6 +40,7 @@ from app.media import asset_path, store_generated
 from app.models import Asset, Job, Message, Project, UsageLedger, utcnow
 from app.project_cleanup import drain_media_cleanup
 from app.providers import GeneratedMedia, ProviderError, ProviderHub
+from app.quick_tools import PRESET_LABELS, upscale_fallback
 from app.runtime_settings import assert_generation_allowed, get_runtime_settings
 from app.views import image_items
 
@@ -441,9 +443,14 @@ def _worker_trace(session: Session, jobs: list[Job]) -> dict:
     editing = not video and all(item.kind == "edit" for item in jobs)
     kind = "video" if video else "image"
     tool = "generate_video" if video else "edit_image" if editing else "generate_images"
+    preset = jobs[0].payload.get("preset") if editing else None
+    if preset in PRESET_LABELS and all(item.payload.get("preset") == preset for item in jobs):
+        tool = preset
     originals = [item for item in jobs if not item.payload.get("auto_fix")]
     count = len(originals or jobs)
     label = f"生成视频 {count} 条" if video else f"{'改图' if editing else '出图'} {count} 张"
+    if tool in PRESET_LABELS:
+        label = f"{PRESET_LABELS[tool]} {count} 张"
     models = list(dict.fromkeys(row.model for row in rows if row.kind == kind))
     if not models:
         for item in jobs:
@@ -616,6 +623,21 @@ class ImageOutcome:
     edit_check: dict | None = None
     region: dict | None = None
     retry_error: str | None = None
+    upscale_method: str | None = None
+
+
+def _reserve_edit_request(session: Session, job: Job, owner_attempt: int) -> None:
+    session.refresh(job, with_for_update=True)
+    if job.status != "running" or job.attempts != owner_attempt:
+        session.rollback()
+        raise ProviderError("任务租约已失效。")
+    request_count = job.result.get("edit_image_request_count", 0)
+    limit = 1 if job.payload.get("preset") == "upscale" else 2
+    if request_count >= limit:
+        session.rollback()
+        raise ProviderError("改图已达到请求上限，为避免重复计费已停止。")
+    job.result = {**job.result, "edit_image_request_count": request_count + 1}
+    session.commit()
 
 
 def _generate_image(
@@ -643,6 +665,26 @@ def _generate_image(
         if not source_id:
             raise ProviderError("改图任务没有来源图片。")
         before = _assets(session, job, [source_id])[0]
+        if payload.get("preset") == "upscale":
+            _reserve_edit_request(session, job, owner_attempt)
+            media = hub.upscale(prompt, before)
+            method = "provider_redraw"
+            if media is None:
+                media, method = upscale_fallback(before), "pillow_lanczos"
+            else:
+                with Image.open(asset_path(before)) as original:
+                    expected_size = original.width * 2, original.height * 2
+                # An adapter can accept a size yet return a different one.
+                with Image.open(io.BytesIO(media.data)) as generated:
+                    if generated.size != expected_size:
+                        media, method = upscale_fallback(before), "pillow_lanczos"
+            parent = session.get(Job, payload.get("parent_id"))
+            if not parent or parent.project_id != job.project_id or parent.user_id != job.user_id:
+                raise ProviderError("高清任务没有有效的原版。")
+            return ImageOutcome(
+                media=media, fidelity=parent.result.get("fidelity"),
+                fidelity_error=parent.result.get("fidelity_error"), upscale_method=method,
+            )
         if payload.get("region") is not None or payload.get("mask_strokes") is not None:
             with Image.open(asset_path(before)) as source:
                 selection = prepare_selection(
@@ -666,16 +708,7 @@ def _generate_image(
             if job.kind == "edit":
                 # Queue retries and quality corrections share the same two
                 # submissions. Reserve under the row lock before any paid POST.
-                session.refresh(job, with_for_update=True)
-                if job.status != "running" or job.attempts != owner_attempt:
-                    session.rollback()
-                    raise ProviderError("任务租约已失效。")
-                request_count = job.result.get("edit_image_request_count", 0)
-                if request_count >= 2:
-                    session.rollback()
-                    raise ProviderError("改图已达到两次请求上限，为避免重复计费已停止。")
-                job.result = {**job.result, "edit_image_request_count": request_count + 1}
-                session.commit()
+                _reserve_edit_request(session, job, owner_attempt)
             media = hub.image(current_prompt, references)
             return compose_local_edit(before, media, selection) if selection else media
 
@@ -832,7 +865,9 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                     media=media,
                     parent_id=parent_id,
                     prompt=prompt,
-                    preserve_visible_label=bool(outcome and outcome.region is not None),
+                    preserve_visible_label=bool(outcome and (
+                        outcome.region is not None or outcome.upscale_method == "pillow_lanczos"
+                    )),
                 )
                 job.result_asset_id = asset.id
                 job.result = {
@@ -843,7 +878,8 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                 }
                 if outcome:
                     for key in (
-                        "fidelity", "fidelity_error", "edit_check", "region", "retry_error"
+                        "fidelity", "fidelity_error", "edit_check", "region", "retry_error",
+                        "upscale_method",
                     ):
                         value = getattr(outcome, key)
                         if value is not None:
@@ -865,6 +901,8 @@ def process_job(job_id: str, attempt: int, session_factory=SessionLocal) -> None
                 return
             retryable = isinstance(exc, ProviderError) and exc.retryable
             if job.kind == "edit" and job.result.get("edit_image_request_count", 0) >= 2:
+                retryable = False
+            if payload.get("preset") == "upscale" and job.result.get("edit_image_request_count"):
                 retryable = False
             # Transport failures after an image POST can be ambiguous; do not
             # blindly repeat paid synchronous generation. Video with a saved

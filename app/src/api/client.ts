@@ -197,6 +197,7 @@ export class ApiClient {
   }
 
   autoQuote(): Promise<AutoQuote> { return this.request('/quotes/auto'); }
+  editQuote(): Promise<AutoQuote> { return this.request('/quotes/edit'); }
   projects(): Promise<Project[]> { return this.request('/projects'); }
   createProject(input: CreateProjectInput): Promise<Project> {
     return this.request('/projects', { method: 'POST', body: JSON.stringify(input) });
