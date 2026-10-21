@@ -419,7 +419,7 @@ export function ImageViewer({ images, editActions = [], initialImageId, initialM
                 </G>
               </Svg> : null}
             </Animated.View>}
-            {!rect && failedUrl !== current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={36} color={colors.viewerMuted} /><ActivityIndicator color={colors.red} /></View> : null}
+            {!rect && failedUrl !== current.url ? <View pointerEvents="none" style={styles.loadError}><Ionicons name="image-outline" size={36} color={colors.viewerMuted} /><ActivityIndicator color={colors.red} /></View> : null}
             {failedUrl === current.url ? <View style={styles.loadError}><Ionicons name="image-outline" size={36} color={colors.viewerMuted} /><Text style={styles.hint}>图片暂时没加载出来，请关闭后重试</Text><ToolButton title="关闭查看器" testID="viewer-error-close" onPress={onClose} /></View> : null}
             <FidelityBadge image={current} testIDPrefix="viewer-" style={[styles.fidelity, comparing && { top: 48 }]} />
           </View></GestureDetector>
