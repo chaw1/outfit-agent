@@ -1,5 +1,6 @@
 """Account lifecycle and public, versioned legal documents."""
 
+import hashlib
 import re
 import secrets
 from pathlib import Path
@@ -7,13 +8,14 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import AppError
-from app.models import User, utcnow
+from app.models import AppSetting, Asset, Job, Project, User, utcnow
 from app.observability import bind_user
+from app.project_cleanup import CLEANUP_PREFIX, cleanup_project, drain_media_cleanup
 from app.rate_limits import check_limit
 from app.schemas import AuthOutput, RegisterInput, StrictInput
 from app.security import current_user, get_session, hash_password, issue_token, verify_password
@@ -36,7 +38,7 @@ class RecoveryAuthOutput(AuthOutput):
 
 
 class RecoveryInput(StrictInput):
-    username: str = Field(max_length=32)
+    username: str
     recovery_code: str
     new_password: str = Field(min_length=8, max_length=72)
 
@@ -163,6 +165,70 @@ def change_password(
     session.commit()
     response.headers["Cache-Control"] = "no-store"
     return {"token": token, "user": user_dict(user, session)}
+
+
+@router.delete("/api/me", status_code=204, response_class=Response)
+def delete_account(
+    body: PasswordInput, user: User = Depends(current_user),
+    session: Session = Depends(get_session),
+):
+    user = locked_user(session, user.id)
+    check_password(user, body.password)
+    projects = session.scalars(
+        select(Project).where(Project.user_id == user.id).order_by(Project.id)
+    ).all()
+    if session.get_bind().dialect.name == "postgresql":
+        for project in projects:
+            # Match the existing conversation lock before taking publication row locks.
+            lock_id = int.from_bytes(
+                hashlib.sha256(project.id.encode()).digest()[:8], "big", signed=True,
+            )
+            session.execute(text("SELECT pg_advisory_xact_lock(:id)"), {"id": lock_id})
+    for project in projects:
+        cleanup_project(session, project, commit=False)
+        project.title, project.brand, project.brief = "已注销账号的项目", "", ""
+        project.garment_asset_ids, project.reference_asset_ids = [], []
+        project.model_asset_id = None
+
+    # Project deletion preserves reusable uploads; account deletion removes these too.
+    remaining = session.execute(select(Asset.id, Asset.path).where(Asset.user_id == user.id)).all()
+    asset_ids = [asset_id for asset_id, _ in remaining]
+    session.execute(delete(Job).where(Job.user_id == user.id))
+    if asset_ids:
+        session.execute(update(Asset).where(Asset.parent_id.in_(asset_ids)).values(parent_id=None))
+        session.execute(
+            update(Project).where(Project.model_asset_id.in_(asset_ids)).values(model_asset_id=None)
+        )
+        session.execute(
+            update(Job).where(Job.result_asset_id.in_(asset_ids)).values(result_asset_id=None)
+        )
+        session.execute(delete(Asset).where(Asset.user_id == user.id))
+        key = CLEANUP_PREFIX + "account:" + user.id
+        paths = list(dict.fromkeys(path for _, path in remaining))
+        entry = session.get(AppSetting, key)
+        if entry is None:
+            session.add(AppSetting(key=key, value={"paths": paths}))
+        else:
+            entry.value = {"paths": list(dict.fromkeys([*entry.value.get("paths", []), *paths]))}
+
+    # Do not update this unique key until all conversation/publication locks are held.
+    tombstone = "deleted-" + user.id[:8]
+    if session.scalar(select(User.id).where(User.username == tombstone, User.id != user.id)):
+        tombstone += "-" + secrets.token_hex(4)
+    user.username, user.nickname, user.profile = tombstone, "已注销", {}
+    user.deleted_at = user.password_updated_at = utcnow()
+    user.disabled = True
+    user.password_hash = hash_password(secrets.token_urlsafe(32))
+    user.recovery_code_hash = None
+    try:
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise AppError("ACCOUNT_DELETE_CONFLICT", "注销未完成，请重试", 409) from exc
+    for project in projects:
+        drain_media_cleanup(session, project_id=project.id)
+    drain_media_cleanup(session, project_id="account:" + user.id)
+    return Response(status_code=204, headers={"Cache-Control": "no-store"})
 
 
 class LegalSummary(BaseModel):

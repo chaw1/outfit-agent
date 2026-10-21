@@ -228,7 +228,7 @@ def login(body: LoginInput, request: Request, session: Session = Depends(get_ses
     user = session.scalar(
         select(User).where(User.username == body.username).with_for_update(read=True)
     )
-    if user is None or not verify_password(body.password, user.password_hash):
+    if user is None or user.deleted_at or not verify_password(body.password, user.password_hash):
         raise AppError("INVALID_CREDENTIALS", "用户名或密码错误", 401)
     bind_user(request, user.id, session)
     if user.disabled:
