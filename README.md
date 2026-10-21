@@ -12,6 +12,8 @@
 | [docs/调研.md](docs/调研.md) | 场景调研、生成能力实测对比、**智能体框架选型**（硬需求 → 8 个候选对照 → 实验证明 → 反方意见）、演进方向 |
 | [docs/设计.md](docs/设计.md) | 架构、智能体状态与人在回路、接口约定、卡片结构、数据表（后端和 App 共用的唯一约定） |
 | [docs/UI设计稿.md](docs/UI设计稿.md) | UI 设计稿：信息架构、核心流程、双主题视觉、页面状态与组件规格；[高保真设计板](docs/design/index.html) |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 开发环境、分支提交、提交门禁与评审清单 |
+| [docs/工程规范.md](docs/工程规范.md) | 分层、代码规范、测试与发布、ADR 索引、规则债务与质量快照 |
 | [docs/开发记录.md](docs/开发记录.md) | 从接到作业开始的完整过程与卡点 |
 | [docs/review/](docs/review/) | 外部技术评审意见 |
 | [docs/spike/](docs/spike/) | 模型实测素材（全部自生成） |

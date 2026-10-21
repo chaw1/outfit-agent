@@ -55,7 +55,17 @@ jobs:
           uv run python -m app.worker > artifacts/ci-worker.log 2>&1 &
           uv run python scripts/wait_health.py
       - name: 测试
-        run: uv run pytest -q
+        run: uv run pytest -q --cov=app --cov-report=term-missing --cov-report=xml:artifacts/coverage.xml
+      - name: 归档覆盖率与服务日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-quality
+          path: |
+            server/artifacts/coverage.xml
+            server/artifacts/ci-api.log
+            server/artifacts/ci-worker.log
+          retention-days: 7
 
   app:
     runs-on: ubuntu-latest
@@ -74,3 +84,43 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+
+  app-playwright:
+    needs: app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/app/.tools/browsers
+      EXPO_OFFLINE: '1'
+      EXPO_NO_TELEMETRY: '1'
+      EXPO_PUBLIC_API_BASE: http://localhost:19301
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - name: 安装 Chromium
+        run: npx playwright install --with-deps chromium
+      - name: 假服务浏览器闭环
+        run: npm run test:e2e
+      - name: 归档浏览器报告与失败轨迹
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-playwright
+          path: app/test-results/
+          retention-days: 7
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - name: 构建服务端镜像
+        run: docker build --tag outfit-agent-server:ci ./server

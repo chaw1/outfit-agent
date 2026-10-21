@@ -26,7 +26,7 @@ export default defineConfig({
     permissions: ['clipboard-read', 'clipboard-write'],
   },
   webServer: [
-    { command: 'npm run mock', url: 'http://localhost:19301/api/health', timeout: 30_000, reuseExistingServer: true, env: { MOCK_PREVIEW_DELAY_MS: '4500' } },
-    { command: 'npm run web -- --host localhost --no-dev --minify', url: 'http://localhost:19300', timeout: 120_000, reuseExistingServer: true, env: { CI: '1', BROWSER: 'none', EXPO_PUBLIC_API_BASE: 'http://localhost:19301' } },
+    { command: 'npm run mock', url: 'http://localhost:19301/api/health', timeout: 30_000, reuseExistingServer: !process.env.CI, env: { MOCK_PREVIEW_DELAY_MS: '4500' } },
+    { command: 'npm run web -- --host localhost --no-dev --minify', url: 'http://localhost:19300', timeout: 120_000, reuseExistingServer: !process.env.CI, env: { CI: '1', BROWSER: 'none', EXPO_PUBLIC_API_BASE: 'http://localhost:19301' } },
   ],
 });

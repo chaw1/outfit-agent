@@ -1,7 +1,55 @@
-已按顺序完成，6 次本地提交，最新为 `68ee193`。
+第十一轮 B：工程规范与门禁交付摘要
+日期：2026-10-21（Asia/Shanghai）
+分支：feat/engineering；起点：ff15208（开始执行时的 main）。
+任务书：docs/codex/ENG_ROUND11_PROMPT.md；唯一契约：docs/设计.md 第 17 节。
 
-- `make check` 通过：App 137 项、服务端 408 项，覆盖率 **91.09%**。
-- Playwright **13/13**、Docker `linux/amd64` 构建通过。
-- CI 静态校验通过，尚未在线执行 Actions。
+已完成（按任务书顺序，各项检查后本地提交）
+1. CONTRIBUTING.md、docs/工程规范.md、README 两行文档索引；覆盖目录分层、提交与评审、错误/日志/安全、测试、发布与人工回退、设计第 2–17 节的 16 条 ADR、实测质量快照。
+2. .editorconfig、可执行 .githooks/pre-commit、根 Makefile。Hook 按暂存路径运行所在侧完整检查，包含删除和跨侧重命名；贡献指南写明 git config core.hooksPath .githooks。make check/dev/deploy/e2e 入口齐全，另有分侧入口。
+3. App ESLint 与服务端 ruff 规则补齐；零违规规则设 error，历史违规保留为 warn 或限定文件/规则例外，逐项债务写入工程规范。
+4. pytest-cov 开发依赖、覆盖率配置和忽略规则，make check 输出终端及 XML 报告，不设阈值。uv.lock 只新增 coverage、pytest-cov、tomli，原有依赖版本未变。
+5. CI 新增假服务 App Playwright、服务端 Docker 构建两个任务；服务端存档覆盖率与日志，浏览器存档报告/失败轨迹，保留 7 天。Playwright 在 CI 模式拒绝复用已有服务。当前 CI 共 server/app/app-playwright/docker 四任务。
 
-规则、债务、验证证据及环境隔离说明已写入[交付摘要](/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-eng/docs/codex/runs/eng-round11-final.txt)。
+验证结果
+- Node v22.23.1、Python 3.12.13、本地 PostgreSQL 16；复用预置依赖与 Chrome，没有重装 App 依赖或浏览器。
+- npm run verify：最终使用独立 Metro/TMPDIR 缓存，typecheck、lint、137 项单测、iOS 与 Android 导出全部通过。
+- uv run ruff check .：通过；REQUIRE_INTEGRATION=1 的 pytest 全量 408 passed、0 skipped。
+- 语句覆盖率：3464/3803 = 91.09%，终端显示 91%；coverage.xml 已生成。统计限于 pytest 进程，不包含外置 API/Worker 进程的行执行。
+- make check：退出码 0，跑完两侧检查与覆盖率；make -n deploy 确认调用 server/deploy/deploy-ecs.sh。
+- Hook/Make 临时独立仓库行为验证：13/13，通过 App-only、server-only、双侧、文档、删除、跨侧重命名，以及 npm/ruff/pytest 失败码传播等场景。
+- 假服务 Playwright：13/13 通过，0 failed/skipped/flaky，344.831 秒（5.7 分钟），默认排除 live 流程，全部原断言保留。
+- make server-e2e：Mock HTTP 完整闭环 17 步通过。
+- docker build --platform linux/amd64 --tag outfit-agent-server:eng-round11-ci ./server：成功；镜像 ID sha256:e2faed7797089a434122d337f8fed9899f8c0827bca5b3ac17e3598bc74f1518。
+- CI YAML 经 Python yaml.safe_load 解析及字段核对通过；文档链接、ADR 2–17、保护路径、提交身份与中文标题检查通过。
+
+新增规则与债务
+- ESLint 明确设为 error：@typescript-eslint/no-explicit-any（TS/TSX）、react-hooks/exhaustive-deps、eqeqeq（Expo smart）、no-var、prefer-const；现状零 error。
+- import/order 为 warn，现有 19 处，具体文件/行号在 docs/工程规范.md；后续消债后再升 error。
+- ruff 启用 E/F/I/UP/B + SIM/RUF/N/S。原始新增族命中 2250 项；允许 11 个中文/排版字符后为 1583 项，再应用限定文件例外后零违规。
+- 策略例外：中文/排版混淆字符 667 项；测试 assert 1309 项、验收脚本 assert 218 项；固定测试密码 S105 5 项、S106 32 项；本地 JWT 占位值 S105 1 项，生产保护保持现状。
+- 暂缓的 ruff 债务：N818 1、SIM102/SIM105/SIM115/SIM117 各 1、S110 1、S603 2、S607 4、S608 3、RUF043 1、RUF059 2。工程规范列明对应文件、行号、理由和后续处理；文件级例外对同文件新问题仍需评审。
+- 既有 Web 媒体下载 app/src/lib/media.ts:14 缺显式超时，本轮只记录。
+- tokens:check 与硬编码色值专属门禁属于第 16 节设计系统轮；当前脚本尚不存在，本轮没有添加可选跳过命令冒充门禁。
+
+本地并行环境的隔离与证据
+- 首轮检查命中过并行 worktree 的本地服务/共享 Metro 缓存，相关失败和中断不计入最终验收；没有通过修改业务代码或测试断言适配它们。
+- 服务端最终使用本 worktree 源码、独立测试库与媒体目录，API 只监听 ::1:18080；临时 Python 路由守卫只允许 localhost:18080 解析到 IPv6，拒绝回退到并行 IPv4 API。
+- 浏览器最终使用独立 19600/19601、独立 Mock 数据和 Metro/TMPDIR 缓存。临时测试副本只替换 8 处端口 URL，逐文件逆替换与原文一致；source map 门禁确认全部 46 个应用源码来自本 worktree。
+- 本轮启动的 API/Worker 与浏览器 Web/Mock 均已停止，测试生成的跟踪文件差异已恢复。保留独立库 outfit_eng_round11_20261021_101151_6c798df3 和忽略目录内证据。
+- 主要证据（未提交）：server/artifacts/eng-round11-make-check.log、coverage.xml、eng-round11-app-verify.log、eng-round11-app-verify-summary.json、eng-round11-docker.log、eng-round11-server-e2e.log。
+- 浏览器证据目录：server/artifacts/eng-round11-playwright-isolated/，含 e2e.json、summary.json、copy-evidence.json、port-substitutions.diff、metro-source-ownership.json、cleanup.json 与隔离配置副本。
+- 服务端隔离环境文件：/var/folders/vb/3_sf8fqn0c91byqy72vnyjl00000gn/T/outfit-eng-round11-fdeok0z1/env.sh（仅本地，未提交）。复测需要先启动该 worktree 的 API/Worker；不要复用其他轮次服务作为本轮验收。
+
+未做与边界
+- 未在 GitHub Actions/act 执行；已做 YAML 静态校验和本地对应检查、浏览器测试及 linux/amd64 镜像构建。
+- 未运行真实模型、线上服务、真机或实际发帖；未部署、推送、合并或访问前公司环境。
+- 没有修改 docs/设计.md、app/src/**、server/app/**、App package.json/package-lock.json、服务端生产依赖；没有整仓格式化，没有提交凭证或测试产物。
+- 历史 lint 债务留给后续业务轮，tokens 门禁留给设计系统轮。当前必需交付项均已完成。
+
+本地提交
+e3cf0c3 补充贡献指南与工程规范决策索引
+1b45979 增加分侧提交门禁与根目录开发命令
+4436705 扩展静态检查规则并登记历史债务
+5ac6cc2 增加覆盖率报告并接入统一检查命令
+0e0d05c 补齐浏览器与镜像持续集成门禁
+本摘要另作一条本地提交。所有提交作者/提交人均为 chaw1 <97000945@qq.com>，中文单行标题，无工具署名。

@@ -19,13 +19,46 @@ dependencies = [
   "pillow-heif>=1.0,<2",
 ]
 [dependency-groups]
-dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+dev = ["pytest>=8,<10", "pytest-cov>=6,<8", "ruff>=0.11,<1"]
 [tool.ruff]
 line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+extend-select = ["SIM", "RUF", "N", "S"]
+# 中文文案及现有排版符号不作为易混淆字符错误。
+allowed-confusables = ["，", "；", "（", "）", "：", "–", "‘", "’", "？", "～", "！"]
+
+[tool.ruff.lint.per-file-ignores]
+# 测试/验收脚本允许断言和固定假密码；其余例外见 docs/工程规范.md。
+"tests/**/*.py" = ["S101", "S105", "S106"]
+"scripts/*.py" = ["S101", "S106"]
+"app/config.py" = ["S105"]
+"app/main.py" = ["SIM102"]
+"app/observability.py" = ["SIM105", "S110"]
+"app/project_cleanup.py" = ["S608"]
+"app/providers.py" = ["N818"]
+"app/rate_limits.py" = ["SIM115"]
+"scripts/admin_review.py" = ["S603"]
+"scripts/experiments.py" = ["S607"]
+"scripts/restart_e2e.py" = ["S607"]
+"tests/test_admin_migrations.py" = ["S603", "S607"]
+"tests/test_migrations.py" = ["S607"]
+"tests/test_admin_runtime.py" = ["SIM117"]
+"tests/test_project_cleanup.py" = ["S608"]
+"tests/test_observability.py" = ["RUF059"]
+"tests/test_profile.py" = ["RUF059"]
+"tests/test_verify_anchor.py" = ["RUF043"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["integration: requires the dedicated local PostgreSQL"]
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Query"]
+
+[tool.coverage.run]
+source = ["app"]
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
