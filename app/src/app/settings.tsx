@@ -1,25 +1,36 @@
-import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ProfileEditor } from '../components/ProfileEditor';
 import { supportsProfile } from '../lib/profile';
 import { AnimatedEntry, Button, Field, Header, Notice, Page, Toast, errorText, styles } from '../components/ui';
 import { colors, radius, space, type } from '../theme';
 import { useSession } from '../context/Session';
+import { formatPoints, pointsValue } from '../lib/transparency';
 
 export default function Settings() {
-  const { baseUrl, setBaseUrl, signOut, token, user } = useSession();
+  const { baseUrl, setBaseUrl, signOut, token, user, refreshUser } = useSession();
   const router = useRouter();
+  useFocusEffect(useCallback(() => { if (token) void refreshUser().catch(() => undefined); }, [token, refreshUser]));
   const [url, setUrl] = useState(baseUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const dailyPoints = pointsValue(user?.daily_budget_points, user?.daily_budget_cny);
+  const usedPoints = pointsValue(user?.today_cost_points, user?.today_cost_cny);
   async function save() {
     setBusy(true); setError('');
     try { await setBaseUrl(url); setSaved(true); } catch (e) { setError(errorText(e)); } finally { setBusy(false); }
   }
   return <Page><Header title="设置" onBack={() => router.canGoBack() ? router.back() : router.replace(token ? '/' : '/login')} /><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
     {token && <AnimatedEntry style={localStyles.profileSection}>{supportsProfile(user) ? <ProfileEditor key={`${baseUrl}:${user.id}`} user={user} /> : <View style={{ gap: space.sm }}><Text style={styles.section}>我的形象</Text><Text style={styles.subtitle}>当前服务未开通我的形象，现有创作功能可以继续使用。</Text></View>}</AnimatedEntry>}
+    {token && <View style={localStyles.pointsSection}>
+      <Text style={styles.section}>我的点数</Text>
+      {dailyPoints !== undefined && usedPoints !== undefined ? <Text testID="settings-remaining-points" style={styles.subtitle}>今日还有 {formatPoints(Math.max(0, dailyPoints - usedPoints))}</Text> : null}
+      {dailyPoints !== undefined ? <Text testID="settings-daily-points" style={styles.subtitle}>每日 {formatPoints(dailyPoints)}</Text> : null}
+      {usedPoints !== undefined ? <Text testID="settings-used-points" style={styles.subtitle}>今天用了 {formatPoints(usedPoints)}</Text> : null}
+      <Text style={styles.subtitle}>正式出图和视频会扣点，确认前会显示预计点数。每日点数在 00:00 恢复。</Text>
+    </View>}
     <View style={localStyles.serviceSection}>
       <View style={{ gap: space.sm }}><Text style={styles.section}>创作偏好</Text><Text style={styles.subtitle}>连上你的服务，灵感就能继续。</Text></View>
       <Field label="服务器地址" value={url} onChangeText={value => { setUrl(value); setSaved(false); }} placeholder="https://你的服务地址" autoCapitalize="none" autoCorrect={false} keyboardType="url" />
@@ -36,6 +47,7 @@ export default function Settings() {
 
 const localStyles = StyleSheet.create({
   profileSection: { borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: space.xl },
+  pointsSection: { gap: space.sm, borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: space.xl },
   serviceSection: { gap: space.lg },
   helpCard: { backgroundColor: colors.paper, borderRadius: radius.md, padding: space.lg },
   helpText: { ...type.caption, color: colors.muted },

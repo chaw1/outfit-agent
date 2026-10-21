@@ -1,6 +1,6 @@
 {
-  "completedAt": "2026-10-20T17:45:51.076Z",
-  "projectId": "project_f349d381-cb92-4558-aef1-88a5aa8aa8b6",
+  "completedAt": "2026-10-21T02:26:08.645Z",
+  "projectId": "project_5ac7329c-39b4-4e97-8369-174952ba9b9e",
   "viewport": {
     "width": 390,
     "height": 844
@@ -32,7 +32,7 @@
       "file": "60-onboarding-1-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 14
+        "adjustedTextNodes": 37
       },
       "viewport": {
         "width": 390,
@@ -57,7 +57,7 @@
       "file": "61-onboarding-2-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 14
+        "adjustedTextNodes": 37
       },
       "viewport": {
         "width": 390,
@@ -82,7 +82,7 @@
       "file": "62-onboarding-3-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 14
+        "adjustedTextNodes": 37
       },
       "viewport": {
         "width": 390,
@@ -93,7 +93,7 @@
       "controls": [
         {
           "role": "button",
-          "name": "开始创作",
+          "name": "进入片场",
           "testID": null,
           "width": 326,
           "height": 52,
@@ -107,7 +107,7 @@
       "file": "63-home-skeleton-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 14
+        "adjustedTextNodes": 37
       },
       "viewport": {
         "width": 390,
@@ -118,7 +118,23 @@
       "controls": [
         {
           "role": "button",
-          "name": "设置",
+          "name": "查看灵感 9 · 户外野餐",
+          "testID": "inspiration-09",
+          "width": 165,
+          "height": 248.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "查看灵感 10 · 美术馆漫步",
+          "testID": "inspiration-10",
+          "width": 165,
+          "height": 271.34,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "刷新片场列表",
           "testID": null,
           "width": 44,
           "height": 44,
@@ -126,18 +142,10 @@
         },
         {
           "role": "button",
-          "name": "新建品牌合作",
+          "name": "拍一组新片",
           "testID": null,
           "width": 342,
           "height": 52,
-          "disabled": false
-        },
-        {
-          "role": "button",
-          "name": "刷新项目列表",
-          "testID": null,
-          "width": 44,
-          "height": 44,
           "disabled": false
         }
       ],
@@ -148,7 +156,7 @@
       "file": "64-home-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 15
+        "adjustedTextNodes": 38
       },
       "viewport": {
         "width": 390,
@@ -167,34 +175,50 @@
         },
         {
           "role": "button",
-          "name": "新建品牌合作",
+          "name": "查看灵感 1 · 松弛通勤",
+          "testID": "inspiration-01",
+          "width": 165,
+          "height": 271.34,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "查看灵感 3 · 法式慵懒",
+          "testID": "inspiration-03",
+          "width": 165,
+          "height": 248.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "查看灵感 2 · 老钱极简",
+          "testID": "inspiration-02",
+          "width": 165,
+          "height": 222.81,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "查看灵感 4 · 街头胶片",
+          "testID": "inspiration-04",
+          "width": 165,
+          "height": 271.34,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "查看灵感 6 · 咖啡馆午后",
+          "testID": "inspiration-06",
+          "width": 165,
+          "height": 248.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "拍一组新片",
           "testID": null,
           "width": 342,
           "height": 52,
-          "disabled": false
-        },
-        {
-          "role": "button",
-          "name": "刷新项目列表",
-          "testID": null,
-          "width": 44,
-          "height": 44,
-          "disabled": false
-        },
-        {
-          "role": "button",
-          "name": "打开项目 秋日松弛穿搭视觉验收",
-          "testID": null,
-          "width": 342,
-          "height": 170.7,
-          "disabled": false
-        },
-        {
-          "role": "button",
-          "name": "删除项目 秋日松弛穿搭视觉验收",
-          "testID": null,
-          "width": 44,
-          "height": 44,
           "disabled": false
         }
       ],
@@ -205,7 +229,7 @@
       "file": "65-new-project-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 20
+        "adjustedTextNodes": 39
       },
       "viewport": {
         "width": 390,
@@ -224,18 +248,82 @@
         },
         {
           "role": "button",
-          "name": "移除衣服图 1",
-          "testID": null,
-          "width": 44,
-          "height": 44,
+          "name": "风格：松弛通勤",
+          "testID": "style-tag-松弛通勤",
+          "width": 80.78,
+          "height": 46.7,
           "disabled": false
         },
         {
           "role": "button",
-          "name": "上传衣服图",
-          "testID": "upload-garments",
-          "width": 342,
-          "height": 158.3,
+          "name": "风格：老钱极简",
+          "testID": "style-tag-老钱极简",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：法式慵懒",
+          "testID": "style-tag-法式慵懒",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：街头胶片",
+          "testID": "style-tag-街头胶片",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：杂志大片",
+          "testID": "style-tag-杂志大片",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：咖啡馆午后",
+          "testID": "style-tag-咖啡馆午后",
+          "width": 94.47,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：闪光灯夜拍",
+          "testID": "style-tag-闪光灯夜拍",
+          "width": 94.47,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：复古港风",
+          "testID": "style-tag-复古港风",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "换一批",
+          "testID": "shuffle-style-tags",
+          "width": 109.31,
+          "height": 52,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "开拍，先聊灵感",
+          "testID": "start-shooting",
+          "width": 358,
+          "height": 52,
           "disabled": false
         }
       ],
@@ -246,7 +334,7 @@
       "file": "66-new-project-submit-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 20
+        "adjustedTextNodes": 39
       },
       "viewport": {
         "width": 390,
@@ -265,41 +353,81 @@
         },
         {
           "role": "button",
-          "name": "移除衣服图 1",
-          "testID": null,
-          "width": 44,
-          "height": 44,
+          "name": "风格：松弛通勤",
+          "testID": "style-tag-松弛通勤",
+          "width": 80.78,
+          "height": 46.7,
           "disabled": false
         },
         {
           "role": "button",
-          "name": "上传衣服图",
-          "testID": "upload-garments",
-          "width": 342,
-          "height": 158.3,
+          "name": "风格：老钱极简",
+          "testID": "style-tag-老钱极简",
+          "width": 80.78,
+          "height": 46.7,
           "disabled": false
         },
         {
           "role": "button",
-          "name": "选择档案照片 1",
-          "testID": null,
-          "width": 96,
-          "height": 152.7,
+          "name": "风格：法式慵懒",
+          "testID": "style-tag-法式慵懒",
+          "width": 80.78,
+          "height": 46.7,
           "disabled": false
         },
         {
           "role": "button",
-          "name": "更换我的照片",
-          "testID": null,
-          "width": 342,
+          "name": "风格：街头胶片",
+          "testID": "style-tag-街头胶片",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：杂志大片",
+          "testID": "style-tag-杂志大片",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：咖啡馆午后",
+          "testID": "style-tag-咖啡馆午后",
+          "width": 94.47,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：闪光灯夜拍",
+          "testID": "style-tag-闪光灯夜拍",
+          "width": 94.47,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "风格：复古港风",
+          "testID": "style-tag-复古港风",
+          "width": 80.78,
+          "height": 46.7,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "换一批",
+          "testID": "shuffle-style-tags",
+          "width": 109.31,
           "height": 52,
           "disabled": false
         },
         {
           "role": "button",
-          "name": "开始聊灵感",
-          "testID": null,
-          "width": 342,
+          "name": "开拍，先聊灵感",
+          "testID": "start-shooting",
+          "width": 358,
           "height": 52,
           "disabled": false
         }
@@ -311,7 +439,7 @@
       "file": "67-settings-profile-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 28
+        "adjustedTextNodes": 33
       },
       "viewport": {
         "width": 390,
@@ -360,7 +488,7 @@
       "file": "68-settings-service-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 28
+        "adjustedTextNodes": 33
       },
       "viewport": {
         "width": 390,
@@ -375,14 +503,6 @@
           "testID": null,
           "width": 44,
           "height": 44,
-          "disabled": false
-        },
-        {
-          "role": "button",
-          "name": "保存我的形象",
-          "testID": null,
-          "width": 342,
-          "height": 52,
           "disabled": false
         },
         {
@@ -458,7 +578,7 @@
       "file": "70-workspace-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 51
+        "adjustedTextNodes": 54
       },
       "viewport": {
         "width": 390,
@@ -488,7 +608,7 @@
           "name": "选择方向：轻松通勤日 · 调整版",
           "testID": "direction-direction_work",
           "width": 324,
-          "height": 448.2,
+          "height": 468.91,
           "disabled": false
         },
         {
@@ -504,7 +624,7 @@
           "name": "选择方向：出走去公园",
           "testID": "direction-direction_nature",
           "width": 324,
-          "height": 448.2,
+          "height": 468.91,
           "disabled": false
         },
         {
@@ -567,7 +687,7 @@
         },
         {
           "role": "button",
-          "name": "返回工作台",
+          "name": "返回编导间",
           "testID": null,
           "width": 117.5,
           "height": 52,
@@ -581,7 +701,7 @@
       "file": "73-preview-no-image-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 33
+        "adjustedTextNodes": 43
       },
       "viewport": {
         "width": 390,
@@ -608,11 +728,19 @@
         },
         {
           "role": "button",
+          "name": "保存草稿",
+          "testID": "save-note-draft",
+          "width": 144.17,
+          "height": 52,
+          "disabled": false
+        },
+        {
+          "role": "button",
           "name": "准备发布",
           "testID": "prepare-publish",
-          "width": 358,
+          "width": 201.83,
           "height": 52,
-          "disabled": true
+          "disabled": false
         },
         {
           "role": "button",
@@ -638,7 +766,7 @@
       "file": "74-preview-image-error-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 33
+        "adjustedTextNodes": 43
       },
       "viewport": {
         "width": 390,
@@ -665,11 +793,19 @@
         },
         {
           "role": "button",
+          "name": "保存草稿",
+          "testID": "save-note-draft",
+          "width": 144.17,
+          "height": 52,
+          "disabled": false
+        },
+        {
+          "role": "button",
           "name": "准备发布",
           "testID": "prepare-publish",
-          "width": 358,
+          "width": 201.83,
           "height": 52,
-          "disabled": true
+          "disabled": false
         },
         {
           "role": "button",
@@ -695,7 +831,7 @@
       "file": "75-preview-image-recovered-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 31
+        "adjustedTextNodes": 41
       },
       "viewport": {
         "width": 390,
@@ -722,11 +858,19 @@
         },
         {
           "role": "button",
+          "name": "保存草稿",
+          "testID": "save-note-draft",
+          "width": 144.17,
+          "height": 52,
+          "disabled": false
+        },
+        {
+          "role": "button",
           "name": "准备发布",
           "testID": "prepare-publish",
-          "width": 358,
+          "width": 201.83,
           "height": 52,
-          "disabled": true
+          "disabled": false
         },
         {
           "role": "button",
@@ -752,7 +896,7 @@
       "file": "76-preview-reading-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 31
+        "adjustedTextNodes": 41
       },
       "viewport": {
         "width": 390,
@@ -771,19 +915,51 @@
         },
         {
           "role": "button",
-          "name": "查看笔记第 1 张图片",
-          "testID": null,
-          "width": 390,
-          "height": 520,
+          "name": "删除话题 秋日穿搭",
+          "testID": "remove-note-tag-秋日穿搭",
+          "width": 107.67,
+          "height": 44,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "删除话题 松弛感",
+          "testID": "remove-note-tag-松弛感",
+          "width": 94.45,
+          "height": 44,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "删除话题 日常通勤",
+          "testID": "remove-note-tag-日常通勤",
+          "width": 107.67,
+          "height": 44,
+          "disabled": false
+        },
+        {
+          "role": "button",
+          "name": "添加",
+          "testID": "add-note-tag",
+          "width": 92.2,
+          "height": 52,
+          "disabled": true
+        },
+        {
+          "role": "button",
+          "name": "保存草稿",
+          "testID": "save-note-draft",
+          "width": 144.17,
+          "height": 52,
           "disabled": false
         },
         {
           "role": "button",
           "name": "准备发布",
           "testID": "prepare-publish",
-          "width": 358,
+          "width": 201.83,
           "height": 52,
-          "disabled": true
+          "disabled": false
         },
         {
           "role": "button",
@@ -809,7 +985,7 @@
       "file": "77-preview-publish-font115.png",
       "scaling": {
         "factor": 1.15,
-        "adjustedTextNodes": 30
+        "adjustedTextNodes": 41
       },
       "viewport": {
         "width": 390,
@@ -828,7 +1004,7 @@
         },
         {
           "role": "checkbox",
-          "name": "发布时勾选平台 AI 内容声明",
+          "name": "AI 生成内容，发布时勾选平台 AI 内容声明",
           "testID": "publish-ai-confirm",
           "width": 308,
           "height": 44,
@@ -836,7 +1012,7 @@
         },
         {
           "role": "button",
-          "name": "返回工作台继续创作",
+          "name": "返回编导间继续创作",
           "testID": null,
           "width": 342,
           "height": 52,
@@ -844,9 +1020,17 @@
         },
         {
           "role": "button",
+          "name": "保存草稿",
+          "testID": "save-note-draft",
+          "width": 144.17,
+          "height": 52,
+          "disabled": false
+        },
+        {
+          "role": "button",
           "name": "准备发布",
           "testID": "prepare-publish",
-          "width": 358,
+          "width": 201.83,
           "height": 52,
           "disabled": false
         },
@@ -902,22 +1086,22 @@
       }
     },
     {
-      "label": "首页新建品牌合作",
+      "label": "首页拍一组新片",
       "reachable": true,
       "bounds": {
         "x": 24,
-        "y": 391.8125,
+        "y": 776,
         "width": 342,
         "height": 52
       }
     },
     {
-      "label": "新建开始聊灵感",
+      "label": "新建开拍，先聊灵感",
       "reachable": true,
       "bounds": {
-        "x": 24,
-        "y": 760.1875,
-        "width": 342,
+        "x": 16,
+        "y": 776,
+        "width": 358,
         "height": 52
       }
     },
@@ -936,13 +1120,13 @@
       "reachable": true,
       "bounds": {
         "x": 24,
-        "y": 488.984375,
+        "y": 489.15625,
         "width": 342,
         "height": 52
       }
     },
     {
-      "label": "工作台发送消息",
+      "label": "编导间发送消息",
       "reachable": true,
       "bounds": {
         "x": 325,
@@ -952,7 +1136,7 @@
       }
     },
     {
-      "label": "无笔记返回工作台",
+      "label": "无笔记返回编导间",
       "reachable": true,
       "bounds": {
         "x": 136.25,
@@ -976,7 +1160,7 @@
       "reachable": true,
       "bounds": {
         "x": 41,
-        "y": 418.640625,
+        "y": 447.125,
         "width": 308,
         "height": 44
       }
@@ -985,9 +1169,9 @@
       "label": "预览准备发布（仅检查可达）",
       "reachable": true,
       "bounds": {
-        "x": 16,
+        "x": 172.171875,
         "y": 720,
-        "width": 358,
+        "width": 201.828125,
         "height": 52
       }
     }

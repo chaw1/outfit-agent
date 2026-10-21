@@ -8,7 +8,7 @@ process.env.PLAYWRIGHT_BROWSERS_PATH ||= path.resolve('.tools/browsers');
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'live.spec.ts',
+  testMatch: /live(?:-auto)?\.spec\.ts$/,
   timeout: 25 * 60_000,
   expect: { timeout: 30_000 },
   workers: 1,

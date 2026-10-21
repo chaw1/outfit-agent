@@ -23,7 +23,7 @@ export default function About() {
       </View>
       <View style={localStyles.section}>
         <Text style={styles.section}>隐私说明</Text>
-        <Text style={styles.subtitle}>你选择的照片、形象档案、合作需求和对话会上传到上方配置的服务，用于生成穿搭内容。生成请求可能由该服务交给模型提供方处理，请只上传你有权使用的内容。</Text>
+        <Text style={styles.subtitle}>你选择的照片、形象档案、这次的拍摄想法和对话会上传到上方配置的服务，用于生成穿搭内容。生成请求可能由该服务交给模型提供方处理，请只上传你有权使用的内容。</Text>
         <Text style={styles.subtitle}>登录凭证在本机安全存储；网页版登录状态随会话保存。本人照片预览和引导状态保存在本机。删除项目会请求清理项目生成内容，上传原图可能被其他项目复用而保留。修改或删除档案照片不会自动删除项目内使用的原图。</Text>
         <Text style={styles.subtitle}>本地通知只用于生成结果，不接入推送平台；拒绝授权仍可在项目里查看结果。手机系统可能延后后台检查，重新打开应用也会同步。</Text>
       </View>

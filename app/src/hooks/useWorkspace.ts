@@ -78,7 +78,7 @@ export function useWorkspace(id: string) {
     if (details && request === stateRequest.current) setProject(details);
     if (request === stateRequest.current) {
       setMissing(false);
-      observeGeneration(id, details?.title || '合作项目', fresh);
+      observeGeneration(id, details?.title || '这组片', fresh);
     }
     if (historySync.current.needsHistory(Boolean(stream.current?.streaming), withHistory)) {
       const history = ++historyRequest.current;
@@ -223,9 +223,9 @@ export function useWorkspace(id: string) {
     if (token && id) {
       void refresh().then(fresh => {
         if (!fresh || !isCurrent(owner, epoch)) return;
-        if (currentMessages.current.length === 0 && fresh.stage === 'brief' && !autoStarted.current) {
+        if (currentMessages.current.length === 0 && fresh.stage === 'brief' && fresh.mode !== 'auto' && !autoStarted.current) {
           autoStarted.current = true;
-          void send({ text: '请分析品牌衣服和合作需求，给我几个适合的穿搭方向。' });
+          void send({ text: '请分析衣服和这次想拍什么，给我几个适合的穿搭方向。' });
         }
       }).catch(e => { if (isCurrent(owner, epoch)) { setError(errorText(e)); if (e instanceof ApiError && e.status === 404) { setMissing(true); setProject(undefined); setState(undefined); setMessages([]); } } })
         .finally(() => { if (isCurrent(owner, epoch)) setLoading(false); });
@@ -292,5 +292,21 @@ export function useWorkspace(id: string) {
     } catch (e) { if (isCurrent(owner, epoch)) setError(errorText(e)); }
     finally { retrying.current = false; }
   }, [api, id, owner, isCurrent, send, refresh]);
-  return { project, state, messages, cards: latestCards, loading, busy, error, send, retry, failedMessages, retryMessage, missing };
+  const takeOver = useCallback(async () => {
+    const epoch = focusEpoch.current;
+    if (sending.current || !isCurrent(owner, epoch)) return;
+    sending.current = true; setBusy(true); setError('');
+    try {
+      const fresh = await api.setProjectMode(id, { mode: 'guided' });
+      if (!isCurrent(owner, epoch)) return;
+      ++stateRequest.current;
+      setState(previous => mergeProjectState(previous, fresh));
+      await refresh();
+    } catch (e) {
+      if (isCurrent(owner, epoch)) setError(`${errorText(e)} 请刷新查看是否已接手。`);
+    } finally {
+      if (isCurrent(owner, epoch)) { sending.current = false; setBusy(false); }
+    }
+  }, [api, id, owner, isCurrent, refresh]);
+  return { takeOver, project, state, messages, cards: latestCards, loading, busy, error, send, retry, failedMessages, retryMessage, missing };
 }

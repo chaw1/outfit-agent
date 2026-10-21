@@ -4,6 +4,7 @@ import type { NoteData, OutfitImage } from '../api/types';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, layout, radius, space, type as typography } from '../theme';
 import { Badge } from './ui';
+import { formatPoints, pointsValue } from '../lib/transparency';
 
 export function FidelityBadge({ image, style, testIDPrefix = '' }: { image: OutfitImage; style?: StyleProp<ViewStyle>; testIDPrefix?: string }) {
   const score = image.fidelity?.score;
@@ -27,10 +28,10 @@ export function ImageRevisionInfo({ image }: { image: OutfitImage }) {
   </View>;
 }
 
-export function NoteDisclosure({ note, projectCost, testIDPrefix = 'note' }: { note: NoteData; projectCost?: number; testIDPrefix?: string }) {
-  const cost = note.cost_cny ?? projectCost;
+export function NoteDisclosure({ note, projectCost, projectPoints, testIDPrefix = 'note' }: { note: NoteData; projectCost?: number; projectPoints?: number; testIDPrefix?: string }) {
+  const cost = pointsValue(note.cost_points, note.cost_cny) ?? pointsValue(projectPoints, projectCost);
   return <View style={styles.disclosure}>
-    {typeof cost === 'number' && Number.isFinite(cost) ? <View style={styles.disclosureRow}><Ionicons name="wallet-outline" size={14} color={colors.muted} /><Text testID={`${testIDPrefix}-cost`} style={styles.cost}>这篇成本约 ¥{cost.toFixed(1)}</Text></View> : null}
+    {cost !== undefined ? <View style={styles.disclosureRow}><Ionicons name="wallet-outline" size={14} color={colors.muted} /><Text testID={`${testIDPrefix}-cost`} style={styles.cost}>这组片用了约 {formatPoints(cost)}</Text></View> : null}
     <View style={styles.disclosureRow}><Ionicons name="sparkles-outline" size={14} color={colors.muted} /><Text testID={`${testIDPrefix}-ai-label`} style={styles.label}>{note.ai_label || '本篇含 AI 生成内容，发布时请勾选平台的 AI 内容声明。'}</Text></View>
   </View>;
 }

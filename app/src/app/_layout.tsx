@@ -5,6 +5,7 @@ import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SessionProvider, useSession } from '../context/Session';
+import { studio } from '../theme';
 import { LoadingSkeleton, colors } from '../components/ui';
 import { Onboarding } from '../components/Onboarding';
 import { GenerationNotifications } from '../components/GenerationNotifications';
@@ -22,8 +23,9 @@ function Routes() {
     if (!token && !isPublic) router.replace(expired ? { pathname: '/login', params: { expired: '1' } } : '/login');
     else if (token && segments[0] === 'login') router.replace('/');
   }, [ready, token, segments, router]);
-  return <View style={{ flex: 1, backgroundColor: colors.paper }}>
-    <StatusBar style="dark" />
+  const dark = segments[0] === 'login' || !segments[0] || (segments[0] === 'projects' && segments[1] === 'new');
+  return <View style={{ flex: 1, backgroundColor: dark ? studio.bg : colors.paper }}>
+    <StatusBar style={dark ? "light" : "dark"} />
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.paper }, animation: 'slide_from_right' }} />
     {ready && <><GenerationNotifications /><Onboarding /></>}
     {!ready && <View style={{ position: 'absolute', inset: 0, backgroundColor: colors.paper, justifyContent: 'center' }}><LoadingSkeleton kind="list" /></View>}

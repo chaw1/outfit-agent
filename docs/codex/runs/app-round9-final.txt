@@ -1,0 +1,59 @@
+App 第九轮本地交付
+日期：2026-10-21（Asia/Shanghai）
+工作树：/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app
+分支：feat/app；基线：9e0268a；唯一契约：docs/设计.md 第 14 节。
+
+已完成
+1. 片场感：共享 theme/ui 增加 studio 色板，首页、登录、引导、新建页使用深色；编导间与预览维持纸色。灵感墙使用全部 10 张本地成片，两列瀑布、点图放大。新建页有两种模式、说明与问号弹层、衣服/出镜的人/参考图三张卡、风格描述、12 词每批 8 个及换批（最多选 6 个且保留跨批选择）、固定底部开拍按钮。品牌选填，留空为自由创作；项目名称默认品牌与第一个风格词。全局词汇、无障碍标签、选择器和三页引导同步。
+2. 点数：优先读取 *_points，旧 *_cny 按 10 倍换算；不到 0.1 点明确显示微量。累计、消息 trace、确认估点、换方向估点、笔记卡/预览、设置均显示点数；不足禁用并提示次日恢复；兼容旧服务预算错误文案。进入设置刷新账号点数，避免继续显示注册时的用量。
+3. 一键出片：创建发送 mode/style_tags，brief 原文不拼接风格词；开拍按钮读取 GET /api/quotes/auto，假服务估点 48 点。编导间依 state.auto 显示六步进度与主动消息，自动模式不挂载确认/恢复/编辑入口；我来接手调用 POST /api/projects/{id}/mode，保留正在执行的任务。假服务新增点数双字段、推荐方向、六步后台自主推进、失败转 guided、接手与重启恢复；不带新字段仍走原 guided 流程。
+4. 离开再回来：generating/waiting_you/ready 放入进行中并按进度更新时间倒序；生成时每 5 秒刷新、回前台与重入立即刷新，慢请求不叠加。刚刚出好复用现有完成追踪并按服务/账号隔离。auto 从方向阶段到任务间隙持续被追踪，视频在两次轮询间完成也能补发现；原生端把最近五个项目完成记录持久化，后台完成后回前台或冷启动都可恢复列表，恢复不会重发通知；保留原前台横幅与本地通知。假服务进度排除失效的历史失败批次，重试成功能回到 ready/done。
+
+验证
+Node v22.23.1，PATH 使用 ~/.local/share/mise/installs/node/22.23.1/bin。
+分项完成后均执行 npm run verify；四份通过日志位于 app/verification/round9/verify-1.txt 至 verify-4.txt。
+最终 verify：typecheck、lint、160 项单测、iOS 导出、Android 导出全部通过。
+最终浏览器全量验收正在复跑，结果完成后更新本记录。
+所有浏览器测试仅连接本地假服务；PLAYWRIGHT_BROWSERS_PATH=$PWD/.tools/browsers。
+新增 e2e/round9.spec.ts 覆盖六步 UI 全程无确认按钮、主动消息、风格换批、默认值/请求原文、接手不取消任务、刚刚出好、引导/登录/设置/预览等页面全文禁词检查。
+新增单测覆盖点数与兼容换算、词条换批、进行中排序、auto 进度映射、通知跨任务空档、feed 快照与账号隔离、假服务自动完成/接手/失败/重启及历史失败重试。
+
+证据
+app/screenshots/90-studio-inspiration-wall.png
+app/screenshots/91-inspiration-large-view.png
+app/screenshots/92-home-in-progress.png
+app/screenshots/93-new-guided-mode.png
+app/screenshots/94-new-auto-explanation.png
+app/screenshots/95-style-batch-and-estimate.png
+app/screenshots/96-auto-script-progress.png
+app/screenshots/97-auto-finished-note-and-video.png
+app/screenshots/98-home-just-finished.png
+app/screenshots/99-takeover-script-confirmation.png
+app/screenshots/round9-evidence.json
+app/verification/round9/（最终检查日志、完整结果和审计）
+app/README.md 已补第九轮使用说明。
+
+换词对照
+新建品牌合作 → 拍一组新片
+合作项目 → 我的片场（单项指代用“这组片”）
+合作笔记 → 这组片
+合作工作台 / 工作台 → 编导间
+创作间 → 片场
+品牌需求 → 这次想拍什么
+让你来当主角 → 出镜的人
+开始聊灵感 → 开拍（沉浸编导：开拍，先聊灵感；一键出片：开拍，全自动 · 约 N 点）
+合作品牌 → 品牌（选填；留空为自由创作）
+金额、费用与余额提示 → 点数、预计 N 点、今日还有 N 点
+
+未做与验证边界
+未运行 npm run test:live 或任何 live-auto；e2e/live.spec.ts 仅改新文案/点数断言，流程语义保留。
+e2e/live-auto.spec.ts 已编写，显式 LIVE_API_BASE 才启用，上限 10 分钟；专用 Secrets 断点、开拍防重复、过期登录恢复、六步截图完整性检查。普通配置排除全部 live 用例。本轮未写入 screenshots-live/。
+未连接线上服务，未访问前公司环境；未修改 server/、docs/设计.md、任何现存凭证；未 push。
+未做 iOS/Android 真机通知、系统挂起/冷启动、相册与分享验收；导出与网页测试不能代替真机验证。原生后台通知时机仍由系统调度和权限决定。
+
+本地提交
+cd5bae6 重塑深色片场与新建拍摄入口
+57e3ef4 统一点数展示并接入自动出片进度与接手
+8f5d963 补齐本地一键出片流程与点数契约
+余下进度修复、回归证据和本记录随最终提交交付。
+提交作者统一为 chaw1 <97000945@qq.com>。

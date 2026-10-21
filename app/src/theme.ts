@@ -1,4 +1,4 @@
-import type { TextStyle } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 export const colors = {
   red: '#FF2442', action: '#D91B38', redText: '#C51D39',
@@ -10,9 +10,15 @@ export const colors = {
   viewerBg: '#111215', viewerCanvas: '#17191D', viewerSurface: '#24262C',
   viewerMuted: '#BBBFC8', viewerLine: '#3D4048', viewerSelected: '#4B2630', mask: '#FF244255',
 } as const;
+export const studio = {
+  bg: colors.viewerBg, canvas: colors.viewerCanvas, surface: colors.viewerSurface,
+  glass: 'rgba(255,255,255,0.045)', line: '#35373D', ink: '#F7F3EA',
+  muted: '#B8B6B1', subtle: '#777B83', accent: colors.red, softAccent: '#39232A',
+} as const;
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radius = { sm: 12, md: 16, lg: 20 } as const;
 export const type = {
+  display: { fontFamily: Platform.OS === 'ios' ? 'Songti SC' : undefined, fontSize: 34, lineHeight: 46, fontWeight: '300', letterSpacing: 2 },
   brand: { fontSize: 36, lineHeight: 44, fontWeight: '800', letterSpacing: 2 },
   reading: { fontSize: 15, lineHeight: 28 },
   title: { fontSize: 28, lineHeight: 36, fontWeight: '700', letterSpacing: -0.6 },

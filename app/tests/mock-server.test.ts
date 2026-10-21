@@ -19,7 +19,7 @@ interface State {
   directions: { id: string; name: string; scene: string; mood: string; why: string; preview_status?: string; preview_url?: string }[];
   garments: { asset_id: string; url: string }[];
   script?: { status: string; cover: { scene: string }; shots: { scene: string; pose: string; camera: string; caption: string }[] };
-  note?: { image_ids: string[]; accepted_unverified_ids?: string[]; title: string; body: string; tags: string[]; cost_cny?: number; ai_label: string };
+  note?: { image_ids: string[]; accepted_unverified_ids?: string[]; title: string; body: string; tags: string[]; cost_cny?: number; cost_points?: number; ai_label: string };
   video?: { status: string; url?: string };
   active_jobs: Job[];
   pending_action: { type: string; estimated_cost_cny?: number } | null;
@@ -518,7 +518,7 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     time += 250;
     state = await getState();
     assert.equal(state.stage, 'done');
-    assert.deepEqual(state.note, { ...doneNote, cost_cny: Math.round((doneNote.cost_cny! + 1.2) * 100) / 100 });
+    assert.deepEqual(state.note, { ...doneNote, cost_cny: Math.round((doneNote.cost_cny! + 0.5) * 100) / 100, cost_points: Math.round((doneNote.cost_cny! + 0.5) * 100) / 10 });
     assert.deepEqual(state.pending_action, donePending);
     assert.equal(state.video!.status, 'succeeded');
     assert.equal(new URL(state.video!.url!).pathname, doneVideoPath);
@@ -544,7 +544,7 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     time += 250;
     state = await getState();
     assert.equal(state.stage, 'note');
-    assert.deepEqual(state.note, { ...noteBeforeEdit, cost_cny: Math.round((noteBeforeEdit.cost_cny! + 1.2) * 100) / 100 });
+    assert.deepEqual(state.note, { ...noteBeforeEdit, cost_cny: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 100, cost_points: Math.round((noteBeforeEdit.cost_cny! + 0.5) * 100) / 10 });
     assert.deepEqual(state.pending_action, pendingBeforeEdit);
     assert.equal(state.video, undefined);
     assert.equal(state.images.at(-1)!.status, 'succeeded');
@@ -628,7 +628,7 @@ test('second-round fixtures preview directions, announce once, auto-fix one vers
     assert.deepEqual(state.images.find((image) => image.id === repair.id)?.fidelity, { score: 92, diffs: [], auto_fixed: true });
     assert.equal(state.images.length, 4);
     assert.ok(state.images.every((image) => image.status === 'succeeded' && image.script_version === 2));
-    assert.equal(state.cost_cny, 6.3);
+    assert.equal(state.cost_cny, 3.5);
     messages = await getMessages();
     assert.equal(messages.at(-1)!.id, state.last_message_id);
     assert.match(messages.at(-1)!.text, /3 张都好了.*自动补了一版/);
@@ -666,7 +666,7 @@ test('second-round fixtures preview directions, announce once, auto-fix one vers
     time += 200;
     state = await getState();
     assert.equal(state.images.length, 8);
-    assert.equal(state.cost_cny, 11.1);
+    assert.equal(state.cost_cny, 5.5);
     assert.equal(state.images.filter((image) => image.fidelity?.auto_fixed).length, 2);
     assert.ok(!JSON.stringify(state).includes('automatic'));
     assert.ok(!JSON.stringify(state).includes('autoFixAttempted'));
@@ -927,7 +927,7 @@ test('eighth-round edit attempts replay one task across restart and a new attemp
     assert.equal(state.cost_cny, originalCost);
     time += 250;
     state = await getState();
-    assert.equal(state.cost_cny, Math.round((originalCost + 1.2) * 100) / 100);
+    assert.equal(state.cost_cny, Math.round((originalCost + 0.5) * 100) / 100);
     await closeServer(server);
     ({ server, base } = await startServer(dataDir, options));
     const completedReplay = await send(base, project.id, account.token, { action });
@@ -941,7 +941,7 @@ test('eighth-round edit attempts replay one task across restart and a new attemp
     time += 250;
     state = await getState();
     assert.equal(state.images.length, originalCount + 2);
-    assert.equal(state.cost_cny, Math.round((originalCost + 2.4) * 100) / 100);
+    assert.equal(state.cost_cny, Math.round((originalCost + 1) * 100) / 100);
     await send(base, project.id, account.token, { action: { ...action, region: { x: 0.2, y: 0.3, w: 0.25, h: 0.2 } } });
     assert.equal((await getState()).images.length, originalCount + 3, 'selection is part of the deduplication key');
     await send(base, project.id, account.token, { action: { ...action, instruction: '背景换成公园' } });
@@ -985,7 +985,7 @@ test('sixth-round streams and restores traces, replaces directions with previews
       assert.deepEqual((await getMessages()).at(-1)?.trace, trace);
       return events;
     };
-    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 0, remaining_cny: 20 });
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 0, remaining_cny: 20, daily_budget_points: 200, today_cost_points: 0, remaining_points: 200 });
     const first = await sendTraced({ text: '想要通勤，傍晚拍摄，自然一点' }, 'propose_directions');
     const firstCard = first.find((event) => event.type === 'card' && event.data.type === 'directions')!.data;
     time += 250;
@@ -1008,7 +1008,7 @@ test('sixth-round streams and restores traces, replaces directions with previews
     assert.match((await getMessages()).at(-1)?.trace?.steps[0].label || '', /方向预览 3 张/);
     await sendTraced({ action: { type: 'choose_direction', direction_id: state.directions[0].id } }, 'write_script');
     state = await getState();
-    assert.equal(state.pending_action?.estimated_cost_cny, 4.32);
+    assert.equal(state.pending_action?.estimated_cost_cny, 1.8);
     assert.equal(state.budget?.remaining_cny, 17);
     const safeReply = (await getMessages()).at(-1)!;
     const regenerated = await sendTraced({ action: { type: 'regenerate_reply', message_id: safeReply.id } }, 'chat');
@@ -1024,17 +1024,17 @@ test('sixth-round streams and restores traces, replaces directions with previews
     state = await getState();
     const completed = (await getMessages()).at(-1)!;
     assert.equal(completed.trace?.tool, 'generate_images');
-    assert.equal(completed.trace?.cost_cny, 4.8);
+    assert.equal(completed.trace?.cost_cny, 2);
     assert.equal(completed.trace?.duration_ms, 500, 'worker trace includes the sequential automatic repair');
     assert.ok(completed.trace?.steps.some((step) => step.label === '出图 3 张'));
     assert.ok(completed.trace?.steps.some((step) => step.label === '自动修复 1 张'));
-    assert.deepEqual(state.budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 7.8, remaining_cny: 12.2 });
+    assert.deepEqual(state.budget, { tier: 'free', daily_budget_cny: 20, today_cost_cny: 5, remaining_cny: 15, daily_budget_points: 200, today_cost_points: 50, remaining_points: 150 });
     const image = state.images[0];
     await sendTraced({ action: { type: 'edit_image', image_id: image.id, instruction: '背景更明亮' }, refs: [image.id] }, 'edit_image');
     assert.deepEqual((await getMessages()).at(-1)?.trace?.refs, [image.id]);
     time += 250;
     state = await getState();
-    assert.equal((await getMessages()).at(-1)?.trace?.cost_cny, 1.2);
+    assert.equal((await getMessages()).at(-1)?.trace?.cost_cny, 0.5);
     await sendTraced({ action: { type: 'approve_images', image_ids: [image.id] } }, 'write_note');
     state = await getState();
     assert.equal(state.pending_action?.estimated_cost_cny, 1.5);
@@ -1077,7 +1077,7 @@ test('sixth-round budget rejects paid actions atomically, reserves queued jobs, 
     };
     await setLimit(2.5);
     await send(base, project.id, account.token, { text: '给我三个方向' });
-    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 2.5, today_cost_cny: 0, remaining_cny: 1 });
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 2.5, today_cost_cny: 0, remaining_cny: 1, daily_budget_points: 25, today_cost_points: 0, remaining_points: 10 });
     assert.equal((await request<User>(base, '/api/me', { token: account.token })).body.today_cost_cny, 0, 'queued reservations are not billed as successful usage');
     const otherState = (await request<State>(base, `/api/projects/${another.id}/state`, { token: account.token })).body;
     assert.equal(otherState.budget?.remaining_cny, 1, 'all projects display the same account-wide available balance');
@@ -1090,18 +1090,18 @@ test('sixth-round budget rejects paid actions atomically, reserves queued jobs, 
     const historyBefore = await getMessages();
     const denied = await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
     assert.equal(denied[0].data.code, 'BUDGET_EXCEEDED');
-    assert.match(String(denied[0].data.message), /余额不足/);
+    assert.match(String(denied[0].data.message), /今日点数不够了/);
     assert.deepEqual(await getState(), state);
     assert.deepEqual(await getMessages(), historyBefore);
-    await setLimit(6);
+    await setLimit(3.4);
     await send(base, project.id, account.token, { action: { type: 'confirm_script' } });
-    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 6, today_cost_cny: 1.5, remaining_cny: 0.9 });
+    assert.deepEqual((await getState()).budget, { tier: 'free', daily_budget_cny: 3.4, today_cost_cny: 1.5, remaining_cny: 0.4, daily_budget_points: 34, today_cost_points: 15, remaining_points: 4 });
     time += 250;
     state = await getState();
     assert.equal(state.images.length, 3, 'automatic repair must fit the remaining budget');
     assert.equal(state.active_jobs.length, 0);
-    assert.equal(state.budget?.today_cost_cny, 5.1);
-    assert.equal(state.budget?.remaining_cny, 0.9);
+    assert.equal(state.budget?.today_cost_cny, 3);
+    assert.equal(state.budget?.remaining_cny, 0.4);
     const image = state.images[0];
     assert.equal((await send(base, project.id, account.token, { action: { type: 'edit_image', image_id: image.id, instruction: '背景亮一点' } }))[0].data.code, 'BUDGET_EXCEEDED');
     await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: [image.id] } });
@@ -1110,13 +1110,13 @@ test('sixth-round budget rejects paid actions atomically, reserves queued jobs, 
     assert.equal((await send(base, project.id, account.token, { action: { type: 'confirm_video', image_id: image.id } }))[0].data.code, 'BUDGET_EXCEEDED');
     assert.deepEqual(await getState(), noteState);
     time += 86_400_000;
-    assert.equal((await getState()).budget?.remaining_cny, 6);
+    assert.equal((await getState()).budget?.remaining_cny, 3.4);
     await send(base, project.id, account.token, { action: { type: 'confirm_video', image_id: image.id } });
     time += 250;
     state = await getState();
     assert.equal(state.budget?.today_cost_cny, 1.5);
-    assert.equal(state.budget?.remaining_cny, 4.5);
-    assert.equal(state.cost_cny, 6.6, 'project ledger keeps lifetime spend while daily usage resets');
+    assert.equal(state.budget?.remaining_cny, 1.9);
+    assert.equal(state.cost_cny, 4.5, 'project ledger keeps lifetime spend while daily usage resets');
   } finally { await closeServer(server); await rm(dataDir, { recursive: true, force: true }); }
 });
 

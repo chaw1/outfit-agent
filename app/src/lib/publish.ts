@@ -49,8 +49,8 @@ export async function preparePublish(
   progress: PublishProgress,
   actions: PublishActions,
 ): Promise<void> {
-  if (!note.image_ids.length) throw new Error('这篇笔记还没有图片，请先回工作台选图。');
-  if (new Set(note.image_ids).size !== note.image_ids.length) throw new Error('图片清单有重复，请回工作台重新确认图片顺序。');
+  if (!note.image_ids.length) throw new Error('这篇笔记还没有图片，请先回编导间选图。');
+  if (new Set(note.image_ids).size !== note.image_ids.length) throw new Error('图片清单有重复，请回编导间重新确认图片顺序。');
   const text = noteText(note);
   const changed = (step: string) => actions.changed?.({ ...progress, savedImageIds: [...progress.savedImageIds], savedVideoKeys: [...progress.savedVideoKeys] }, step);
   progress.share = null;

@@ -5,6 +5,8 @@ import * as Clipboard from 'expo-clipboard';
 import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated, { SlideInDown, cancelAnimation, useAnimatedStyle, useSharedValue, useReducedMotion, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AutoProgress } from '../../components/AutoProgress';
+import { formatPoints, pointsValue } from '../../lib/transparency';
 import { Cards } from '../../components/Cards';
 import { ScriptHistory } from '../../components/ScriptHistory';
 import { AnimatedEntry, Header, IconButton, LoadingSkeleton, Notice, Page, ProgressStrip, StatePanel, Toast, stageNames } from '../../components/ui';
@@ -63,7 +65,7 @@ export default function Workspace() {
 function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { project, state, messages, cards, loading, busy, error, send, retry, failedMessages, retryMessage, missing } = useWorkspace(id);
+  const { project, state, messages, cards, loading, busy, error, send, retry, failedMessages, retryMessage, missing, takeOver } = useWorkspace(id);
   const [text, setText] = useState('');
   const [selectedMessage, setSelectedMessage] = useState<Message>();
   const [copyStatus, setCopyStatus] = useState('');
@@ -96,6 +98,8 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
     const value = text.trim(); feedback(); setText(''); setRefs([]);
     void send({ text: value, ...(refs.length ? { refs } : {}) });
   }
+  const automatic = (state?.mode ?? project?.mode) === 'auto';
+  const projectPoints = pointsValue(state?.cost_points, state?.cost_cny);
   const stageOrder = ['direction', 'script', 'images', 'note'];
   const finished = ['video', 'done'].includes(state?.stage || '');
   const activeIndex = finished ? stageOrder.length - 1 : state ? stageOrder.indexOf(state.stage) : -1;
@@ -109,15 +113,15 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
     if (state.stage === 'video' || state.stage === 'done') return card.type === 'video' || card.type === 'note';
     return true;
   });
-  if (missing) return <Page><Header title="项目已不可用" onBack={() => router.replace('/')} /><View style={styles.empty}><StatePanel icon="folder-open-outline" title="这份合作已不在这里" description="项目已删除或不存在，返回列表继续创作。" actionLabel="返回项目列表" onAction={() => router.replace('/')} /></View></Page>;
-  return <ImageInteractions images={state?.images ?? []} editActions={messages.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : [])} busy={busy} stage={state?.stage} note={state?.note} pendingAction={state?.pending_action} canEdit={['images', 'note'].includes(state?.stage ?? '')} onAction={action => send({ action })} onReference={addReference} onVisibilityChange={overlayChanged}><Page>
-    <Header title={project?.title || '合作工作台'} subtitle={project?.brand || '把灵感，一起聊出来'} onBack={() => router.replace('/')} right={state?.note ? <IconButton name="document-text-outline" label="笔记预览" onPress={preview} /> : <IconButton name="refresh-outline" label="刷新项目" onPress={retry} />} />
-    <View style={styles.steps}>{stageOrder.map((stage, index) => <StageStep key={stage} stage={stage} index={index} active={index === activeIndex} completed={index < activeIndex || finished} />)}</View>
+  if (missing) return <Page><Header title="项目已不可用" onBack={() => router.replace('/')} /><View style={styles.empty}><StatePanel icon="folder-open-outline" title="这组片已不在这里" description="项目已删除或不存在，返回列表继续创作。" actionLabel="返回项目列表" onAction={() => router.replace('/')} /></View></Page>;
+  return <ImageInteractions images={state?.images ?? []} editActions={messages.flatMap(message => message.action?.type === 'edit_image' ? [message.action] : [])} busy={busy} stage={state?.stage} note={state?.note} pendingAction={state?.pending_action} canEdit={!automatic && ['images', 'note'].includes(state?.stage ?? '')} onAction={action => send({ action })} onReference={addReference} onVisibilityChange={overlayChanged}><Page>
+    <Header title={project?.title || '编导间'} subtitle={project?.brand || '把灵感，一起聊出来'} onBack={() => router.replace('/')} right={state?.note ? <IconButton name="document-text-outline" label="笔记预览" onPress={preview} /> : <IconButton name="refresh-outline" label="刷新项目" onPress={retry} />} />
+    {state?.auto && automatic ? <AutoProgress auto={state.auto} active={state.auto.active} busy={busy} onTakeover={() => { void takeOver(); }} /> : <View style={styles.steps}>{stageOrder.map((stage, index) => <StageStep key={stage} stage={stage} index={index} active={index === activeIndex} completed={index < activeIndex || finished} />)}</View>}
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}>
       <ScrollView ref={scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} contentContainerStyle={styles.conversation} onLayout={() => { if (keyboardOpen.current && !overlay.current) scroll.current?.scrollToEnd({ animated: true }); }} onScroll={({ nativeEvent }) => { atBottom.current = nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >= nativeEvent.contentSize.height - space.xxl; }} scrollEventThrottle={16} onContentSizeChange={() => { const newMessages = messages.length !== previousCount.current; previousCount.current = messages.length; if ((newMessages || atBottom.current) && !overlay.current) scroll.current?.scrollToEnd({ animated: true }); }}>
         {loading ? <LoadingSkeleton kind="workspace" /> : null}
-        {project && <AnimatedEntry><View style={styles.brief}><View style={styles.briefHeading}><Ionicons name="briefcase-outline" size={15} color={colors.muted} /><Text style={styles.eyebrow}>BRAND BRIEF / 合作需求</Text></View><Text style={styles.briefText}>{project.brief}</Text></View></AnimatedEntry>}
-        {typeof state?.cost_cny === 'number' ? <View style={styles.costRow}><Ionicons name="wallet-outline" size={13} color={colors.muted} /><Text testID="project-cost" style={styles.cost}>项目累计约 ¥{state.cost_cny.toFixed(1)}</Text></View> : null}
+        {project && <AnimatedEntry><View style={styles.brief}><View style={styles.briefHeading}><Ionicons name="briefcase-outline" size={15} color={colors.muted} /><Text style={styles.eyebrow}>THE BRIEF / 这次想拍什么</Text></View><Text style={styles.briefText}>{project.brief}</Text></View></AnimatedEntry>}
+        {projectPoints !== undefined ? <View style={styles.costRow}><Ionicons name="wallet-outline" size={13} color={colors.muted} /><Text testID="project-cost" style={styles.cost}>这组片已用 {formatPoints(projectPoints)}</Text></View> : null}
         {messages.map((message, index) => <AnimatedEntry key={message.id} delay={Math.min(index * 30, 120)} style={[styles.message, message.role === 'user' ? styles.userMessage : styles.assistantMessage]}>
           {message.role === 'assistant' && <View style={styles.assistantIdentity}><View style={styles.assistantIcon}><Ionicons name="sparkles-outline" size={13} color={colors.redText} /></View><Text style={styles.identityText}>衣序 · 你的穿搭搭子</Text></View>}
           {messageText(message, state) ? <Pressable testID={`message-${message.id}`} accessibilityRole="button" accessibilityLabel={`消息：${messageText(message, state)}`} onLongPress={() => { feedback(); setSelectedMessage(message); }} delayLongPress={450} style={({ pressed }) => [styles.bubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble, pressed && styles.pressed]}><Text selectable style={styles.messageText}>{messageText(message, state)}</Text></Pressable> : busy && message.role === 'assistant' ? <ProgressStrip title="正在整理你的灵感…" /> : null}
@@ -131,8 +135,8 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
         {failedMessages.map(message => <AnimatedEntry key={message.id} style={styles.failedMessage}><View testID={`failed-${message.id}`} style={styles.failedBubble}><Pressable accessibilityRole="button" accessibilityLabel={`消息：${message.text}`} onLongPress={() => setSelectedMessage({ id: message.id, role: 'user', text: message.text, cards: [], refs: message.input.refs, created_at: message.createdAt })} style={styles.failedTextButton}><Text style={styles.messageText}>{message.input.action ? `操作未完成：${message.text}` : message.text}</Text></Pressable><View style={styles.failureLabel}><Ionicons name="alert-circle-outline" size={14} color={colors.danger} /><Text style={styles.failureText}>{message.certain ? '发送失败' : '发送状态待确认'}</Text></View><Pressable testID={message.certain ? 'retry-failed-message' : 'check-uncertain-message'} accessibilityRole="button" accessibilityLabel={message.certain ? '重发消息' : '核对发送状态'} disabled={busy} onPress={() => { void retryMessage(message); }} style={({ pressed }) => [styles.textAction, pressed && styles.pressed]}><Text style={styles.textActionLabel}>{message.certain ? '重发消息' : '核对发送状态'}</Text></Pressable></View></AnimatedEntry>)}
         {state?.active_jobs.length ? <ProgressStrip title="正在生成，完成后会自动出现在这里" detail="可以继续聊灵感，我们会为你保留每个版本。" /> : null}
         <Cards cards={visibleCards} state={state} busy={busy} onAction={action => { void send({ action }); }} onText={value => { void send({ text: value }); }} onPreview={preview} />
-        {state?.script && state.stage !== 'script' ? <ScriptHistory versions={state.script_versions} busy={busy} generating={Boolean(state.active_jobs.length)} onAction={action => { void send({ action }); }} /> : null}
-        {!loading && !messages.length && !busy && <StatePanel icon="chatbubbles-outline" title="从一个灵感开始" description="说说这次合作的想法，我们一起开始。" actionLabel="说说合作想法" onAction={() => input.current?.focus()} />}
+        {!automatic && state?.script && state.stage !== 'script' ? <ScriptHistory versions={state.script_versions} busy={busy} generating={Boolean(state.active_jobs.length)} onAction={action => { void send({ action }); }} /> : null}
+        {!loading && !messages.length && !busy && <StatePanel icon="chatbubbles-outline" title="从一个灵感开始" description="说说这组片的想法，我们一起开始。" actionLabel="说说拍摄想法" onAction={() => input.current?.focus()} />}
       </ScrollView>
       <View style={styles.composer}>
         {!!error && <Notice text={error} onRetry={retry} />}
@@ -141,7 +145,7 @@ function WorkspacePage({ id, refImage }: { id: string; refImage?: string }) {
           if (!image) return null;
           return <View key={imageId} style={styles.composerReference}><ReferenceThumbnail image={image} testID={`chat-ref-${imageId}`} /><Pressable testID={`remove-chat-ref-${imageId}`} accessibilityRole="button" accessibilityLabel="移除引用图片" onPress={() => { feedback(); setRefs(previous => previous.filter(value => value !== imageId)); }} style={({ pressed }) => [styles.removeReference, pressed && styles.pressed]}><Ionicons name="close-circle" size={20} color={colors.muted} /></Pressable></View>;
         })}</ScrollView> : null}
-        {state?.pending_action && <View style={styles.pendingAction}><View style={styles.pendingDot} /><Text style={styles.pendingText} numberOfLines={2}>{state.pending_action.prompt}</Text></View>}
+        {!automatic && state?.pending_action && <View style={styles.pendingAction}><View style={styles.pendingDot} /><Text style={styles.pendingText} numberOfLines={2}>{state.pending_action.prompt}</Text></View>}
         <View style={styles.inputRow}>
           <TextInput ref={input} accessibilityLabel="发给穿搭搭子" testID="chat-input" placeholder="说说你的想法，随时都能聊…" placeholderTextColor={colors.muted} value={text} onChangeText={setText} multiline maxLength={4000} style={styles.input} />
           <Pressable accessibilityRole="button" accessibilityLabel="发送消息" accessibilityState={{ disabled: busy || !text.trim() }} testID="send-message" disabled={busy || !text.trim()} onPress={submit} style={({ pressed }) => [styles.sendButton, (busy || !text.trim()) && styles.disabled, pressed && styles.pressed]}><Ionicons name="arrow-up" size={22} color={colors.white} /></Pressable>

@@ -88,7 +88,13 @@ export function mergeStateIntoCards(previous: readonly Card[], state: ProjectSta
     if (current?.type === 'directions' && restored.type === 'directions') {
       // Polling supplies the options; the regeneration estimate belongs to its card.
       const estimate = restored.regenerate_estimate_cny ?? current.regenerate_estimate_cny;
-      result[index] = { ...restored, id: current.id, ...(estimate !== undefined ? { regenerate_estimate_cny: estimate } : {}) };
+      const estimatePoints = restored.regenerate_estimate_points ?? current.regenerate_estimate_points;
+      result[index] = {
+        ...restored,
+        id: current.id,
+        ...(estimate !== undefined ? { regenerate_estimate_cny: estimate } : {}),
+        ...(estimatePoints !== undefined ? { regenerate_estimate_points: estimatePoints } : {}),
+      };
     } else if (current) result[index] = { ...restored, id: current.id };
     else result.push(restored);
   }

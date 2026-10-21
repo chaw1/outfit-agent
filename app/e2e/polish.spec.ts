@@ -142,30 +142,30 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
     for (let index = 1; index <= 3; index += 1) {
       await expect(page.getByTestId(`onboarding-${index}`)).toBeVisible();
       await capture(`${59 + index}-onboarding-${index}-font115.png`, `onboarding-${index}`);
-      const next = page.getByRole('button', { name: index === 3 ? '开始创作' : '下一步', exact: true });
+      const next = page.getByRole('button', { name: index === 3 ? '进入片场' : '下一步', exact: true });
       await reachable(`onboarding-${index} 下一步`, next);
       await next.click();
     }
-    await expect(page.getByText('视觉验收的创作间', { exact: true })).toBeVisible();
+    await expect(page.getByText('视觉验收的片场', { exact: true })).toBeVisible();
     const homeSkeleton = page.getByRole('progressbar', { name: '正在加载内容', exact: true });
     await expect(homeSkeleton).toBeVisible();
     await capture('63-home-skeleton-font115.png', 'home-skeleton', homeSkeleton);
     homeGate.release();
     // Keep the resolved gate registered; unroute can race the suspended handler's continue.
-    await expect(page.getByRole('button', { name: `打开项目 ${project.title}`, exact: true })).toBeVisible();
-    await capture('64-home-font115.png', 'home', page.getByText('视觉验收的创作间', { exact: true }));
-    await reachable('首页新建品牌合作', page.getByRole('button', { name: '新建品牌合作', exact: true }));
+    await expect(page.getByRole('button', { name: `打开这组片 ${project.title}`, exact: true })).toBeVisible();
+    await capture('64-home-font115.png', 'home', page.getByText('视觉验收的片场', { exact: true }));
+    await reachable('首页拍一组新片', page.getByRole('button', { name: '拍一组新片', exact: true }));
 
     await page.goto('/projects/new');
-    await page.getByLabel('项目名称', { exact: true }).fill('十五个百分点字体放大的秋日合作笔记');
-    await page.getByLabel('合作品牌', { exact: true }).fill('LOCAL STUDIO');
-    await page.getByLabel('品牌需求', { exact: true }).fill('自然面料、松弛通勤与周末散步，希望文案像朋友分享。');
+    await page.getByLabel('项目名称', { exact: true }).fill('十五个百分点字体放大的秋日这组片');
+    await page.getByLabel('品牌', { exact: true }).fill('LOCAL STUDIO');
+    await page.getByLabel('这次想拍什么', { exact: true }).fill('自然面料、松弛通勤与周末散步，希望文案像朋友分享。');
     const chooser = page.waitForEvent('filechooser');
     await page.getByTestId('upload-garments').click();
     await (await chooser).setFiles({ name: 'local-shirt.jpg', mimeType: 'image/jpeg', buffer: fixture });
     await expect(page.getByRole('button', { name: '移除衣服图 1', exact: true })).toBeVisible();
     await capture('65-new-project-font115.png', 'new-project', page.getByLabel('项目名称', { exact: true }));
-    await reachable('新建开始聊灵感', page.getByRole('button', { name: '开始聊灵感', exact: true }));
+    await reachable('新建开拍，先聊灵感', page.getByRole('button', { name: '开拍，先聊灵感', exact: true }));
     await capture('66-new-project-submit-font115.png', 'new-project-submit');
 
     await page.goto('/settings');
@@ -199,7 +199,7 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
     await page.getByTestId('chat-input').fill('想让风格再松弛一点，面料细节保持自然。');
     await expect(page.getByTestId('send-message')).toBeEnabled();
     await capture('70-workspace-font115.png', 'workspace', page.getByTestId('direction-direction_city'));
-    await reachable('工作台发送消息', page.getByTestId('send-message'));
+    await reachable('编导间发送消息', page.getByTestId('send-message'));
 
     mode = 'empty'; stateGate = gate(); historyGate = gate(); releases.push(stateGate.release, historyGate.release);
     await page.goto(`/preview/${project.id}`);
@@ -210,7 +210,7 @@ test('视觉打磨：骨架、图片恢复和 115% Web 字体可访问性证据'
     stateGate.release(); historyGate.release(); stateGate = undefined; historyGate = undefined;
     await expect(page.getByText('笔记还在酝酿中', { exact: true })).toBeVisible();
     await capture('72-preview-empty-font115.png', 'preview-empty');
-    await reachable('无笔记返回工作台', page.getByRole('button', { name: '返回工作台', exact: true }));
+    await reachable('无笔记返回编导间', page.getByRole('button', { name: '返回编导间', exact: true }));
 
     mode = 'missing-image';
     await page.reload();

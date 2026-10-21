@@ -226,7 +226,7 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
       await page.getByLabel('用户名', { exact: true }).fill(checkpoint.username);
       await page.getByLabel('密码', { exact: true }).fill(checkpoint.password);
       await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
-      await expect(page.getByRole('button', { name: '新建品牌合作', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: '拍一组新片', exact: true })).toBeVisible();
       checkpoint.registered = true; checkpoint.session = await page.evaluate(() => sessionStorage.getItem('outfit.session') ?? undefined);
     });
     if (!checkpoint.session && checkpoint.registered) {
@@ -240,15 +240,15 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
       const montage = path.resolve('../docs/spike/inputs.jpg');
       const paths = ['shirt', 'jeans', 'model'].map(name => path.join(fixtures, `${name}.jpg`));
       for (let index = 0; index < paths.length; index += 1) await sharp(montage).extract({ left: index * 450, top: 0, width: 450, height: 600 }).jpeg({ quality: 95 }).toFile(paths[index]);
-      await page.getByRole('button', { name: '新建品牌合作', exact: true }).click();
-      await page.getByLabel('项目名称', { exact: true }).fill(checkpoint.projectTitle); await page.getByLabel('合作品牌', { exact: true }).fill('SOFT STUDIO');
-      await page.getByLabel('品牌需求', { exact: true }).fill('米白亚麻短袖衬衫和浅蓝牛仔裤，保持面料、纽扣、胸袋和裤型，去掉吊牌。使用上传的本人照片，做松弛自然的秋日咖啡店穿搭笔记。脚本只需 3 张照片，至少有一张看清袖口。');
+      await page.getByRole('button', { name: '拍一组新片', exact: true }).click();
+      await page.getByLabel('项目名称', { exact: true }).fill(checkpoint.projectTitle); await page.getByLabel('品牌', { exact: true }).fill('SOFT STUDIO');
+      await page.getByLabel('这次想拍什么', { exact: true }).fill('米白亚麻短袖衬衫和浅蓝牛仔裤，保持面料、纽扣、胸袋和裤型，去掉吊牌。使用上传的本人照片，做松弛自然的秋日咖啡店穿搭笔记。脚本只需 3 张照片，至少有一张看清袖口。');
       let chooser = page.waitForEvent('filechooser'); await page.getByTestId('upload-garments').click(); await (await chooser).setFiles(paths.slice(0, 2));
       await expect(page.getByRole('button', { name: '移除衣服图 2' })).toBeVisible();
       chooser = page.waitForEvent('filechooser'); await page.getByRole('button', { name: '上传我的照片', exact: true }).click(); await (await chooser).setFiles(paths[2]);
       await expect(page.getByRole('button', { name: '更换我的照片', exact: true })).toBeVisible();
       await shot('02-upload-fixtures', page.getByTestId('upload-garments'));
-      await page.getByRole('button', { name: '开始聊灵感', exact: true }).click(); await expect.poll(() => checkpoint.projectId).toBeTruthy();
+      await page.getByRole('button', { name: '开拍，先聊灵感', exact: true }).click(); await expect.poll(() => checkpoint.projectId).toBeTruthy();
     });
     await waitState(() => true);
     await phase('03-analysis-previews', async () => {
@@ -374,7 +374,7 @@ test('App 与真实服务的完整合作流程（断点续跑）', async ({ page
     });
     await phase('11-note-preview-cost-ai', async () => {
       await page.getByTestId('preview-note').click(); await expect(page.getByTestId('note-title')).toBeVisible(); await decoded(page.getByTestId(`preview-image-${state!.note!.image_ids[0]}`)); await shot('11-note-preview-image');
-      await expect(page.getByTestId('note-cost')).toContainText('¥'); await expect(page.getByTestId('note-ai-label')).toContainText('AI'); expect(state!.note!.cost_cny ?? state!.cost_cny).toBeGreaterThan(0); expect(state!.note!.ai_label).toBeTruthy(); checkpoint.data.noteCostCny = state!.note!.cost_cny ?? state!.cost_cny; checkpoint.data.aiLabel = state!.note!.ai_label;
+      await expect(page.getByTestId('note-cost')).toContainText('点'); await expect(page.getByTestId('note-ai-label')).toContainText('AI'); expect(state!.note!.cost_cny ?? state!.cost_cny).toBeGreaterThan(0); expect(state!.note!.ai_label).toBeTruthy(); checkpoint.data.noteCostCny = state!.note!.cost_cny ?? state!.cost_cny; checkpoint.data.aiLabel = state!.note!.ai_label;
       await shot('11-note-disclosure', page.getByTestId('note-cost')); await page.getByRole('button', { name: '返回', exact: true }).click();
     });
     await phase('12-confirm-video', async () => {

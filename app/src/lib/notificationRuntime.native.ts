@@ -7,7 +7,8 @@ import * as TaskManager from 'expo-task-manager';
 import { AppState, Platform } from 'react-native';
 import { ApiClient } from '../api/client';
 import type { ProjectState } from '../api/types';
-import { checkGeneration, createGenerationRuntime, deliverCompletion, needsGenerationCheck, notificationOwner, notificationProject, parseSavedGenerations, type Completion, type CompletionListener, type NotificationSession } from './completionTracker';
+import { appendRecentCompletions, checkGeneration, createGenerationRuntime, deliverCompletion, needsGenerationCheck, notificationOwner, notificationProject, parseSavedGenerations, type Completion, type CompletionListener, type NotificationSession } from './completionTracker';
+import { setRecentCompletions } from './completionFeed';
 export type { NotificationSession, CompletionListener } from './completionTracker';
 
 const TASK = 'outfit-generation-results';
@@ -40,6 +41,7 @@ async function deliver(completion: Completion, owner: string, isCurrent: () => b
 const runtime = createGenerationRuntime({
   load: () => AsyncStorage.getItem(STORAGE),
   save: value => value === null ? AsyncStorage.removeItem(STORAGE) : AsyncStorage.setItem(STORAGE, value),
+  onCompletions: setRecentCompletions,
   deliver,
 });
 
@@ -73,7 +75,9 @@ TaskManager.defineTask(TASK, async () => {
         const result = await checkGeneration(api, project);
         if (!await stillCurrent()) return BackgroundTask.BackgroundTaskResult.Success;
         Object.assign(project, result.watched);
+        saved.recent = appendRecentCompletions(saved.recent ?? [], result.completions);
         await save();
+        setRecentCompletions(saved.owner, saved.recent);
         for (const completion of result.completions) {
           if (!await stillCurrent()) return BackgroundTask.BackgroundTaskResult.Success;
           try { await deliver(completion, saved.owner, () => current && (!configured || runtime.currentOwner() === saved.owner), undefined, stillCurrent); }
@@ -125,7 +129,7 @@ export function observeGeneration(id: string, title: string, state: ProjectState
   const owner = runtime.currentOwner();
   if (!owner) return;
   void runtime.observe(id, title, state).then(async () => {
-    if (runtime.currentOwner() !== owner || permissionAsked || !state.active_jobs.length || ['brief', 'direction', 'script'].includes(state.stage)) return;
+    if (runtime.currentOwner() !== owner || permissionAsked || (!(state.mode === 'auto' && state.auto?.active) && (!state.active_jobs.length || ['brief', 'direction', 'script'].includes(state.stage)))) return;
     if (!isForeground()) return;
     permissionAsked = true;
     const permission = await Notifications.getPermissionsAsync();

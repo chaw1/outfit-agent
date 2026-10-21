@@ -51,7 +51,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await expect(page.getByTestId('onboarding-1')).toBeVisible();
   await page.getByRole('button', { name: '下一步', exact: true }).click();
   await page.getByRole('button', { name: '下一步', exact: true }).click();
-  await page.getByRole('button', { name: '开始创作', exact: true }).click();
+  await page.getByRole('button', { name: '进入片场', exact: true }).click();
   await page.getByRole('button', { name: '注册', exact: true }).click();
   await page.getByLabel('怎么称呼你', { exact: true }).fill('小序');
   const username = `creator_${Date.now()}`;
@@ -59,12 +59,12 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByLabel('密码', { exact: true }).fill('Demo-only-2026');
   await shot(page, '01-register.png');
   await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
-  await expect(page.getByText('小序的创作间')).toBeVisible();
+  await expect(page.getByText('小序的片场')).toBeVisible();
   await shot(page, '02-projects-empty.png');
-  await page.getByRole('button', { name: '新建品牌合作', exact: true }).click();
+  await page.getByRole('button', { name: '拍一组新片', exact: true }).click();
   await page.getByLabel('项目名称', { exact: true }).fill('把秋天穿成一杯燕麦拿铁');
-  await page.getByLabel('合作品牌', { exact: true }).fill('SOFT STUDIO');
-  await page.getByLabel('品牌需求', { exact: true }).fill('米白亚麻衬衫与浅蓝牛仔裤，想突出自然面料和松弛感。适合咖啡店、街头的秋日穿搭，文案要像朋友分享。');
+  await page.getByLabel('品牌', { exact: true }).fill('SOFT STUDIO');
+  await page.getByLabel('这次想拍什么', { exact: true }).fill('米白亚麻衬衫与浅蓝牛仔裤，想突出自然面料和松弛感。适合咖啡店、街头的秋日穿搭，文案要像朋友分享。');
   const chooser = page.waitForEvent('filechooser');
   await page.getByTestId('upload-garments').click();
   await (await chooser).setFiles([path.resolve('../docs/spike/inputs.jpg'), path.resolve('../docs/spike/t-wan-v.jpg')]);
@@ -74,7 +74,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await (await modelChooser).setFiles(path.resolve('../docs/spike/inputs.jpg'));
   await expect(page.getByRole('button', { name: '更换我的照片', exact: true })).toBeVisible();
   await shot(page, '03-new-project-uploaded.png', page.getByTestId('upload-garments'));
-  await page.getByRole('button', { name: '开始聊灵感', exact: true }).click();
+  await page.getByRole('button', { name: '开拍，先聊灵感', exact: true }).click();
   const direction = page.getByTestId('direction-direction_city');
   await expect(direction).toBeVisible();
   await expect(page.getByTestId('preview-placeholder-direction_city')).toBeVisible();
@@ -234,7 +234,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByTestId('preview-note').click();
   await expect(page.getByTestId('note-title')).toBeVisible();
   await shot(page, '12-note-preview.png');
-  await expect(page.getByTestId('note-cost')).toContainText('这篇成本约 ¥');
+  await expect(page.getByTestId('note-cost')).toContainText('这组片用了约 ');
   await expect(page.getByTestId('note-ai-label')).toContainText('AI');
   await shot(page, '54-note-content.png', page.getByTestId('note-body'));
   await shot(page, '23-note-cost-and-ai-label.png', page.getByTestId('note-ai-label'));
@@ -310,8 +310,8 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.reload();
   await expect(page.getByTestId('preview-note')).toBeVisible();
   await page.getByRole('button', { name: '返回', exact: true }).click();
-  await expect(page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' })).toBeVisible();
-  await shot(page, '15-project-completed.png', page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' }));
+  await expect(page.getByRole('button', { name: '打开这组片 把秋天穿成一杯燕麦拿铁' })).toBeVisible();
+  await shot(page, '15-project-completed.png', page.getByRole('button', { name: '打开这组片 把秋天穿成一杯燕麦拿铁' }));
   // API 401 必须清除会话并回登录。
   await page.route('**/api/projects', route => route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: { code: 'UNAUTHORIZED', message: '登录已过期，请重新登录。' } }) }));
   await page.reload();
@@ -321,7 +321,7 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await page.getByLabel('用户名', { exact: true }).fill(username);
   await page.getByLabel('密码', { exact: true }).fill('Demo-only-2026');
   await page.getByRole('button', { name: '登录，继续创作' }).click();
-  await expect(page.getByText('小序的创作间')).toBeVisible();
+  await expect(page.getByText('小序的片场')).toBeVisible();
   // 断网错误可重试，恢复后仍能找回项目。
   await page.route('**/api/projects', route => route.abort('internetdisconnected'));
   await page.reload();
@@ -329,8 +329,8 @@ test('博主从注册、上传到笔记与视频的完整合作流程', async ({
   await shot(page, '17-network-error.png', page.getByText('连接不到服务器，请检查网络和服务器地址。'));
   await page.unroute('**/api/projects');
   await page.getByRole('button', { name: '重试', exact: true }).click();
-  await expect(page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' })).toBeVisible();
-  await shot(page, '18-network-recovered.png', page.getByRole('button', { name: '打开项目 把秋天穿成一杯燕麦拿铁' }));
+  await expect(page.getByRole('button', { name: '打开这组片 把秋天穿成一杯燕麦拿铁' })).toBeVisible();
+  await shot(page, '18-network-recovered.png', page.getByRole('button', { name: '打开这组片 把秋天穿成一杯燕麦拿铁' }));
   expect(errors).toEqual([]);
   await writeFile(path.join(shots, 'evidence.json'), JSON.stringify({ viewport: '390×844', passedAt: new Date().toISOString(), firstEditedImage: firstId, imageInteractions: interactions, selectedOrder: orderedIds, stateRequests: polls.length, historyRequests: historyRequests.length, proactiveMessage: true, restoredCheckpoint, retainedImageIds: retainedIds, previewImages: true, autoFixedFidelity: 92, noteCostCny: latestState?.note?.cost_cny, aiLabel: latestState?.note?.ai_label, videoPlayed: true, publishing: { downloads, shares: shares.length, orderedIds, partialRetry: true, resumedNoDuplicates: true }, conversation: { safeRewrite: true, longPressCopy: true, failedTextRetry: true }, pageErrors: errors }, null, 2));
 });

@@ -1,0 +1,29 @@
+{
+  "projectId": "project_e98794c9-1e8f-4bd7-903b-e14ba8480e83",
+  "submitted": {
+    "title": "自由创作 · 松弛通勤",
+    "brand": "自由创作",
+    "brief": "街角自然光，保留这句拍摄原文，不把风格词拼进来。",
+    "mode": "auto",
+    "style_tags": [
+      "松弛通勤",
+      "户外野餐"
+    ],
+    "garment_asset_ids": [
+      "asset_718ba9de-2618-4402-abff-73f17402015d"
+    ]
+  },
+  "steps": [
+    "正在找拍摄方向",
+    "正在写拍摄脚本",
+    "正在出图",
+    "正在整理图文",
+    "正在生成视频",
+    "全套已出好"
+  ],
+  "automaticControls": [],
+  "proactiveMessages": 9,
+  "pointsOnly": true,
+  "recentCompletion": true,
+  "pageErrors": []
+}
