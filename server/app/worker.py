@@ -236,7 +236,10 @@ def _assets(session: Session, job: Job, asset_ids: list[str]) -> list[Asset]:
         asset = session.get(Asset, asset_id)
         if asset is None or asset.user_id != job.user_id:
             raise ProviderError("任务引用的素材不存在或不属于当前账号。")
-        if asset.project_id is not None and asset.project_id != job.project_id:
+        if (
+            asset.project_id is not None and asset.project_id != job.project_id
+            and not (asset.kind == "model" and asset.source == "generated")
+        ):
             raise ProviderError("任务引用了另一个项目的素材。")
         result.append(asset)
     return result

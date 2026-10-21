@@ -180,9 +180,9 @@ uv run python scripts/verify_seams.py --raw artifacts/local-edit-fix3-cuff-basel
 {"nickname":"小夏","profile":{"model_asset_ids":["本人照片资产编号"],"height_cm":168,"style_notes":"喜欢松弛感，不穿高跟鞋"}}
 ```
 
-未传字段保留；档案内 `height_cm/body_notes/style_notes` 传 `null` 清除，`model_asset_ids: []` 清空照片。昵称与档案本体不接受 `null`。照片最多 20 张且不可重复，只能选本人上传的 `kind=model`；身高范围为大于 0、不超过 300cm，体型和风格文字各最多 2000 字。新项目省略或传 `null` 的 `model_asset_id` 时选档案中第一张有效照片，显式照片可覆盖；没有档案照片仍使用原默认模特流程。每轮读取当前档案，旧项目也会收到最新偏好；Mock 与真实模型的方向和脚本均使用它。
+未传字段保留；档案内 `height_cm/body_notes/style_notes` 传 `null` 清除，`model_asset_ids: []` 清空照片。昵称与档案本体不接受 `null`。照片最多 20 张且不可重复，可以选本人上传或从成片保存的 `kind=model`；身高范围为大于 0、不超过 300cm，体型和风格文字各最多 2000 字。新项目省略或传 `null` 的 `model_asset_id` 时选档案中第一张有效照片，显式照片可覆盖；没有档案照片仍使用原默认模特流程。每轮读取当前档案，旧项目也会收到最新偏好；Mock 与真实模型的方向和脚本均使用它。
 
-删除项目会在同一数据库事务中删除消息、任务、所有 LangGraph checkpoint namespace 和生成资产，保留项目删除标记与费用账本。上传素材保留，可继续在其他项目使用。Worker 提交结果与删除共用项目行锁：尚在生成的任务返回后不会写回；已经提交的生成文件也会被清理。文件删除在提交后执行，失败意图保存在 `app_settings` 的清理队列，由 Worker 轮询重试。已提交给上游的请求无法撤回，仍可能产生费用；删除不返还已发生或未知的预留费用。
+删除项目会在同一数据库事务中删除消息、任务、所有 LangGraph checkpoint namespace 和生成成片，保留项目删除标记与费用账本。上传素材及已存入素材库的模特副本保留，可继续在其他项目使用。Worker 提交结果与删除共用项目行锁：尚在生成的任务返回后不会写回；已经提交的成片文件也会被清理。文件删除在提交后执行，失败意图保存在 `app_settings` 的清理队列，由 Worker 轮询重试。已提交给上游的请求无法撤回，仍可能产生费用；删除不返还已发生或未知的预留费用。
 
 ## 请求防护与日志
 
@@ -384,3 +384,30 @@ REQUIRE_INTEGRATION=1 .venv/bin/python -m pytest -q
 # 独立服务在 18081 时，pytest 增加 API_BASE_URL=http://127.0.0.1:18081，
 # e2e 增加 --base-url http://127.0.0.1:18081。
 ```
+
+## 第十二轮：素材库
+
+接口遵循设计第 18.1 节，位于 `app/assets_library.py`，`main.py` 仅挂载路由。全部接口要求登录，只查询或操作本人素材，其他账号的编号返回 404。
+
+| 接口 | 请求 | 成功响应 |
+|---|---|---|
+| `POST /api/me/models/from-image` | `{image_id, name?}` | `{asset, user}`，保存模特副本并追加到档案 |
+| `GET /api/me/assets` | `kind=model/garment/image`，可选 `limit`、`offset` | `{items, total}` |
+| `DELETE /api/me/assets/{id}` | 本人素材编号 | `204`；被活跃项目引用的衣服、项目成片返回 `409` |
+
+保存模特只接受本人未删除项目的成功正式图或改图版本，排除预览、失败任务和视频。`image_id` 可传工作台图片编号或其底层素材编号。文件按原字节复制，保留原角标及元数据，新素材为 `kind=model, source=generated`，`parent_id` 指向原成片素材，`project_id` 为来源项目；名字保存在 `analysis.name`，省略时取来源项目标题。同一成片重复保存返回同一模特编号及原名字，不重复复制文件。档案最多 20 张，超限返回中文 `422 MODEL_LIMIT`；已在档案中的同一成片即使满额也可重放。保存、容量检查及档案写入沿用账号写锁，同账号并发请求也保持幂等与上限。
+
+列表每项包含原 `AssetOutput` 及 `project_id/project_title/name/in_profile`。分页默认 `limit=50, offset=0`，`limit` 为 1–100，`offset` 不小于 0；先按创建时间倒序，同时间按编号倒序，`total` 为分页前的去重数量。`kind=image` 仅返回成功正式图及改图版本；底层成片的 `kind=reference` 字段语义保持不变。
+
+删除生成模特副本会移出档案、清除项目的 `model_asset_id` 引用并删除副本行及文件，原成片保留。上传模特仅移出档案，原上传行和文件继续供已有项目使用，列表仍会显示它且 `in_profile=false`。上传衣服没有活跃项目引用时才删除行和文件；否则 `409 ASSET_IN_USE` 的中文消息列出引用项目标题，已删除项目不阻止清理。成片随项目删除。所有文件删除均在业务事务提交后通过现有清理队列执行，失败记录日志并由 Worker 重试。
+
+`PATCH /api/me` 可以把生成模特排到 `profile.model_asset_ids` 首位，新项目会默认使用它；显式传 `model_asset_id` 也可复用。Worker 允许本人生成模特跨项目使用，生成任务的第一张参考仍为该模特，普通成片继续按项目隔离。`POST /api/projects` 的 `garment_asset_ids` 可复用本人在其他项目使用过的衣服。来源项目删除后，模特副本解除 `project_id/parent_id`，来源项目字段变空，名字和档案关系保留，下载及再次使用仍有效。注销会清理本人全部模特副本及其文件。
+
+本节复用现有表、档案 JSON 和清理队列，无需新增迁移。零费用验证：
+
+```bash
+uv run ruff check .
+REQUIRE_INTEGRATION=1 uv run pytest -q
+```
+
+完整 HTTP 文件清理回归使用本机 Mock API/Worker；pytest 与服务的 `DATABASE_URL/TEST_DATABASE_URL` 指向同一测试库，并共用本 worktree `data/` 下的 `MEDIA_DIR`。使用独立 `18081` API 时同步设置 `API_BASE_URL=http://127.0.0.1:18081`。新增测试覆盖真实 Mock 出图后保存、跨项目再次出图与第一参考、含改图的分页、三种删除、并发幂等与容量竞争、事务回滚、清理失败重试及注销后的实体文件清理。

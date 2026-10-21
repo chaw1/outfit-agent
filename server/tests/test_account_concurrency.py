@@ -237,11 +237,11 @@ def test_deletion_fences_running_worker_and_clears_all_checkpoint_namespaces(
                 )) == 0
                 for table in ("checkpoints", "checkpoint_blobs", "checkpoint_writes"):
                     assert session.scalar(
-                        text(f"SELECT count(*) FROM {table} WHERE thread_id = :id"),
+                        text(f"SELECT count(*) FROM {table} WHERE thread_id = :id"),  # noqa: S608
                         {"id": project_id},
                     ) == 0
                     assert session.scalar(
-                        text(f"SELECT count(*) FROM {table} WHERE thread_id = :id"),
+                        text(f"SELECT count(*) FROM {table} WHERE thread_id = :id"),  # noqa: S608
                         {"id": other_project_id},
                     ) > 0
             for namespace in namespaces:
