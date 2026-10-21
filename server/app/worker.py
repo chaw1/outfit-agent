@@ -37,7 +37,9 @@ from app.local_edit import (
 from app.log_errors import log_exception
 from app.media import asset_path, store_generated
 from app.models import Asset, Job, Message, Project, UsageLedger, utcnow
+from app.photography import expand_photo_prompt
 from app.project_cleanup import drain_media_cleanup
+from app.prompting import COVER_ANCHOR, attach_identity_anchor, build_shot_fields, build_shot_prompt
 from app.providers import GeneratedMedia, ProviderError, ProviderHub
 from app.runtime_settings import assert_generation_allowed, get_runtime_settings
 from app.views import image_items
@@ -113,9 +115,7 @@ def _attach_anchor(session: Session, job: Job) -> None:
         "reference_asset_ids": list(dict.fromkeys([
             *job.payload.get("reference_asset_ids", []), cover.result_asset_id,
         ])),
-        "prompt": str(job.payload.get("prompt", ""))
-        + "以最后一张封面参考图为锚点，保持同一人、同一妆发与同一光线氛围；"
-        + "服装仍严格遵循原衣服参考图。",
+        **attach_identity_anchor(job.payload),
     }
 
 
@@ -332,6 +332,29 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
         )
         + 1
     )
+    photo = job.payload.get("photo_prompt")
+    if not isinstance(photo, dict):
+        photo = expand_photo_prompt(job.payload.get("shot", {}), project.style_tags or [], [])
+    fields = job.payload.get("prompt_fields") or build_shot_fields(
+        shot=job.payload.get("shot", {}), garment_prompt="；".join(descriptions),
+        identity="保留人物身份和场景", photo=photo,
+    )
+    prompt_updates = {
+        "prompt_fields": fields,
+        "photo_prompt": photo,
+        "prompt": build_shot_prompt(
+            fields, photo=photo,
+            requirements="修改指令优先于原镜头描述，只做以下修改：" + instruction,
+        ),
+    }
+    reference_roles = (
+        "参考图1为待修图，中间参考图为原衣服，保留人物身份和场景"
+        if job.payload.get("anchor_asset_id")
+        else "参考图1为待修图，其余参考图为原衣服，保留人物身份和场景"
+    )
+    prompt_updates.update(attach_identity_anchor(prompt_updates, reference_roles))
+    if job.payload.get("anchor_asset_id"):
+        prompt_updates.update(attach_identity_anchor(prompt_updates, COVER_ANCHOR))
     payload = {
         **job.payload,
         "image_id": fix_id,
@@ -340,19 +363,7 @@ def _auto_fix(session: Session, job: Job, asset: Asset) -> None:
         "parent_asset_id": asset.id,
         "source_asset_id": asset.id,
         "instruction": instruction,
-        "prompt": (
-            (
-                "参考图1为待修图，中间参考图为原衣服。保留人物身份和场景。"
-                if job.payload.get("anchor_asset_id")
-                else "参考图1为待修图，其余参考图为原衣服。保留人物身份和场景。"
-            )
-            + "；".join(descriptions)
-            + "。"
-            + instruction
-            + ("最后一张是封面锚点，保留其人物身份、妆发与光线氛围。"
-               if job.payload.get("anchor_asset_id") else "")
-            + job.payload.get("reference_style_prompt", "")
-        ),
+        **prompt_updates,
         "reference_asset_ids": list(dict.fromkeys([
             asset.id, *(garment_ids if job.payload.get("anchor_asset_id") else garment_ids[:2]),
             *([job.payload["anchor_asset_id"]] if job.payload.get("anchor_asset_id") else []),
