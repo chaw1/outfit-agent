@@ -15,7 +15,7 @@ def _owned_model_ids(session: Session, user: User, asset_ids: list[str]) -> set[
         Asset.id.in_(asset_ids),
         Asset.user_id == user.id,
         Asset.kind == "model",
-        Asset.source == "upload",
+        Asset.source.in_(["upload", "generated"]),
     )))
 
 
@@ -28,7 +28,7 @@ def patch_user(session: Session, user: User, body: UserProfilePatch) -> None:
             asset_ids = supplied["model_asset_ids"]
             if _owned_model_ids(session, user, asset_ids) != set(asset_ids):
                 raise AppError(
-                    "invalid_profile_asset", "档案照片必须是本人上传的形象照片（kind=model）。", 422
+                    "invalid_profile_asset", "档案照片必须是本人上传或从成片保存的模特照片。", 422
                 )
         profile.update(supplied)
         profile = Profile.model_validate(profile).model_dump(exclude_none=True)

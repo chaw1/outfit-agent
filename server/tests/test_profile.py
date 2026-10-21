@@ -65,7 +65,7 @@ def test_profile_partial_merge_clear_and_default_order(profile_session):
     assert user.profile["style_notes"] == "喜欢松弛感，不穿高跟鞋"
 
 
-@pytest.mark.parametrize("asset_id", ["other-model", "generated-model", "garment", "missing"])
+@pytest.mark.parametrize("asset_id", ["other-model", "garment", "missing"])
 def test_profile_rejects_wrong_owner_kind_source_without_partial_write(profile_session, asset_id):
     session, user = profile_session
     with pytest.raises(AppError, match="本人上传"):

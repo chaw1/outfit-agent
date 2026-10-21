@@ -22,6 +22,7 @@ from starlette.exceptions import HTTPException
 
 from app.account import router as account_router
 from app.admin import router as admin_router
+from app.assets_library import router as assets_library_router
 from app.auto_mode import auto_info, take_over
 from app.config import settings
 from app.costs import auto_quote, points, with_points
@@ -123,6 +124,7 @@ app.add_middleware(
 )
 app.include_router(admin_router)
 app.include_router(account_router)
+app.include_router(assets_library_router)
 
 
 @app.middleware("http")

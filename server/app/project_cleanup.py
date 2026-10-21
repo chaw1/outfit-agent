@@ -106,10 +106,17 @@ def cleanup_project(session: Session, project: Project, *, commit: bool = True) 
             Asset.project_id == project.id,
             Asset.user_id == project.user_id,
             Asset.source == "generated",
+            Asset.kind != "model",
         )
     ).all()
     asset_ids = [asset.id for asset in generated]
     paths = list(dict.fromkeys(asset.path for asset in generated))
+    # Saved models are personal library copies, independent of the source project.
+    # Detach their provenance when the source disappears so signed media stays usable.
+    session.execute(update(Asset).where(
+        Asset.project_id == project.id, Asset.user_id == project.user_id,
+        Asset.kind == "model", Asset.source == "generated",
+    ).values(project_id=None))
     session.execute(delete(Message).where(Message.project_id == project.id))
     session.execute(delete(Job).where(Job.project_id == project.id))
     if asset_ids:
