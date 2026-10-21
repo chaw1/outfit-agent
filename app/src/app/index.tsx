@@ -1,15 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { AppState, Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { Project } from '../api/types';
-import { AnimatedEntry, Badge, Button, FadeImage, Field, IconButton, LoadingSkeleton, Page, StatePanel, Toast, colors, errorText, stageNames, styles } from '../components/ui';
+import { InspirationWall } from '../components/InspirationWall';
+import { AnimatedEntry, Badge, Button, FadeImage, Field, IconButton, LoadingSkeleton, Page, StatePanel, Toast, errorText, stageNames, styles } from '../components/ui';
 import { useSession } from '../context/Session';
+import { recentCompletions, subscribeCompletions } from '../lib/completionFeed';
 import { filterProjects } from '../lib/profile';
-import { layout, radius, space, type } from '../theme';
+import { inProgressProjects, otherProjects } from '../lib/projectProgress';
+import { layout, radius, space, studio, type } from '../theme';
 
 export default function Projects() {
-  const { api, token, user } = useSession();
+  const { api, token, user, baseUrl } = useSession();
   const router = useRouter();
   const [items, setItems] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,23 +22,39 @@ export default function Projects() {
   const [deleting, setDeleting] = useState(false);
   const [feedback, setFeedback] = useState('');
   const requestId = useRef(0);
+  const focused = useRef(false);
   const removedIds = useRef(new Set<string>());
   const candidateRef = useRef<Project | null>(null);
+  const scope = JSON.stringify([baseUrl, user?.id]);
+  const subscribe = useCallback((listener: () => void) => subscribeCompletions(scope, listener), [scope]);
+  const snapshot = useCallback(() => recentCompletions(scope), [scope]);
+  const completions = useSyncExternalStore(subscribe, snapshot, snapshot).filter(item => items.some(project => project.id === item.projectId));
   function chooseCandidate(project: Project | null) {
     candidateRef.current = project;
     setCandidate(project);
   }
-  const load = useCallback(async () => {
+  const load = useCallback(async (quiet = false) => {
     if (!token) { setLoading(false); return; }
     const generation = ++requestId.current;
-    setLoading(true); setError('');
+    if (!quiet) setLoading(true);
+    setError('');
     try {
       const result = await api.projects();
       if (generation === requestId.current) setItems(result.filter(item => !removedIds.current.has(item.id)));
     } catch (e) { if (generation === requestId.current) setError(errorText(e)); }
     finally { if (generation === requestId.current) setLoading(false); }
   }, [api, token]);
-  useFocusEffect(useCallback(() => { void load(); return () => { requestId.current += 1; }; }, [load]));
+  useFocusEffect(useCallback(() => { focused.current = true; void load(); return () => { focused.current = false; requestId.current += 1; }; }, [load]));
+  const generating = items.some(item => item.progress?.status === 'generating');
+  useEffect(() => {
+    if (!generating) return;
+    const timer = setInterval(() => { if (focused.current && (!AppState.currentState || AppState.currentState === 'active')) void load(true); }, 5000);
+    return () => clearInterval(timer);
+  }, [generating, load]);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active' && focused.current) void load(true); });
+    return () => subscription.remove();
+  }, [load]);
   async function removeProject() {
     if (!candidate || deleting) return;
     setDeleting(true); setError('');
@@ -44,47 +63,56 @@ export default function Projects() {
       removedIds.current.add(candidate.id);
       setItems(previous => previous.filter(item => item.id !== candidate.id));
       chooseCandidate(null);
-      setFeedback('合作项目已删除');
+      setFeedback('这组片已删除');
     } catch (e) { setError(errorText(e)); chooseCandidate(null); }
     finally { setDeleting(false); }
   }
+  const openProject = (id: string) => router.push({ pathname: '/projects/[id]', params: { id } });
   const visibleItems = filterProjects(items, query);
-  return <Page>
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} tintColor={colors.red} />}>
+  const active = inProgressProjects(visibleItems);
+  const others = otherProjects(visibleItems);
+  function projectCard(item: Project, index: number, ongoing: boolean) {
+    return <AnimatedEntry key={item.id} delay={index * 40}><Pressable testID={ongoing ? `progress-${item.id}` : `project-${item.id}`} accessibilityRole="button" accessibilityLabel={`打开这组片 ${item.title}`} onLongPress={() => chooseCandidate(item)} delayLongPress={500} onPress={() => { if (!candidateRef.current) openProject(item.id); }} style={({ pressed }) => ({ flexDirection: 'row', borderWidth: 1, borderColor: pressed ? studio.accent : studio.line, backgroundColor: pressed ? studio.surface : studio.glass, borderRadius: radius.md, padding: space.md, gap: space.md, alignItems: 'center', transform: [{ scale: pressed ? 0.985 : 1 }] })}>
+      {item.cover_url ? <FadeImage source={{ uri: item.cover_url }} style={local.cover} resizeMode="cover" accessibilityLabel={`${item.title}封面`} /> : <View style={[local.cover, { alignItems: 'center', justifyContent: 'center' }]}><Ionicons name="shirt-outline" size={26} color={studio.muted} /></View>}
+      <View style={{ flex: 1, gap: space.sm }}><Text style={{ ...type.badge, color: studio.muted, letterSpacing: 1 }}>{item.brand}</Text><Text numberOfLines={2} style={{ ...type.subtitle, color: studio.ink }}>{item.title}</Text>{ongoing ? <Text style={{ ...type.caption, color: item.progress?.status === 'generating' ? '#FF899A' : studio.muted }}>{item.progress?.label}</Text> : <Badge label={item.progress?.label || stageNames[item.stage]} tone={['done', 'note'].includes(item.stage) ? 'success' : 'neutral'} />}{!ongoing && <Text style={{ ...type.caption, color: studio.subtle }}>{new Date(item.updated_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 更新</Text>}</View>
+      {ongoing && <Text style={{ ...type.label, color: studio.ink }}>继续</Text>}
+      <Pressable accessibilityRole="button" accessibilityLabel={`删除这组片 ${item.title}`} onPress={event => { event.stopPropagation(); chooseCandidate(item); }} style={({ pressed }) => ({ minWidth: layout.touch, minHeight: layout.touch, borderRadius: radius.sm, backgroundColor: pressed ? studio.softAccent : 'transparent', alignItems: 'center', justifyContent: 'center' })}><Ionicons name="trash-outline" size={18} color={studio.muted} /></Pressable>
+    </Pressable></AnimatedEntry>;
+  }
+  return <Page tone="studio">
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content, { paddingTop: space.lg }]} refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} tintColor={studio.ink} />}>
       <View style={[styles.row, { justifyContent: 'space-between', gap: space.md }]}>
-        <View style={{ flex: 1, gap: space.sm }}><Text style={{ ...type.badge, color: colors.muted, letterSpacing: 2 }}>OUTFIT NOTES / 衣序</Text><Text style={styles.title}>{user?.nickname ? `${user.nickname}的创作间` : '我的创作间'}</Text></View>
+        <View style={{ flex: 1, gap: space.sm }}><Text style={local.eyebrow}>衣序 / OUTFIT STUDIO</Text><Text style={{ ...type.display, color: studio.ink }}>{user?.nickname ? `${user.nickname}的片场` : '我的片场'}</Text></View>
         <IconButton name="options-outline" label="设置" onPress={() => router.push('/settings')} />
       </View>
-      <AnimatedEntry><View style={{ borderRadius: radius.lg, overflow: 'hidden', height: 252, backgroundColor: colors.imagePlaceholder }}>
-        <FadeImage source={require('../../assets/editorial.jpg')} style={{ width: '100%', height: '100%' }} resizeMode="cover" accessibilityLabel="秋日穿搭灵感" />
-        <View style={{ position: 'absolute', inset: 0, backgroundColor: colors.heroOverlay }} />
-        <View style={{ position: 'absolute', left: space.xl, top: space.xl, paddingHorizontal: space.md, paddingVertical: space.sm, borderRadius: radius.lg, backgroundColor: colors.glass }}><Text style={{ ...type.badge, color: colors.ink, letterSpacing: 2 }}>灵 感 预 览</Text></View>
-        <View style={{ position: 'absolute', left: space.xl, right: space.xl, bottom: space.xl, gap: space.sm }}><Text style={{ ...type.title, color: colors.white }}>把品牌需求，{'\n'}穿成你的风格。</Text><Text style={{ ...type.caption, color: colors.white }}>聊灵感 · 定脚本 · 出好图 · 写笔记</Text></View>
-      </View></AnimatedEntry>
-      <Button title="新建品牌合作" icon="add" onPress={() => router.push('/projects/new')} />
-      <View style={[styles.row, { justifyContent: 'space-between' }]}><Text style={styles.section}>合作项目 <Text style={{ ...type.label, color: colors.muted }}>{items.length.toString().padStart(2, '0')}</Text></Text><IconButton name="refresh-outline" label="刷新项目列表" onPress={() => void load()} /></View>
-      {!!items.length && <Field label="搜索项目" placeholder="搜索项目名称或品牌" value={query} onChangeText={setQuery} returnKeyType="search" />}
-      {!!query.trim() && !visibleItems.length && <StatePanel icon="search-outline" title="没有找到匹配的合作项目。" description="换个项目名称或品牌再找找。" actionLabel="清空搜索" onAction={() => setQuery('')} />}
+      {!!completions.length && <View testID="recent-completions" style={{ gap: space.md }}><Text style={local.section}>刚刚出好</Text>{completions.map(item => <Pressable key={`${item.projectId}-${item.jobIds.join('-')}`} accessibilityRole="button" accessibilityLabel={`查看刚刚出好 ${item.title}`} onPress={() => openProject(item.projectId)} style={local.recent}><Ionicons name="sparkles-outline" size={20} color={studio.accent} /><View style={{ flex: 1, gap: space.xs }}><Text style={{ ...type.label, color: studio.ink }}>{item.title}</Text><Text style={{ ...type.caption, color: studio.muted }}>{item.body}</Text></View><Ionicons name="arrow-forward" size={18} color={studio.ink} /></Pressable>)}</View>}
+      <AnimatedEntry><View style={{ gap: space.lg }}><View style={[styles.row, { justifyContent: 'space-between', alignItems: 'flex-end' }]}><Text style={local.section}>灵感墙</Text><Text style={local.eyebrow}>TAKE A LITTLE INSPIRATION</Text></View><Text style={{ ...type.body, color: studio.muted }}>一件衣服，可以有很多种主角感。</Text><InspirationWall /></View></AnimatedEntry>
+      {!!items.length && <Field label="搜索片场" placeholder="搜索这组片的名称或品牌" value={query} onChangeText={setQuery} returnKeyType="search" />}
+      {!!query.trim() && !visibleItems.length && <StatePanel icon="search-outline" title="没有找到这组片。" description="换个名字或品牌再找找。" actionLabel="清空搜索" onAction={() => setQuery('')} />}
       {!!error && <View accessibilityRole="alert"><StatePanel icon="cloud-offline-outline" title="暂时连接不上" description={error} actionLabel="重试" onAction={() => void load()} /></View>}
       {!!feedback && <Toast text={feedback} onDismiss={() => setFeedback('')} />}
-      {loading && items.length === 0 ? <LoadingSkeleton kind="list" /> : items.length === 0 && !error ? <StatePanel icon="albums-outline" title="第一篇合作笔记，从这里开始" description="带上品牌给你的衣服图，剩下的灵感，我们一起聊出来。" actionLabel="创建第一篇合作" onAction={() => router.push('/projects/new')} /> : null}
-      <View style={{ gap: space.lg }}>
-      {visibleItems.map((item, index) => <AnimatedEntry key={item.id} delay={index * 40}><Pressable accessibilityRole="button" accessibilityLabel={`打开项目 ${item.title}`} onLongPress={() => chooseCandidate(item)} delayLongPress={500} onPress={() => { if (candidateRef.current) return; router.push({ pathname: '/projects/[id]', params: { id: item.id } }); }} style={({ pressed }) => ({ flexDirection: 'row', borderWidth: 1, borderColor: pressed ? colors.red : colors.border, backgroundColor: pressed ? colors.paper : colors.surface, borderRadius: radius.lg, padding: space.md, gap: space.md, alignItems: 'center', transform: [{ scale: pressed ? 0.985 : 1 }] })}>
-        {item.cover_url ? <FadeImage source={{ uri: item.cover_url }} style={{ width: 72, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: colors.paper }} resizeMode="cover" accessibilityLabel={`${item.title}封面`} /> : <View style={{ width: 72, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="shirt-outline" size={26} color={colors.muted} /></View>}
-        <View style={{ flex: 1, gap: space.sm }}><Text style={{ ...type.badge, color: colors.muted, letterSpacing: 1 }}>{item.brand}</Text><Text numberOfLines={2} style={{ ...type.subtitle, color: colors.ink }}>{item.title}</Text><Badge label={stageNames[item.stage]} tone={['done', 'note'].includes(item.stage) ? 'success' : 'brand'} /><Text style={{ ...type.caption, color: colors.muted }}>{new Date(item.updated_at).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })} 更新</Text></View>
-        <Pressable accessibilityRole="button" accessibilityLabel={`删除项目 ${item.title}`} onPress={event => { event.stopPropagation(); chooseCandidate(item); }} style={({ pressed }) => ({ minWidth: layout.touch, minHeight: layout.touch, borderRadius: radius.sm, backgroundColor: pressed ? colors.blush : colors.surface, alignItems: 'center', justifyContent: 'center' })}><Ionicons name="trash-outline" size={18} color={colors.muted} /></Pressable>
-      </Pressable></AnimatedEntry>)}
-      </View>
-      <Text style={{ ...type.badge, color: colors.muted, textAlign: 'center', letterSpacing: 1, paddingTop: space.md }}>让每一次合作，都有你的表达</Text>
+      <View testID="in-progress" style={{ gap: space.lg }}><View style={[styles.row, { justifyContent: 'space-between' }]}><Text style={local.section}>进行中 <Text style={local.count}>{active.length.toString().padStart(2, '0')}</Text></Text><IconButton name="refresh-outline" label="刷新片场列表" onPress={() => void load()} /></View>{active.length ? active.map((item, index) => projectCard(item, index, true)) : <Text style={{ ...type.caption, color: studio.muted }}>眼下没有进行中的拍摄，随时可以开一组新片。</Text>}</View>
+      <View style={{ gap: space.lg }}><Text style={local.section}>我的片场 <Text style={local.count}>{others.length.toString().padStart(2, '0')}</Text></Text>{loading && !items.length ? <LoadingSkeleton kind="list" /> : !items.length && !error ? <StatePanel icon="albums-outline" title="第一组片，从这里开拍" description="带上一件喜欢的衣服，接下来一起找灵感。" /> : null}{others.map((item, index) => projectCard(item, index, false))}</View>
+      <Text style={{ ...type.badge, color: studio.subtle, textAlign: 'center', letterSpacing: 2, paddingVertical: space.md }}>每一组片，都有你的表达</Text>
     </ScrollView>
+    <View style={local.footer}><Button title="拍一组新片" icon="add" onPress={() => router.push('/projects/new')} /></View>
     <Modal transparent animationType="fade" visible={!!candidate} onRequestClose={() => { if (!deleting) chooseCandidate(null); }}>
-      <View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: 'center', padding: space.xl }}>
-        <AnimatedEntry style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}><View accessibilityViewIsModal accessibilityLabel="删除项目确认" style={{ backgroundColor: colors.surface, borderRadius: radius.lg, padding: space.xl, gap: space.lg }}>
-          <View style={{ width: 48, height: 48, backgroundColor: colors.blush, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="trash-outline" size={24} color={colors.danger} /></View>
-          <Text style={styles.section}>删除这个合作项目？</Text><Text style={{ ...type.body, color: colors.ink }}>{candidate?.title}</Text><Text style={styles.subtitle}>项目对话、生成任务和生成的媒体会一并删除，上传的衣服原图会保留。删除后无法恢复。</Text>
-          <Button title="确认删除项目" variant="danger" icon="trash-outline" loading={deleting} onPress={() => void removeProject()} /><Button title="保留项目" variant="ghost" disabled={deleting} onPress={() => chooseCandidate(null)} />
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', justifyContent: 'center', padding: space.xl }}>
+        <AnimatedEntry style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}><View accessibilityViewIsModal accessibilityLabel="删除这组片确认" style={{ backgroundColor: studio.canvas, borderWidth: 1, borderColor: studio.line, borderRadius: radius.lg, padding: space.xl, gap: space.lg }}>
+          <View style={{ width: 48, height: 48, backgroundColor: studio.softAccent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="trash-outline" size={24} color={studio.accent} /></View>
+          <Text style={local.section}>删除这组片？</Text><Text style={{ ...type.body, color: studio.ink }}>{candidate?.title}</Text><Text style={{ ...type.body, color: studio.muted }}>对话、生成任务和生成的媒体会一并删除，上传的衣服原图会保留。删除后无法恢复。</Text>
+          <Button title="确认删除这组片" variant="danger" icon="trash-outline" loading={deleting} onPress={() => void removeProject()} /><Button title="保留这组片" variant="ghost" disabled={deleting} onPress={() => chooseCandidate(null)} />
         </View></AnimatedEntry>
       </View>
     </Modal>
   </Page>;
 }
+
+const local = StyleSheet.create({
+  eyebrow: { ...type.badge, color: studio.muted, letterSpacing: 1.4 },
+  section: { ...type.heading, color: studio.ink, fontWeight: '500', letterSpacing: 1 },
+  count: { ...type.caption, color: studio.subtle },
+  cover: { width: 64, aspectRatio: layout.thumbnailRatio, borderRadius: radius.sm, backgroundColor: studio.canvas },
+  recent: { padding: space.lg, borderRadius: radius.md, borderWidth: 1, borderColor: studio.line, backgroundColor: studio.glass, flexDirection: 'row', alignItems: 'center', gap: space.md },
+  footer: { paddingHorizontal: space.xl, paddingTop: space.md, paddingBottom: space.lg, borderTopWidth: 1, borderTopColor: studio.line, backgroundColor: studio.bg },
+});

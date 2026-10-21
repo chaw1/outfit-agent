@@ -2,6 +2,31 @@
 export type Stage = 'brief' | 'direction' | 'script' | 'images' | 'note' | 'video' | 'done';
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 export type AssetKind = 'garment' | 'model' | 'reference';
+export type ProjectMode = 'guided' | 'auto';
+export type AutoStep = 'directions' | 'script' | 'images' | 'note' | 'video' | 'done';
+
+export interface ProjectProgress {
+  status: 'waiting_you' | 'generating' | 'ready' | 'done' | 'failed' | 'idle';
+  label: string;
+  running: number;
+  total: number;
+  updated_at: string;
+}
+
+export interface AutoState {
+  active: boolean;
+  step: AutoStep;
+  label: string;
+  started_at: string;
+  estimate_points: number;
+}
+
+export interface AutoQuote {
+  estimate_points: number;
+  breakdown: { label: string; points: number }[];
+}
+
+export interface UpdateProjectModeInput { mode: 'guided' }
 
 export interface UserProfile {
   model_asset_ids: string[];
@@ -23,6 +48,8 @@ export interface User {
   tier?: string;
   daily_budget_cny?: number;
   today_cost_cny?: number;
+  daily_budget_points?: number;
+  today_cost_points?: number;
   profile?: UserProfile;
 }
 
@@ -49,6 +76,9 @@ export interface Project {
   brand: string;
   brief: string;
   reference_asset_ids?: string[];
+  mode?: ProjectMode;
+  style_tags?: string[];
+  progress?: ProjectProgress;
   stage: Stage;
   cover_url?: string;
   created_at: string;
@@ -62,6 +92,8 @@ export interface CreateProjectInput {
   garment_asset_ids: string[];
   model_asset_id?: string;
   reference_asset_ids?: string[];
+  mode?: ProjectMode;
+  style_tags?: string[];
 }
 
 export interface Garment {
@@ -89,6 +121,7 @@ export interface Direction {
   sample_title: string;
   preview_url?: string;
   preview_status?: JobStatus;
+  recommended?: boolean;
 }
 
 export interface ScriptShot {
@@ -145,18 +178,20 @@ export interface NoteData {
   image_ids: string[];
   accepted_unverified_ids?: string[];
   cost_cny?: number;
+  cost_points?: number;
   ai_label?: string;
 }
 export interface VideoData { status: JobStatus; url?: string; poster_url?: string; job_id?: string }
 
-export type Card =
+export type Card = (
   | { id: string; type: 'garments'; items: Garment[] }
   | { id: string; type: 'references'; items: ReferenceImage[] }
-  | { id: string; type: 'directions'; options: Direction[]; regenerate_estimate_cny?: number }
+  | { id: string; type: 'directions'; options: Direction[]; regenerate_estimate_cny?: number; regenerate_estimate_points?: number }
   | ({ id: string; type: 'script' } & ScriptData)
   | { id: string; type: 'images'; items: OutfitImage[] }
   | ({ id: string; type: 'note' } & NoteData)
-  | ({ id: string; type: 'video' } & VideoData);
+  | ({ id: string; type: 'video' } & VideoData)
+) & { cost_cny?: number; cost_points?: number };
 
 export type Action =
   | { type: 'choose_direction'; direction_id: string }
@@ -172,6 +207,7 @@ export interface MessageTrace {
   model: string;
   duration_ms: number;
   cost_cny: number;
+  cost_points?: number;
   refs: string[];
   steps: { label: string; duration_ms: number }[];
 }
@@ -205,6 +241,7 @@ export interface PendingAction {
   type: 'choose_direction' | 'confirm_script' | 'confirm_video' | 'edit_image';
   prompt: string;
   estimated_cost_cny?: number;
+  estimated_cost_points?: number;
   reused?: boolean;
 }
 
@@ -213,10 +250,16 @@ export interface ProjectBudget {
   daily_budget_cny: number;
   today_cost_cny: number;
   remaining_cny: number;
+  daily_budget_points?: number;
+  today_cost_points?: number;
+  remaining_points?: number;
 }
 
 export interface ProjectState {
   stage: Stage;
+  mode?: ProjectMode;
+  style_tags?: string[];
+  auto?: AutoState | null;
   garments: Garment[];
   directions: Direction[];
   chosen_direction_id?: string;
@@ -227,6 +270,7 @@ export interface ProjectState {
   active_jobs: Job[];
   pending_action?: PendingAction | null;
   cost_cny?: number;
+  cost_points?: number;
   last_message_id?: string | null;
   script_versions?: ScriptVersion[];
   budget?: ProjectBudget;

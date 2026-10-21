@@ -1,6 +1,6 @@
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
-  Asset, AssetKind, AuthResponse, CreateProjectInput, DoneData, ErrorData, HealthResponse,
+  Asset, AssetKind, AuthResponse, AutoQuote, CreateProjectInput, DoneData, ErrorData, HealthResponse,
   Job, LoginInput, Message, Project, ProjectState, RegisterInput, SendMessageInput, StreamEvent, UpdateMeInput, User,
 } from './types';
 
@@ -152,11 +152,15 @@ export class ApiClient {
     return this.request('/assets', { method: 'POST', body }, true, 'upload');
   }
 
+  autoQuote(): Promise<AutoQuote> { return this.request('/quotes/auto'); }
   projects(): Promise<Project[]> { return this.request('/projects'); }
   createProject(input: CreateProjectInput): Promise<Project> {
     return this.request('/projects', { method: 'POST', body: JSON.stringify(input) });
   }
   project(id: string): Promise<Project> { return this.request(`/projects/${encodeURIComponent(id)}`); }
+  setProjectMode(id: string, input: { mode: 'guided' }): Promise<ProjectState> {
+    return this.request(`/projects/${encodeURIComponent(id)}/mode`, { method: 'POST', body: JSON.stringify(input) });
+  }
   state(id: string): Promise<ProjectState> { return this.request(`/projects/${encodeURIComponent(id)}/state`); }
   messages(id: string): Promise<Message[]> { return this.request(`/projects/${encodeURIComponent(id)}/messages`); }
   deleteProject(id: string): Promise<void> {

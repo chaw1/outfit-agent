@@ -7,19 +7,33 @@ const toolNames: Record<string, string> = {
 };
 
 export const REGENERATE_DIRECTIONS_TEXT = '换一组方向，保留我刚才说的偏好';
+export const POINTS_PER_CNY = 10;
+export const INSUFFICIENT_POINTS_TEXT = '今日点数不够了，明天 00:00 恢复';
 const validAmount = (amount: unknown): amount is number => typeof amount === 'number' && Number.isFinite(amount) && amount >= 0;
+
+export function pointsValue(points?: number, cny?: number): number | undefined {
+  if (validAmount(points)) return points;
+  return validAmount(cny) ? cny * POINTS_PER_CNY : undefined;
+}
+
+export function formatPoints(amount: number): string {
+  if (amount > 0 && amount < 0.1) return '不到 0.1 点';
+  return `${Number(amount.toFixed(1))} 点`;
+}
+
 export const seconds = (duration: number) => `${(duration / 1000).toFixed(1)}s`;
 export function traceSummary(trace: MessageTrace): string {
-  return `用了 ${toolNames[trace.tool] || '智能体处理'} · ${seconds(trace.duration_ms)} · ¥${trace.cost_cny.toFixed(trace.cost_cny > 0 && trace.cost_cny < 0.005 ? 4 : 2)}`;
+  const amount = pointsValue(trace.cost_points, trace.cost_cny);
+  return `用了 ${toolNames[trace.tool] || '智能体处理'} · ${seconds(trace.duration_ms)}${amount === undefined ? '' : ` · ${formatPoints(amount)}`}`;
 }
 
 export function confirmationCost(state: ProjectState | undefined, action: PendingAction['type']) {
-  const estimate = state?.pending_action?.estimated_cost_cny;
-  const remaining = state?.budget?.remaining_cny;
+  const estimate = pointsValue(state?.pending_action?.estimated_cost_points, state?.pending_action?.estimated_cost_cny);
+  const remaining = pointsValue(state?.budget?.remaining_points, state?.budget?.remaining_cny);
   if (state?.pending_action?.type !== action || !validAmount(estimate) || !validAmount(remaining)) return undefined;
   return {
     estimate, remaining,
     insufficient: estimate > remaining + 1e-8,
-    label: `预计约 ¥${estimate.toFixed(2)} · 今日剩余 ¥${remaining.toFixed(2)}`,
+    label: `预计 ${formatPoints(estimate)} · 今日还有 ${formatPoints(remaining)}`,
   };
 }

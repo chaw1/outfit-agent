@@ -55,15 +55,15 @@ async function setup(page: Page, request: APIRequestContext, label: string) {
   async function form(referenceCount: number) {
     await page.goto('/projects/new');
     await page.getByLabel('项目名称', { exact: true }).fill(`第七轮 ${referenceCount} 张参考图`);
-    await page.getByLabel('合作品牌', { exact: true }).fill('LOCAL STUDIO');
-    await page.getByLabel('品牌需求', { exact: true }).fill('自然光、浅色衬衫和松弛的日常通勤氛围，保留衣服细节。');
+    await page.getByLabel('品牌', { exact: true }).fill('LOCAL STUDIO');
+    await page.getByLabel('这次想拍什么', { exact: true }).fill('自然光、浅色衬衫和松弛的日常通勤氛围，保留衣服细节。');
     await upload(page.getByTestId('upload-garments'), ['round7-shirt']);
     await expect(page.getByRole('button', { name: '移除衣服图 1', exact: true })).toBeVisible();
     await expect.poll(() => uploaded.length).toBe(1);
   }
   async function create() {
     const creation = page.waitForResponse(value => value.request().method() === 'POST' && value.url() === `${apiBase}/projects`);
-    await page.getByRole('button', { name: '开始聊灵感', exact: true }).click();
+    await page.getByRole('button', { name: '开拍，先聊灵感', exact: true }).click();
     const response = await creation;
     expect(response.ok()).toBe(true);
     const input = response.request().postDataJSON() as CreateProjectInput;
