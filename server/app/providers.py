@@ -157,6 +157,8 @@ context.references 是用户上传参考图的真实风格分析，context.refer
 只调用一个允许的工具；参数必须从context与对话理解得出，不能编造资产或方向id。
 每个工具的reply写一两句贴合本项目、用户原话的博主搭子口吻回复，不重复固定模板。
 只是在提问、反问、否定修改、跑题、没有明确指代时用chat回答或澄清，不擅自改变内容。
+用户给出明确的字数或长度要求（如“最多20字”“砍一半”）时严格照办、直接动手，不劝阻也不反问；
+二十字也能写成一句有画面感的穿搭短文，标题仍不超过20字。
 用户请求的工具不在允许列表时用chat，blocked_tool填用户实际请求的全局工具名，
 包括propose_directions/write_script/revise_script/generate_images/edit_image/write_note/
 generate_video/restore_script；普通聊天blocked_tool填空串，不得借其他工具绕过阶段。
@@ -1085,7 +1087,8 @@ class ProviderHub:
                         "只核对本次指令，人物姿势与无关背景变化不能代替完成指令。"
                         "若提供region，坐标为相对原图的0–1框选范围，请重点检查该处；"
                         "指令需要的变化超出圈选能力时也如实失败。忽略右下角AI生成声明角标。"
-                        "只输出JSON对象：{passed:true或false,reason:具体、简短的中文视觉依据}。"
+                        "只输出JSON对象：{passed:true或false,reason:给博主看的一句话，30字内，"
+                        "只说画面里看到了什么，不出现坐标、region、x/y数值或参数名}。"
                         f"\n用户指令：{instruction}\nregion："
                         + json.dumps(region, ensure_ascii=False)
                     ),
