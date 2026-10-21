@@ -1,5 +1,6 @@
 import { INSUFFICIENT_POINTS_TEXT } from '../lib/transparency';
 import type { AssetPage, LibraryKind, SavedModel } from '../lib/assets';
+import { nativeUpload } from '../lib/upload';
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
   Asset, AssetKind, AuthResponse, AutoQuote, ChangePasswordInput, CreateProjectInput, DoneData, ErrorData, HealthResponse,
@@ -170,7 +171,19 @@ export class ApiClient {
     return this.request('/me', { method: 'PATCH', body: JSON.stringify(input) });
   }
 
-  uploadAsset(file: File | NativeUploadFile, kind: AssetKind): Promise<Asset> {
+  async uploadAsset(file: File | NativeUploadFile, kind: AssetKind): Promise<Asset> {
+    if ('uri' in file && nativeUpload) {
+      const token = this.token();
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      let result: { status: number; body: string };
+      try { result = await nativeUpload(`${this.baseUrl}/assets`, file.uri, { mimeType: file.type, headers, fields: { kind } }); }
+      catch (error) { throw new ApiError('NETWORK_ERROR', `图片上传失败，请检查网络后重试。${error instanceof Error && error.message ? `（${error.message}）` : ''}`); }
+      if (result.status === 401) this.unauthorized(token);
+      if (result.status < 200 || result.status >= 300) throw responseError(result.body, result.status);
+      try { return JSON.parse(result.body) as Asset; }
+      catch { throw new ApiError('INVALID_RESPONSE', '服务器返回了无法读取的数据，请稍后重试。', result.status); }
+    }
     const body = new FormData();
     // React Native's FormData accepts this URI descriptor through the same append API.
     if ('uri' in file) body.append('file', file as unknown as Blob);
