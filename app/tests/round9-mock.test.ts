@@ -92,7 +92,7 @@ test('round nine validates project mode/style, preserves the brief, and exposes 
     assert.equal(state.pending_action?.estimated_cost_points, 18);
     const messages = (await request<Message[]>(base, `/api/projects/${project.id}/messages`, token)).body;
     assert.ok(messages.filter((message) => message.trace).every((message) => message.trace!.cost_points === message.trace!.cost_cny * 10));
-  } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
+  } finally { await close(server); await rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
 });
 
 test('round nine auto worker completes every step without frontend requests, with proactive messages and no confirmations', async () => {
@@ -128,7 +128,7 @@ test('round nine auto worker completes every step without frontend requests, wit
     const list = (await request<Project[]>(base, '/api/projects', token)).body;
     assert.equal(list[0].progress.status, 'done');
     assert.equal(list[0].progress.label, '全套已出好');
-  } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
+  } finally { await close(server); await rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
 });
 
 test('round nine takeover keeps queued jobs and waits at the next direction or script checkpoint', async () => {
@@ -168,7 +168,7 @@ test('round nine takeover keeps queued jobs and waits at the next direction or s
     const projects = (await request<Project[]>(base, '/api/projects', token)).body;
     assert.equal(projects.find((project) => project.id === second.id)?.progress.label, '等你确认脚本');
     assert.equal((await request(base, `/api/projects/${second.id}/mode`, token, { mode: 'auto' })).status, 400);
-  } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
+  } finally { await close(server); await rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
 });
 
 test('round nine auto stops with a useful proactive message for task failure and insufficient points', async () => {
@@ -198,7 +198,7 @@ test('round nine auto stops with a useful proactive message for task failure and
     assert.equal(state.active_jobs.length, 0);
     const stopped = (await request<Message[]>(base, `/api/projects/${denied.id}/messages`, token)).body;
     assert.match(stopped.at(-1)!.text, /今日点数不够了，明天 00:00 恢复/);
-  } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
+  } finally { await close(server); await rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
 });
 
 test('round nine image takeover survives restart, preserves every task, and maps waiting/ready/video progress', async () => {
@@ -245,7 +245,7 @@ test('round nine image takeover survives restart, preserves every task, and maps
     assert.equal(state.stage, 'done');
     assert.equal(state.pending_action, null);
     assert.equal((await progress()).status, 'done');
-  } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
+  } finally { await close(server); await rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
 });
 
 test('round nine progress ignores replaced previews and failed image/video attempts after successful retries', async () => {
@@ -305,5 +305,5 @@ test('round nine progress ignores replaced previews and failed image/video attem
     assert.equal((await progress()).status, 'done');
     assert.equal((await progress()).label, '全套已出好');
     assert.equal((await progress()).total, 1);
-  } finally { await close(server); await rm(dataDir, { recursive: true, force: true }); }
+  } finally { await close(server); await rm(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }); }
 });

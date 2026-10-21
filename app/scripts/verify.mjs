@@ -16,6 +16,8 @@ const steps = [
   ['tests', 'npm', ['test']],
   ['ios', 'npx', ['expo', 'export', '--platform', 'ios', '--output-dir', 'dist/ios']],
   ['android', 'npx', ['expo', 'export', '--platform', 'android', '--output-dir', 'dist/android']],
+  ['web', 'npx', ['expo', 'export', '--platform', 'web', '--output-dir', 'dist/web']],
+  ['design-export', 'node', ['scripts/check-design-export.mjs', 'dist/ios', 'dist/android', 'dist/web']],
 ];
 for (const [name, command, args] of steps) {
   const start = Date.now();

@@ -33,6 +33,12 @@ function Routes() {
   </View>;
 }
 
+function SessionBoundary() {
+  const segments = useSegments();
+  if (__DEV__ && segments.join('/') === '__design') return <Stack screenOptions={{ headerShown: false }} />;
+  return <SessionProvider><Routes /></SessionProvider>;
+}
+
 export default function RootLayout() {
-  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><SessionProvider><Routes /></SessionProvider></SafeAreaProvider></GestureHandlerRootView>;
+  return <GestureHandlerRootView style={{ flex: 1 }}><SafeAreaProvider><SessionBoundary /></SafeAreaProvider></GestureHandlerRootView>;
 }
