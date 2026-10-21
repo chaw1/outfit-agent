@@ -1,6 +1,7 @@
 import { INSUFFICIENT_POINTS_TEXT } from '../lib/transparency';
 import type { AssetPage, LibraryKind, SavedModel } from '../lib/assets';
 import type { GarmentTagPage } from '../lib/garmentTags';
+import type { IdentityInput, IdentityQuote, ModelCard, ModelPage } from '../lib/models';
 import { nativeUpload } from '../lib/upload';
 import { parseStreamEvent, SSEParser } from './sse';
 import type {
@@ -163,6 +164,18 @@ export class ApiClient {
     return this.request(`/me/assets?kind=${kind}&limit=${limit}&offset=${offset}${kind === 'garment' && tag ? `&tag=${encodeURIComponent(tag)}` : ''}`);
   }
   myAssetTags(): Promise<GarmentTagPage> { return this.request('/me/assets/tags?kind=garment'); }
+  myModels(): Promise<ModelPage> {
+    return this.request('/me/models');
+  }
+  quoteIdentity(input: IdentityInput): Promise<IdentityQuote> {
+    return this.request('/me/models/quote', { method: 'POST', body: JSON.stringify(input) });
+  }
+  createIdentity(input: IdentityInput & { confirmation_token: string }): Promise<ModelCard> {
+    return this.request('/me/models', { method: 'POST', body: JSON.stringify(input) });
+  }
+  deleteModel(id: string): Promise<void> {
+    return this.request(`/me/models/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
   saveModelFromImage(image_id: string, name?: string): Promise<SavedModel> {
     return this.request('/me/models/from-image', { method: 'POST', body: JSON.stringify({ image_id, ...(name ? { name } : {}) }) });
   }

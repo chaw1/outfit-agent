@@ -255,9 +255,11 @@ _sqlite_reservation_lock = threading.RLock()
 class ProviderHub:
     def __init__(
         self, session: Session, project_id: str | None = None, trace_context: dict | None = None,
+        user_id: str | None = None,
     ):
         self.session = session
         self.project_id = project_id
+        self.user_id = user_id
         self._active_models: dict[str, str] = {}
         self.trace_context = dict(trace_context or {})
         self.ledger_ids: list[str] = []
@@ -298,7 +300,7 @@ class ProviderHub:
             budget_lock(ledger_session)
             user_id = (
                 ledger_session.scalar(select(Project.user_id).where(Project.id == self.project_id))
-                if self.project_id else None
+                if self.project_id else self.user_id
             )
             try:
                 runtime = assert_generation_allowed(
@@ -431,10 +433,7 @@ class ProviderHub:
 
     @staticmethod
     def _data_url(asset: Asset, *, vision: bool = False) -> str:
-        root = Path(settings.media_dir).resolve()
-        path = (root / asset.path).resolve()
-        if not path.is_relative_to(root):
-            raise ProviderError("素材路径无效。")
+        path = asset_path(asset)
         # Upload compact oriented copies so large generated PNGs do not create
         # multi-megabyte Base64 bodies for an edit or a video first frame.
         # The source file and asset metadata remain unchanged.
@@ -485,6 +484,49 @@ class ProviderHub:
                 image.verify()
                 width, height = image.size
         return GeneratedMedia(data=data, mime=mime, model=model, width=width, height=height)
+
+    def describe_identity(self, assets: list[Asset]) -> str:
+        """Describe only visible identity features once when building a card."""
+        def operation():
+            units = {"purpose": "identity", "images": len(assets)}
+            if self.mock:
+                return (
+                    "成年人物，约25至35岁，鹅蛋脸、自然平眉、杏眼、直鼻梁、唇形清晰，"
+                    "自然肤色，黑色中长发，身高与体态以本人照片为准，无法判断处保留未知。",
+                    units, Decimal(0),
+                )
+            content = [{"type": "text", "text": (
+                "为同一成年人的参考照片写一段可复用中文身份描述。只描述可见脸型、眉眼、"
+                "鼻唇、肤色、发型发色、身高体态与大致成年年龄段；不确定处明确未知，"
+                "不推断真实姓名或敏感身份。严格返回JSON对象{identity_text:非空字符串}。"
+            )}]
+            content.extend({"type": "image_url", "image_url": {
+                "url": self._data_url(asset, vision=True),
+            }} for asset in assets)
+            with self._client() as client:
+                response = self._json(client.post(
+                    f"{settings.dashscope_compatible_url.rstrip('/')}/chat/completions",
+                    headers=self._headers(settings.dashscope_api_key),
+                    json={"model": self._model("vision"),
+                          "messages": [{"role": "user", "content": content}],
+                          "enable_thinking": False, "response_format": {"type": "json_object"},
+                          "max_tokens": 800},
+                ))
+            result = json.loads(response["choices"][0]["message"]["content"])
+            value = result.get("identity_text") if isinstance(result, dict) else None
+            if not isinstance(value, str) or not value.strip() or len(value) > 4000:
+                raise ProviderError("身份描述返回了无效内容。")
+            usage = response.get("usage", {})
+            tokens = usage.get("prompt_tokens", 0)
+            rate = Decimal("1") if tokens <= 32_768 else Decimal("1.5")
+            if tokens > 131_072:
+                rate = Decimal("3")
+            cost = ((Decimal(tokens) + Decimal(usage.get("completion_tokens", 0)) * 10)
+                    * rate / 1_000_000) if "prompt_tokens" in usage else None
+            return value.strip(), {**usage, **units}, cost
+
+        reserve = Decimal(16_384 * len(assets) * 3 + 800 * 30 + 3000) / 1_000_000
+        return self._call("vision", str(reserve), operation)
 
     def analyze_garments(self, assets: list[Asset]) -> list[dict]:
         if not assets:

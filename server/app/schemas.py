@@ -87,6 +87,7 @@ class ProjectInput(StrictInput):
     brief: str = Field(min_length=1, max_length=10000)
     garment_asset_ids: list[str] = Field(min_length=1, max_length=10)
     model_asset_id: str | None = None
+    model_id: str | None = None
     reference_asset_ids: list[str] = Field(default_factory=list, max_length=3)
     mode: Literal["guided", "auto"] = "guided"
     style_tags: list[Annotated[str, Field(min_length=1, max_length=12)]] = Field(
@@ -134,6 +135,8 @@ class ProjectOutput(BaseModel):
     mode: Literal["guided", "auto"] = "guided"
     style_tags: list[str] = Field(default_factory=list)
     progress: ProjectProgress
+    model_id: str | None = None
+    model_asset_id: str | None = None
     reference_asset_ids: list[str] = Field(default_factory=list)
     cover_url: str | None = None
     created_at: datetime
@@ -339,8 +342,8 @@ class MessageOutput(BaseModel):
 
 class JobOutput(BaseModel):
     id: str
-    project_id: str
-    kind: Literal["image", "edit", "video"]
+    project_id: str | None
+    kind: Literal["image", "edit", "video", "identity"]
     status: Literal["queued", "running", "succeeded", "failed"]
     result_asset_id: str | None = None
     url: str | None = None

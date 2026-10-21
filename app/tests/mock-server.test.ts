@@ -484,8 +484,8 @@ test('mock revisions preserve drafts, missing media fails/retries, refreshed lin
     assert.ok((await getState()).images.every((image) => image.status === 'succeeded'));
     state = concurrent[0];
     assert.deepEqual(state.images.slice(0, 3).map((image) => image.id), imageIds);
-    const database = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as { assets: { source: string }[] };
-    assert.equal(database.assets.filter((item) => item.source === 'generated').length, 4);
+    const database = JSON.parse(await readFile(path.join(dataDir, 'db.json'), 'utf8')) as { assets: { source: string; ownerId: string | null }[] };
+    assert.equal(database.assets.filter((item) => item.source === 'generated' && item.ownerId !== null).length, 4);
     const order = [...imageIds].reverse();
     await send(base, project.id, account.token, { action: { type: 'approve_images', image_ids: order } });
     await send(base, project.id, account.token, { action: { type: 'confirm_video', image_id: order[0] } });

@@ -14,6 +14,7 @@ from app.costs import MAX_DIRECTIONS, PREVIEWS_PER_DIRECTION, image_cost_cny, wi
 from app.errors import AppError
 from app.local_edit import prepare_selection
 from app.media import asset_dict, store_generated
+from app.model_library import model_references
 from app.models import Asset, Job, Project, User, utcnow
 from app.photography import expand_photo_prompt
 from app.prompting import COVER_ANCHOR, build_shot_fields, build_shot_prompt
@@ -803,7 +804,11 @@ class Workflow:
         assert_generation_allowed(self.session, self.project.user_id)
         jobs = []
         clothes = self.project.garment_asset_ids[: 2 if self.project.model_asset_id else 3]
-        refs = ([self.project.model_asset_id] if self.project.model_asset_id else []) + clothes
+        person_refs, identity_text = model_references(self.session, self.project)
+        refs = list(dict.fromkeys(person_refs + clothes))
+        identity = (
+            "保持参考图中模特身份" + (f"；人物身份卡：{identity_text}" if identity_text else "")
+        ) if person_refs else ""
         variants = (
             ("全身街拍", "全身竖构图，街景三分留白，自然散射光"),
             ("半身特写", "半身近景，偏心裁切，柔和窗边侧光"),
@@ -828,7 +833,7 @@ class Workflow:
                     "purpose": "preview", "direction_id": direction["id"],
                     "preview_id": preview_id, "variant": variant,
                     "description": description, "preview_group": group,
-                    **self._shot_prompt(state, shot, clothes),
+                    **self._shot_prompt(state, shot, clothes, identity=identity),
                     "reference_asset_ids": refs, "garment_asset_ids": clothes,
                 }
                 jobs.append(self._enqueue(state, "image", payload, key))
@@ -896,9 +901,12 @@ class Workflow:
         )
         cover_id = str(uuid5(NAMESPACE_URL, cover_key)) if cover_key else None
         for shot in script["shots"]:
-            references = [self.project.model_asset_id] if self.project.model_asset_id else []
-            references = list(dict.fromkeys(references + shot["outfit_asset_ids"]))
-            # 选中的灵感图只借鉴构图与光线：封面参考图顺序改为 衣服 → 灵感图 → 本人照片。
+            person_refs, identity_text = model_references(self.session, self.project)
+            references = list(dict.fromkeys(person_refs + shot["outfit_asset_ids"]))
+            identity = (
+                "保持参考图中模特身份" + (f"；人物身份卡：{identity_text}" if identity_text else "")
+            ) if person_refs else ""
+            # 选中的灵感图只借鉴构图与光线：封面参考图顺序改为 衣服 → 灵感图 → 人物身份卡。
             preview = self._selected_preview(state) if shot == script["shots"][0] else None
             inspiration = ""
             if preview:
@@ -910,15 +918,20 @@ class Workflow:
                         f"第{len(references)}张参考图为灵感图，只借鉴构图与光线，"
                         "不作为服装或人物身份依据。"
                     )
-                if self.project.model_asset_id:
-                    references.append(self.project.model_asset_id)
-                    inspiration += "最后一张参考图为本人照片，人物身份以本人照片为准。"
+                if person_refs:
+                    references.extend(person_refs)
+                    inspiration += (
+                        "最后一张参考图为本人照片，人物身份以本人照片为准。"
+                        if len(person_refs) == 1
+                        else "最后几张参考图为人物身份卡，人物身份以它们为准。"
+                    )
                 references = list(dict.fromkeys(references))
             payload = {
                 "shot_id": shot["id"],
                 "version": 1,
                 **self._shot_prompt(
-                    state, shot, shot["outfit_asset_ids"], requirements=inspiration,
+                    state, shot, shot["outfit_asset_ids"],
+                    identity=identity, requirements=inspiration,
                 ),
                 "reference_asset_ids": references,
                 "script_hash": script_hash,
@@ -927,8 +940,13 @@ class Workflow:
                 "shot": deepcopy(shot),
             }
             key = f"{self.project.id}:image:{script_hash}:{shot['id']}"
-            if self.project.model_asset_id:
-                payload["model_asset_id"] = self.project.model_asset_id
+            if references and (self.project.model_id or self.project.model_asset_id):
+                payload["model_asset_id"] = references[0]
+                payload["identity_asset_ids"], payload["identity_text"] = (
+                    model_references(self.session, self.project)
+                )
+                if self.project.model_id:
+                    payload["model_id"] = self.project.model_id
             if state.get("references"):
                 payload["reference_style_prompt"] = self._reference_prompt(state)
             if cover_id and key != cover_key:
@@ -1003,6 +1021,7 @@ class Workflow:
             [parent.payload["anchor_asset_id"]] if parent.payload.get("anchor_asset_id") else []
         )
         edit_clothes = clothes if anchor_references else clothes[:2]
+        person_refs, identity_text = model_references(self.session, self.project)
         payload = {
             "shot_id": shot_id,
             "version": max(versions, default=1) + 1,
@@ -1012,12 +1031,16 @@ class Workflow:
             "instruction": instruction,
             **self._shot_prompt(
                 state, parent.payload.get("shot", {}), clothes,
-                identity="保留模特身份和未提到的画面细节",
+                identity=(
+                    "保留模特身份和未提到的画面细节"
+                    + ("；第二张参考图是人物正脸，仅用于保持身份" if person_refs else "")
+                    + (f"；人物身份卡：{identity_text}" if identity_text else "")
+                ),
                 identity_anchor=COVER_ANCHOR if anchor_references else "",
                 requirements=f"修改指令优先于原镜头描述，只做以下修改：{instruction}",
             ),
             "reference_asset_ids": list(dict.fromkeys([
-                source_id, *edit_clothes, *anchor_references,
+                source_id, *person_refs[:1], *edit_clothes, *anchor_references,
             ])),
             "garment_asset_ids": clothes,
             "script_version": parent.payload.get("script_version"),

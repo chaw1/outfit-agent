@@ -53,6 +53,11 @@ def asset_dict(asset: Asset) -> dict:
 
 
 def asset_path(asset: Asset) -> Path:
+    if asset.user_id is None and asset.kind == "model" and asset.path.startswith("models/"):
+        root = Path(__file__).parent / "fixtures" / "models"
+        path = (root / Path(asset.path).name).resolve()
+        if path.is_relative_to(root.resolve()):
+            return path
     root = settings.media_dir.resolve()
     path = (root / asset.path).resolve()
     if not path.is_relative_to(root):
@@ -131,7 +136,7 @@ def store_generated(
     session: Session,
     *,
     user_id: str,
-    project_id: str,
+    project_id: str | None,
     kind: str,
     media,
     parent_id: str | None = None,
@@ -314,6 +319,9 @@ def preview_path(asset: Asset, width: int) -> Path:
         raise AppError("INVALID_PREVIEW", "不支持的预览尺寸", 422)
     original = asset_path(asset)
     target = original.with_name(f"{original.stem}.w{width}.jpg")
+    if asset.user_id is None:
+        settings.media_dir.mkdir(parents=True, exist_ok=True)
+        target = settings.media_dir / f"preset-{asset.id}.w{width}.jpg"
     if target.is_file():
         return target
     try:

@@ -633,7 +633,8 @@ def test_edit_in_note_keeps_video_confirmation_and_original_garment_references(f
     assert after["note"] == before["note"]
     payload = session.get(Job, edited["jobs"][0]["id"]).payload
     assert payload["reference_asset_ids"][0] == session.get(Job, ids[0]).result_asset_id
-    assert 2 <= len(payload["reference_asset_ids"]) <= 3
+    assert project.model_asset_id in payload["reference_asset_ids"]
+    assert 2 <= len(payload["reference_asset_ids"]) <= 4
     assert set(payload["garment_asset_ids"]).issubset(project.garment_asset_ids)
     assert payload["script_version"] == 1
     assert all(

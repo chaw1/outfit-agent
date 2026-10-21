@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import bcrypt from 'bcryptjs';
 import sharp from 'sharp';
 import { getLegalDocument, listLegalDocuments } from './legal.mjs';
+import { createModelLibrary } from './models.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DAY = 86_400;
@@ -168,7 +169,7 @@ export async function createMockServer(options = {}) {
     const reserved = db.jobs.filter((job) => job.ownerId === project.ownerId && activeStatuses.has(job.status)).reduce((sum, job) => sum + jobCost(job), 0);
     return withPoints({ tier: user.tier || 'free', daily_budget_cny: daily, today_cost_cny: today, remaining_cny: Math.max(0, money(daily - today - reserved)) });
   }
-  const jobCost = (job) => PRICES[job.directionId ? 'preview' : job.kind];
+  const jobCost = (job) => job.kind === 'identity' ? (job.estimate_cny || 0) : PRICES[job.directionId ? 'preview' : job.kind];
   function availableBudget(project) {
     return budgetFor(project).remaining_cny;
   }
@@ -276,7 +277,7 @@ export async function createMockServer(options = {}) {
   }
   function publicProject(project, base) {
     const { id, title, brand, brief, stage, created_at, updated_at, coverAssetId } = project;
-    return { id, title, pinned: Boolean(project.pinned), brand, brief: project.analyzedBrief || brief, stage, mode: project.mode, style_tags: [...project.style_tags], progress: projectProgress(project), ...(project.referenceAssetIds ? { reference_asset_ids: [...project.referenceAssetIds] } : {}), ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
+    return { id, title, pinned: Boolean(project.pinned), brand, brief: project.analyzedBrief || brief, stage, mode: project.mode, style_tags: [...project.style_tags], ...(project.modelId ? { model_id: project.modelId } : {}), ...(project.modelAssetId ? { model_asset_id: project.modelAssetId } : {}), progress: projectProgress(project), ...(project.referenceAssetIds ? { reference_asset_ids: [...project.referenceAssetIds] } : {}), ...(coverAssetId ? { cover_url: mediaUrl(coverAssetId, base) } : {}), created_at, updated_at };
   }
   function projectProgress(project) {
     const state = project.state;
@@ -442,7 +443,12 @@ export async function createMockServer(options = {}) {
           setAutoStep(project, 'images');
           automaticMessage(project, { action: { type: 'confirm_script' } }, base, '拍摄脚本准备好了，现在开始正式出图，衣服细节也会一起核对。');
         } else if (step === 'images') {
-          const originals = project.state.images.filter((image) => image.version === 1 && image.status === 'succeeded' && image.edit_check?.passed !== false);
+          const originals = project.state.images.filter((image) => image.version === 1 && image.status === 'succeeded' && image.edit_check?.passed !== false).map(original => {
+            if ((original.fidelity?.person_score ?? 100) >= 70) return original;
+            const repair = project.state.images.find(image => image.automatic && image.parent_id === original.id && image.status === 'succeeded' && image.edit_check?.passed !== false && (image.fidelity?.person_score ?? 0) >= 70);
+            if (!repair) throw new Error('人像一致性重出后仍未达70分，请核对后手动选图');
+            return repair;
+          });
           const cover = originals.find((image) => image.shot_id === project.state.script?.shots[0]?.id);
           const selected = [...(cover ? [cover] : []), ...originals.filter((image) => image !== cover)];
           if (!selected.length) throw new Error('没有通过核对的首版图片，请重新出图或手动挑选');
@@ -461,7 +467,9 @@ export async function createMockServer(options = {}) {
     }
     return changed;
   }
-  const assetPath = (asset) => asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
+  const assetPath = (asset) => asset.presetFile || (asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename));
+  const modelLibrary = createModelLibrary({ db, options, now, clock, publicAsset, persist, sign, equal, failure, readJson, json, dataDir, assetPath, requireBudget });
+  await persist();
   function removeProjectRecords(projects, ownerId) {
     const projectIds = new Set(projects.filter((project) => project.ownerId === ownerId).map((project) => project.id));
     const generatedIds = new Set([
@@ -505,6 +513,7 @@ export async function createMockServer(options = {}) {
     if (image?.shot_id === project.state.script?.shots[0]?.id && preview) prompt += `；构图与光线以灵感图为基调：${preview.variant}`;
     if (job.directionId) prompt += `；灵感图角度：${job.variant}`;
     if (project.modelAssetId && image) prompt += '；保持博主本人五官、体型和妆发一致';
+    if (project.identityText) prompt += `；人物身份卡：${project.identityText}`;
     if (image?.anchor_id) prompt += `；以封面 ${image.anchor_id} 为锚点，保持同一人、同一妆发和光线氛围`;
     return prompt;
   }
@@ -566,7 +575,7 @@ export async function createMockServer(options = {}) {
     return advancing;
   }
   async function runAdvanceJobs(base) {
-    let changed = false;
+    let changed = await modelLibrary.advance();
     const changedProjects = new Set();
     for (const job of db.jobs) {
       if (!activeStatuses.has(job.status)) continue;
@@ -574,10 +583,16 @@ export async function createMockServer(options = {}) {
       if (!project) continue;
       const image = project.state.images.find((item) => item.id === job.imageId);
       if (job.waitingForImageId) {
-        const anchor = project.state.images.find((item) => item.id === job.waitingForImageId);
+        let anchor = project.state.images.find((item) => item.id === job.waitingForImageId);
         if (anchor && activeStatuses.has(anchor.status)) continue;
+        if (anchor?.autoFixAttempted) {
+          const repair = project.state.images.find(item => item.parent_id === anchor.id && item.automatic);
+          if (repair && activeStatuses.has(repair.status)) continue;
+          if (repair?.status === 'succeeded') anchor = repair;
+        }
         if (anchor?.status === 'succeeded' && image) {
           image.anchor_id = anchor.id;
+          job.reference_asset_ids = [...new Set([...job.reference_asset_ids, anchor.assetId])];
           job.traceReferences = [...(job.traceReferences || jobTraceReferences(project, job, image)), { id: anchor.assetId, role: '封面锚点' }];
         }
         delete job.waitingForImageId;
@@ -601,11 +616,13 @@ export async function createMockServer(options = {}) {
             if (job.kind === 'edit' && image.preset !== 'upscale') image.edit_check = job.editCheckShouldFail
               ? { passed: false, reason: '演示检查：选区细节仍未改到位，请再试一次或换个说法。' }
               : { passed: true, reason: image.region ? '圈选区域已按指令完成处理，区域外保持原图。' : '已完成整张图片的修改，并保留上一版。' };
-            const needsFix = job.kind === 'image' && image.shot_id === 'shot_3' && !image.autoFixAttempted;
-            image.fidelity = needsFix
+            const needsGarmentFix = job.kind === 'image' && image.shot_id === 'shot_3' && !image.autoFixAttempted;
+            const needsPersonFix = options.lowPersonScoreOnce && project.modelAssetId && job.kind === 'image' && image.shot_id === 'shot_1' && !image.autoFixAttempted;
+            const needsFix = needsGarmentFix || needsPersonFix;
+            image.fidelity = needsGarmentFix
               ? { score: 54, diffs: ['左侧胸袋缺失', '纽扣位置与原衣服不一致'], auto_fixed: false }
               : { score: image.automatic ? 92 : 96, diffs: [], auto_fixed: Boolean(image.automatic) };
-            if (project.modelAssetId) image.fidelity.person_score = 92;
+            if (project.modelAssetId) image.fidelity.person_score = needsPersonFix ? 55 : 92;
             if (image.anchor_id) image.fidelity.anchor_score = 94;
             if (image.preset === 'upscale') {
               const original = project.state.images.find((item) => item.id === image.parent_id);
@@ -619,10 +636,11 @@ export async function createMockServer(options = {}) {
                 version: Math.max(...project.state.images.filter((item) => item.shot_id === image.shot_id).map((item) => item.version)) + 1,
                 parent_id: image.id, script_version: image.script_version, automatic: true,
                 ...(image.anchor_id ? { anchor_id: image.anchor_id } : {}),
-                instruction: '自动修复：补回左侧胸袋，恢复原衣服的纽扣位置，保持面料和颜色一致',
+                instruction: needsPersonFix ? '人像一致性仅 55 分，按身份卡恢复同一人的五官、发型与体态' : '自动修复：补回左侧胸袋，恢复原衣服的纽扣位置，保持面料和颜色一致',
               };
               project.state.images.push(repaired);
-              queueJob(project, 'edit', repaired, 0, { groupId: job.groupId });
+              const best = needsPersonFix ? project.state.images.filter(item => item.status === 'succeeded' && typeof item.fidelity?.person_score === 'number').sort((a, b) => b.fidelity.person_score - a.fidelity.person_score)[0] : undefined;
+              queueJob(project, 'edit', repaired, 0, { groupId: job.groupId, auto_fix: true, auto_fix_for: job.id, ...(best?.assetId ? { best_person_asset_id: best.assetId } : {}) });
             }
           }
           const cost = jobCost(job);
@@ -684,12 +702,12 @@ export async function createMockServer(options = {}) {
           : first.directionId ? '每个方向的三张灵感图都准备好了，左右滑动挑一张喜欢的。'
           : first.kind === 'video' ? '5 秒穿搭短视频做好啦，可以打开预览播放。'
           : jobs.some((job) => project.state.images.find((image) => image.id === job.imageId)?.edit_check?.passed === false) ? '这版已经生成，但可能没改到位。查看检查原因后，可以再试一次或换个说法。'
-          : autoFixed ? '3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。'
+          : autoFixed ? (options.lowPersonScoreOnce ? '人像或衣服核对偏低的图片已经自动补了一版，原图与新版都保留。' : '3 张都好了，第 3 张的胸袋和纽扣位置偏了，我已经自动补了一版。')
           : first.kind === 'edit' ? '这张图改好了，原图也保留着，可以对比后再选。'
           : '这批穿搭图片都好了，可以挑选笔记用图了。';
         if (!failed && !first.directionId && first.kind !== 'video') {
           const completedImages = jobs.map((job) => project.state.images.find((image) => image.id === job.imageId)).filter((image) => image?.status === 'succeeded');
-          const personScores = completedImages.map((image) => image.fidelity?.person_score).filter((score) => typeof score === 'number');
+          const personScores = completedImages.filter(image => !completedImages.some(candidate => candidate.automatic && candidate.parent_id === image.id)).map((image) => image.fidelity?.person_score).filter((score) => typeof score === 'number');
           const anchorScores = completedImages.map((image) => image.fidelity?.anchor_score).filter((score) => typeof score === 'number');
           if (personScores.length || anchorScores.length) text += ` ${[...(personScores.length ? [`人像一致性 ${Math.min(...personScores)}`] : []), ...(anchorScores.length ? [`封面一致性 ${Math.min(...anchorScores)}`] : [])].join('，')}。`;
         }
@@ -713,9 +731,11 @@ export async function createMockServer(options = {}) {
       runningAt: clock() + runningDelay, dueAt: clock() + timings[details.directionId ? 'preview' : kind] + delayOffset,
       groupId: details.groupId || newId('group'), ...details, ...(image ? { imageId: image.id } : {}),
     };
-    if (image?.shot_id === project.state.script?.shots[0]?.id) {
+    const shot = image ? project.state.script?.shots.find(shot => shot.id === image.shot_id) : undefined;
+    job.reference_asset_ids = [...new Set([...(kind === 'edit' && image?.parent_id ? [project.state.images.find(item => item.id === image.parent_id)?.assetId].filter(Boolean) : []), ...(project.identityAssetIds || (project.modelAssetId ? [project.modelAssetId] : [])), ...(shot?.outfit_asset_ids || project.garmentAssetIds), ...(details.best_person_asset_id ? [details.best_person_asset_id] : []), ...(image?.anchor_id ? [project.state.images.find(item => item.id === image.anchor_id)?.assetId].filter(Boolean) : [])])];
+    if (kind !== 'edit' && image?.shot_id === project.state.script?.shots[0]?.id) {
       const preview = project.state.directions.flatMap((item) => item.previews || []).find((item) => item.id === project.state.script?.preview_id);
-      job.reference_asset_ids = [...project.garmentAssetIds, ...(preview?.assetId ? [preview.assetId] : []), ...(project.modelAssetId ? [project.modelAssetId] : [])];
+      if (preview?.assetId) job.reference_asset_ids = [...new Set([...project.garmentAssetIds, preview.assetId, ...(project.identityAssetIds || (project.modelAssetId ? [project.modelAssetId] : []))])];
     }
     job.traceReferences = jobTraceReferences(project, job, image);
     db.jobs.push(job);
@@ -1216,6 +1236,7 @@ export async function createMockServer(options = {}) {
         json(res, 200, { token: tokenFor(user), user: publicUser(user), ...(recovery_code ? { recovery_code } : {}) }); return;
       }
       const user = authenticate(req);
+      if (await modelLibrary.handle(req, res, url, user, base)) return;
       if (url.pathname === '/api/me/models/from-image' && req.method === 'POST') {
         if (options.legacyProfile || options.legacyAssets) throw failure(404, 'NOT_FOUND', '当前服务未开通素材库');
         const body = await readJson(req);
@@ -1306,6 +1327,7 @@ export async function createMockServer(options = {}) {
         user.profile = { model_asset_ids: [] };
         removeProjectRecords(db.projects.filter((project) => project.ownerId === user.id), user.id);
         db.jobs = db.jobs.filter((job) => job.ownerId !== user.id);
+        db.models = db.models.filter((model) => model.user_id !== user.id);
         await removeAssets(db.assets.filter((asset) => asset.ownerId === user.id));
         await persist();
         res.writeHead(204); res.end(); return;
@@ -1372,13 +1394,14 @@ export async function createMockServer(options = {}) {
         const referenceIds = body.reference_asset_ids === undefined ? [] : body.reference_asset_ids;
         if (!Array.isArray(referenceIds) || referenceIds.length > 3 || new Set(referenceIds).size !== referenceIds.length || referenceIds.some((id) => typeof id !== 'string' || !db.assets.some((asset) => asset.id === id && asset.ownerId === user.id && asset.kind === 'reference' && asset.source === 'upload'))) throw failure(400, 'INVALID_REFERENCE_ASSETS', '参考图最多 3 张，必须是当前账号上传的参考图，每张只选一次');
         const assets = ids.map((id) => db.assets.find((item) => item.id === id && item.ownerId === user.id && item.kind === 'garment'));
-        const modelId = body.model_asset_id || (!options.legacyProfile ? user.profile?.model_asset_ids[0] : undefined);
-        const model = modelId ? db.assets.find((item) => item.id === modelId && item.ownerId === user.id && item.kind === 'model') : undefined;
+        const selectedModel = body.model_id ? modelLibrary.available(user, body.model_id) : undefined;
+        const modelId = selectedModel?.face_asset_id || body.model_asset_id || (!options.legacyProfile ? user.profile?.model_asset_ids[0] : undefined);
+        const model = modelId ? db.assets.find((item) => item.id === modelId && (item.ownerId === user.id || (selectedModel?.kind === 'preset' && item.ownerId === null)) && item.kind === 'model') : undefined;
         if (assets.some((item) => !item) || (modelId && !model)) throw failure(400, 'INVALID_ASSET', '图片不属于当前账号，或图片类型不正确');
         const created_at = now();
         const referenceStyleTags = ['街角咖啡馆', '柔和自然光', '竖构图', '松弛日常', '奶白·浅卡其配色'];
         const referenceStyleSummary = referenceIds.length ? referenceStyleTags.join('、') : undefined;
-        const project = { id: newId('project'), title, brand, brief, mode, style_tags: [...styleTags], stage: 'brief', ownerId: user.id, garmentAssetIds: ids, referenceAssetIds: [...referenceIds], ...(referenceStyleSummary ? { references: referenceIds.map((asset_id) => ({ asset_id, style_tags: [...referenceStyleTags] })), referenceStyleSummary, analyzedBrief: `${brief}\n参考图整理要点（场景 / 光线 / 构图 / 氛围 / 配色）：${referenceStyleSummary}` } : {}), ...(model ? { modelAssetId: model.id } : {}), ...(!options.legacyProfile && user.profile?.style_notes ? { styleNotes: user.profile.style_notes } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
+        const project = { id: newId('project'), title, brand, brief, mode, style_tags: [...styleTags], stage: 'brief', ownerId: user.id, garmentAssetIds: ids, referenceAssetIds: [...referenceIds], ...(referenceStyleSummary ? { references: referenceIds.map((asset_id) => ({ asset_id, style_tags: [...referenceStyleTags] })), referenceStyleSummary, analyzedBrief: `${brief}\n参考图整理要点（场景 / 光线 / 构图 / 氛围 / 配色）：${referenceStyleSummary}` } : {}), ...(model ? { modelAssetId: model.id } : {}), ...(selectedModel ? { modelId: selectedModel.id, identityText: selectedModel.identity_text, identityAssetIds: selectedModel.sheet_asset_ids.slice(0, 3) } : {}), ...(!options.legacyProfile && user.profile?.style_notes ? { styleNotes: user.profile.style_notes } : {}), created_at, updated_at: created_at, coverAssetId: ids[0], messages: [], state: { stage: 'brief', garments: assets.map((asset) => ({ asset_id: asset.id, category: '日常上装', color: '浅色', material: '棉混纺', style_tags: ['简约', '日常', '松弛'] })), directions: [], images: [], pending_action: null } };
         if (mode === 'auto') startAuto(project, base);
         db.projects.push(project); await persist(); json(res, 200, publicProject(project, base)); return;
       }
@@ -1440,7 +1463,7 @@ export async function createMockServer(options = {}) {
   let workerTimer;
   server.on('listening', () => {
     workerTimer = setInterval(() => {
-      if (!db.projects.some((project) => project.state.auto?.active || project.autoTakeoverPending)) return;
+      if (!db.projects.some((project) => project.state.auto?.active || project.autoTakeoverPending) && !db.jobs.some(job => job.kind === 'identity' && activeStatuses.has(job.status))) return;
       const address = server.address();
       if (!address || typeof address === 'string') return;
       const base = options.publicBase || `http://127.0.0.1:${address.port}`;

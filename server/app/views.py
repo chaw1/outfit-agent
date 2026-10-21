@@ -70,6 +70,8 @@ def project_dict(project: Project, session: Session) -> dict:
         "mode": project.mode,
         "style_tags": list(project.style_tags or []),
         "progress": project_progress(project, jobs),
+        "model_id": project.model_id,
+        "model_asset_id": project.model_asset_id,
         "reference_asset_ids": list(project.reference_asset_ids or []),
         "cover_url": signed_url(cover.result_asset_id) if cover and cover.result_asset_id else None,
         "created_at": project.created_at.isoformat(),

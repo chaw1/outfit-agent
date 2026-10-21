@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.errors import AppError
 from app.garment_tags import garment_tags
 from app.media import asset_dict, asset_path, persist_bytes
-from app.models import AppSetting, Asset, Job, Project, User
+from app.models import AppSetting, Asset, Job, Model, Project, User
 from app.project_cleanup import CLEANUP_PREFIX, drain_media_cleanup, track_generated_file
 from app.schemas import AssetOutput, StrictInput, UserOutput
 from app.security import current_user, get_session
@@ -213,6 +213,27 @@ def delete_asset(
                 raise AppError(
                     "ASSET_IN_USE", "这位模特正在被以下项目使用：" + "、".join(titles) + "。", 409,
                 )
+        linked = session.scalars(select(Model).where(
+            Model.user_id == user.id, Model.face_asset_id == asset.id,
+        )).all()
+        linked_ids = [model.id for model in linked]
+        if linked_ids and session.scalar(select(Project.id).where(
+            Project.model_id.in_(linked_ids), Project.deleted_at.is_(None),
+        ).limit(1)):
+            raise AppError("ASSET_IN_USE", "这位模特正在被片场使用。", 409)
+        if linked:
+            for model in linked:
+                if model.status in {"queued", "building"}:
+                    raise AppError("ASSET_IN_USE", "身份卡正在建立，请完成后再删除。", 409)
+                model.status = "deleted"
+            profile = dict(user.profile or {})
+            profile["model_asset_ids"] = [
+                item for item in profile.get("model_asset_ids", []) if item != asset.id
+            ]
+            user.profile = profile
+            asset.analysis = {**(asset.analysis or {}), "library_hidden": True}
+            session.commit()
+            return Response(status_code=204)
         profile = dict(user.profile or {})
         profile["model_asset_ids"] = [
             item for item in profile.get("model_asset_ids", []) if item != asset.id

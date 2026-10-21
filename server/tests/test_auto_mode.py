@@ -354,3 +354,37 @@ def test_chat_that_observes_video_success_cannot_hide_unannounced_done_step(auto
     assert get_graph_state(graph, project.id)["auto"]["step"] == "done"
     assert tick_auto_projects(graph, factory) is False
     assert sum(m.text == "全套已出好。" for m in automatic_messages(session, project)) == 1
+
+
+def test_low_person_original_uses_successful_identity_repair_in_auto_draft(auto_flow):
+    session, project, _, graph = auto_flow
+    reach_images(session, project, graph)
+    jobs = complete_jobs(session, project)
+    originals = [job for job in jobs if not job.payload.get("purpose")]
+    source = originals[0]
+    source.result = {"fidelity": {"score": 96, "person_score": 55}}
+    repaired = Job(
+        user_id=project.user_id, project_id=project.id, kind="edit", status="succeeded",
+        result_asset_id=source.result_asset_id,
+        payload={**source.payload, "auto_fix": True, "auto_fix_for": source.id, "version": 2},
+        result={"fidelity": {"score": 96, "person_score": 92}, "edit_check": {"passed": True}},
+        dedupe_key="person-repair:" + source.id,
+    )
+    session.add(repaired)
+    session.commit()
+    _, state = advance(session, project, graph)
+    assert state["note"]["image_ids"][0] == repaired.id
+    assert source.id not in state["note"]["image_ids"]
+
+
+def test_low_person_after_single_repair_hands_control_back_in_auto_mode(auto_flow):
+    session, project, _, graph = auto_flow
+    reach_images(session, project, graph)
+    jobs = complete_jobs(session, project)
+    source = next(job for job in jobs if not job.payload.get("purpose"))
+    source.result = {"fidelity": {"score": 96, "person_score": 55}}
+    session.commit()
+    _, state = advance(session, project, graph)
+    assert project.mode == "guided"
+    assert state["stage"] == "images" and state.get("note") is None
+    assert "人像一致性" in state["messages"][-1].content
