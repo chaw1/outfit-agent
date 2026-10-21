@@ -26,7 +26,9 @@ type SessionValue = {
   ready: boolean; token: string | null; user: User | null; baseUrl: string; api: ApiClient;
   photos: ProfilePhoto[]; updateMe: (input: UpdateMeInput) => Promise<User>;
   refreshUser: () => Promise<User>; cacheProfilePhoto: (asset: Asset, uri: string) => Promise<void>;
-  signIn: (result: AuthResponse) => Promise<void>; signOut: () => Promise<void>; setBaseUrl: (url: string) => Promise<void>;
+  signIn: (result: AuthResponse) => Promise<void>; signOut: (reason?: 'deleted') => Promise<void>; setBaseUrl: (url: string) => Promise<void>;
+  signOutReason: 'deleted' | null;
+  isCurrentSession: (expectedToken: string | null, expectedBase: string) => boolean;
 };
 const SessionContext = createContext<SessionValue | null>(null);
 
@@ -34,6 +36,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [signOutReason, setSignOutReason] = useState<'deleted' | null>(null);
   const [baseUrl, setBase] = useState(defaultBase);
   const [photoState, setPhotoState] = useState<{ key: string; photos: ProfilePhoto[] }>({ key: '', photos: [] });
   const photoRef = useRef(photoState);
@@ -43,6 +46,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const meRevision = useRef(0);
   const current = useRef({ token: null as string | null, baseUrl: defaultBase });
   const storageQueue = useRef(Promise.resolve());
+  const isCurrentSession = useCallback((expectedToken: string | null, expectedBase: string) => current.current.token === expectedToken && current.current.baseUrl === expectedBase, []);
 
   const persist = useCallback((operation: () => Promise<void>) => {
     const pending = storageQueue.current.then(operation);
@@ -50,10 +54,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return pending;
   }, []);
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (reason?: 'deleted') => {
     revision.current += 1;
     current.current = { ...current.current, token: null };
-    if (mounted.current) { setToken(null); setUser(null); }
+    if (mounted.current) { setToken(null); setUser(null); setSignOutReason(reason || null); }
     await persist(() => write(TOKEN_KEY, null));
   }, [persist]);
   const handleUnauthorized = useCallback(() => {
@@ -130,7 +134,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     current.current = { ...current.current, token: result.token };
     try {
       await persist(() => write(TOKEN_KEY, result.token));
-      if (mounted.current && revision.current === attempt) { setToken(result.token); setUser(result.user); }
+      if (mounted.current && revision.current === attempt) { setToken(result.token); setUser(result.user); setSignOutReason(null); }
     } catch (error) {
       if (revision.current === attempt) {
         current.current = { ...current.current, token: null };
@@ -146,11 +150,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     if (normalized === current.current.baseUrl) return;
     revision.current += 1;
     current.current = { token: null, baseUrl: normalized };
-    if (mounted.current) { setToken(null); setUser(null); setBase(normalized); }
+    if (mounted.current) { setToken(null); setUser(null); setBase(normalized); setSignOutReason(null); }
     await persist(async () => { await write(TOKEN_KEY, null); await write(BASE_KEY, normalized); });
   }, [persist]);
   const photos = useMemo(() => photoState.key === photoKey ? photoState.photos : [], [photoKey, photoState]);
-  const value = useMemo(() => ({ ready, token, user, baseUrl, api, signIn, signOut, setBaseUrl, photos, updateMe, refreshUser, cacheProfilePhoto }), [ready, token, user, baseUrl, api, signIn, signOut, setBaseUrl, photos, updateMe, refreshUser, cacheProfilePhoto]);
+  const value = useMemo(() => ({ ready, token, user, baseUrl, api, signIn, signOut, signOutReason, setBaseUrl, photos, updateMe, refreshUser, cacheProfilePhoto, isCurrentSession }), [ready, token, user, baseUrl, api, signIn, signOut, signOutReason, setBaseUrl, photos, updateMe, refreshUser, cacheProfilePhoto, isCurrentSession]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 

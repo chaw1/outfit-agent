@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Asset, AuthResponse, CreateProjectInput, Message, OutfitImage, Project, ProjectState } from '../src/api/types';
 
-const server = 'http://localhost:19301';
+const server = process.env.E2E_MOCK_BASE || 'http://localhost:19301';
 const apiBase = `${server}/api`;
 const shots = path.resolve('screenshots');
 const evidence: Record<string, unknown> = {};
@@ -42,7 +42,7 @@ async function setup(page: Page, request: APIRequestContext, label: string) {
   });
   await page.addInitScript(({ token, base }) => {
     sessionStorage.setItem('outfit.session', token);
-    localStorage.setItem('outfit.server', base);
+    localStorage.setItem('outfit.server', base); localStorage.setItem('outfit.privacy-consent', '2026-10-21');
     localStorage.setItem('outfit.onboarding.v1', 'done');
   }, { token: auth.token, base: server });
   async function upload(button: Locator, names: string[]) {

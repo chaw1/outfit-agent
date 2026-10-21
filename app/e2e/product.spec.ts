@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Asset, Project, User } from '../src/api/types';
 
 const shots = path.resolve(process.env.E2E_SCREENSHOTS_DIR || 'screenshots/polish');
-const apiBase = 'http://localhost:19301/api';
+const apiBase = process.env.E2E_API_BASE || 'http://localhost:19301/api';
 
 test('首次引导、形象档案和项目管理，以及旧服务的兼容', async ({ page, request }) => {
   test.setTimeout(180_000);
@@ -30,6 +30,7 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
     screenshots.push({ file, ...page.viewportSize()! });
   }
   await page.goto('/');
+  await page.getByRole('button', { name: '同意并继续', exact: true }).click();
   for (let index = 1; index <= 3; index += 1) {
     await expect(page.getByTestId(`onboarding-${index}`)).toBeVisible();
     await shot(`${35 + index}-onboarding-${index}.png`);
@@ -42,7 +43,9 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
   await page.getByLabel('怎么称呼你', { exact: true }).fill('档案小序');
   await page.getByLabel('用户名', { exact: true }).fill(`profile_${Date.now()}`);
   await page.getByLabel('密码', { exact: true }).fill('Demo-only-2026');
+  await page.getByRole('checkbox', { name: '我已阅读并同意《用户协议》和《隐私政策》' }).check();
   await page.getByRole('button', { name: '创建账号，开始创作', exact: true }).click();
+  await page.getByRole('button', { name: '我已保存', exact: true }).click();
   await expect(page.getByText('档案小序的片场', { exact: true })).toBeVisible();
   const token = await page.evaluate(() => sessionStorage.getItem('outfit.session'));
   expect(token).toBeTruthy();
@@ -156,7 +159,7 @@ test('首次引导、形象档案和项目管理，以及旧服务的兼容', as
   await page.waitForTimeout(650);
   await expect(page.getByText('删除这组片？')).toBeVisible();
   await page.mouse.up();
-  await expect(page).toHaveURL('http://localhost:19300/');
+  await expect(page).toHaveURL(`${process.env.E2E_WEB_BASE || 'http://localhost:19300'}/`);
   await page.getByRole('button', { name: '确认删除这组片', exact: true }).click();
   await expect(card).toHaveCount(0);
   await page.getByRole('button', { name: '刷新片场列表', exact: true }).click();

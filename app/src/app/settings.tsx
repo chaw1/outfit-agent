@@ -5,6 +5,7 @@ import { ProfileEditor } from '../components/ProfileEditor';
 import { supportsProfile } from '../lib/profile';
 import { AnimatedEntry, Button, Field, Header, Notice, Page, Toast, errorText, styles } from '../components/ui';
 import { colors, radius, space, type } from '../theme';
+import { LegalLinks } from '../components/LegalLinks';
 import { useSession } from '../context/Session';
 import { formatPoints, pointsValue } from '../lib/transparency';
 
@@ -39,8 +40,9 @@ export default function Settings() {
       {saved && <Toast text="已保存，可以开始创作了。" tone="success" onDismiss={() => setSaved(false)} />}
       <Button title="保存服务器地址" loading={busy} onPress={() => void save()} />
     </View>
-    {token && <View style={localStyles.accountSection}><Text style={styles.subtitle}>当前账号：{user?.nickname || user?.username || '已登录'}</Text><Button title="退出登录" variant="secondary" onPress={() => { void signOut().then(() => router.replace('/login')).catch(e => setError(errorText(e))); }} /></View>}
+    {token && <View style={localStyles.accountSection}><Text style={styles.subtitle}>当前账号：{user?.nickname || user?.username || '已登录'}</Text><Button title="账号与安全" variant="secondary" onPress={() => router.push('/account')} /><Button title="退出登录" variant="secondary" onPress={() => { void signOut().then(() => router.replace('/login')).catch(e => setError(errorText(e))); }} /></View>}
     <Button title="关于衣序与隐私" variant="ghost" onPress={() => router.push('/about')} />
+    <LegalLinks />
     <Text style={localStyles.footer}>衣序 OUTFIT NOTES · 1.0.0</Text>
   </ScrollView></Page>;
 }

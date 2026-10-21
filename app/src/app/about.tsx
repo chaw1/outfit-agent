@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AnimatedEntry, Header, Page, styles } from '../components/ui';
+import { LegalLinks } from '../components/LegalLinks';
 import { useSession } from '../context/Session';
 import { colors, radius, space, type } from '../theme';
 
@@ -27,6 +28,7 @@ export default function About() {
         <Text style={styles.subtitle}>登录凭证在本机安全存储；网页版登录状态随会话保存。本人照片预览和引导状态保存在本机。删除项目会请求清理项目生成内容，上传原图可能被其他项目复用而保留。修改或删除档案照片不会自动删除项目内使用的原图。</Text>
         <Text style={styles.subtitle}>本地通知只用于生成结果，不接入推送平台；拒绝授权仍可在项目里查看结果。手机系统可能延后后台检查，重新打开应用也会同步。</Text>
       </View>
+      <LegalLinks />
       <View style={localStyles.disclosure}><Ionicons name="sparkles-outline" size={18} color={colors.redText} /><Text style={localStyles.disclosureText}>发布时请检查内容，并在目标平台勾选 AI 内容声明。</Text></View>
     </ScrollView>
   </Page>;

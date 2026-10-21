@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import bcrypt from 'bcryptjs';
 import sharp from 'sharp';
+import { getLegalDocument, listLegalDocuments } from './legal.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DAY = 86_400;
@@ -80,6 +81,7 @@ export async function createMockServer(options = {}) {
     if (error.code !== 'ENOENT') throw error;
     db = { users: [], assets: [], projects: [], jobs: [], secret: randomBytes(48).toString('hex') };
   }
+  db.rate_limits ??= {};
   // Keep first-round local projects readable when the fake service is restarted.
   for (const project of db.projects) {
     project.state.cost_cny ??= 0;
@@ -112,6 +114,19 @@ export async function createMockServer(options = {}) {
 
   const passwordInput = (password) => Buffer.byteLength(password) > 72 ? createHash('sha256').update(password).digest('base64') : password;
   const sign = (value) => createHmac('sha256', db.secret).update(value).digest('base64url');
+  const normalizeRecoveryCode = (value) => typeof value === 'string' ? value.replace(/[-\s]/g, '').toUpperCase() : '';
+  const recoveryHash = (value) => createHash('sha256').update(value).digest('hex');
+  function rotateRecoveryCode(user) {
+    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const code = [...randomBytes(12)].map((value) => alphabet[value & 31]).join('');
+    user.recovery_code_hash = recoveryHash(code);
+    return code.match(/.{4}/g).join('-');
+  }
+  function setPassword(user, password) {
+    user.passwordHash = bcrypt.hashSync(passwordInput(password), 10);
+    user.password_updated_at = now();
+    user.token_version = (user.token_version || 0) + 1;
+  }
   function publicUser(user) {
     const { id, username, nickname, created_at } = user;
     const result = { id, username, nickname, created_at };
@@ -169,7 +184,7 @@ export async function createMockServer(options = {}) {
   }
   function tokenFor(user) {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({ sub: user.id, iat: Math.floor(clock() / 1000), exp: Math.floor(clock() / 1000) + 7 * DAY })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ sub: user.id, iat: Math.floor(clock() / 1000), exp: Math.floor(clock() / 1000) + 7 * DAY, token_version: user.token_version || 0 })).toString('base64url');
     return `${header}.${payload}.${sign(`${header}.${payload}`)}`;
   }
   function equal(a, b) {
@@ -187,7 +202,8 @@ export async function createMockServer(options = {}) {
       const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
       const decodedHeader = JSON.parse(Buffer.from(header, 'base64url').toString());
       const user = db.users.find((item) => item.id === claims.sub);
-      if (decodedHeader.alg !== 'HS256' || !user || !Number.isFinite(claims.exp) || claims.exp <= clock() / 1000) throw new Error();
+      if (decodedHeader.alg !== 'HS256' || !user || user.deleted_at || !Number.isFinite(claims.exp) || claims.exp <= clock() / 1000) throw new Error();
+      if ((claims.token_version ?? 0) !== (user.token_version || 0) || (user.password_updated_at && (!Number.isFinite(claims.iat) || claims.iat < Math.floor(Date.parse(user.password_updated_at) / 1000)))) throw new Error();
       return user;
     } catch { throw failure(401, 'UNAUTHORIZED', '登录已失效，请重新登录'); }
   }
@@ -395,6 +411,27 @@ export async function createMockServer(options = {}) {
     return changed;
   }
   const assetPath = (asset) => asset.fixture ? path.join(fixtures, asset.fixture) : path.join(dataDir, 'uploads', asset.filename);
+  function removeProjectRecords(projects, ownerId) {
+    const projectIds = new Set(projects.filter((project) => project.ownerId === ownerId).map((project) => project.id));
+    const generatedIds = new Set([
+      ...db.assets.filter((asset) => asset.source === 'generated' && projectIds.has(asset.projectId)).map((asset) => asset.id),
+      ...db.jobs.filter((job) => projectIds.has(job.project_id)).map((job) => job.result_asset_id).filter(Boolean),
+      ...projects.flatMap((project) => [
+        ...project.state.images.map((image) => image.assetId),
+        ...project.state.directions.map((direction) => direction.previewAssetId),
+        project.state.video?.assetId,
+      ]).filter(Boolean),
+    ]);
+    const generated = db.assets.filter((asset) => asset.ownerId === ownerId && asset.source === 'generated' && generatedIds.has(asset.id));
+    db.projects = db.projects.filter((project) => project.ownerId !== ownerId || !projectIds.has(project.id));
+    db.jobs = db.jobs.filter((job) => job.ownerId !== ownerId || !projectIds.has(job.project_id));
+    return generated;
+  }
+  async function removeAssets(assets) {
+    const removed = new Set(assets);
+    db.assets = db.assets.filter((asset) => !removed.has(asset));
+    for (const asset of assets) if (asset.filename && !asset.fixture) await rm(assetPath(asset), { force: true });
+  }
   function generationPrompt(project, job, image) {
     let prompt = image?.instruction || project.analyzedBrief || project.brief;
     if (project.referenceStyleSummary) {
@@ -986,25 +1023,89 @@ export async function createMockServer(options = {}) {
       const host = req.headers.host || 'localhost:19301';
       const base = options.publicBase || `http://${host}`;
       const url = new URL(req.url || '/', base);
+      if (req.method === 'GET' && url.pathname === '/api/legal') { json(res, 200, listLegalDocuments()); return; }
+      const legalMatch = url.pathname.match(/^\/api\/legal\/([^/]+)$/);
+      if (req.method === 'GET' && legalMatch) {
+        const document = getLegalDocument(decodeId(legalMatch[1]));
+        if (!document) throw failure(404, 'NOT_FOUND', '没有找到这份协议');
+        json(res, 200, document); return;
+      }
       if (await advanceJobs(base)) await persist();
       if (url.pathname.startsWith('/media/') && ['GET', 'HEAD'].includes(req.method)) { await serveMedia(req, res, url); return; }
+      if (url.pathname === '/api/auth/recover' && req.method === 'POST') {
+        const failed = (status = 400) => failure(status, 'RECOVERY_FAILED', '找回失败，请检查用户名、恢复码和新密码，或稍后再试');
+        let body;
+        try { body = await readJson(req); } catch { throw failed(); }
+        const username = typeof body.username === 'string' ? body.username.trim().toLowerCase() : '';
+        const rateKey = `recover:${recoveryHash(username)}`;
+        const previous = db.rate_limits[rateKey];
+        const rate = previous && previous.reset_at > clock() ? previous : { attempts: 0, reset_at: clock() + 15 * 60 * 1000 };
+        if (rate.attempts >= 5) throw failed(429);
+        rate.attempts += 1;
+        db.rate_limits[rateKey] = rate;
+        const code = normalizeRecoveryCode(body.recovery_code);
+        const user = db.users.find((item) => !item.deleted_at && item.username.toLowerCase() === username);
+        if (!user || !/^[A-Z0-9]{12}$/.test(code) || !equal(recoveryHash(code), user.recovery_code_hash) || typeof body.new_password !== 'string' || body.new_password.length < 8) {
+          await persist();
+          throw failed();
+        }
+        setPassword(user, body.new_password);
+        const recovery_code = rotateRecoveryCode(user);
+        delete db.rate_limits[rateKey];
+        await persist();
+        json(res, 200, { token: tokenFor(user), user: publicUser(user), recovery_code }); return;
+      }
       if (['/api/auth/register', '/api/auth/login'].includes(url.pathname) && req.method === 'POST') {
         const body = await readJson(req);
         const username = typeof body.username === 'string' ? body.username.trim() : '';
         const password = typeof body.password === 'string' ? body.password : '';
         if (username.length < 3 || username.length > 32 || password.length < 8) throw failure(400, 'INVALID_CREDENTIALS', '用户名需要 3–32 位，密码需要至少 8 位');
-        let user = db.users.find((item) => item.username.toLowerCase() === username.toLowerCase());
+        let user = db.users.find((item) => !item.deleted_at && item.username.toLowerCase() === username.toLowerCase());
+        let recovery_code;
         if (url.pathname.endsWith('register')) {
           if (user) throw failure(409, 'USERNAME_EXISTS', '这个用户名已经有人用了，换一个试试');
+          if (body.agreed_legal_version !== undefined && typeof body.agreed_legal_version !== 'string') throw failure(400, 'INVALID_LEGAL_VERSION', '协议版本格式有误');
+          const legalVersion = body.agreed_legal_version?.trim() || '';
           // Hash synchronously so two concurrent registrations cannot reserve the same name.
-          user = { id: newId('user'), username, nickname: typeof body.nickname === 'string' && body.nickname.trim() ? body.nickname.trim() : username, created_at: now(), passwordHash: bcrypt.hashSync(passwordInput(password), 10) };
+          user = { id: newId('user'), username, nickname: typeof body.nickname === 'string' && body.nickname.trim() ? body.nickname.trim() : username, created_at: now(), passwordHash: bcrypt.hashSync(passwordInput(password), 10), legal_version: legalVersion, legal_agreed_at: legalVersion ? now() : null };
+          recovery_code = rotateRecoveryCode(user);
           db.users.push(user);
           await persist();
         } else if (!user || !bcrypt.compareSync(passwordInput(password), user.passwordHash)) throw failure(401, 'INVALID_CREDENTIALS', '用户名或密码不对，再检查一下');
-        json(res, 200, { token: tokenFor(user), user: publicUser(user) }); return;
+        json(res, 200, { token: tokenFor(user), user: publicUser(user), ...(recovery_code ? { recovery_code } : {}) }); return;
       }
       const user = authenticate(req);
       if (url.pathname === '/api/quotes/auto' && req.method === 'GET') { json(res, 200, autoQuote()); return; }
+      if (url.pathname === '/api/me' && req.method === 'DELETE') {
+        const body = await readJson(req);
+        if (typeof body.password !== 'string' || !bcrypt.compareSync(passwordInput(body.password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '密码不正确，请重新输入');
+        delete db.rate_limits[`recover:${recoveryHash(user.username.toLowerCase())}`];
+        user.deleted_at = now();
+        user.username = `deleted-${user.id.slice(0, 8)}`;
+        user.token_version = (user.token_version || 0) + 1;
+        user.recovery_code_hash = null;
+        user.profile = { model_asset_ids: [] };
+        removeProjectRecords(db.projects.filter((project) => project.ownerId === user.id), user.id);
+        db.jobs = db.jobs.filter((job) => job.ownerId !== user.id);
+        await removeAssets(db.assets.filter((asset) => asset.ownerId === user.id));
+        await persist();
+        res.writeHead(204); res.end(); return;
+      }
+      if (url.pathname === '/api/me/password' && req.method === 'POST') {
+        const body = await readJson(req);
+        if (typeof body.current_password !== 'string' || !bcrypt.compareSync(passwordInput(body.current_password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '当前密码不正确，请重新输入');
+        if (typeof body.new_password !== 'string' || body.new_password.length < 8) throw failure(400, 'INVALID_PASSWORD', '新密码需要至少 8 位');
+        setPassword(user, body.new_password);
+        await persist();
+        json(res, 200, { token: tokenFor(user), user: publicUser(user) }); return;
+      }
+      if (url.pathname === '/api/me/recovery-code' && req.method === 'POST') {
+        const body = await readJson(req);
+        if (typeof body.password !== 'string' || !bcrypt.compareSync(passwordInput(body.password), user.passwordHash)) throw failure(400, 'INVALID_PASSWORD', '密码不正确，请重新输入');
+        const recovery_code = rotateRecoveryCode(user);
+        await persist();
+        json(res, 200, { recovery_code }); return;
+      }
       if (url.pathname === '/api/health' && req.method === 'GET') { json(res, 200, { ok: true, version: 'mock-1.0.0', providers: { text: 'local-mock', vision: 'local-mock', image: 'local-fixture', video: 'local-fixture', mock: true } }); return; }
       if (url.pathname === '/api/me' && ['GET', 'PATCH'].includes(req.method)) {
         if (options.legacyProfile === 'missing' || (options.legacyProfile && req.method === 'PATCH')) throw failure(404, 'NOT_FOUND', '当前服务未开通我的形象');
@@ -1063,18 +1164,7 @@ export async function createMockServer(options = {}) {
         const project = getProject(decodeId(projectMatch[1]), user);
         if (!projectMatch[2] && req.method === 'GET') { json(res, 200, publicProject(project, base)); return; }
         if (!projectMatch[2] && req.method === 'DELETE') {
-          const generatedIds = new Set([
-            ...db.assets.filter((asset) => asset.source === 'generated' && asset.projectId === project.id).map((asset) => asset.id),
-            ...db.jobs.filter((job) => job.project_id === project.id).map((job) => job.result_asset_id).filter(Boolean),
-            ...project.state.images.map((image) => image.assetId).filter(Boolean),
-            ...project.state.directions.map((direction) => direction.previewAssetId).filter(Boolean),
-            project.state.video?.assetId,
-          ]);
-          const generated = db.assets.filter((asset) => asset.source === 'generated' && asset.ownerId === user.id && generatedIds.has(asset.id));
-          for (const asset of generated) if (asset.filename) await rm(assetPath(asset), { force: true });
-          db.assets = db.assets.filter((asset) => !generated.includes(asset));
-          db.projects = db.projects.filter((item) => item.id !== project.id);
-          db.jobs = db.jobs.filter((item) => item.project_id !== project.id);
+          await removeAssets(removeProjectRecords([project], user.id));
           await persist(); res.writeHead(204); res.end(); return;
         }
         if (projectMatch[2] === 'state' && req.method === 'GET') { json(res, 200, publicState(project, base)); return; }

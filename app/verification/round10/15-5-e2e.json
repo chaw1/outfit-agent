@@ -1,0 +1,164 @@
+{
+  "config": {
+    "argv": [
+      "/Users/jiawei/.local/share/mise/installs/node/22.23.1/bin/node",
+      "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/node_modules/.bin/playwright",
+      "test",
+      "e2e/round10.spec.ts"
+    ],
+    "configFile": "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/playwright.config.ts",
+    "rootDir": "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "",
+        "name": "",
+        "testDir": "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/e2e",
+        "testIgnore": [
+          "live.spec.ts"
+        ],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 120000
+      }
+    ],
+    "filteredProjects": [
+      {
+        "grep": {},
+        "grepInvert": null,
+        "outputDir": "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "name": "",
+        "testDir": "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/e2e",
+        "snapshotDir": "/Users/jiawei/Projects/jiawei-personal/outfit-agent-wt-app2/app/e2e",
+        "testIgnore": "live.spec.ts",
+        "testMatch": "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+        "timeout": 120000,
+        "use": {
+          "baseURL": "http://localhost:19400",
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "deviceScaleFactor": 1,
+          "isMobile": true,
+          "hasTouch": true,
+          "headless": true,
+          "actionTimeout": 15000,
+          "launchOptions": {
+            "executablePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+          },
+          "trace": "retain-on-failure",
+          "screenshot": "only-on-failure",
+          "permissions": [
+            "clipboard-read",
+            "clipboard-write"
+          ]
+        },
+        "dependencies": [],
+        "ignoreSnapshots": false,
+        "__projectId": ""
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/e2e.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "default",
+    "updateSourceMethod": "patch",
+    "version": "1.64.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "round10.spec.ts",
+      "file": "round10.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "第十轮：隐私、注册、账号安全与注销完整闭环",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 10617,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-21T02:24:42.502Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "391820d8f032396d13b1-46349f2162d957875fdc",
+          "file": "round10.spec.ts",
+          "line": 22,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-21T02:24:40.839Z",
+    "duration": 13115.491,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
