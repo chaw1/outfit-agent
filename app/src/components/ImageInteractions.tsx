@@ -80,8 +80,10 @@ export function ImageInteractions({ images, editActions, busy, canEdit = true, s
   }
   async function adopt(image: OutfitImage) {
     if (!canEdit || busy || !await confirmImage(image)) return false;
-    const ids = replaceShotVersion(stage === 'note' ? note?.image_ids ?? [] : selectedIds, image, images);
-    if (stage === 'note') {
+    // 笔记写好以后（含短片阶段）改图：直接换进笔记；更早的阶段只是先选上。
+    const inNote = ['note', 'video', 'done'].includes(stage ?? '');
+    const ids = replaceShotVersion(inNote ? note?.image_ids ?? [] : selectedIds, image, images);
+    if (inNote) {
       const result = await approve(ids);
       if (!rejectedResult(result)) setNotice('已采用到笔记');
       return result;

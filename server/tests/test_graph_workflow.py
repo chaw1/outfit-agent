@@ -940,3 +940,47 @@ def test_styling_is_discussed_in_script_confirmed_into_images_and_written_into_n
     note = run_turn(graph, project, None, {"type": "approve_images", "image_ids": image_ids})
     body = next(card for card in note["cards"] if card["type"] == "note")["body"]
     assert "搭配" in body and "乐福鞋" in body
+
+
+def test_done_stage_allows_edit_and_swaps_note_images_without_rewriting(flow):
+    session, project, _, graph = flow
+    choose_script(graph, project)
+    generated = run_turn(graph, project, None, {"type": "confirm_script"})
+    ids = [job["id"] for job in generated["jobs"]][:2]
+    succeed_images(session, project)
+    run_turn(graph, project, None, {"type": "approve_images", "image_ids": ids})
+    video = run_turn(graph, project, None, {"type": "confirm_video", "image_id": ids[0]})
+    # 确认短片的回复不再要求用户再确认一次。
+    assert "确认后" not in video["text"]
+    _finish_video(session, project, graph, video["jobs"][0]["id"])
+    note_before = get_graph_state(graph, project.id)["note"]
+
+    # 短片出完后仍然可以改图。
+    edited = run_turn(
+        graph, project, None,
+        {"type": "edit_image", "image_id": ids[0], "instruction": "背景稍微亮一点"},
+    )
+    assert edited["stage"] == "done"
+    new_id = edited["jobs"][0]["id"]
+    assert session.get(Job, new_id).kind == "edit"
+    succeed_images(session, project)
+
+    # 改好的版本换进笔记：文字不变、阶段不变、短片保留，并提醒短片仍是旧首帧。
+    swapped = run_turn(
+        graph, project, None, {"type": "approve_images", "image_ids": [new_id, ids[1]]},
+    )
+    state = get_graph_state(graph, project.id)
+    assert swapped["stage"] == "done"
+    assert state["note"]["image_ids"] == [new_id, ids[1]]
+    assert state["note"]["title"] == note_before["title"]
+    assert state["note"]["body"] == note_before["body"]
+    assert state["video"]["status"] == "succeeded"
+    assert "换成这版" in swapped["text"] and "再做一条" in swapped["text"]
+    assert [card["type"] for card in swapped["cards"]] == ["note"]
+
+    # 换的不是短片首帧时，不提短片。
+    again = run_turn(
+        graph, project, None, {"type": "approve_images", "image_ids": [ids[1], new_id]},
+    )
+    assert "再做一条" not in again["text"]
+

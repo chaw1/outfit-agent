@@ -831,7 +831,7 @@ export async function createMockServer(options = {}) {
           break;
         }
         case 'edit_image': {
-          if (!['images', 'note', 'done'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '等图片生成完成后，就可以告诉我怎么改');
+          if (!['images', 'note', 'video', 'done'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '等图片生成完成后，就可以告诉我怎么改');
           const original = state.images.find((item) => item.id === action.image_id && item.status === 'succeeded');
           const instruction = typeof action.instruction === 'string' ? action.instruction.trim() : '';
           if (!original || !instruction) throw failure(400, 'INVALID_EDIT', '请选择一张已完成的图片，并写下修改想法');
@@ -862,7 +862,7 @@ export async function createMockServer(options = {}) {
           break;
         }
         case 'approve_images': {
-          if (!['images', 'note', 'done'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '请先生成图片，再选择笔记用图');
+          if (!['images', 'note', 'video', 'done'].includes(state.stage)) throw failure(409, 'INVALID_STAGE', '请先生成图片，再选择笔记用图');
           const ids = action.image_ids;
           if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length || ids.some((id) => !state.images.some((item) => item.id === id && item.status === 'succeeded'))) throw failure(400, 'INVALID_IMAGES', '请选择已生成完成的图片，每张只选一次');
           const accepted = action.accept_unverified === undefined ? [] : action.accept_unverified;
@@ -871,6 +871,17 @@ export async function createMockServer(options = {}) {
           const missing = unverified.filter((image) => !accepted.includes(image.id));
           if (missing.length) throw failure(409, 'unverified_image', missing.map((image) => `镜头 ${state.script.shots.findIndex((shot) => shot.id === image.shot_id) + 1}：${image.edit_check.reason}`).join('\n'));
           tool = 'write_note';
+          if (['video', 'done'].includes(state.stage)) {
+            // 短片阶段以后换图：只换笔记里的图，文字和短片都不动。
+            const previous = state.note.image_ids;
+            state.note = { ...state.note, image_ids: [...ids], accepted_unverified_ids: unverified.map((image) => image.id) };
+            state.pending_action = null;
+            const posterId = state.video?.posterAssetId;
+            const swappedPoster = posterId && previous.some((id) => state.images.find((image) => image.id === id)?.assetId === posterId) && !ids.some((id) => state.images.find((image) => image.id === id)?.assetId === posterId);
+            types = ['note'];
+            reply = '笔记里的图已经换成这版，文字没动。' + (swappedPoster ? '短片用的还是原来那张首帧，想让短片也换成新版，就再做一条。' : '');
+            break;
+          }
           const confirmedChanges = ids.map((id) => state.images.find((image) => image.id === id)).filter((image) => image.instruction && (image.edit_check?.passed === true || accepted.includes(image.id))).map((image) => image.instruction);
           state.note = {
             title: state.script.title_ideas[0],

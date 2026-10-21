@@ -35,8 +35,9 @@ ALLOWED_TOOLS = {
         "generate_video",
         "chat",
     },
-    "video": {"write_note", "chat"},
-    "done": {"write_note", "generate_video", "chat"},
+    # 短片出完后仍允许改图：改好的版本直接换进笔记，短片不会自动重做。
+    "video": {"edit_image", "write_note", "chat"},
+    "done": {"edit_image", "write_note", "generate_video", "chat"},
 }
 
 # 被拦下时告诉用户这一步能做什么，而不是一句"请先完成确认"。
@@ -46,8 +47,8 @@ STAGE_HINTS = {
     "script": "脚本确认后才会开始出图；现在可以改脚本或直接确认。",
     "images": "这一步可以改图或定稿写笔记；视频要等笔记写好以后。",
     "note": "现在可以改图、改笔记，或选一张图做 5 秒短片。",
-    "video": "短片正在生成，先改笔记文字；做好后可以再做一条。",
-    "done": "全套已完成：可以改笔记文字，或再做一条短片；想改图请拍一组新片。",
+    "video": "短片正在生成，这期间可以改图、改笔记文字；做好后可以再做一条。",
+    "done": "全套已完成：可以改图、改笔记文字，或再做一条短片。",
 }
 
 
@@ -270,10 +271,13 @@ class Workflow:
         reply = result.get("reply") or result.get("text")
         return reply.strip() if isinstance(reply, str) and reply.strip() else fallback
 
-    def _action_reply(self, tool: str, state: dict, action: dict, fallback: str) -> str:
-        result = self._text_tool(
-            state["stage"], tool, state, json.dumps(action, ensure_ascii=False)
-        )
+    def _action_reply(
+        self, tool: str, state: dict, action: dict, fallback: str, note: str = ""
+    ) -> str:
+        instruction = json.dumps(action, ensure_ascii=False)
+        if note:
+            instruction += "\n" + note
+        result = self._text_tool(state["stage"], tool, state, instruction)
         return self._reply(result, fallback)
 
     def validate(self, state: dict, event: dict) -> None:
@@ -304,8 +308,6 @@ class Workflow:
         }
         if kind not in required:
             raise AppError("invalid_action", "无法识别这个操作。")
-        if kind == "approve_images" and stage in {"video", "done"}:
-            raise AppError("tool_not_allowed", "视频确认后可以修改笔记文字，图片顺序保留。")
         repeated_script = (
             kind == "confirm_script"
             and stage == "images"
@@ -543,7 +545,7 @@ class Workflow:
                 "choose_direction": self._choose,
                 "confirm_script": self._generate_images,
                 "edit_image": self._edit_image,
-                "approve_images": self._write_note,
+                "approve_images": self._approve_images,
                 "confirm_video": self._generate_video,
                 "restore_script": self._restore_script,
             }
@@ -921,6 +923,27 @@ class Workflow:
             reused=False,
         )
 
+    def _approve_images(self, state: dict, action: dict) -> dict:
+        if state["stage"] in {"video", "done"}:
+            return self._swap_note_images(state, action)
+        return self._write_note(state, action)
+
+    def _swap_note_images(self, state: dict, action: dict) -> dict:
+        """短片阶段以后换图：只换笔记里的图片，文字原样保留，不再花一次写笔记的钱。"""
+        self._allow(state["stage"], "write_note")
+        selected = action["image_ids"]
+        accepted = self._validate_image_selection(selected, action.get("accept_unverified", []))
+        previous = state["note"].get("image_ids", [])
+        note = {**state["note"], "image_ids": selected, "accepted_unverified_ids": accepted}
+        state.update(note=note, pending_action=None)
+        reply = "笔记里的图已经换成这版，文字没动。"
+        video = self._current_video_job(state)
+        if video is not None and video.payload.get("image_id") in previous and (
+            video.payload.get("image_id") not in selected
+        ):
+            reply += "短片用的还是原来那张首帧，想让短片也换成新版，就再做一条。"
+        return self._finish(state, reply, [self._card("note", note)])
+
     def _write_note(
         self, state: dict, action: dict, instruction: str = "", result: dict | None = None
     ) -> dict:
@@ -977,7 +1000,12 @@ class Workflow:
             "generate_video",
             {**state, "stage": "note"},
             action,
-            "5 秒穿搭视频已安排好，完成后会出现在这里。",
+            "短片开始做了，大概两三分钟；做好我在这里喊你，这期间可以先改图或改笔记。",
+            note=(
+                "用户已经按下确认按钮，这一步本身就是确认，短片已经进入排队。"
+                "回复只需告诉用户：短片开始做了、大概两三分钟、做好会在这里提醒、"
+                "这期间可以改图或改笔记。不要再要求用户确认，不要说「确认后再生成」之类的话。"
+            ),
         )
         image = self._image_job(action["image_id"])
         prompt = state["script"].get("video", {}).get("prompt", "模特自然展示穿搭，镜头缓慢移动")
